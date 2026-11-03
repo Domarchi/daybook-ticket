@@ -1,0 +1,7 @@
+.workspace-sync { display: flex; justify-content: flex-end; margin-bottom: 14px; }
+.conversation-sync { display: inline-flex; align-items: center; gap: 7px; color: #54624e; font-size: 12px; line-height: 1.5; }
+.conversation-sync > span { width: 7px; height: 7px; flex: 0 0 7px; border-radius: 50%; background: #59834d; }
+.conversation-sync.connecting, .conversation-sync.reconnecting { color: #896515; }
+.conversation-sync.connecting > span, .conversation-sync.reconnecting > span { background: #b68a2d; }
+.conversation-sync.offline { color: #865044; }
+.conversation-sync.offline > span { background: #a4695b; }

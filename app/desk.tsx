@@ -2,12 +2,13 @@
 import Brand from './brand';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Activity, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Check, CheckCheck, CheckCircle2, ChevronDown, ChevronRight, Circle, Clock3, Ellipsis, Filter, Headphones, Inbox, Layers3, LayoutDashboard, LifeBuoy, LoaderCircle, Menu, MessageSquare, Plus, Search, Send, Settings2, ShieldCheck, Sparkles, Ticket as TicketIcon, Users, X, Zap } from 'lucide-react';
-import { DEFAULT_SETTINGS, type Article, type Member, type Settings, type Ticket, type TicketPriority, type TicketStatus, type Workspace } from '../lib/types';
+import { type Article, type Member, type Settings, type Ticket, type TicketPriority, type TicketStatus, type Workspace } from '../lib/types';
 import ClientPortal from './client-portal';
 import { AccessPanel, MailPanel, ROLE_LABELS } from './access-panel';
+import { useWorkspace } from '@/hooks/use-workspace';
+import { LiveStatus } from './live-status';
 const STATUS: Record<TicketStatus, string> = { open: 'Abierto', pending: 'En espera', resolved: 'Resuelto' };
 const PRIORITY: Record<TicketPriority, string> = { urgent: 'Urgente', high: 'Alta', normal: 'Normal', low: 'Baja' };
-const initial: Workspace = { viewer: null, members: [], mailStatus: null, tickets: [], messages: [], articles: [], settings: DEFAULT_SETTINGS, demoLoaded: false };
 type View = 'inbox' | 'overview' | 'contacts' | 'knowledge' | 'team' | 'settings' | 'portal';
 const views: Record<View, string> = { inbox: 'Bandeja de entrada', overview: 'Resumen', contacts: 'Contactos', knowledge: 'Conocimiento', team: 'Equipo y clientes', settings: 'Configuración', portal: 'Centro de ayuda' };
 function initials(name: string) { return name.split(' ').filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase(); }
@@ -46,7 +47,8 @@ export default function Desk({ displayName, email }: {
     displayName: string;
     email: string;
 }) {
-    const [data, setData] = useState<Workspace>(initial), [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState(''), [toast, setToast] = useState('');
+    const { data, loading, loadError, connection, refresh } = useWorkspace();
+    const [busy, setBusy] = useState(false), [error, setError] = useState(''), [toast, setToast] = useState('');
     const [view, setView] = useState<View>('inbox'), [search, setSearch] = useState(''), [queue, setQueue] = useState('all'), [priority, setPriority] = useState('all'), [department, setDepartment] = useState('all'), [showFilters, setShowFilters] = useState(false), [mobile, setMobile] = useState(false);
     const [ticketId, setTicketId] = useState<number | null>(null), [create, setCreate] = useState(false), [article, setArticle] = useState<Article | null>(null), [articleEdit, setArticleEdit] = useState<Article | 'new' | null>(null), [selected, setSelected] = useState<number[]>([]), [reply, setReply] = useState(''), [replyKind, setReplyKind] = useState<'reply' | 'note'>('reply');
     const searchRef = useRef<HTMLInputElement>(null);
@@ -54,8 +56,6 @@ export default function Desk({ displayName, email }: {
     const viewerName = data.viewer?.name || displayName;
     const staffMembers = data.members.filter(member => member.role !== 'client' && member.status === 'active');
     const clientMembers = data.members.filter(member => member.role === 'client' && member.status !== 'revoked');
-    const refresh = async () => { const next = await request('/api/workspace'); setData(next); return next as Workspace; };
-    useEffect(() => { refresh().catch(e => setError(e.message)).finally(() => setLoading(false)); }, []);
     useEffect(() => { const id = Number(new URLSearchParams(window.location.search).get('ticket')); if (Number.isSafeInteger(id) && id > 0) setTicketId(id); }, []);
     useEffect(() => { if (data.viewer && !isAdmin && (view === 'team' || view === 'settings')) setView('inbox'); }, [data.viewer?.role, isAdmin, view]);
     useEffect(() => { if (toast) {
@@ -73,7 +73,7 @@ export default function Desk({ displayName, email }: {
             await refresh();
         }
         catch {
-            setError('El cambio se guardó, pero no se pudo actualizar la vista. Recarga la página; no necesitas reenviarlo.');
+            setError('El cambio se guardó. Reintentaremos actualizar la vista automáticamente; no necesitas reenviarlo.');
         }
         setToast(message);
         return true;
@@ -102,8 +102,8 @@ export default function Desk({ displayName, email }: {
     const exportCsv = () => { const rows = [['ID', 'Asunto', 'Cliente', 'Correo', 'Estado', 'Prioridad', 'Equipo', 'Responsable', 'Creación', 'Vencimiento'], ...filtered.map(t => [t.id, t.subject, t.requesterName, t.requesterEmail, STATUS[t.status], PRIORITY[t.priority], t.department, t.assignee, t.createdAt, t.dueAt])]; const csv = rows.map(row => row.map(cell => '"' + String(cell).replace(/^[=+@\-\t\r]/, "'$&").replaceAll('"', '""') + '"').join(',')).join('\r\n'); const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })); const a = document.createElement('a'); a.href = url; a.download = 'tickets.csv'; a.click(); URL.revokeObjectURL(url); };
     const loadDemo = () => run(() => request('/api/demo', 'POST', {}), 'Ejemplos cargados. Puedes editarlos y explorar el sistema.');
     const signOut = async () => { setBusy(true); setError(''); try { await request('/api/auth/sign-out', 'POST', {}); window.location.href = '/login'; } catch (failure) { setError(failure instanceof Error ? failure.message : 'No se pudo cerrar sesión.'); setBusy(false); } };
-    if (!loading && data.viewer?.role === 'client') return <ClientPortal data={data} displayName={viewerName} email={data.viewer.email} onRefresh={refresh} />;
-    if (!loading && !data.viewer) return <main className="staff-denied"><ShieldCheck size={35} /><h1>Tu acceso a Daybook Ticket</h1><p role="alert">{error || 'Tu cuenta necesita una invitación activa para entrar a este espacio.'}</p><div><button className="secondary" onClick={() => window.location.reload()}>Volver a intentar</button><button className="primary" disabled={busy} onClick={signOut}>Cambiar de cuenta</button></div></main>;
+    if (!loading && data.viewer?.role === 'client') return <ClientPortal data={data} displayName={viewerName} email={data.viewer.email} onRefresh={refresh} connection={connection} />;
+    if (!loading && !data.viewer) return <main className="staff-denied"><ShieldCheck size={35} /><h1>Tu acceso a Daybook Ticket</h1><p role="alert">{loadError || error || 'Tu cuenta necesita una invitación activa para entrar a este espacio.'}</p><div><button className="secondary" onClick={() => window.location.reload()}>Volver a intentar</button><button className="primary" disabled={busy} onClick={signOut}>Cambiar de cuenta</button></div></main>;
     return <div className="app-shell">
   <aside id="daybook-navigation" className={`sidebar ${mobile ? 'is-open' : ''}`}>
    <button className="brand" onClick={() => go('inbox')} aria-label="Daybook Ticket · Ir a la bandeja"><Brand dark /></button>
@@ -127,6 +127,7 @@ export default function Desk({ displayName, email }: {
   {mobile && <button className="sidebar-scrim" aria-label="Cerrar menú" onClick={() => setMobile(false)}/>}
   <main className="main"><header className="topbar"><div className="breadcrumbs"><button className="icon-button menu-toggle" onClick={() => setMobile(!mobile)} aria-label="Abrir menú" aria-expanded={mobile} aria-controls="daybook-navigation"><Menu size={20}/></button><span>Espacio de trabajo</span><ChevronRight size={13}/><strong>{views[view]}</strong></div><div className="top-actions"><span className="live-dot"/>{busy ? 'Guardando cambios…' : error ? 'Revisa el aviso' : 'Equipo Daybook'} <span className="top-separator"/><button className="icon-button" onClick={() => { go('inbox'); searchRef.current?.focus(); }} aria-label="Buscar tickets"><Search size={18}/></button><Avatar name={viewerName} small/></div></header>
    <div className="content">
+   <div className="workspace-sync"><LiveStatus connection={connection} /></div>
    {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => setError('')} aria-label="Cerrar aviso"><X size={17}/></button></div>}
    {loading ? <div className="loading"><LoaderCircle className="spin"/><p>Preparando tu espacio…</p></div> : current ? <>
     <button className="back-button" disabled={busy} onClick={() => setTicketId(null)}><ArrowLeft size={16}/>Volver a la bandeja</button>

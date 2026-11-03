@@ -25,6 +25,12 @@ El archivo tiene permisos privados y contiene un enlace de 72 horas. Entregarlo 
 
 Después, el acceso es `/login`. `/setup` explica la activación; `/api/setup` rechaza todas las activaciones públicas. No se confía en cabeceras de ChatGPT ni existe registro libre.
 
+## Conversaciones automáticas
+
+El portal del cliente y la bandeja del equipo consultan `/api/tickets/updates` cada cinco segundos mientras la pestaña está visible y conectada. Al volver a la pestaña o recuperar la conexión se comprueban los cambios de inmediato. Las respuestas nuevas conservan el ticket abierto y los borradores, y los fallos temporales se reintentan con una espera creciente hasta 30 segundos. El indicador muestra si la actualización está activa o reconectando.
+
+Cada consulta vuelve a comprobar la sesión y los permisos. El endpoint solo devuelve tickets y mensajes autorizados, sin procesar correo ni cargar la configuración del espacio. No requiere un proveedor adicional de mensajería.
+
 ## Vercel
 
 Usar exclusivamente el proyecto `daybook-ticket`, Node.js 24, framework Next.js, instalación `npm ci` y compilación `npm run build`. Región `iad1`, próxima a la base Neon.
@@ -54,6 +60,8 @@ npm run build
 ```
 
 Se comprueban sesiones, invitaciones, permisos, aislamiento de clientes, notas internas, artículos, reapertura con SLA, revocación, límites de autenticación y transacciones.
+
+Con el servidor local apuntando a la rama QA existente, `node --env-file=.env.test.local scripts/check-ticket-updates.mjs` prueba el endpoint de actualización, ambos sentidos de la conversación, aislamiento, notas internas y revocación. Guarda sesiones ficticias privadas en `work/ticket-updates-qa.json` para verificar en el navegador la llegada de mensajes mientras se conserva un borrador. Nunca ejecutarlo contra producción.
 
 ## Identidad y procedencia
 

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, ChevronRight, CircleHelp, Clock3, Headphones, LoaderCircle, LogOut, MessageSquare, Plus, RefreshCw, Search, Send, ShieldCheck, Ticket as TicketIcon, X } from 'lucide-react';
 import type { Article, Ticket, TicketPriority, TicketStatus, Workspace } from '../lib/types';
 import Brand from './brand';
+import { LiveStatus } from './live-status';
+import type { ConnectionStatus } from '@/hooks/use-workspace';
 import './client-portal.css';
 
 const STATUS: Record<TicketStatus, string> = { open: 'Abierto', pending: 'En espera', resolved: 'Resuelto' };
@@ -25,11 +27,12 @@ function Badge({ status }: { status: TicketStatus }) {
   return <span className={`status ${status}`}><span />{STATUS[status]}</span>;
 }
 
-export default function ClientPortal({ data, displayName, email, onRefresh }: {
+export default function ClientPortal({ data, displayName, email, onRefresh, connection }: {
   data: Workspace;
   displayName: string;
   email: string;
   onRefresh: () => Promise<Workspace>;
+  connection: ConnectionStatus;
 }) {
   const [section, setSection] = useState<'tickets' | 'help'>('tickets');
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -91,7 +94,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh }: {
       setCreating(false); setSection('tickets'); setSelectedId(result.ticket.id);
       setNotice(`Tu ticket ${number(result.ticket.id)} fue creado. Nuestro equipo podrá atenderlo aquí.`);
       try { await onRefresh(); }
-      catch { setError('Tu ticket se guardó, pero no se pudo actualizar la vista. Pulsa Actualizar; no necesitas crearlo otra vez.'); }
+      catch { setError('Tu ticket se guardó. Reintentaremos actualizar la vista automáticamente; no necesitas crearlo otra vez.'); }
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'No se pudo crear el ticket.'); }
     finally { operation.current = false; setBusy(false); }
   };
@@ -104,7 +107,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh }: {
       await post(`/api/tickets/${current.id}/messages`, { body: reply, kind: 'reply' });
       setReply(''); setNotice('Tu respuesta se guardó y está disponible para nuestro equipo.');
       try { await onRefresh(); }
-      catch { setError('Tu respuesta se guardó, pero no se pudo actualizar la conversación. Pulsa Actualizar; no necesitas reenviarla.'); }
+      catch { setError('Tu respuesta se guardó. Reintentaremos actualizar la conversación automáticamente; no necesitas reenviarla.'); }
     } catch (failure) { setError(failure instanceof Error ? failure.message : 'No se pudo enviar la respuesta.'); }
     finally { operation.current = false; setBusy(false); }
   };
@@ -128,6 +131,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh }: {
     </header>
 
     <main className="client-main">
+      <div className="workspace-sync"><LiveStatus connection={connection} /></div>
       {error && <div className="client-feedback error" role="alert"><CircleHelp size={18} /><p>{error}</p><button aria-label="Cerrar aviso" onClick={() => setError('')}><X size={17} /></button></div>}
       {notice && <div className="client-feedback success" role="status"><CheckCircle2 size={18} /><p>{notice}</p><button aria-label="Cerrar confirmación" onClick={() => setNotice('')}><X size={17} /></button></div>}
 
