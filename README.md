@@ -27,9 +27,13 @@ Después, el acceso es `/login`. `/setup` explica la activación; `/api/setup` r
 
 ## Conversaciones automáticas
 
-El portal del cliente y la bandeja del equipo consultan `/api/tickets/updates` cada cinco segundos mientras la pestaña está visible y conectada. Al volver a la pestaña o recuperar la conexión se comprueban los cambios de inmediato. Las respuestas nuevas conservan el ticket abierto y los borradores, y los fallos temporales se reintentan con una espera creciente hasta 30 segundos. El indicador muestra si la actualización está activa o reconectando.
+El portal del cliente y la bandeja del equipo consultan `/api/tickets/updates` cada cinco segundos mientras la pestaña está visible y conectada, y cada quince segundos en segundo plano. El navegador puede limitar la frecuencia de pestañas en segundo plano. Al volver a la pestaña o recuperar la conexión se comprueban los cambios de inmediato. Las respuestas nuevas conservan el ticket abierto y los borradores, y los fallos temporales se reintentan con una espera creciente hasta 60 segundos. El indicador muestra si la actualización está activa o reconectando.
 
-Cada consulta vuelve a comprobar la sesión y los permisos. El endpoint solo devuelve tickets y mensajes autorizados, sin procesar correo ni cargar la configuración del espacio. No requiere un proveedor adicional de mensajería.
+Cada consulta vuelve a comprobar la sesión y los permisos. El endpoint solo devuelve tickets, mensajes y avisos autorizados, sin procesar correo ni cargar la configuración del espacio. No requiere un proveedor adicional de mensajería.
+
+La campana muestra los avisos recientes para cada destinatario. Los avisos reutilizan los eventos guardados con cada ticket/respuesta, sin depender de que el correo esté configurado. No se anuncian el historial inicial, mensajes propios ni notas internas. Un aviso nuevo muestra una tarjeta y un contador en la pestaña. Abrir el ticket desde un aviso crea otra pestaña para conservar los borradores.
+
+«Activar sonido» permite un tono local breve; «Silenciar» conserva los avisos visuales. La preferencia se guarda por cuenta en este navegador. Tras recargar, el navegador puede exigir un nuevo clic para habilitar audio. «Avisos de escritorio» solicita permiso solo al pulsarlo y, cuando el navegador los admite, muestra avisos genéricos en segundo plano. Estas funciones requieren mantener Daybook Ticket abierto: no hay push con la página cerrada.
 
 ## Vercel
 
@@ -62,6 +66,8 @@ npm run build
 Se comprueban sesiones, invitaciones, permisos, aislamiento de clientes, notas internas, artículos, reapertura con SLA, revocación, límites de autenticación y transacciones.
 
 Con el servidor local apuntando a la rama QA existente, `node --env-file=.env.test.local scripts/check-ticket-updates.mjs` prueba el endpoint de actualización, ambos sentidos de la conversación, aislamiento, notas internas y revocación. Guarda sesiones ficticias privadas en `work/ticket-updates-qa.json` para verificar en el navegador la llegada de mensajes mientras se conserva un borrador. Nunca ejecutarlo contra producción.
+
+`node --import tsx scripts/check-alert-tracker.test.ts` comprueba que los avisos iniciales permanecen silenciosos, que cada evento se anuncia una sola vez y que cambiar de cuenta o rol no mezcla historiales.
 
 ## Identidad y procedencia
 

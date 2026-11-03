@@ -6,6 +6,8 @@ import type { Article, Ticket, TicketPriority, TicketStatus, Workspace } from '.
 import Brand from './brand';
 import { LiveStatus } from './live-status';
 import type { ConnectionStatus } from '@/hooks/use-workspace';
+import type { AlertControls } from '@/hooks/use-ticket-alerts';
+import { TicketAlerts } from './ticket-alerts';
 import './client-portal.css';
 
 const STATUS: Record<TicketStatus, string> = { open: 'Abierto', pending: 'En espera', resolved: 'Resuelto' };
@@ -27,12 +29,13 @@ function Badge({ status }: { status: TicketStatus }) {
   return <span className={`status ${status}`}><span />{STATUS[status]}</span>;
 }
 
-export default function ClientPortal({ data, displayName, email, onRefresh, connection }: {
+export default function ClientPortal({ data, displayName, email, onRefresh, connection, alerts }: {
   data: Workspace;
   displayName: string;
   email: string;
   onRefresh: () => Promise<Workspace>;
   connection: ConnectionStatus;
+  alerts: AlertControls;
 }) {
   const [section, setSection] = useState<'tickets' | 'help'>('tickets');
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -131,7 +134,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
     </header>
 
     <main className="client-main">
-      <div className="workspace-sync"><LiveStatus connection={connection} /></div>
+      <div className="workspace-sync"><LiveStatus connection={connection} /><TicketAlerts alerts={alerts} onOpen={id => { window.open(`/?ticket=${id}`, '_blank', 'noopener,noreferrer'); }} /></div>
       {error && <div className="client-feedback error" role="alert"><CircleHelp size={18} /><p>{error}</p><button aria-label="Cerrar aviso" onClick={() => setError('')}><X size={17} /></button></div>}
       {notice && <div className="client-feedback success" role="status"><CheckCircle2 size={18} /><p>{notice}</p><button aria-label="Cerrar confirmación" onClick={() => setNotice('')}><X size={17} /></button></div>}
 

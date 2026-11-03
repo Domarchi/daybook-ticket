@@ -7,6 +7,8 @@ import ClientPortal from './client-portal';
 import { AccessPanel, MailPanel, ROLE_LABELS } from './access-panel';
 import { useWorkspace } from '@/hooks/use-workspace';
 import { LiveStatus } from './live-status';
+import { useTicketAlerts } from '@/hooks/use-ticket-alerts';
+import { TicketAlerts } from './ticket-alerts';
 const STATUS: Record<TicketStatus, string> = { open: 'Abierto', pending: 'En espera', resolved: 'Resuelto' };
 const PRIORITY: Record<TicketPriority, string> = { urgent: 'Urgente', high: 'Alta', normal: 'Normal', low: 'Baja' };
 type View = 'inbox' | 'overview' | 'contacts' | 'knowledge' | 'team' | 'settings' | 'portal';
@@ -47,7 +49,8 @@ export default function Desk({ displayName, email }: {
     displayName: string;
     email: string;
 }) {
-    const { data, loading, loadError, connection, refresh } = useWorkspace();
+    const alerts = useTicketAlerts();
+    const { data, loading, loadError, connection, refresh } = useWorkspace(alerts.receive);
     const [busy, setBusy] = useState(false), [error, setError] = useState(''), [toast, setToast] = useState('');
     const [view, setView] = useState<View>('inbox'), [search, setSearch] = useState(''), [queue, setQueue] = useState('all'), [priority, setPriority] = useState('all'), [department, setDepartment] = useState('all'), [showFilters, setShowFilters] = useState(false), [mobile, setMobile] = useState(false);
     const [ticketId, setTicketId] = useState<number | null>(null), [create, setCreate] = useState(false), [article, setArticle] = useState<Article | null>(null), [articleEdit, setArticleEdit] = useState<Article | 'new' | null>(null), [selected, setSelected] = useState<number[]>([]), [reply, setReply] = useState(''), [replyKind, setReplyKind] = useState<'reply' | 'note'>('reply');
@@ -102,7 +105,8 @@ export default function Desk({ displayName, email }: {
     const exportCsv = () => { const rows = [['ID', 'Asunto', 'Cliente', 'Correo', 'Estado', 'Prioridad', 'Equipo', 'Responsable', 'Creación', 'Vencimiento'], ...filtered.map(t => [t.id, t.subject, t.requesterName, t.requesterEmail, STATUS[t.status], PRIORITY[t.priority], t.department, t.assignee, t.createdAt, t.dueAt])]; const csv = rows.map(row => row.map(cell => '"' + String(cell).replace(/^[=+@\-\t\r]/, "'$&").replaceAll('"', '""') + '"').join(',')).join('\r\n'); const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })); const a = document.createElement('a'); a.href = url; a.download = 'tickets.csv'; a.click(); URL.revokeObjectURL(url); };
     const loadDemo = () => run(() => request('/api/demo', 'POST', {}), 'Ejemplos cargados. Puedes editarlos y explorar el sistema.');
     const signOut = async () => { setBusy(true); setError(''); try { await request('/api/auth/sign-out', 'POST', {}); window.location.href = '/login'; } catch (failure) { setError(failure instanceof Error ? failure.message : 'No se pudo cerrar sesión.'); setBusy(false); } };
-    if (!loading && data.viewer?.role === 'client') return <ClientPortal data={data} displayName={viewerName} email={data.viewer.email} onRefresh={refresh} connection={connection} />;
+    const openAlert = (id: number) => { window.open(`/?ticket=${id}`, '_blank', 'noopener,noreferrer'); };
+    if (!loading && data.viewer?.role === 'client') return <ClientPortal data={data} displayName={viewerName} email={data.viewer.email} onRefresh={refresh} connection={connection} alerts={alerts} />;
     if (!loading && !data.viewer) return <main className="staff-denied"><ShieldCheck size={35} /><h1>Tu acceso a Daybook Ticket</h1><p role="alert">{loadError || error || 'Tu cuenta necesita una invitación activa para entrar a este espacio.'}</p><div><button className="secondary" onClick={() => window.location.reload()}>Volver a intentar</button><button className="primary" disabled={busy} onClick={signOut}>Cambiar de cuenta</button></div></main>;
     return <div className="app-shell">
   <aside id="daybook-navigation" className={`sidebar ${mobile ? 'is-open' : ''}`}>
@@ -127,7 +131,7 @@ export default function Desk({ displayName, email }: {
   {mobile && <button className="sidebar-scrim" aria-label="Cerrar menú" onClick={() => setMobile(false)}/>}
   <main className="main"><header className="topbar"><div className="breadcrumbs"><button className="icon-button menu-toggle" onClick={() => setMobile(!mobile)} aria-label="Abrir menú" aria-expanded={mobile} aria-controls="daybook-navigation"><Menu size={20}/></button><span>Espacio de trabajo</span><ChevronRight size={13}/><strong>{views[view]}</strong></div><div className="top-actions"><span className="live-dot"/>{busy ? 'Guardando cambios…' : error ? 'Revisa el aviso' : 'Equipo Daybook'} <span className="top-separator"/><button className="icon-button" onClick={() => { go('inbox'); searchRef.current?.focus(); }} aria-label="Buscar tickets"><Search size={18}/></button><Avatar name={viewerName} small/></div></header>
    <div className="content">
-   <div className="workspace-sync"><LiveStatus connection={connection} /></div>
+   <div className="workspace-sync"><LiveStatus connection={connection} />{data.viewer && <TicketAlerts alerts={alerts} onOpen={openAlert} />}</div>
    {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => setError('')} aria-label="Cerrar aviso"><X size={17}/></button></div>}
    {loading ? <div className="loading"><LoaderCircle className="spin"/><p>Preparando tu espacio…</p></div> : current ? <>
     <button className="back-button" disabled={busy} onClick={() => setTicketId(null)}><ArrowLeft size={16}/>Volver a la bandeja</button>

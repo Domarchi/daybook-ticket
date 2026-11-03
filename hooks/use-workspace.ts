@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_SETTINGS, type Workspace } from '@/lib/types';
 
-const EMPTY: Workspace = { viewer: null, members: [], mailStatus: null, tickets: [], messages: [], articles: [], settings: DEFAULT_SETTINGS, demoLoaded: false };
+const EMPTY: Workspace = { viewer: null, members: [], mailStatus: null, tickets: [], messages: [], alerts: [], articles: [], settings: DEFAULT_SETTINGS, demoLoaded: false };
 const INTERVAL = 5_000;
 export type ConnectionStatus = 'connecting' | 'live' | 'reconnecting' | 'offline';
-type Feed = Pick<Workspace, 'viewer' | 'tickets' | 'messages'>;
+type Feed = Pick<Workspace, 'viewer' | 'tickets' | 'messages' | 'alerts'>;
 
 class ReadError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
@@ -21,7 +21,7 @@ async function read<T>(path: string, signal: AbortSignal): Promise<T> {
   return response.json();
 }
 
-export function useWorkspace() {
+export function useWorkspace(onSnapshot: (workspace: Workspace) => void) {
   const [data, setData] = useState<Workspace>(EMPTY);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -41,6 +41,7 @@ export function useWorkspace() {
     const commit = (next: Workspace) => {
       snapshot.current = next;
       setData(next);
+      onSnapshot(next);
     };
     try {
       let next: Workspace;
@@ -98,18 +99,19 @@ export function useWorkspace() {
         if (mounted.current) setLoading(false);
       }
     }
-  }, []);
+  }, [onSnapshot]);
 
   useEffect(() => {
     mounted.current = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let stopped = false;
     let failures = 0;
-    const available = () => document.visibilityState !== 'hidden' && navigator.onLine;
+    const available = () => navigator.onLine;
     const schedule = () => {
       clearTimeout(timer);
       if (!stopped && !denied.current && available()) {
-        timer = setTimeout(tick, Math.min(INTERVAL * 2 ** failures, 30_000));
+        const interval = document.visibilityState === 'hidden' ? 15_000 : INTERVAL;
+        timer = setTimeout(tick, Math.min(interval * 2 ** failures, 60_000));
       }
     };
     const tick = async () => {
@@ -123,7 +125,7 @@ export function useWorkspace() {
         if (!(failure instanceof Error && failure.name === 'AbortError')) failures = Math.min(failures + 1, 3);
       } finally { schedule(); }
     };
-    const resume = () => { if (available()) { failures = 0; void tick(); } else clearTimeout(timer); };
+    const resume = () => { if (available()) { failures = 0; if (document.visibilityState === 'hidden') schedule(); else void tick(); } else clearTimeout(timer); };
     const offline = () => { clearTimeout(timer); setConnection('offline'); };
     document.addEventListener('visibilitychange', resume);
     window.addEventListener('focus', resume);

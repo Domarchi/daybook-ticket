@@ -42,6 +42,13 @@ export interface Message {
   kind: MessageKind;
   createdAt: string;
 }
+export interface TicketAlert {
+  id: string;
+  event: 'ticket_created' | 'agent_replied' | 'client_replied';
+  ticketId: number;
+  subject: string;
+  createdAt: string;
+}
 export interface Article {
   id: number;
   title: string;
@@ -64,6 +71,7 @@ export interface Workspace {
   mailStatus: MailStatus | null;
   tickets: Ticket[];
   messages: Message[];
+  alerts: TicketAlert[];
   articles: Article[];
   settings: Settings;
   demoLoaded: boolean;
