@@ -2,6 +2,8 @@ import { ApiError, db, handle, json, parseBody, createTicketSchema, getSettings,
 import { requireAccess, assigneeFor, requesterFor, notificationRecipients } from '@/lib/access';
 import { notificationStatements, processOutboxBestEffort } from '@/lib/mail';
 import type { Ticket } from '@/lib/types';
+import { after } from 'next/server';
+import { processPushOutboxBestEffort } from '@/lib/push';
 export async function POST(request: Request) {
   return handle(async () => {
     const access = await requireAccess(request);
@@ -27,6 +29,7 @@ export async function POST(request: Request) {
       ...recipients.filter(id => id !== access.member.id).flatMap(recipientMemberId => notificationStatements(database, { ownerId: access.ownerId, event: 'ticket_created', eventKey: `ticket:${creationKey}:${recipientMemberId}`, recipientMemberId, ticketCreationKey: creationKey })),
     ];
     await database.batch(statements);
+    after(() => processPushOutboxBestEffort(access.ownerId));
     await processOutboxBestEffort(access.ownerId);
     const ticket = await database.prepare(`SELECT ${ticketColumns} FROM tickets WHERE "creationKey" = $1 AND "ownerId" = $2`).bind(creationKey, access.ownerId).first<Ticket>();
     return json({ ticket }, 201);

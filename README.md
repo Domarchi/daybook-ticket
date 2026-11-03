@@ -33,7 +33,15 @@ Cada consulta vuelve a comprobar la sesión y los permisos. El endpoint solo dev
 
 La campana muestra los avisos recientes para cada destinatario. Los avisos reutilizan los eventos guardados con cada ticket/respuesta, sin depender de que el correo esté configurado. No se anuncian el historial inicial, mensajes propios ni notas internas. Un aviso nuevo muestra una tarjeta y un contador en la pestaña. Abrir el ticket desde un aviso crea otra pestaña para conservar los borradores.
 
-«Activar sonido» permite un tono local breve; «Silenciar» conserva los avisos visuales. La preferencia se guarda por cuenta en este navegador. Tras recargar, el navegador puede exigir un nuevo clic para habilitar audio. «Avisos de escritorio» solicita permiso solo al pulsarlo y, cuando el navegador los admite, muestra avisos genéricos en segundo plano. Estas funciones requieren mantener Daybook Ticket abierto: no hay push con la página cerrada.
+«Activar sonido» permite un tono local breve; «Silenciar» conserva los avisos visuales. La preferencia se guarda por cuenta en este navegador. Tras recargar, el navegador puede exigir un nuevo clic para habilitar audio.
+
+## Avisos con la página cerrada
+
+En un navegador compatible, «Activar avisos con la página cerrada» solicita permiso y vincula ese navegador a la cuenta actual. «Probar aviso» envía una notificación al mismo dispositivo; «Desactivar» elimina su suscripción. La activación es independiente para cada navegador. Se puede cerrar la pestaña, pero hay que mantener la sesión iniciada y permitir las notificaciones del navegador en el sistema operativo. Cerrar sesión desactiva los avisos de ese navegador. El apagado del computador, el cierre forzado del navegador, la suspensión y el modo No molestar pueden impedir o retrasar su llegada. El sonido de los avisos del sistema depende de sus ajustes.
+
+El servidor guarda cada entrega junto con el ticket o respuesta en la misma transacción y la envía mediante Web Push después de responder a la solicitud. Solo incluye eventos futuros para destinatarios autorizados; no envía mensajes propios, notas internas ni historial. Los endpoints y claves de suscripción se guardan exclusivamente en PostgreSQL. El service worker vuelve a comprobar la sesión y el acceso al ticket antes de mostrar un aviso genérico sin el contenido de la conversación. No almacena páginas ni datos privados para uso sin conexión.
+
+Configurar un par VAPID distinto por entorno. `VAPID_PRIVATE_KEY` es un secreto del servidor; `VAPID_PUBLIC_KEY` se entrega al navegador autenticado. `VAPID_SUBJECT` es el origen HTTPS del servicio. El proveedor del navegador puede conservar avisos hasta 24 horas. Se realizan reintentos breves ante fallos temporales y se desactivan suscripciones vencidas; no hay un programador permanente que garantice reintentos tras caídas del servidor. La entrega aceptada por el proveedor no confirma que el usuario haya visto el aviso.
 
 ## Vercel
 
@@ -47,6 +55,9 @@ Usar exclusivamente el proyecto `daybook-ticket`, Node.js 24, framework Next.js,
 | `DAYBOOK_OWNER_EMAIL` | Correo reservado al propietario |
 | `RESEND_API_KEY` | Opcional, proveedor de correo |
 | `DAYBOOK_EMAIL_FROM` | Opcional, remitente de un dominio verificado |
+| `VAPID_PUBLIC_KEY` | Clave pública de Web Push |
+| `VAPID_PRIVATE_KEY` | Clave privada de Web Push; secreto |
+| `VAPID_SUBJECT` | Origen HTTPS de contacto para Web Push |
 
 `DIRECT_DATABASE_URL` se conserva en el entorno privado del operador para migraciones. No es necesaria en Vercel. Aplicar migraciones y pruebas antes de publicar. Las previews deben usar una rama de datos y un secreto de autenticación separados.
 
@@ -68,6 +79,8 @@ Se comprueban sesiones, invitaciones, permisos, aislamiento de clientes, notas i
 Con el servidor local apuntando a la rama QA existente, `node --env-file=.env.test.local scripts/check-ticket-updates.mjs` prueba el endpoint de actualización, ambos sentidos de la conversación, aislamiento, notas internas y revocación. Guarda sesiones ficticias privadas en `work/ticket-updates-qa.json` para verificar en el navegador la llegada de mensajes mientras se conserva un borrador. Nunca ejecutarlo contra producción.
 
 `node --import tsx scripts/check-alert-tracker.test.ts` comprueba que los avisos iniciales permanecen silenciosos, que cada evento se anuncia una sola vez y que cambiar de cuenta o rol no mezcla historiales.
+
+`node --import tsx scripts/check-web-push.test.ts` y `node --test scripts/check-web-push-worker.test.mjs` verifican los destinos permitidos, las claves y el comportamiento del service worker sin conexiones externas. Con el servidor QA activo, `node --env-file=.env.test.local --import tsx scripts/check-web-push-api.mjs` prueba permisos, cambios de cuenta, revocación, cola transaccional, reintentos y suscripciones vencidas; usa un transporte de prueba y nunca envía a un proveedor real.
 
 ## Identidad y procedencia
 

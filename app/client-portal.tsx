@@ -8,6 +8,7 @@ import { LiveStatus } from './live-status';
 import type { ConnectionStatus } from '@/hooks/use-workspace';
 import type { AlertControls } from '@/hooks/use-ticket-alerts';
 import { TicketAlerts } from './ticket-alerts';
+import { disconnectPushOnSignOut } from '@/lib/push-client';
 import './client-portal.css';
 
 const STATUS: Record<TicketStatus, string> = { open: 'Abierto', pending: 'En espera', resolved: 'Resuelto' };
@@ -119,7 +120,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
   const signOut = async () => {
     if (operation.current) return;
     operation.current = true; setBusy(true); setError('');
-    try { await post('/api/auth/sign-out', {}); window.location.href = '/login'; }
+    try { await disconnectPushOnSignOut(); await post('/api/auth/sign-out', {}); window.location.href = '/login'; }
     catch (failure) { setError(failure instanceof Error ? failure.message : 'No se pudo cerrar sesión.'); operation.current = false; setBusy(false); }
   };
 

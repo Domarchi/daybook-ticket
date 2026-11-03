@@ -1,5 +1,6 @@
 import { getDatabase } from '../db';
 import type { Database, DatabaseValue, PreparedStatement } from '../db/database';
+import { pushDeliveryStatements } from './push-queue';
 
 export type NotificationEvent = 'ticket_created' | 'agent_replied' | 'client_replied' | 'invitation' | 'password_reset';
 export type NotificationStatus = 'awaiting_configuration' | 'queued' | 'processing' | 'accepted' | 'failed' | 'unknown' | 'cancelled';
@@ -48,7 +49,8 @@ export function notificationStatements(db: Database, input: {
   const now = new Date().toISOString();
   const values: DatabaseValue[] = [];
   const param = (value: DatabaseValue) => { values.push(value); return `$${values.length}`; };
-  const id = param(crypto.randomUUID());
+  const eventId = crypto.randomUUID();
+  const id = param(eventId);
   const owner = param(input.ownerId);
   const eventKey = param(`${input.event}:${input.eventKey}:${input.recipientMemberId}`);
   const event = param(input.event);
@@ -61,7 +63,9 @@ export function notificationStatements(db: Database, input: {
     VALUES (${id}, ${owner}, ${eventKey}, ${event}, ${recipient}, ${ticketExpression},
       ${param(input.invitationId ?? null)}, ${param(input.actionUrl ?? null)}, ${param(input.expiresAt ?? null)},
       NULL, ${param(configuration().configured ? 'queued' : 'awaiting_configuration')}, 0, ${param(now)}, ${param(now)})
-    ON CONFLICT("eventKey") DO NOTHING`).bind(...values)];
+    ON CONFLICT("eventKey") DO NOTHING`).bind(...values),
+    ...pushDeliveryStatements(db, { eventId, ownerId: input.ownerId, event: input.event, recipientMemberId: input.recipientMemberId, createdAt: now }),
+  ];
 }
 
 function errorMessage(code: string): string {

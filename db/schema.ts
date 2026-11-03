@@ -96,4 +96,31 @@ export const mailOutbox = pgTable('mailOutbox', {
   updatedAt: text('updatedAt').notNull(),
 }, (t) => [uniqueIndex('mail_outbox_event').on(t.eventKey), index('mail_outbox_pending').on(t.ownerId, t.status, t.nextAttemptAt)]);
 
+// Push endpoints and encryption keys are private device credentials; never expose them in feeds.
+export const pushSubscriptions = pgTable('pushSubscriptions', {
+  id: text('id').primaryKey(),
+  ownerId: text('ownerId').notNull(),
+  memberId: text('memberId').notNull().references(() => members.id),
+  endpoint: text('endpoint').notNull(),
+  p256dh: text('p256dh').notNull(),
+  auth: text('auth').notNull(),
+  active: boolean('active').notNull().default(true),
+  createdAt: text('createdAt').notNull(),
+  updatedAt: text('updatedAt').notNull(),
+  lastTestAt: text('lastTestAt'),
+}, (t) => [uniqueIndex('push_subscription_endpoint').on(t.endpoint), index('push_subscription_member').on(t.ownerId, t.memberId, t.active)]);
+
+export const pushDeliveries = pgTable('pushDeliveries', {
+  id: text('id').primaryKey(),
+  ownerId: text('ownerId').notNull(),
+  eventId: text('eventId').notNull().references(() => mailOutbox.id),
+  subscriptionId: text('subscriptionId').notNull().references(() => pushSubscriptions.id),
+  status: text('status').notNull().default('queued'),
+  attempts: integer('attempts').notNull().default(0),
+  leaseUntil: text('leaseUntil'),
+  lastErrorCode: text('lastErrorCode'),
+  createdAt: text('createdAt').notNull(),
+  updatedAt: text('updatedAt').notNull(),
+}, (t) => [uniqueIndex('push_delivery_event_device').on(t.eventId, t.subscriptionId), index('push_delivery_pending').on(t.ownerId, t.status, t.createdAt)]);
+
 export * from './auth-schema';

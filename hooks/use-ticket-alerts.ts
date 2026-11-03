@@ -4,18 +4,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TicketAlert, Workspace } from '@/lib/types';
 import { TicketAlertTracker } from '@/lib/alert-tracker';
 import { deliverAlertOnce } from '@/lib/alert-delivery';
+import { useWebPush, type WebPushControls } from './use-web-push';
 
-type DesktopPermission = NotificationPermission | 'unsupported';
 export interface AlertControls {
   items: TicketAlert[];
   unreadIds: string[];
   latest: TicketAlert | null;
   soundEnabled: boolean;
   soundPending: boolean;
-  desktopPermission: DesktopPermission;
+  push: WebPushControls;
   audioError: string;
   toggleSound: () => void;
-  requestDesktop: () => void;
   dismissLatest: () => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
@@ -23,12 +22,8 @@ export interface AlertControls {
 
 const INITIAL = {
   items: [] as TicketAlert[], unreadIds: [] as string[], latest: null as TicketAlert | null,
-  soundEnabled: false, soundPending: false, desktopPermission: 'unsupported' as DesktopPermission, audioError: '',
+  soundEnabled: false, soundPending: false, audioError: '',
 };
-function desktopPermission(): DesktopPermission {
-  return 'Notification' in window && window.isSecureContext ? Notification.permission : 'unsupported';
-}
-
 // A short, quiet two-note chime, generated locally without external audio files.
 function chime(context: AudioContext) {
   if (context.state !== 'running') return;
@@ -51,16 +46,17 @@ function chime(context: AudioContext) {
 
 export function useTicketAlerts(): AlertControls & { receive: (workspace: Workspace) => void } {
   const [state, setState] = useState(INITIAL);
+  const [pushAccount, setPushAccount] = useState<string | null>(null);
+  const push = useWebPush(pushAccount);
+  const pushActive = useRef(false);
+  useEffect(() => { pushActive.current = push.status === 'active'; }, [push.status]);
   const tracker = useRef(new TicketAlertTracker());
   const account = useRef<string | null>(null);
   const preferenceKey = useRef<string | null>(null);
   const wantsSound = useRef(false);
   const audio = useRef<AudioContext | null>(null);
   const activating = useRef<string | null>(null);
-  const desktopUnsupported = useRef(false);
   const mounted = useRef(false);
-  const desktop = useRef<Notification | null>(null);
-  const desktopTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const enableSound = useCallback(async (preview: boolean) => {
@@ -104,18 +100,6 @@ export function useTicketAlerts(): AlertControls & { receive: (workspace: Worksp
     } else { void enableSound(true); }
   }, [enableSound, state.soundEnabled]);
 
-  const requestDesktop = useCallback(async () => {
-    if (desktopUnsupported.current || desktopPermission() === 'unsupported') return;
-    const forAccount = account.current;
-    try {
-      const permission = await Notification.requestPermission();
-      if (mounted.current && account.current === forAccount) setState(previous => ({ ...previous, desktopPermission: permission }));
-    } catch {
-      desktopUnsupported.current = true;
-      if (mounted.current && account.current === forAccount) setState(previous => ({ ...previous, desktopPermission: 'unsupported' }));
-    }
-  }, []);
-
   const receive = useCallback((workspace: Workspace) => {
     const viewerKey = workspace.viewer ? `${workspace.viewer.id}:${workspace.viewer.role}` : null;
     const changedAccount = account.current !== viewerKey;
@@ -123,15 +107,14 @@ export function useTicketAlerts(): AlertControls & { receive: (workspace: Worksp
     const fresh = tracker.current.receive(viewerKey, items);
     if (changedAccount) {
       account.current = viewerKey;
+      setPushAccount(viewerKey);
       preferenceKey.current = workspace.viewer ? `daybook.ticket.sound.v1.${workspace.viewer.id}` : null;
       wantsSound.current = false;
       try { wantsSound.current = Boolean(preferenceKey.current && localStorage.getItem(preferenceKey.current) === 'on'); } catch { /* Sound can still be enabled for this session. */ }
       if (audio.current) void audio.current.close().catch(() => {});
       audio.current = null;
-      desktop.current?.close();
-      clearTimeout(desktopTimer.current);
       clearTimeout(toastTimer.current);
-      setState({ ...INITIAL, items, desktopPermission: desktopUnsupported.current ? 'unsupported' : desktopPermission() });
+      setState({ ...INITIAL, items });
       return;
     }
     if (!viewerKey) return;
@@ -142,41 +125,15 @@ export function useTicketAlerts(): AlertControls & { receive: (workspace: Worksp
       items,
       unreadIds: [...new Set([...previous.unreadIds, ...fresh.map(item => item.id)])].filter(id => availableIds.has(id)),
       latest: latest || (previous.latest && availableIds.has(previous.latest.id) ? previous.latest : null),
-      desktopPermission: desktopUnsupported.current ? 'unsupported' : desktopPermission(),
       soundEnabled: wantsSound.current && audio.current?.state === 'running',
     }));
     if (!latest) return;
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => { if (mounted.current) setState(previous => ({ ...previous, latest: null })); }, 12_000);
-    if (wantsSound.current && audio.current?.state === 'running') {
+    if (wantsSound.current && audio.current?.state === 'running' && (!pushActive.current || document.visibilityState === 'visible')) {
       void deliverAlertOnce(viewerKey, 'sound', fresh.map(item => item.id),
-        () => mounted.current && account.current === viewerKey && wantsSound.current && audio.current?.state === 'running',
+        () => mounted.current && account.current === viewerKey && wantsSound.current && audio.current?.state === 'running' && (!pushActive.current || document.visibilityState === 'visible'),
         () => { if (audio.current) chime(audio.current); });
-    }
-    if (document.visibilityState === 'hidden' && !desktopUnsupported.current && desktopPermission() === 'granted') {
-      void deliverAlertOnce(viewerKey, 'desktop', fresh.map(item => item.id),
-        () => mounted.current && account.current === viewerKey && document.visibilityState === 'hidden' && !desktopUnsupported.current && desktopPermission() === 'granted',
-        () => { try {
-        desktop.current?.close();
-        clearTimeout(desktopTimer.current);
-        const notification = new Notification('Daybook Ticket', {
-          body: fresh.length > 1 ? `${fresh.length} avisos nuevos en tus tickets.` : `${latest.event === 'ticket_created' ? 'Nuevo ticket' : 'Nuevo mensaje'} · #${String(latest.ticketId).padStart(4, '0')}`,
-          tag: `daybook-ticket-${viewerKey}`,
-          silent: true,
-        });
-        notification.onclick = () => {
-          if (account.current === viewerKey) {
-            window.open(`/?ticket=${latest.ticketId}`, '_blank', 'noopener,noreferrer');
-            setState(previous => ({ ...previous, unreadIds: previous.unreadIds.filter(id => id !== latest.id), latest: previous.latest?.id === latest.id ? null : previous.latest }));
-          }
-          notification.close();
-        };
-        desktop.current = notification;
-        desktopTimer.current = setTimeout(() => notification.close(), 15_000);
-      } catch {
-        desktopUnsupported.current = true;
-        setState(previous => ({ ...previous, desktopPermission: 'unsupported' }));
-      } });
     }
   }, []);
 
@@ -201,8 +158,6 @@ export function useTicketAlerts(): AlertControls & { receive: (workspace: Worksp
       document.removeEventListener('keydown', unlock);
       window.removeEventListener('storage', preferenceChanged);
       clearTimeout(toastTimer.current);
-      clearTimeout(desktopTimer.current);
-      desktop.current?.close();
       if (audio.current) void audio.current.close().catch(() => {});
     };
   }, [enableSound]);
@@ -214,7 +169,7 @@ export function useTicketAlerts(): AlertControls & { receive: (workspace: Worksp
   }, [state.unreadIds.length]);
 
   return {
-    ...state, receive, toggleSound, requestDesktop,
+    ...state, push, receive, toggleSound,
     dismissLatest: () => setState(previous => ({ ...previous, latest: null })),
     markRead: id => setState(previous => ({ ...previous, unreadIds: previous.unreadIds.filter(value => value !== id), latest: previous.latest?.id === id ? null : previous.latest })),
     markAllRead: () => setState(previous => ({ ...previous, unreadIds: [], latest: null })),

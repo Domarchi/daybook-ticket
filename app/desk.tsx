@@ -9,6 +9,7 @@ import { useWorkspace } from '@/hooks/use-workspace';
 import { LiveStatus } from './live-status';
 import { useTicketAlerts } from '@/hooks/use-ticket-alerts';
 import { TicketAlerts } from './ticket-alerts';
+import { disconnectPushOnSignOut } from '@/lib/push-client';
 const STATUS: Record<TicketStatus, string> = { open: 'Abierto', pending: 'En espera', resolved: 'Resuelto' };
 const PRIORITY: Record<TicketPriority, string> = { urgent: 'Urgente', high: 'Alta', normal: 'Normal', low: 'Baja' };
 type View = 'inbox' | 'overview' | 'contacts' | 'knowledge' | 'team' | 'settings' | 'portal';
@@ -104,7 +105,7 @@ export default function Desk({ displayName, email }: {
     const patch = (t: Ticket, body: Partial<Ticket>) => run(() => request(`/api/tickets/${t.id}`, 'PATCH', body), 'Ticket actualizado');
     const exportCsv = () => { const rows = [['ID', 'Asunto', 'Cliente', 'Correo', 'Estado', 'Prioridad', 'Equipo', 'Responsable', 'Creación', 'Vencimiento'], ...filtered.map(t => [t.id, t.subject, t.requesterName, t.requesterEmail, STATUS[t.status], PRIORITY[t.priority], t.department, t.assignee, t.createdAt, t.dueAt])]; const csv = rows.map(row => row.map(cell => '"' + String(cell).replace(/^[=+@\-\t\r]/, "'$&").replaceAll('"', '""') + '"').join(',')).join('\r\n'); const url = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' })); const a = document.createElement('a'); a.href = url; a.download = 'tickets.csv'; a.click(); URL.revokeObjectURL(url); };
     const loadDemo = () => run(() => request('/api/demo', 'POST', {}), 'Ejemplos cargados. Puedes editarlos y explorar el sistema.');
-    const signOut = async () => { setBusy(true); setError(''); try { await request('/api/auth/sign-out', 'POST', {}); window.location.href = '/login'; } catch (failure) { setError(failure instanceof Error ? failure.message : 'No se pudo cerrar sesión.'); setBusy(false); } };
+    const signOut = async () => { setBusy(true); setError(''); try { await disconnectPushOnSignOut(); await request('/api/auth/sign-out', 'POST', {}); window.location.href = '/login'; } catch (failure) { setError(failure instanceof Error ? failure.message : 'No se pudo cerrar sesión.'); setBusy(false); } };
     const openAlert = (id: number) => { window.open(`/?ticket=${id}`, '_blank', 'noopener,noreferrer'); };
     if (!loading && data.viewer?.role === 'client') return <ClientPortal data={data} displayName={viewerName} email={data.viewer.email} onRefresh={refresh} connection={connection} alerts={alerts} />;
     if (!loading && !data.viewer) return <main className="staff-denied"><ShieldCheck size={35} /><h1>Tu acceso a Daybook Ticket</h1><p role="alert">{loadError || error || 'Tu cuenta necesita una invitación activa para entrar a este espacio.'}</p><div><button className="secondary" onClick={() => window.location.reload()}>Volver a intentar</button><button className="primary" disabled={busy} onClick={signOut}>Cambiar de cuenta</button></div></main>;

@@ -57,14 +57,27 @@ export function TicketAlerts({ alerts, onOpen, disabled = false }: {
         {alerts.soundPending ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : alerts.soundEnabled ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}
         {alerts.soundPending ? 'Activando…' : alerts.soundEnabled ? 'Silenciar' : 'Activar sonido'}
       </button>
-      {alerts.desktopPermission === 'default' && <button type="button" className="ticket-alert-control" onClick={alerts.requestDesktop}><Monitor size={16} aria-hidden="true" />Avisos de escritorio</button>}
-      {alerts.desktopPermission === 'granted' && <span className="ticket-alert-desktop"><Check size={14} aria-hidden="true" />Escritorio activo</span>}
-      {alerts.desktopPermission === 'denied' && <span className="ticket-alert-desktop is-blocked" title="Puedes habilitarlos desde los permisos de este sitio en tu navegador."><Monitor size={15} aria-hidden="true" />Escritorio bloqueado</span>}
+      {alerts.push.status === 'active' ? <>
+        <span className="ticket-alert-desktop"><Check size={14} aria-hidden="true" />Avisos en este equipo</span>
+        <button type="button" className="ticket-alert-control" disabled={alerts.push.busy} onClick={alerts.push.test} aria-busy={alerts.push.busy}>{alerts.push.busy ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : <Monitor size={16} aria-hidden="true" />}Probar aviso</button>
+        <button type="button" className="ticket-alert-control ticket-push-disable" disabled={alerts.push.busy} onClick={alerts.push.disable} aria-label="Desactivar avisos con la página cerrada">Desactivar</button>
+      </> : alerts.push.status === 'inactive' ? <button type="button" className="ticket-alert-control ticket-push-enable" onClick={alerts.push.enable} disabled={alerts.push.busy} aria-busy={alerts.push.busy}>{alerts.push.busy ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : <Monitor size={16} aria-hidden="true" />}{alerts.push.busy ? 'Activando avisos…' : 'Activar avisos con la página cerrada'}</button>
+        : alerts.push.status === 'loading' ? <span className="ticket-alert-desktop"><LoaderCircle size={14} className="spin" aria-hidden="true" />Preparando avisos…</span>
+          : alerts.push.status === 'blocked' ? <span className="ticket-alert-desktop is-blocked"><Monitor size={15} aria-hidden="true" />Avisos bloqueados</span>
+            : alerts.push.status === 'error' ? <button type="button" className="ticket-alert-control" disabled={alerts.push.busy} onClick={alerts.push.refresh}><Monitor size={16} aria-hidden="true" />Reintentar avisos</button> : null}
       <button ref={bell} type="button" className={`ticket-alert-control ticket-alert-bell ${open ? 'is-open' : ''}`} onClick={() => setOpen(value => !value)} aria-expanded={open} aria-controls={panelId} aria-label={`Avisos${count ? `, ${count} sin leer` : ''}`}>
         <Bell size={17} aria-hidden="true" /><span>Avisos</span>{count > 0 && <span className="ticket-alert-badge" aria-hidden="true">{count > 99 ? '99+' : count}</span>}
       </button>
     </div>
     {alerts.audioError && <p className="ticket-alert-audio-error">{alerts.audioError}</p>}
+    <div className="ticket-push-feedback" role="status" aria-live="polite">
+      {alerts.push.status === 'unsupported' && <p>Este navegador no permite avisos con la página cerrada. Abre Daybook Ticket en Chrome, Edge, Firefox o Safari de tu computador.</p>}
+      {alerts.push.status === 'unconfigured' && <p>Los avisos con la página cerrada aún no están disponibles. Los avisos dentro de Daybook siguen activos.</p>}
+      {alerts.push.status === 'blocked' && <p>Permite las notificaciones en los ajustes de este sitio en tu navegador y vuelve a esta página.</p>}
+      {alerts.push.status === 'active' && !alerts.push.notice && <p>Activos con la pestaña cerrada mientras mantengas tu sesión iniciada. El sonido depende de los ajustes de tu computador.</p>}
+      {alerts.push.notice && <p>{alerts.push.notice}</p>}
+    </div>
+    {alerts.push.error && <p className="ticket-alert-audio-error" role="alert">{alerts.push.error}</p>}
 
     {open && <section className="ticket-alert-panel" id={panelId} aria-labelledby={headingId}>
       <div className="ticket-alert-panel-heading"><div><h2 id={headingId}>Tus avisos</h2><p>{count ? `${count} sin leer` : 'Estás al día'}</p></div><button type="button" className="ticket-alert-icon-button" aria-label="Cerrar avisos" onClick={() => { setOpen(false); bell.current?.focus(); }}><X size={18} /></button></div>

@@ -2,6 +2,8 @@ import { ApiError, db, handle, json, parseBody, messageSchema, getSettings, getT
 import { requireAccess, notificationRecipients } from '@/lib/access';
 import { notificationStatements, processOutboxBestEffort } from '@/lib/mail';
 import type { Message } from '@/lib/types';
+import { after } from 'next/server';
+import { processPushOutboxBestEffort } from '@/lib/push';
 export async function POST(request: Request, context: RouteContext) {
   return handle(async () => {
     const access = await requireAccess(request);
@@ -29,6 +31,7 @@ export async function POST(request: Request, context: RouteContext) {
       updateTicket,
       ...recipients.filter(memberId => memberId !== access.member.id).flatMap(recipientMemberId => notificationStatements(database, { ownerId: access.ownerId, event: client ? 'client_replied' : 'agent_replied', eventKey: `message:${eventId}:${recipientMemberId}`, recipientMemberId, ticketId: id })),
     ]);
+    after(() => processPushOutboxBestEffort(access.ownerId));
     await processOutboxBestEffort(access.ownerId);
     return json({ message: result[0].results[0] as unknown as Message }, 201);
   });
