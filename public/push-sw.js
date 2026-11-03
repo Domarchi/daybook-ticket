@@ -64,6 +64,32 @@ function safeTicketUrl(value) {
   } catch { return null; }
 }
 
+function displayFailureReason(error) {
+  switch (error?.name) {
+    case 'NotAllowedError': return 'not_allowed';
+    case 'InvalidStateError': return 'invalid_state';
+    case 'NotSupportedError': return 'unsupported';
+    default: return 'unknown';
+  }
+}
+
+async function reportDisplay(payload, stage, reason) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5_000);
+  try {
+    await fetch('/api/push/diagnostics', {
+      method: 'POST', credentials: 'include', cache: 'no-store', signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        subscriptionId: payload.subscriptionId,
+        ...(payload.test === true ? { test: true } : { eventId: payload.eventId }),
+        stage, ...(reason ? { reason } : {}),
+      }),
+    });
+  } catch { /* Diagnostics must never change delivery or retry behavior. */ }
+  finally { clearTimeout(timeout); }
+}
+
 async function deliver(event) {
   let payload;
   try { payload = event.data?.json(); } catch { return; }
@@ -95,15 +121,22 @@ async function deliver(event) {
     try { return client.visibilityState === 'visible' && new URL(client.url).pathname === '/'; }
     catch { return false; }
   });
-  await self.registration.showNotification(notification.title, {
-    body: notification.body,
-    tag: notification.tag,
-    icon: '/icons/daybook-192.png',
-    badge: '/icons/daybook-192.png',
-    silent: deskVisible,
-    data: { url },
-  });
+  try {
+    await self.registration.showNotification(notification.title, {
+      body: notification.body,
+      tag: notification.tag,
+      icon: '/icons/daybook-192.png',
+      badge: '/icons/daybook-192.png',
+      silent: deskVisible,
+      data: { url },
+    });
+  } catch (error) {
+    await reportDisplay(payload, 'display_failed', displayFailureReason(error));
+    return;
+  }
   if (eventKey) await remember(eventKey);
+  // This confirms browser API acceptance, not that the person saw a system banner.
+  await reportDisplay(payload, 'shown');
 }
 
 self.addEventListener('push', event => {

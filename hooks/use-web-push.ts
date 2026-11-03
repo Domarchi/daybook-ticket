@@ -12,6 +12,7 @@ export interface WebPushControls {
   enable: () => void;
   disable: () => void;
   test: () => void;
+  testLocal: () => void;
   refresh: () => void;
 }
 interface PushState {
@@ -173,5 +174,36 @@ export function useWebPush(account: string | null): WebPushControls {
     }
   }, [state.subscriptionId]);
 
-  return { status: state.status, busy: state.busy, error: state.error, notice: state.notice, enable, disable, test, refresh };
+  const testLocal = useCallback(async () => {
+    if (!activeAccount.current || operation.current || state.status !== 'active' || !supportsWebPush()) return;
+    operation.current = true;
+    requestVersion.current += 1;
+    const forGeneration = generation.current;
+    const current = () => mounted.current && forGeneration === generation.current;
+    setState(previous => ({ ...previous, busy: true, error: '', notice: '' }));
+    try {
+      if (Notification.permission !== 'granted') throw new Error('Permite las notificaciones de Daybook Ticket en los ajustes de tu navegador.');
+      const registration = await navigator.serviceWorker.getRegistration('/');
+      if (!current()) return;
+      if (!registration?.active) throw new Error('Vuelve a cargar Daybook Ticket para preparar los avisos y repite la prueba.');
+      // This explicit test isolates the computer's notification settings from remote delivery.
+      await registration.showNotification('Daybook Ticket', {
+        body: 'Esta es una prueba de notificaciones en tu computador.',
+        tag: 'daybook-local-test',
+        icon: '/icons/daybook-192.png',
+        silent: false,
+        data: { url: '/' },
+      });
+      if (current()) setState(previous => ({ ...previous, notice: 'Prueba local solicitada. Si no aparece, revisa las notificaciones del navegador en tu computador.' }));
+    } catch (failure) {
+      if (current()) setState(previous => ({ ...previous,
+        status: Notification.permission === 'denied' ? 'blocked' : previous.status,
+        error: failure instanceof Error ? failure.message : 'No se pudo mostrar la prueba local. Revisa los permisos de notificación de tu navegador.',
+      }));
+    } finally {
+      if (current()) { operation.current = false; setState(previous => ({ ...previous, busy: false })); }
+    }
+  }, [state.status]);
+
+  return { status: state.status, busy: state.busy, error: state.error, notice: state.notice, enable, disable, test, testLocal, refresh };
 }

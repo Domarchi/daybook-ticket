@@ -76,6 +76,7 @@ try {
     ['/api/push', 'PATCH', { endpoint: browserSubscription().endpoint }],
     ['/api/push', 'DELETE', { endpoint: browserSubscription().endpoint }],
     ['/api/push/receipt', 'POST', { subscriptionId: randomUUID(), test: true }],
+    ['/api/push/diagnostics', 'POST', { subscriptionId: randomUUID(), test: true, stage: 'shown' }],
     ['/api/push/test', 'POST', { subscriptionId: randomUUID() }],
   ]) status(await api(null, path, method, body), 401, `Unauthenticated ${method} ${path}`);
 
@@ -123,12 +124,23 @@ try {
   assert.ok(!JSON.stringify(receipt).includes(fixture.ticketSubject), 'Lock-screen payload must omit ticket subject.');
   status(await api(owner, '/api/push/receipt', 'POST', { subscriptionId: clientSub, eventId: teamReply }), 404, 'Different-account receipt');
   status(await api(client, '/api/push/receipt', 'POST', { subscriptionId: clientSub, eventId: clientReply }), 404, 'Different recipient event');
+  const diagnostic = { subscriptionId: clientSub, eventId: teamReply, stage: 'shown' };
+  const diagnosticResult = await api(client, '/api/push/diagnostics', 'POST', diagnostic);
+  assert.deepEqual(status(diagnosticResult, 200, 'Own display diagnostic'), { ok: true });
+  assert.ok(diagnosticResult.headers.get('cache-control')?.includes('no-store'), 'Display diagnostics must not be cached.');
+  status(await api(client, '/api/push/diagnostics', 'POST', { ...diagnostic, stage: 'display_failed', reason: 'not_allowed' }), 200, 'Bounded display failure diagnostic');
+  status(await api(owner, '/api/push/diagnostics', 'POST', diagnostic), 404, 'Different-account display diagnostic');
+  status(await api(client, '/api/push/diagnostics', 'POST', { ...diagnostic, eventId: clientReply }), 404, 'Different recipient diagnostic event');
+  status(await api(client, '/api/push/diagnostics', 'POST', { ...diagnostic, stage: 'display_failed', reason: 'https://private-endpoint.example/raw-error' }), 400, 'Raw diagnostic errors must not reach logs');
+  status(await api(client, '/api/push/diagnostics', 'POST', diagnostic, { origin: 'https://untrusted.example' }), 403, 'Cross-origin display diagnostic');
   status(await api(owner, '/api/push/test', 'POST', { subscriptionId: clientSub }), 429, 'Cannot test another account device');
   await pool.query('UPDATE members SET status = $1 WHERE id = $2', ['revoked', clientMemberId]);
   status(await api(client, '/api/push/receipt', 'POST', { subscriptionId: clientSub, eventId: teamReply }), 403, 'Revoked member receipt');
+  status(await api(client, '/api/push/diagnostics', 'POST', diagnostic), 403, 'Revoked member display diagnostic');
   await pool.query('UPDATE members SET status = $1 WHERE id = $2', [originalMemberStatus, clientMemberId]);
   await pool.query('UPDATE tickets SET "requesterMemberId" = NULL WHERE id = $1', [fixture.ticketId]);
   status(await api(client, '/api/push/receipt', 'POST', { subscriptionId: clientSub, eventId: teamReply }), 404, 'Former requester receipt');
+  status(await api(client, '/api/push/diagnostics', 'POST', diagnostic), 404, 'Former requester display diagnostic');
   await pool.query('UPDATE tickets SET "requesterMemberId" = $1 WHERE id = $2', [originalRequesterId, fixture.ticketId]);
 
   const deliveries = [];
@@ -179,7 +191,8 @@ try {
   status(await api(owner, '/api/push/receipt', 'POST', { subscriptionId: ownerSub, eventId: clientReply }), 404, 'Disabled device receipt');
   status(await api(client, '/api/push', 'DELETE', { endpoint: clientDevice.endpoint }), 200, 'Disable own device');
   assert.equal(status(await api(client, '/api/push', 'PATCH', { endpoint: clientDevice.endpoint }), 200, 'Disabled own status').enabled, false);
-  console.log(JSON.stringify({ result: 'passed', checks: ['QA-only', 'authenticated-access', 'origin-check', 'changed-account-registration', 'SSRF', 'private-config', 'no-history-replay', 'device-isolation', 'recipient-queue', 'generic-payload', 'revocation', 'current-ticket-scope', 'concurrent-claims', 'accepted-deduplication', 'multi-batch-drain', 'bounded-retries', 'endpoint-rebinding', 'expired-endpoint-cleanup', 'disable'], externalPushRequests: 0 }));
+  status(await api(client, '/api/push/diagnostics', 'POST', diagnostic), 404, 'Disabled device display diagnostic');
+  console.log(JSON.stringify({ result: 'passed', checks: ['QA-only', 'authenticated-access', 'origin-check', 'changed-account-registration', 'SSRF', 'private-config', 'no-history-replay', 'device-isolation', 'recipient-queue', 'generic-payload', 'bounded-display-diagnostics', 'diagnostic-access-controls', 'revocation', 'current-ticket-scope', 'concurrent-claims', 'accepted-deduplication', 'multi-batch-drain', 'bounded-retries', 'endpoint-rebinding', 'expired-endpoint-cleanup', 'disable'], externalPushRequests: 0 }));
 } finally {
   try {
     if (clientMemberId && originalMemberStatus) await pool.query('UPDATE members SET status = $1 WHERE id = $2', [originalMemberStatus, clientMemberId]);

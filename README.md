@@ -41,6 +41,8 @@ En un navegador compatible, «Activar avisos con la página cerrada» solicita p
 
 El servidor guarda cada entrega junto con el ticket o respuesta en la misma transacción y la envía mediante Web Push después de responder a la solicitud. Solo incluye eventos futuros para destinatarios autorizados; no envía mensajes propios, notas internas ni historial. Los endpoints y claves de suscripción se guardan exclusivamente en PostgreSQL. El service worker vuelve a comprobar la sesión y el acceso al ticket antes de mostrar un aviso genérico sin el contenido de la conversación. No almacena páginas ni datos privados para uso sin conexión.
 
+«Probar en este equipo» solicita una notificación local, sin pasar por el proveedor push, para comprobar los permisos del navegador y del sistema. «Probar aviso» comprueba el envío remoto. Los registros de Vercel distinguen la validación del aviso (`push receipt`) del resultado de la API de notificaciones (`push display`), sin guardar claves, direcciones de suscripción ni contenido. Un resultado `shown` significa que el navegador aceptó mostrarlo; el sistema aún puede ocultar el banner mediante No molestar u otros ajustes.
+
 Configurar un par VAPID distinto por entorno. `VAPID_PRIVATE_KEY` es un secreto del servidor; `VAPID_PUBLIC_KEY` se entrega al navegador autenticado. `VAPID_SUBJECT` es el origen HTTPS del servicio. El proveedor del navegador puede conservar avisos hasta 24 horas. Se realizan reintentos breves ante fallos temporales y se desactivan suscripciones vencidas; no hay un programador permanente que garantice reintentos tras caídas del servidor. La entrega aceptada por el proveedor no confirma que el usuario haya visto el aviso.
 
 ## Vercel
