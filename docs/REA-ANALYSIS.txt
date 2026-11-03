@@ -1,0 +1,118 @@
+Daybook Ticket — Informe de investigación REA
+Fecha: 3 de noviembre de 2026
+
+OBJETIVO Y FUENTES
+
+Usar REA para apoyar la investigación de una mesa de ayuda de referencia y crear
+Daybook Ticket con implementación propia. No se afirma una reconstrucción completa.
+
+REA oficial: https://github.com/morluto/rea
+CLI: https://github.com/morluto/rea/blob/main/docs/cli.md
+Skill: https://github.com/morluto/rea/blob/main/.agents/skills/reverse-engineer-anything/SKILL.md
+Paquete usado: rea-agents@6.8.0.
+
+El README oficial identifica morluto/rea, rea.tools y npm rea-agents como fuentes.
+No se utilizó la copia cognaclee/REA encontrada en búsquedas. La skill aconseja
+herramientas normales para repositorios completos con fuente disponible; REA
+aporta evidencia sobre artefactos y comportamientos no establecidos por fuente.
+
+Referencia: https://osticket.com/
+Repositorio: https://github.com/osTicket/osTicket
+Scripts consultados mediante GitHub en la rama predeterminada:
+js/osticket.js — Git blob aae5e766a3fdb95de467266c6ba3d57a0251c947
+js/filedrop.field.js — Git blob ab5559af31f8f365d2bb9202ff5cef12dfbcb84c
+js/redactor-osticket.js — Git blob 3c7628785d3aafff31f8b6ab5628c405616acafb
+
+EJECUCIÓN REAL
+
+El host tenía Node 24.22.0; REA exige como mínimo 24.22.1 en esa rama. Se descargó
+Node 24.22.1 oficial a la carpeta de investigación sin cambiar el sistema. Su
+archivo Linux x64 fue verificado contra SHASUMS256.txt oficial:
+6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6
+
+REA se instaló aisladamente con --ignore-scripts y --omit=optional. No hubo
+instalación global, cambios MCP de Codex ni instalación de motores nativos.
+La primera consulta npm en sandbox no resolvió DNS; la descarga autorizada con
+acceso de red sí funcionó.
+
+Directorio original separado de Daybook Ticket:
+/home/friday/Documents/Codex/2026-11-03/usa/work/rea-research/
+
+Se ejecutaron help, analyze-javascript-application y doctor. Comando de análisis,
+con el binario Node 24.22.1 aislado (rutas abreviadas aquí):
+
+node tooling/node_modules/rea-agents/scripts/rea.mjs analyze-javascript-application /ruta/rea-research/target --detail summary --evidence_output /ruta/rea-research/osticket-evidence.json --analysis-timeout-ms 60000 --format json > /ruta/rea-research/osticket-summary.json
+
+El target contenía copias de los tres scripts. Al guardarse pudo añadirse un salto
+de línea final: los Git blob SHA identifican los originales, y el digest siguiente
+identifica el target local efectivamente procesado.
+
+RESULTADO REA: INVENTARIO PARCIAL, SIN ANÁLISIS AST COMPLETO
+
+REA inventarió los archivos y comenzó filedrop.field.js. El worker cerró su salida
+antes de responder. El proceso principal terminó con código 1:
+code: unreadable_output
+category: execution_failure
+reason: JavaScript worker closed output before the operation received its terminal response
+
+Evidence ID parcial:
+ev_f38d36cfee149a6a8c8bef67fda3cf0ca9f9484838f4d5b5472a6fde37dc88fc
+
+SHA-256 del target local:
+e3155e88295d0d0379bf00dc8ab7f87333cda9fb01fb3f6e2b0144690b86beaf
+
+Operación: analyze_javascript_application
+Proveedor: rea-javascript-application
+
+La evidencia está dentro del error en osticket-summary.json. No debe darse por
+creado el osticket-evidence.json solicitado para una exportación exitosa.
+Se guardaron también doctor.json y findings.json en la carpeta de investigación;
+el paquete Daybook Ticket incorpora este informe, no las instalaciones ni esos scripts.
+
+No se obtuvo AST ni reconstrucción semántica completa. No se observó ejecución
+del producto, comportamiento del backend PHP, rutas completas, permisos efectivos
+ni arquitectura total. No se atribuye al cierre una causa no demostrada.
+
+Doctor confirmó runtime y host válidos. Indicó motores nativos y registros MCP
+ausentes, esperado en una instalación CLI aislada y no requerido para el análisis
+JavaScript. No aportó una reparación específica. No se repitió la solicitud sin
+cambios ni se instalaron motores para intentar solucionar el fallo.
+
+LECTURA DIRECTA DE FUENTE — NO RESULTADOS DE REA
+
+1. redactor-osticket.js, líneas 48–65: autosave de borrador a 10 segundos y token
+   CSRF configurados.
+2. redactor-osticket.js, líneas 79–84 y 164–206: adjuntos del borrador y controles
+   para guardar/eliminar manualmente.
+3. redactor-osticket.js, líneas 125–137: estados de guardando/error.
+4. filedrop.field.js, líneas 43–81 y 92–147: límites de archivos, progreso,
+   velocidad y finalización de carga.
+5. osticket.js, líneas 66–87: cabecera CSRF en Ajax del mismo origen.
+
+Son observaciones del código, no validaciones de ejecución o del backend.
+
+RELACIÓN CON Daybook Ticket
+
+Daybook Ticket usa código propio React/Vinext y D1, sin importar código osTicket. Separa
+notas y respuestas, informa guardado/error y persiste tickets y mensajes.
+Sus borradores usan sessionStorage v1 por ticket y sesión de pestaña; no equivalen
+al autosave del servidor observado en osTicket. No incluye adjuntos ni correo.
+Las respuestas solo se guardan y el centro de ayuda es una vista privada.
+
+REA se utilizó realmente con el resultado parcial declarado, pero no es una
+dependencia de ejecución de Daybook Ticket. La investigación no concede derechos extra
+sobre osTicket ni elimina licencias de dependencias o acredita exclusividad de
+marca. Véase README.md para alcance, validación, ejecución y evolución.
+
+ACTUALIZACIÓN POSTERIOR DEL PRODUCTO — ACCESO Y CORREO
+
+El párrafo anterior «RELACIÓN CON Daybook Ticket» describe la primera entrega
+examinada durante esta investigación. La implementación posterior incorpora
+cuentas propias con contraseña e invitación, roles, portal de clientes y una
+cola de notificaciones preparada para Resend. El envío real requiere configurar
+el proveedor y el remitente; no incluye correo entrante ni adjuntos. Los detalles
+actuales están en README.md y docs/ARCHITECTURE.md.
+
+Esta evolución fue implementada en el producto y no cambia ni amplía el resultado
+parcial de REA documentado arriba. No se atribuyen a REA las funciones posteriores,
+ni se afirma una reconstrucción completa de osTicket.
