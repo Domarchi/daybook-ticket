@@ -54,6 +54,7 @@ export const settingsSchema = z.object({
   brandName: shortText,
   tagline: z.string().trim().max(200),
   agents: names,
+  notificationMemberIds: z.array(z.string().uuid('Selecciona una cuenta válida del equipo.')).max(20, 'Puedes elegir hasta 20 responsables.').transform(ids => [...new Set(ids)]),
   departments: names,
   slaHours: z.object({ urgent: hours, high: hours, normal: hours, low: hours }).strict(),
 }).strict().partial().refine(v => Object.keys(v).length > 0, 'No hay cambios para guardar.');
@@ -99,7 +100,7 @@ export async function handle(fn: () => Promise<Response>) {
 export async function getSettings(ownerId: string): Promise<Settings> {
   const row = await db().prepare("SELECT data FROM settings WHERE \"ownerId\" = $1").bind(ownerId).first<{ data: string }>();
   if (!row) return structuredClone(DEFAULT_SETTINGS);
-  const settings: Settings = { ...DEFAULT_SETTINGS, ...JSON.parse(row.data) };
+  const settings: Settings = { ...structuredClone(DEFAULT_SETTINGS), ...JSON.parse(row.data) };
   // Upgrade the former product names without overwriting a customized brand.
   if (['VEXOR', 'NexoDesk'].includes(settings.brandName)) {
     const updated: Settings = {

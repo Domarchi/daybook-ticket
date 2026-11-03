@@ -24,7 +24,7 @@ export async function GET(request: Request) {
       mailStatus,
       ...feed,
       articles: articles.results.map(asArticle),
-      settings: client ? { ...settings, agents: [] } : settings,
+      settings: client ? { ...settings, agents: [], notificationMemberIds: [] } : settings,
       demoLoaded: !client && Boolean(demo),
     });
   });

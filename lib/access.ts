@@ -1,4 +1,4 @@
-import { ApiError, auth, db } from './server';
+import { ApiError, auth, db, getSettings } from './server';
 import type { Member, MemberRole, MemberStatus } from './types';
 
 export interface MemberRecord extends Member {
@@ -61,11 +61,20 @@ export async function requesterFor(access: AccessContext, id: string) {
   return { requesterMemberId: member.id, requesterName: member.name, requesterEmail: member.email };
 }
 export async function notificationRecipients(access: AccessContext, assigneeMemberId: string | null): Promise<string[]> {
+  const { notificationMemberIds } = await getSettings(access.ownerId);
+  if (notificationMemberIds.length) {
+    const ids = [...new Set([...notificationMemberIds, ...(assigneeMemberId ? [assigneeMemberId] : [])])];
+    const placeholders = ids.map((_, index) => `$${index + 3}`).join(', ');
+    const recipients = await db().prepare(`SELECT id FROM members WHERE "ownerId" = $1 AND "organizationId" = $2 AND id IN (${placeholders}) AND status = 'active' AND role IN ('owner', 'admin', 'agent')`)
+      .bind(access.ownerId, access.organizationId, ...ids).all<{ id: string }>();
+    return recipients.results.map(row => row.id);
+  }
+  // An empty list preserves automatic routing to the assignee, or to the active team.
   if (assigneeMemberId) {
-    const assigned = await db().prepare("SELECT id FROM members WHERE id = $1 AND \"ownerId\" = $2 AND status = 'active' AND role IN ('owner', 'admin', 'agent')").bind(assigneeMemberId, access.ownerId).first<{ id: string }>();
+    const assigned = await db().prepare("SELECT id FROM members WHERE id = $1 AND \"ownerId\" = $2 AND \"organizationId\" = $3 AND status = 'active' AND role IN ('owner', 'admin', 'agent')").bind(assigneeMemberId, access.ownerId, access.organizationId).first<{ id: string }>();
     if (assigned) return [assigned.id];
   }
-  const recipients = await db().prepare("SELECT id FROM members WHERE \"ownerId\" = $1 AND status = 'active' AND role IN ('owner', 'admin', 'agent')").bind(access.ownerId).all<{ id: string }>();
+  const recipients = await db().prepare("SELECT id FROM members WHERE \"ownerId\" = $1 AND \"organizationId\" = $2 AND status = 'active' AND role IN ('owner', 'admin', 'agent')").bind(access.ownerId, access.organizationId).all<{ id: string }>();
   return recipients.results.map(row => row.id);
 }
 export function checkMemberChange(access: AccessContext, target: MemberRecord, next: { role?: Exclude<MemberRole, 'owner'>; status?: MemberStatus }) {

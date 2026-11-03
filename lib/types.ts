@@ -62,6 +62,7 @@ export interface Settings {
   brandName: string;
   tagline: string;
   agents: string[];
+  notificationMemberIds: string[];
   departments: string[];
   slaHours: Record<TicketPriority, number>;
 }
@@ -80,6 +81,7 @@ export const DEFAULT_SETTINGS: Settings = {
   brandName: 'Daybook Ticket',
   tagline: 'Un servicio Daybook. Cada conversación, una solución.',
   agents: ['Yo'],
+  notificationMemberIds: [],
   departments: ['Soporte técnico', 'Facturación', 'Ventas'],
   slaHours: { urgent: 4, high: 8, normal: 24, low: 72 },
 };
