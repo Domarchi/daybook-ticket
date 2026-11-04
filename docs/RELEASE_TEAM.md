@@ -17,18 +17,23 @@ Runbook de Daybook Ticket, actualizado el 4 de noviembre de 2026. Rama candidata
 | Migración `0002` | Aplicada solo a QA. Producción pendiente. |
 | Concurrencia revisada | Corregidos los lookups bloqueantes de asignado/solicitante que podían formar ciclos con el actor y el ticket. |
 | Revisión desktop/móvil | En proceso; resultado pendiente. |
-| Build final y CI remoto | Pendientes de confirmación. Registrar comando, commit y resultado. |
-| Preview aislado de la rama | En preparación con BD y Blob QA; hostname previsto `daybook-ticket-qa-domarchi.vercel.app`. Deployment/acceso aún por confirmar. |
+| Build final local | En proceso; resultado pendiente. Registrar comando, commit y resultado. |
+| CI remoto | Run `41766980174`: `startup_failure`, sin jobs. GitHub no inició la ejecución por pagos recientes fallidos o límite de gasto de la cuenta. No es una ejecución verde ni un fallo de tests. |
+| Preview aislado de la rama | Bloqueado: la revisión automática rechazó guardar secretos privados en Preview por falta de autorización específica para ese entorno. Hostname previsto `daybook-ticket-qa-domarchi.vercel.app`; deployment/acceso no confirmados. |
 | Configuración Blob | Almacenes privados separados QA/producción preparados; token productivo privado/sensible y selector `production` configurados. La app nueva aún no está desplegada. |
-| Publicación | Commit final, decisión de publicar, migración productiva y deployment pendientes. |
+| Publicación | Rama enviada con `bfd2d72`; existen cambios posteriores pendientes de integrar. Commit final, decisión de publicar, migración productiva y deployment pendientes. |
 
 No promover con fallos de aislamiento, notas privadas, idempotencia o integridad de adjuntos. Código y workflow existentes no convierten comprobaciones pendientes en PASS.
+
+Los dos bloqueos externos se mantienen separados del resultado local. La anotación de GitHub indica: “The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check Billing & plans”. No cambiar facturación, límites o planes desde este trabajo. Continuar las comprobaciones locales y preparar la revisión de código; registrar sus resultados sin atribuirlos a CI remoto.
+
+La autorización anterior de secretos en producción no cubre por sí sola Preview. No intentar otro canal para eludir el rechazo automático. Tras completar el trabajo independiente, solicitar la autorización concreta para los secretos privados del Preview de esta rama/proyecto; hasta entonces, conservar la revisión local y no afirmar que el Preview está disponible.
 
 ## Aislamiento y secretos
 
 Toda operación se limita al proyecto Vercel `daybook-ticket`. No modificar otros proyectos/repositorios/DNS. QA usa la rama Neon `br-wandering-breeze-bb9ow8vn` del proyecto `purple-silence-58888058`; el hostname permitido por las suites es `ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech`. Validar el destino antes de cualquier operación; estos identificadores no sustituyen esa comprobación.
 
-El servidor QA usa `http://127.0.0.1:5173` y `.env.test.local`, con `DAYBOOK_QA_ALLOW_TEST_DATABASE=1`. `scripts/start-qa.mjs` comprueba hostname/origen, rechaza Resend configurado y vacía VAPID privado. Las suites también comprueban su destino. No quitar guards para apuntar a otra base.
+El servidor QA usa `http://127.0.0.1:5173` y `.env.test.local`, con `DAYBOOK_QA_ALLOW_TEST_DATABASE=1`. `scripts/start-qa.mjs` comprueba hostname/origen, rechaza Resend/remitente configurados y vacía VAPID privado por defecto. Su opción explícita `--push-api-fixtures` solo admite las claves del archivo QA y exige cero dispositivos activos al arrancar; se reserva para la regresión que inyecta el sender simulado, durante una ventana exclusiva sin otra actividad. Volver al arranque normal al terminar. Las suites también comprueban su destino. No quitar guards para apuntar a otra base.
 
 La base/URL productiva no se copia a QA. Mantener secretos de autenticación y cookies separados por entorno; no copiar sesiones productivas a fixtures ni usar `daybook-ticket.vercel.app` como origen QA. El prefijo `daybook` es común: no constituye aislamiento. Cada actor de prueba conserva sus propias cookies y solo se usa el origen QA.
 

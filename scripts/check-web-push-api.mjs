@@ -24,6 +24,13 @@ const eventIds = [], subscriptionIds = [];
 let originalMemberStatus, originalRequesterId, clientMemberId;
 
 async function api(person, path, method = 'GET', body, headers = {}) {
+  if (body && method === 'POST' && (path === '/api/tickets' || /^\/api\/tickets\/\d+\/messages$/.test(path))) {
+    body = { ...body, operationId: body.operationId ?? randomUUID() };
+  }
+  if (body && method === 'PATCH' && /^\/api\/tickets\/\d+$/.test(path) && ('assigneeMemberId' in body || 'assignee' in body) && body.expectedVersion === undefined) {
+    const row = (await pool.query('SELECT version FROM tickets WHERE id=$1', [Number(path.split('/').at(-1))])).rows[0];
+    body = { ...body, expectedVersion: row?.version ?? 0 };
+  }
   const cookie = Object.entries(person?.cookies || {}).map(([name, value]) => `${name}=${value}`).join('; ');
   const response = await fetch(`${origin}${path}`, {
     method, redirect: 'manual',

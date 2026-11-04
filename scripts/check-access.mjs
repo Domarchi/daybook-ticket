@@ -17,6 +17,7 @@ if (!['127.0.0.1', 'localhost', '[::1]'].includes(new URL(origin).hostname)) thr
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1', 'Autoriza explícitamente una base de pruebas aislada.');
 assert.ok(process.env.DATABASE_URL && process.env.DAYBOOK_QA_DATABASE_HOST, 'Falta la conexión y el hostname esperado de la rama de pruebas.');
 assert.equal(new URL(process.env.DATABASE_URL).hostname, process.env.DAYBOOK_QA_DATABASE_HOST, 'La conexión debe apuntar exactamente a la rama de pruebas.');
+assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
 assert.equal(new URL(process.env.DAYBOOK_SITE_URL).origin, origin, 'La URL de la app de prueba debe coincidir con el origen local.');
 assert.ok(!process.env.RESEND_API_KEY && !process.env.DAYBOOK_EMAIL_FROM, 'El correo debe estar desactivado durante QA.');
 const database = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
@@ -26,6 +27,7 @@ assert.ok(ownerEmail?.endsWith('@example.test'), 'El propietario QA debe usar un
 const ownerPassword = process.env.DAYBOOK_QA_OWNER_PASSWORD || 'Local-QA-only!Daybook-2026';
 const owner = { cookies: new Map() };
 const anonymous = { cookies: new Map() };
+const operationIds = new Set(), ticketIds = new Set(), memberIds = new Set(), articleIds = new Set();
 let nextTestAddress = 1;
 function updateCookies(actor, response) {
   for (const line of response.headers.getSetCookie()) {
@@ -36,6 +38,14 @@ function updateCookies(actor, response) {
   }
 }
 async function api(actor, path, method = 'GET', body, extraHeaders = {}) {
+  if (body && method === 'POST' && (path === '/api/tickets' || /^\/api\/tickets\/\d+\/messages$/.test(path))) {
+    body = { ...body, operationId: body.operationId ?? randomUUID() };
+    operationIds.add(body.operationId);
+  }
+  if (body && method === 'PATCH' && /^\/api\/tickets\/\d+$/.test(path) && ('assigneeMemberId' in body || 'assignee' in body) && body.expectedVersion === undefined) {
+    const row = (await database.query('SELECT version FROM tickets WHERE id=$1', [Number(path.split('/').at(-1))])).rows[0];
+    body = { ...body, expectedVersion: row?.version ?? 0 };
+  }
   // Vercel overwrites this trusted edge header in production. The local test
   // server needs a synthetic source address per browser to exercise rate limits.
   actor.testIp ||= `192.0.2.${nextTestAddress++}`;
@@ -48,6 +58,11 @@ async function api(actor, path, method = 'GET', body, extraHeaders = {}) {
   updateCookies(actor, response);
   let payload;
   try { payload = await response.json(); } catch { payload = {}; }
+  if (response.ok && method === 'POST') {
+    if (path === '/api/tickets' && payload.ticket?.id) ticketIds.add(payload.ticket.id);
+    if (path === '/api/members' && payload.member?.id) memberIds.add(payload.member.id);
+    if (path === '/api/articles' && payload.article?.id) articleIds.add(payload.article.id);
+  }
   return { ...payload, status: response.status };
 }
 function expectStatus(result, status, label) {
@@ -78,6 +93,7 @@ async function register(actor) {
 }
 
 try {
+assert.equal((await database.query('SELECT count(*)::int AS n FROM "pushSubscriptions" WHERE active=true')).rows[0].n, 0, 'QA no puede tener dispositivos push activos.');
 expectStatus(await workspace(anonymous), 401, 'Anónimo sin acceso');
 const deepLink = await fetch(`${origin}/?ticket=42`, { redirect: 'manual' });
 assert.ok([302, 303, 307, 308].includes(deepLink.status), 'Un enlace de ticket sin sesión redirige al login');
@@ -222,5 +238,20 @@ assert.ok(badSignIns.slice(0, 5).every(result => result.status === 401), 'El log
 assert.equal(badSignIns[5].status, 429, 'El sexto intento activa el límite persistente');
 console.log('Daybook acceso verificado: propietario sin ChatGPT, invitaciones, sesiones, roles, aislamiento, notas internas, artículos, asignación, reapertura/SLA, revocación, expiración y concurrencia, rate limit y correo desactivado.');
 } finally {
-  await database.end();
+  try {
+    const tickets = [...ticketIds], members = [...memberIds];
+    await database.query('DELETE FROM "pushDeliveries" WHERE "eventId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[]))', [tickets, members]);
+    await database.query('DELETE FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[])', [tickets, members]);
+    await database.query('DELETE FROM operations WHERE "operationId"=ANY($1::text[])', [[...operationIds]]);
+    await database.query('DELETE FROM "ticketEvents" WHERE "ticketId"=ANY($1::int[])', [tickets]);
+    await database.query('DELETE FROM messages WHERE "ticketId"=ANY($1::int[])', [tickets]);
+    await database.query('DELETE FROM tickets WHERE id=ANY($1::int[])', [tickets]);
+    await database.query('DELETE FROM articles WHERE id=ANY($1::int[])', [[...articleIds]]);
+    await database.query('DELETE FROM invitations WHERE "memberId"=ANY($1::text[])', [members]);
+    await database.query('DELETE FROM members WHERE id=ANY($1::text[])', [members]);
+    await database.query('DELETE FROM "authUser" WHERE email LIKE $1', [`%${runId}@example.test`]);
+    assert.equal((await database.query('SELECT count(*)::int AS n FROM members WHERE id=ANY($1::text[])', [members])).rows[0].n, 0);
+    assert.equal((await database.query('SELECT count(*)::int AS n FROM tickets WHERE id=ANY($1::int[])', [tickets])).rows[0].n, 0);
+    console.log('QA acceso: fixtures de esta ejecución eliminados.');
+  } finally { await database.end(); }
 }

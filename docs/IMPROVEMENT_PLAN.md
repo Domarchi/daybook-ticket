@@ -16,7 +16,7 @@ Completar pruebas locales no significa que CI o producción estén aprobados. [R
 | --- | --- | --- |
 | M1. Borradores y acciones | Separar cuenta/ticket/audiencia; conservar modo de nota; limpiar solo lo enviado; selección masiva limitada a visibles. | Desarrollado; pruebas unitarias integradas. Revisión desktop/móvil en proceso. |
 | M2. Correo después de guardar | Drenaje acotado después de responder, sin duplicados ni consumo masivo de intentos ante `429`; preservar evento exacto y revalidación. | Desarrollado; suites QA de drenaje/evento dirigido PASS con proveedor simulado. No añade scheduler. |
-| M3. Comprobaciones automáticas | Comando para lint, unitarias, tipos y build; CI sin secretos, base real ni envíos. | Scripts/workflow desarrollados. Unitarias, lint global y TypeScript PASS. Build final y CI pendientes. |
+| M3. Comprobaciones automáticas | Comando para lint, unitarias, tipos y build; CI sin secretos, base real ni envíos. | Scripts/workflow desarrollados. Unitarias, lint global y TypeScript PASS. Build final local en proceso; CI no inició por un bloqueo de facturación/límite de gasto de GitHub. |
 | E1. Empresas y acceso | Contacto de una empresa; encargado ve/comenta sus tickets; transferencia retira acceso sin mover historia; ACL consistente. | Desarrollado; 16 grupos QA PASS. Migración aplicada solo a QA. |
 | E2. Reparto y colaboración | Tomar/reasignar con versión; historial; respuestas guardadas; filtros; crear/responder con `operationId`. | Desarrollado; 11 grupos HTTP PASS. Regresión adicional de replay de nota tras bajar rol: tres comprobaciones PASS. |
 | E3. Adjuntos privados | Carga/validación/vinculación transaccional; descarga con ACL; notas privadas; límites y limpieza diferida. | Desarrollado; cinco grupos BD simulados y diez comprobaciones HTTP con Blob privado QA real PASS. |
@@ -39,9 +39,13 @@ Resultados confirmados durante esta entrega; no sustituyen la revisión del cand
 | `scripts/check-targeted-mail.mjs` | PASS, siete grupos | BD QA; Resend simulado |
 | Migración `0002_companies_team_workflow` | Aplicada | Solo QA |
 | Interfaz desktop/móvil | En proceso | QA |
-| Build final y CI remoto | Pendientes de confirmación | Sin afirmar resultado verde |
+| Build final local | En proceso; pendiente de confirmación | Local |
+| CI remoto, run `41766980174` | `startup_failure`, sin jobs: pagos recientes fallidos o límite de gasto de la cuenta | GitHub; no es PASS ni fallo de tests |
+| Preview de la rama | Bloqueado por rechazo automático de secretos Preview sin autorización específica | No desplegado/verificado |
 
 Las suites de BD se coordinan de una en una. Los fixtures retenidos para HTTP/UI siguen siendo ficticios y se retiran al cerrar la revisión. Credenciales y cookies temporales permanecen en archivos locales ignorados, no en Git ni en este documento.
+
+La rama fue enviada con `bfd2d72`; cambios posteriores siguen pendientes de integrar. El bloqueo remoto no impide completar comprobaciones locales y preparar la revisión. No cambiar Billing & plans ni eludir el rechazo de Preview por otro canal. La autorización concreta para guardar secretos privados en Preview se solicita después de terminar el trabajo independiente; la autorización productiva previa no se extiende automáticamente a ese entorno.
 
 ## Límites y trabajo posterior
 
