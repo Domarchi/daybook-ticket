@@ -23,6 +23,7 @@ Rama `codex/daybook-ticket-notifications`, desde la versión publicada `4ea80169
 | `check-notifications-http.mjs` | PASS: sesiones reales ficticias → ticket cliente → respuesta agente → portal; nota privada oculta; lectura persistente, intención de cuenta, seguimiento de equipo, webhook firmado duplicado y salud del worker |
 | `check-access.mjs` | PASS: regresión de invitaciones, sesiones, roles, aislamiento, notas internas, reapertura/SLA, revocación, concurrencia y límites de autenticación |
 | `check-pinger-edge.mjs` | PASS contra host nativo Neon QA: rechazo tanto anónimo como con ID de trigger real y encabezado reservado falsificado |
+| Cadena nativa Neon → Preview protegido → QA | PASS: invocación automática del 04-11-2026, inicio 15:45:01.794 UTC y éxito 15:45:02.072 UTC, sin error, lease liberado y cursor en cero; sin llamadas manuales al worker durante la ventana |
 | Bundle pinger | ZIP reproducible, importación default.fetch válida, Node 24, sin nuevas dependencias ni modificaciones de node_modules compartido |
 
 Las integraciones que mutan QA se ejecutan en serie, con cuentas `@example.test`, sin Resend real ni push real. Sus fixtures se eliminan. La prueba de correos reales de Joaquín/Mario no forma parte de esta ejecución.
@@ -36,7 +37,7 @@ La revisión visual local incluye correo y nuevos controles en computador y móv
 - Pinger QA: `dkticketnotifyqa`, en la misma rama QA; trigger `trigger-045608e9-b929-45bf-aeb2-515d6dc79831`, cron `*/30 * * * *`, detenido al terminar.
 - Remitente productivo previsto: `Daybook Ticket <tickets@consorcioc17.cl>`, conservando el existente y sin cambios DNS.
 
-La conexión de Vercel permite crear Preview y variables privadas, pero rechazó crear un secreto de acceso de automatización con 403 `projectProtectionBypass`. El CLI disponible no tenía sesión; se canceló su inicio de sesión. No se desactivó Vercel Authentication ni se creó un enlace público de bypass. La conexión nativa completa Neon → Preview protegido requiere ese acceso privado; el worker completo se comprobó por HTTP en QA local y la procedencia del proxy se comprobó en Neon.
+La cadena nativa completa Neon → Function QA → Preview protegido → PostgreSQL QA pasó con una única cita UTC del trigger. Se utilizó un acceso privado temporal autorizado por el propietario y creado desde su sesión Vercel. La clave se revocó al terminar y se retiró de la Function, evitando conservar su designación automática como variable del proyecto. Se verificó por HTTP que la clave anterior vuelve a la pantalla SSO y que Preview sigue protegido. No se desactivó Vercel Authentication ni se creó un enlace público. El trigger quedó deshabilitado, con cron de treinta minutos restaurado y sin próxima ejecución; la Function deshabilitada devuelve 503 `Disabled`. No se crearon usuarios/tickets ni se activaron correos o push reales en esta prueba.
 
 ## Publicación posterior, conservando datos
 

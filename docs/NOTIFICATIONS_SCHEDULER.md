@@ -2,7 +2,7 @@
 
 ## Entrega preparada, activación separada
 
-Esta rama incorpora el worker y el pinger. Se prepararon Preview, secretos y Function/trigger aislados de QA; producción y los envíos reales permanecen sin cambios. El trigger QA queda detenido. Ver NOTIFICATIONS_RELEASE.md para las evidencias y el acceso privado pendiente. La cadencia prevista es **cada 30 minutos, 24/7**, con `*/30 * * * *` en UTC. El correo inicial de un ticket/comentario conserva el recorrido inmediato existente. El programador procesa recordatorios y recupera envíos pendientes.
+Esta rama incorpora el worker y el pinger. Se prepararon Preview, secretos y Function/trigger aislados de QA; producción y los envíos reales permanecen sin cambios. El trigger QA queda detenido. Ver NOTIFICATIONS_RELEASE.md para las evidencias de la cadena nativa completa y la retirada del acceso temporal de QA. La cadencia prevista es **cada 30 minutos, 24/7**, con `*/30 * * * *` en UTC. El correo inicial de un ticket/comentario conserva el recorrido inmediato existente. El programador procesa recordatorios y recupera envíos pendientes.
 
 El código de negocio vive en `lib/reminders.ts`. La Function de `functions/notification-pinger/index.ts` únicamente autentica procedencia nativa Neon y hace una llamada HTTPS al worker de Vercel. No usa PostgreSQL, Resend ni credenciales de usuarios. No necesita dependencias nuevas.
 
@@ -61,7 +61,7 @@ Neon Function, por rama/ambiente:
 - `DAYBOOK_NOTIFICATION_JOB_SECRET`: el secreto del worker correspondiente.
 - Solo QA protegido: `VERCEL_AUTOMATION_BYPASS_SECRET`, por encabezado `x-vercel-protection-bypass`. Nunca se copia a producción ni se desprotege Preview.
 
-Estos valores aún requieren aprovisionamiento autorizado. El pinger no necesita `DATABASE_URL`; Neon puede inyectarla, pero el código no la utiliza. No se deben subir archivos de entorno al repositorio ni pasar secretos en argumentos visibles de shell. El aprovisionamiento posterior debe emplear campos privados del proveedor.
+Producción requiere su aprovisionamiento en una publicación posterior autorizada. En QA se utilizó un acceso privado temporal y se retiró de Vercel y de la Function al terminar la prueba; futuras comprobaciones contra Preview protegido necesitan otro acceso temporal autorizado. El pinger no necesita `DATABASE_URL`; Neon puede inyectarla, pero el código no la utiliza. No se deben subir archivos de entorno al repositorio ni pasar secretos en argumentos visibles de shell. El aprovisionamiento posterior debe emplear campos privados del proveedor.
 
 ## Cuota y despliegue futuro
 
@@ -112,4 +112,4 @@ Contra la Function QA ya provisionada, tras verificar el host nativo y trigger m
 DAYBOOK_QA_ALLOW_PINGER_EDGE_TEST=1 DAYBOOK_PINGER_QA_NATIVE_URL=https://QA-NATIVE-HOST/tick DAYBOOK_PINGER_QA_EXPECTED_TRIGGER_ID=QA-ID node scripts/check-pinger-edge.mjs
 ```
 
-El script manda un cuerpo válido y el ID QA real con un encabezado reservado falsificado: debe recibir 401/403, sin llegar al worker. Esta comprobación remota pasó el 4 de noviembre contra la Function nativa QA, con el trigger real detenido. Falta completar la invocación nativa hacia Preview protegido con acceso privado de automatización; la conexión Vercel actual rechazó crearlo. No desproteger la vista previa para completar la prueba.
+El script manda un cuerpo válido y el ID QA real con un encabezado reservado falsificado: debe recibir 401/403, sin llegar al worker. Esta comprobación remota pasó el 4 de noviembre contra la Function nativa QA, con el trigger real detenido. La invocación nativa hacia Preview protegido también pasó el 4 de noviembre a las 15:45 UTC, con acceso privado temporal autorizado. Se comprobó éxito sin errores y lease liberado, se pausaron trigger/Function y se revocó el acceso temporal. Preview conserva Vercel Authentication; no se crea un enlace público para probarlo.
