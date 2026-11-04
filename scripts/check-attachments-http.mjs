@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
-import {put} from '@vercel/blob';
+import {upload as clientUpload} from '@vercel/blob/client';
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE,'1');
 assert.equal(process.env.DAYBOOK_SITE_URL,'http://127.0.0.1:5173');
 assert.equal(new URL(process.env.DATABASE_URL).hostname,'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
@@ -15,9 +15,7 @@ async function request(person,path,method='GET',body){
 async function api(person,path,method='GET',body,expected=200){const response=await request(person,path,method,body);const text=await response.text();let value;try{value=JSON.parse(text);}catch{throw new Error(`${path}: HTTP ${response.status}, non-JSON response (${text.length} bytes)`);}assert.equal(response.status,expected,`${path}: ${value.error||response.status}`);return value;}
 async function upload(person,scope,name,text){
  const bytes=Buffer.from(text),reserved=await api(person,'/api/attachments/reserve','POST',{...scope,name,size:bytes.length,contentType:'text/plain'},201);
- const result=await api(person,'/api/attachments/upload','POST',{type:'blob.generate-client-token',payload:{pathname:reserved.pathname,multipart:false,clientPayload:JSON.stringify({attachmentId:reserved.attachment.id})}});
- assert.ok(result.clientToken,'Token endpoint must return scoped client token');
- await put(reserved.pathname,bytes,{access:'private',token:result.clientToken,contentType:'text/plain',addRandomSuffix:false,allowOverwrite:false});
+ await clientUpload(reserved.pathname,new Blob([bytes],{type:'text/plain'}),{access:'private',contentType:'text/plain',handleUploadUrl:origin+'/api/attachments/upload',clientPayload:JSON.stringify({attachmentId:reserved.attachment.id}),headers:{origin,'x-vercel-forwarded-for':person.ip,cookie:Object.entries(person.cookies).map(([k,v])=>`${k}=${v}`).join('; ')}});
  await api(person,`/api/attachments/${reserved.attachment.id}/complete`,'POST',{});
  return reserved.attachment.id;
 }
@@ -40,4 +38,4 @@ const ownerFile=await request(owner,`/api/attachments/${noteFile}/download`);ass
 await api(owner,`/api/members/${manager.id}`,'PATCH',{customerCompanyId:fixture.companyB,companyAccess:'manager'});
 await api(manager,`/api/attachments/${file}/download`,'GET',undefined,404);
 await api(owner,`/api/members/${manager.id}`,'PATCH',{customerCompanyId:fixture.companyA,companyAccess:'manager'});
-console.log(JSON.stringify({result:'PASS',realPrivateBlob:true,ticketId:ticket.id,checks:['reserve-token-upload-validate-link-download','request-replay-no-duplicate','client-manager-staff-download','company-isolation','internal-note-attachment-private','note-cannot-be-public','atomic-link-rollback','note-replay-no-duplicate','membership-revocation','no-store-download']}));
+console.log(JSON.stringify({result:'PASS',realPrivateBlob:true,actualClientSdk:true,ticketId:ticket.id,checks:['reserve-token-upload-validate-link-download','request-replay-no-duplicate','client-manager-staff-download','company-isolation','internal-note-attachment-private','note-cannot-be-public','atomic-link-rollback','note-replay-no-duplicate','membership-revocation','no-store-download']}));

@@ -6,24 +6,32 @@ Runbook de Daybook Ticket, actualizado el 4 de noviembre de 2026. Rama candidata
 
 | Condición | Evidencia o pendiente |
 | --- | --- |
-| Pruebas puras | 51 casos PASS. |
+| Pruebas puras | 52 casos PASS. |
 | Lint global y TypeScript | Lint PASS con cero errores/advertencias; `tsc --noEmit` PASS. |
 | ACL de empresas | 16 grupos QA PASS; limpieza de fixtures comprobada. |
 | Flujos HTTP del equipo | 11 grupos PASS: aislamiento, comentarios, notas, roles, claim concurrente, versión antigua, respuestas guardadas, idempotencia, avisos, historial y retirada de acceso. |
 | Replay de nota tras bajar rol a cliente | Tres comprobaciones HTTP PASS; denegación sin fuga ni nueva escritura. |
 | Adjuntos con almacenamiento simulado | Cinco grupos de BD QA PASS. |
-| Blob privado real mediante HTTP | Diez comprobaciones PASS; ticket QA #20, dos archivos TXT ficticios. |
+| Blob privado real mediante HTTP | Diez comprobaciones PASS con `@vercel/blob/client`, el mismo SDK usado por la interfaz; ticket QA #21 y dos TXT ficticios. |
 | Drenaje de correo y evento exacto | 16 y siete grupos PASS, respectivamente, con Resend simulado. |
 | Migración `0002` | Aplicada solo a QA. Producción pendiente. |
-| Concurrencia revisada | Corregidos los lookups bloqueantes de asignado/solicitante que podían formar ciclos con el actor y el ticket. |
-| Revisión desktop/móvil | En proceso; resultado pendiente. |
-| Build final local | En proceso; resultado pendiente. Registrar comando, commit y resultado. |
+| Concurrencia revisada | Lookups de destinatarios dentro de la misma conexión transaccional y locks de miembro `FOR NO KEY UPDATE`, compatibles con los locks FK. Cinco actores creando y respondiendo simultáneamente: PASS en 13,6 s. |
+| Respuestas guardadas y filtros | PASS visual de búsqueda sin tilde/mayúsculas, resultado vacío sin inserción y coincidencia insertada sin envío automático. Los cinco filtros conservaron su selección después de recargar, comprobada en DOM. |
+| Regresiones de acceso y responsables | `check-access.mjs` completo PASS; `check-notification-responsibles.mjs`: 17 comprobaciones PASS, cero entregas externas. |
+| Revisión desktop/móvil | PASS: cliente carga TXT con selector real y comenta; agente inserta respuesta guardada y envía manualmente; encargado con rol cliente ve ticket #21 sin nota interna y comenta desde móvil. Navegación estrecha corregida y comprobada con viewport 312 CSS px. Evidencia: `/tmp/daybook-ticket-release-review.png`. |
+| Validación completa anterior | `npm run check` PASS en `bfd2d72`: lint, 51 unitarias, tipos y build. |
+| Validación con locks, búsqueda y filtros | `npm run check` PASS con 52 pruebas, lint, tipos y build; snapshot `/tmp/daybook-ticket-final-ptns9ai6`, proceso 96926, exit 0. |
+| Build tras el último CSS móvil | PASS, proceso 4887, exit 0, mismo snapshot. Comparación de huellas de todos los archivos runtime/QA contra worktree sin diferencias. El CSS fue el único cambio posterior al check completo. |
 | CI remoto | Run `41766980174`: `startup_failure`, sin jobs. GitHub no inició la ejecución por pagos recientes fallidos o límite de gasto de la cuenta. No es una ejecución verde ni un fallo de tests. |
 | Preview aislado de la rama | Bloqueado: la revisión automática rechazó guardar secretos privados en Preview por falta de autorización específica para ese entorno. Hostname previsto `daybook-ticket-qa-domarchi.vercel.app`; deployment/acceso no confirmados. |
 | Configuración Blob | Almacenes privados separados QA/producción preparados; token productivo privado/sensible y selector `production` configurados. La app nueva aún no está desplegada. |
-| Publicación | Rama enviada con `bfd2d72`; existen cambios posteriores pendientes de integrar. Commit final, decisión de publicar, migración productiva y deployment pendientes. |
+| Publicación | Rama enviada hasta `4c26726`; los cambios posteriores tienen validación local/QA registrada y siguen pendientes de integrar en el commit final. Commit final, decisión de publicar, migración productiva y deployment pendientes. |
 
 No promover con fallos de aislamiento, notas privadas, idempotencia o integridad de adjuntos. Código y workflow existentes no convierten comprobaciones pendientes en PASS.
+
+Las cuatro regresiones actuales terminaron PASS: acceso completo y limpieza; responsables, 17 comprobaciones; drenaje, 16 grupos; evento exacto, siete grupos. Cero correos o push externos. Sus fixtures quedaron limpios; los fixtures ficticios `team-release-qa` y archivos Blob QA se retienen para el Preview pendiente y se retirarán después de esa revisión.
+
+La ejecución concurrente tuvo un primer intento interrumpido por resolución DNS transitoria (`EAI_AGAIN`); la ejecución posterior PASS no mostró deadlock ni agotamiento del pool.
 
 Los dos bloqueos externos se mantienen separados del resultado local. La anotación de GitHub indica: “The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check Billing & plans”. No cambiar facturación, límites o planes desde este trabajo. Continuar las comprobaciones locales y preparar la revisión de código; registrar sus resultados sin atribuirlos a CI remoto.
 
@@ -49,8 +57,9 @@ Almacenes verificados durante la preparación: QA `store_jZdpTcfXmyijP3jw`, prod
 2. En Node 24, ejecutar `npm run check`: lint, unitarias, tipos y build. Para compilar usar valores ficticios como los de `.github/workflows/ci.yml`. El workflow no ejecuta migraciones, suites de BD ni despliegues. Registrar la ejecución remota aparte; PASS local no es PASS de CI.
 3. Coordinar una suite de BD a la vez. Las suites directas usan `node --env-file=.env.test.local --import tsx scripts/check-company-access.mjs`, y de forma equivalente `check-mail-drain.mjs`, `check-targeted-mail.mjs` y `check-attachments-db.mjs`. Conservar guards y proveedores simulados.
 4. Iniciar QA con `node scripts/start-qa.mjs`. Ejecutar `node --env-file=.env.test.local scripts/check-team-release.mjs`. Usar `--keep` solo para continuar la revisión con sus fixtures; registrar retención/limpieza. Sin `--keep`, el script elimina tickets/respuestas de prueba y revoca miembros creados: no limpia todo el historial de cuentas QA.
-5. `scripts/check-attachments-http.mjs` usa los fixtures retenidos y el almacén QA autorizado. Verifica reserva/token/carga/validación/enlace/descarga, actores autorizados, empresa ajena, notas privadas, repetición y retirada de acceso. Registrar y retirar sus objetos/fixtures al cerrar; el script no los borra automáticamente.
-6. Comprobar desktop/móvil: empresas/accesos, bandeja común, conflictos de asignación, respuestas guardadas, filtros, borradores separados y adjuntos. Conservar la regresión de replay de nota tras bajar el rol y registrar cualquier límite observado.
+5. `scripts/check-attachments-http.mjs` usa los fixtures retenidos y el almacén QA autorizado. Usa el SDK cliente real contra Blob privado QA y verifica reserva/token/carga/validación/enlace/descarga, actores autorizados, empresa ajena, notas privadas, repetición y retirada de acceso. Registrar y retirar sus objetos/fixtures al cerrar; el script no los borra automáticamente.
+6. Con los fixtures HTTP retenidos y en una ventana exclusiva de QA, ejecutar `node --env-file=.env.test.local scripts/check-concurrent-submissions.mjs`: cinco actores crean tickets y responden en paralelo, sin consumir otra conexión dentro de sus transacciones.
+7. Comprobar desktop/móvil: empresas/accesos, bandeja común, conflictos de asignación, respuestas guardadas, filtros, borradores separados y adjuntos. Conservar la regresión de replay de nota tras bajar el rol y registrar cualquier límite observado.
 
 ## Orden de publicación
 
@@ -75,6 +84,8 @@ La versión anterior tampoco muestra los adjuntos/historial nuevos aunque los da
 
 Restaurar la base a un punto anterior es una recuperación distinta y puede perder escrituras posteriores. Requiere una decisión explícita basada en el incidente y punto verificado. Registrar versión final, impacto y comprobaciones posteriores.
 
-## Registro de cierre pendiente
+## Registro de cierre
 
-Completar: commit candidato; resultado de build y enlace a CI; revisión UI/regresiones; fixtures/objetos QA retirados; migración productiva aplicada o pendiente; configuración efectiva de adjuntos; deployment observado; límites comunicados; versión de recuperación y compatibilidad de su ACL. No incluir secretos, enlaces de invitación ni cookies.
+Validación local y QA registrada: lint, tipos y 52 unitarias PASS; build final tras CSS PASS; huellas runtime/QA del snapshot iguales al worktree; recorrido visual cliente con archivo → respuesta del equipo → comentario móvil del encargado PASS. Las cuatro regresiones adicionales quedaron PASS y limpias. Los fixtures de revisión y Blob ficticios se retienen para Preview.
+
+Pendiente: commit candidato final; resolución y ejecución de CI remoto; autorización de secretos y deployment Preview observado; retirada posterior de sus fixtures/objetos. La migración productiva y el deployment productivo no se han realizado. Al publicar, registrar configuración efectiva, deployment, límites comunicados y versión de recuperación compatible con la nueva ACL. No se declara verde global mientras sigan pendientes CI/Preview. No incluir secretos, enlaces de invitación ni cookies.

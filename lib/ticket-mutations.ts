@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { ApiError, db, getSettings } from './server';
 import { canAccessTicket, publicMember, type AccessContext, type MemberRecord } from './access';
-import type { Ticket, TicketEvent } from './types';
+import type { Settings, Ticket, TicketEvent } from './types';
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -11,9 +11,10 @@ function canonical(value: unknown): string {
 }
 export function operationHash(value: unknown) { return createHash('sha256').update(canonical(value)).digest('hex'); }
 
-// Hold current membership until commit; authorization cannot be based on a stale session snapshot.
+// Hold current membership until commit; authorization cannot use a stale session.
+// NO KEY UPDATE also permits foreign-key checks from other members' submissions.
 export async function lockAccess(tx: PoolClient, access: AccessContext): Promise<AccessContext> {
-  const { rows } = await tx.query('SELECT * FROM members WHERE id=$1 AND "ownerId"=$2 AND "organizationId"=$3 AND status=\'active\' AND "userId"=$4 FOR UPDATE',[access.member.id,access.ownerId,access.organizationId,access.userId]);
+  const { rows } = await tx.query('SELECT * FROM members WHERE id=$1 AND "ownerId"=$2 AND "organizationId"=$3 AND status=\'active\' AND "userId"=$4 FOR NO KEY UPDATE',[access.member.id,access.ownerId,access.organizationId,access.userId]);
   const row=rows[0] as MemberRecord|undefined;
   if(!row) throw new ApiError(403,'Tu acceso cambió. Inicia sesión nuevamente.');
   return {...access,role:row.role,member:publicMember({...row,hasAccount:true})};
@@ -52,6 +53,17 @@ export async function eligibleRecipients(tx:PoolClient,access:AccessContext,tick
   if(!ids.length) return [];
   const {rows}=await tx.query('SELECT * FROM members WHERE "ownerId"=$1 AND status=\'active\' AND id=ANY($2::text[])',[access.ownerId,[...new Set(ids)].filter(id=>id!==access.member.id)]);
   return rows.filter(row=>canAccessTicket({...access,role:row.role,member:publicMember({...row,hasAccount:Boolean(row.userId)})},ticket)).map(row=>row.id as string);
+}
+// Reuse the transaction's connection: an external settings/recipient query here
+// can exhaust the pool when multiple clients submit at the same time.
+export async function staffNotificationRecipients(tx: PoolClient, access: AccessContext, assigneeId: string | null, settings: Settings): Promise<string[]> {
+  const { rows } = await tx.query('SELECT id FROM members WHERE "ownerId"=$1 AND "organizationId"=$2 AND status=\'active\' AND role IN (\'owner\',\'admin\',\'agent\')', [access.ownerId, access.organizationId]);
+  const active = rows.map(row => row.id as string);
+  if (settings.notificationMemberIds.length) {
+    const selected = new Set([...settings.notificationMemberIds, ...(assigneeId ? [assigneeId] : [])]);
+    return active.filter(id => selected.has(id));
+  }
+  return assigneeId && active.includes(assigneeId) ? [assigneeId] : active;
 }
 export async function publicReplyRecipients(tx:PoolClient,access:AccessContext,ticket:Ticket & {ownerId:string},staffIds:string[]) {
   if(access.role==='client') return eligibleRecipients(tx,access,ticket,[...staffIds,...(ticket.requesterMemberId?[ticket.requesterMemberId]:[])]);

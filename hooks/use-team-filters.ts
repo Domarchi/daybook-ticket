@@ -1,11 +1,22 @@
 'use client';
 import { useState } from 'react';
-export type TeamFilters = { company: string; agent: string };
-const EMPTY: TeamFilters = { company: 'all', agent: 'all' };
+export type TeamFilters = { company: string; agent: string; queue: string; priority: string; department: string };
+const EMPTY: TeamFilters = { company: 'all', agent: 'all', queue: 'all', priority: 'all', department: 'all' };
+export function normalizeTeamFilters(value: unknown): TeamFilters {
+  if (!value || typeof value !== 'object') return EMPTY;
+  const saved = value as Record<string, unknown>;
+  const text = (key: string) => typeof saved[key] === 'string' && saved[key].length > 0 ? saved[key] : 'all';
+  const queue = text('queue'), priority = text('priority');
+  return {
+    company: text('company'), agent: text('agent'), department: text('department'),
+    queue: ['all', 'open', 'pending', 'resolved', 'mine', 'unassigned', 'overdue'].includes(queue) ? queue : 'all',
+    priority: ['all', 'low', 'normal', 'high', 'urgent'].includes(priority) ? priority : 'all',
+  };
+}
 function read(memberId: string): TeamFilters {
   try {
     const value: unknown = JSON.parse(localStorage.getItem(`daybook.ticket.filters.v1.${memberId}`) || 'null');
-    if (value && typeof value === 'object' && 'company' in value && typeof value.company === 'string' && 'agent' in value && typeof value.agent === 'string') return { company: value.company, agent: value.agent };
+    return normalizeTeamFilters(value);
   } catch { /* Filters work without browser storage. */ }
   return EMPTY;
 }

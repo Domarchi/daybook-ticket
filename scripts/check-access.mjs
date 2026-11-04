@@ -1,7 +1,7 @@
 /** End-to-end RBAC checks against a local app and an isolated PostgreSQL test branch.
  * Creates fictitious accounts/tickets and uses real Daybook sessions. The expected
  * database host and explicit test opt-in are mandatory. Never point at production.
- * Run: node --env-file=.env.test.local scripts/check-access.mjs http://127.0.0.1:3000
+ * Run: node --env-file=.env.test.local --import tsx scripts/check-access.mjs http://127.0.0.1:5173
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -12,7 +12,7 @@ assert.equal(ticketReturnPath('42'), '/?ticket=42');
 assert.equal(ticketLoginPath('/?ticket=42'), '/login?return_to=%2F%3Fticket%3D42');
 for (const value of [null, ['42'], '0', '-1', '1.5', '9007199254740992']) assert.equal(ticketReturnPath(value), '/');
 for (const value of ['//example.test', 'https://example.test', '/?ticket=42&next=https://example.test', '/?ticket=42#external', '/login', '/?ticket=0']) assert.equal(safeTicketReturnPath(value), '/');
-const origin = new URL(process.argv[2] || 'http://127.0.0.1:3000').origin;
+const origin = new URL(process.argv[2] || 'http://127.0.0.1:5173').origin;
 if (!['127.0.0.1', 'localhost', '[::1]'].includes(new URL(origin).hostname)) throw new Error('Esta prueba solo admite una vista previa local.');
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1', 'Autoriza explícitamente una base de pruebas aislada.');
 assert.ok(process.env.DATABASE_URL && process.env.DAYBOOK_QA_DATABASE_HOST, 'Falta la conexión y el hostname esperado de la rama de pruebas.');

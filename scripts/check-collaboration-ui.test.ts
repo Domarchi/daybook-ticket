@@ -2,10 +2,20 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DraftOperations } from '../lib/draft-operations';
 import { attachmentValidation, restorePendingAttachmentIds, ATTACHMENT_MAX_BYTES } from '../lib/attachment-drafts';
+import { normalizeTeamFilters } from '../hooks/use-team-filters';
 function storage() {
   const data = new Map<string, string>();
   return { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => { data.set(key, value); }, removeItem: (key: string) => { data.delete(key); } };
 }
+test('existing company/agent preferences survive adding persisted inbox, priority and department filters', () => {
+  assert.deepEqual(normalizeTeamFilters({ company: 'company-a', agent: 'agent-b' }), {
+    company: 'company-a', agent: 'agent-b', queue: 'all', priority: 'all', department: 'all',
+  });
+  const chosen = { company: 'none', agent: 'agent-b', queue: 'overdue', priority: 'urgent', department: 'Soporte técnico' };
+  assert.deepEqual(normalizeTeamFilters(JSON.parse(JSON.stringify(chosen))), chosen);
+  assert.deepEqual(normalizeTeamFilters({ ...chosen, queue: 'invalid-view', priority: false }), { ...chosen, queue: 'all', priority: 'all' });
+  assert.deepEqual(normalizeTeamFilters(null), { company: 'all', agent: 'all', queue: 'all', priority: 'all', department: 'all' });
+});
 test('a lost response and page reload retry the original operation and payload, including consumed attachment IDs', () => {
   const session = storage();
   const payload = { body: 'Public update', kind: 'reply', draftId: 'public-draft', attachmentIds: ['file-1'] };

@@ -1,7 +1,7 @@
 import {ApiError,db,handle,json,parseBody,messageSchema,getSettings,parseId,type RouteContext} from '@/lib/server';
-import {requireAccess,notificationRecipients} from '@/lib/access';
+import {requireAccess} from '@/lib/access';
 import {notificationStatements,drainOutboxBestEffort} from '@/lib/mail';
-import {runOperation,lockTicket,publicReplyRecipients,recordEvent} from '@/lib/ticket-mutations';
+import {runOperation,lockTicket,publicReplyRecipients,recordEvent,staffNotificationRecipients} from '@/lib/ticket-mutations';
 import {linkReadyAttachments} from '@/lib/attachments';
 import {after} from 'next/server';
 import {processPushOutboxBestEffort} from '@/lib/push';
@@ -25,7 +25,7 @@ export async function POST(request:Request,context:RouteContext) {
       await tx.query('UPDATE tickets SET "updatedAt"=$1,version=version+1,status=$2,"dueAt"=$3 WHERE id=$4 AND "ownerId"=$5',[now,reopen?'open':ticket.status,reopen?new Date(Date.parse(now)+settings.slaHours[ticket.priority]*3600000).toISOString():ticket.dueAt,id,access.ownerId]);
       if(reopen) await recordEvent(tx,fresh,id,'status','resolved','open');
       if(data.kind!=='note') {
-        const recipients=await publicReplyRecipients(tx,fresh,ticket,client?await notificationRecipients(fresh,ticket.assigneeMemberId):[]);
+        const recipients=await publicReplyRecipients(tx,fresh,ticket,client?await staffNotificationRecipients(tx,fresh,ticket.assigneeMemberId,settings):[]);
         for(const recipientMemberId of recipients) for(const stmt of notificationStatements(db(),{ownerId:access.ownerId,event:client?'client_replied':'agent_replied',eventKey:`message:${data.operationId}:${recipientMemberId}`,recipientMemberId,ticketId:id})) await db().execute(stmt,tx);
       }
       return {message};

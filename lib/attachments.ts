@@ -42,7 +42,7 @@ async function scopeAccess(access: AccessContext, scope: Scope) {
   if (scope.ticketId !== undefined) await getTicket(access, scope.ticketId);
 }
 async function liveAccess(tx: PoolClient, access: AccessContext): Promise<AccessContext> {
-  const member = (await tx.query('SELECT * FROM members WHERE id=$1 AND "ownerId"=$2 AND "organizationId"=$3 FOR UPDATE', [access.member.id, access.ownerId, access.organizationId])).rows[0];
+  const member = (await tx.query('SELECT * FROM members WHERE id=$1 AND "ownerId"=$2 AND "organizationId"=$3 FOR NO KEY UPDATE', [access.member.id, access.ownerId, access.organizationId])).rows[0];
   if (!member || member.status !== 'active' || member.userId !== access.userId) throw new ApiError(403, 'Tu acceso cambió. Vuelve a iniciar sesión.');
   return { ...access, member, role: member.role };
 }
