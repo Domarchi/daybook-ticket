@@ -21,6 +21,8 @@ export interface MailStatus {
   sender: string | null;
   counts: Record<string, number>;
   lastError?: string;
+  deliveryCounts?: Record<string, number>;
+  webhookConfigured?: boolean;
 }
 export interface Ticket {
   id: number;
@@ -56,10 +58,19 @@ export interface TicketEvent { id: string; ticketId: number; actorMemberId: stri
 export interface Attachment { id: string; name: string; size: number; contentType: string }
 export interface TicketAlert {
   id: string;
-  event: 'ticket_created' | 'agent_replied' | 'client_replied';
+  event: 'ticket_created' | 'agent_replied' | 'client_replied' | 'reminder';
   ticketId: number;
   subject: string;
   createdAt: string;
+  readAt: string | null;
+  /** Imported history has no known read state and does not increase the badge. */
+  historical: boolean;
+}
+export interface AlertsPage {
+  items: TicketAlert[];
+  unreadCount: number;
+  nextCursor: string | null;
+  snapshotAt: string;
 }
 export interface Article {
   id: number;
@@ -85,6 +96,7 @@ export interface Workspace {
   tickets: Ticket[];
   messages: Message[];
   alerts: TicketAlert[];
+  alertsPage?: AlertsPage;
   articles: Article[];
   companies: CustomerCompany[];
   savedReplies: SavedReply[];

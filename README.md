@@ -33,6 +33,8 @@ Cada consulta vuelve a comprobar la sesión y los permisos. El endpoint solo dev
 
 La campana muestra los avisos recientes para cada destinatario. Los avisos reutilizan los eventos guardados con cada ticket/respuesta, sin depender de que el correo esté configurado. No se anuncian el historial inicial, mensajes propios ni notas internas. Un aviso nuevo muestra una tarjeta y un contador en la pestaña. Abrir el ticket desde un aviso crea otra pestaña para conservar los borradores.
 
+La lectura se guarda en PostgreSQL y se sincroniza entre dispositivos. «Sin leer» y «Todos» tienen paginación; el contador incluye todos los avisos autorizados. El historial anterior a la migración conserva lectura desconocida y no incrementa el contador. Las operaciones de lectura comprueban la cuenta esperada, el destinatario y sus permisos actuales.
+
 «Activar sonido» permite un tono local breve; «Silenciar» conserva los avisos visuales. La preferencia se guarda por cuenta en este navegador. Tras recargar, el navegador puede exigir un nuevo clic para habilitar audio.
 
 ## Avisos con la página cerrada
@@ -57,6 +59,10 @@ Usar exclusivamente el proyecto `daybook-ticket`, Node.js 24, framework Next.js,
 | `DAYBOOK_OWNER_EMAIL` | Correo reservado al propietario |
 | `RESEND_API_KEY` | Opcional, proveedor de correo |
 | `DAYBOOK_EMAIL_FROM` | Opcional, remitente de un dominio verificado |
+| `DAYBOOK_NOTIFICATION_ENVIRONMENT` | `qa` o `production`; aísla etiquetas y recibos del proveedor |
+| `RESEND_WEBHOOK_SECRET` | Secreto Svix independiente para `/api/webhooks/resend` |
+| `DAYBOOK_NOTIFICATION_JOB_ENABLED` | `true` habilita el endpoint privado; por defecto desactivado |
+| `DAYBOOK_NOTIFICATION_JOB_SECRET` | Secreto privado independiente del programador, al menos 32 caracteres |
 | `VAPID_PUBLIC_KEY` | Clave pública de Web Push |
 | `VAPID_PRIVATE_KEY` | Clave privada de Web Push; secreto |
 | `VAPID_SUBJECT` | Origen HTTPS de contacto para Web Push |
@@ -92,4 +98,8 @@ El símbolo y favicon de Daybook se copiaron sin cambios desde `Domarchi/daybook
 
 ## Correo y límites
 
-El envío requiere un remitente de dominio verificado y Resend configurado. No hay correo entrante, adjuntos, webhooks de entrega ni programador permanente de reintentos. La cola se procesa con actividad de la aplicación y por acción administrativa. La recuperación de contraseña depende del correo configurado.
+El envío requiere un remitente de dominio verificado y Resend configurado. Los nuevos correos incluyen HTML adaptable, logo CID y texto; conservan asunto, estado, plazo y enlace al portal sin copiar conversaciones ni archivos. El seguimiento firmado distingue aceptación de entrega y no usa píxeles de lectura. Los reintentos preservan el payload congelado, incluidos los mensajes antiguos.
+
+Los recordatorios del equipo y los reintentos periódicos se ejecutan mediante un pinger Neon cada 30 minutos. Requieren activación separada; la migración los deja en pausa. No hay correo entrante ni respuesta a tickets por email. Los adjuntos privados se consultan desde el portal. La recuperación de contraseña depende del correo configurado.
+
+Ver [reglas y programador](docs/NOTIFICATIONS_SCHEDULER.md) y [validación y publicación](docs/NOTIFICATIONS_RELEASE.md). `npm run preview:mail` genera seis plantillas con datos ficticios para revisar localmente. `npm run test:notifications:qa` ejecuta las integraciones de base en serie; `npm run test:notifications:http` requiere el servidor QA local. Ninguno admite producción.

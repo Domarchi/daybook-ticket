@@ -1,0 +1,67 @@
+export interface PingerConfiguration {
+  enabled: boolean;
+  environment: 'qa' | 'production';
+  targetOrigin: string;
+  expectedTriggerId: string;
+  jobSecret: string;
+  automationBypassSecret?: string;
+}
+export interface PingerDependencies { fetch?: typeof fetch; timeoutMs?: number }
+
+/**
+ * Neon edge removes client-provided X-Neon-* headers. Presence only proves
+ * provenance on the native Neon host, never on localhost or a different host.
+ * Equivalent boundary checks to @neon/functions parseTriggerDelivery:
+ * https://neon.com/docs/compute/functions/triggers/overview#confirming-a-request-came-from-neon
+ */
+export function createNotificationPinger(config: PingerConfiguration, dependencies: PingerDependencies = {}) {
+  const origin = new URL(config.targetOrigin);
+  if (origin.protocol !== 'https:' || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash
+    || !origin.hostname.endsWith('.vercel.app') || !origin.hostname.startsWith('daybook-ticket')) throw new Error('Invalid target origin');
+  const production = origin.hostname === 'daybook-ticket.vercel.app';
+  if (production !== (config.environment === 'production') || (production && config.automationBypassSecret)) throw new Error('Environment target mismatch');
+  if (config.jobSecret.length < 32 || !config.expectedTriggerId.trim()) throw new Error('Missing private scheduler configuration');
+  const send = dependencies.fetch || fetch;
+  return async (request: Request): Promise<Response> => {
+    const privateHeaders = { 'cache-control': 'private, no-store' };
+    if (request.method !== 'POST' || new URL(request.url).pathname !== '/tick') return new Response('Not found', { status: 404, headers: privateHeaders });
+    if (!config.enabled) return new Response('Disabled', { status: 503, headers: { ...privateHeaders, 'retry-after': '900' } });
+    const invocationId = request.headers.get('x-neon-trigger-invocation-id')?.trim();
+    if (!invocationId) return new Response('Unauthorized', { status: 401, headers: privateHeaders });
+    if (!/^[a-zA-Z0-9:_-]{1,200}$/.test(invocationId)) return new Response('Invalid invocation', { status: 400, headers: privateHeaders });
+    let raw: unknown;
+    try {
+      // Native trigger payloads are small. Check bytes, not only the declared length.
+      const reader = request.body?.getReader();
+      if (!reader) throw new Error('Missing body');
+      const chunks: Uint8Array[] = []; let size = 0;
+      try {
+        while (true) {
+          const part = await reader.read(); if (part.done) break;
+          size += part.value.byteLength;
+          if (size > 64 * 1024) { await reader.cancel(); return new Response('Payload too large', { status: 413, headers: privateHeaders }); }
+          chunks.push(part.value);
+        }
+      } finally { reader.releaseLock(); }
+      raw = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    } catch { return new Response('Invalid payload', { status: 400, headers: privateHeaders }); }
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return new Response('Invalid payload', { status: 400, headers: privateHeaders });
+    const body = raw as { version?: unknown; invocation_id?: unknown; trigger?: { type?: unknown; id?: unknown }; data?: { scheduled_at?: unknown } };
+    if (body.version !== 1 || body.invocation_id !== invocationId || body.trigger?.type !== 'schedule'
+      || body.trigger?.id !== config.expectedTriggerId || typeof body.data?.scheduled_at !== 'string'
+      || !Number.isFinite(Date.parse(body.data.scheduled_at))) return new Response('Unauthorized', { status: 401, headers: privateHeaders });
+    try {
+      const headers = new Headers({ 'content-type': 'application/json', authorization: `Bearer ${config.jobSecret}` });
+      if (config.environment === 'qa' && config.automationBypassSecret) headers.set('x-vercel-protection-bypass', config.automationBypassSecret);
+      const response = await send(new URL('/api/internal/notification-tick', origin), {
+        method: 'POST', redirect: 'manual', headers,
+        body: JSON.stringify({ invocationId, scheduledAt: body.data.scheduled_at }),
+        signal: AbortSignal.timeout(Math.max(1, Math.min(30_000, dependencies.timeoutMs || 25_000))),
+      });
+      // Drain/cancel the response before reporting success to the trigger system.
+      await response.body?.cancel();
+      if (!response.ok) return new Response('Worker unavailable', { status: 503, headers: { ...privateHeaders, 'retry-after': '60' } });
+      return Response.json({ ok: true }, { headers: privateHeaders });
+    } catch { return new Response('Worker unavailable', { status: 503, headers: { ...privateHeaders, 'retry-after': '60' } }); }
+  };
+}

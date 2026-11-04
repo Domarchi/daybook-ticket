@@ -40,6 +40,8 @@ jobs:
         run: npm run lint
       - name: Unit tests (no database or delivery)
         run: npm run test:unit
+      - name: Build isolated notification pinger
+        run: npm run build:notification-pinger
       - name: Check types
         run: npm run typecheck
       - name: Build

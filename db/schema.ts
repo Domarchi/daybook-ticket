@@ -127,6 +127,34 @@ export const demoImports = pgTable('demoImports', {
   importedAt: text('importedAt').notNull(),
 });
 
+export const notificationSettings = pgTable('notificationSettings', {
+  ownerId: text('ownerId').primaryKey().references(() => organizations.ownerId, { onDelete: 'cascade' }),
+  alertsActivatedAt: text('alertsActivatedAt').notNull(),
+  remindersEnabled: boolean('remindersEnabled').notNull().default(false),
+  remindersActivatedAt: text('remindersActivatedAt'),
+});
+
+export const reminderOccurrences = pgTable('reminderOccurrences', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull(),
+  ticketId: integer('ticketId').notNull().references(() => tickets.id),
+  cycleMessageId: integer('cycleMessageId').notNull().references(() => messages.id),
+  unansweredMessageId: integer('unansweredMessageId').references(() => messages.id),
+  activationAt: text('activationAt').notNull(), sequence: integer('sequence').notNull(),
+  reasonsJson: text('reasonsJson').notNull(), recipientMemberIdsJson: text('recipientMemberIdsJson').notNull(),
+  dueAtSnapshot: text('dueAtSnapshot').notNull(), createdAt: text('createdAt').notNull(), expiresAt: text('expiresAt').notNull(),
+}, (t) => [
+  uniqueIndex('reminder_occurrences_sequence').on(t.ownerId, t.ticketId, t.activationAt, t.cycleMessageId, t.sequence),
+  index('reminder_occurrences_ticket').on(t.ownerId, t.ticketId, t.activationAt, t.cycleMessageId, t.createdAt),
+]);
+
+export const notificationJobHealth = pgTable('notificationJobHealth', {
+  ownerId: text('ownerId').primaryKey(),
+  lastStartedAt: text('lastStartedAt'), lastSucceededAt: text('lastSucceededAt'), lastFailedAt: text('lastFailedAt'),
+  lastErrorCode: text('lastErrorCode'), lastInvocationId: text('lastInvocationId'),
+  cursorTicketId: integer('cursorTicketId').notNull().default(0),
+  leaseToken: text('leaseToken'), leaseUntil: text('leaseUntil'),
+});
+
 export const mailOutbox = pgTable('mailOutbox', {
   id: text('id').primaryKey(),
   ownerId: text('ownerId').notNull(),
@@ -145,9 +173,25 @@ export const mailOutbox = pgTable('mailOutbox', {
   leaseUntil: text('leaseUntil'),
   providerId: text('providerId'),
   lastErrorCode: text('lastErrorCode'),
+  readAt: text('readAt'),
+  reminderId: text('reminderId').references(() => reminderOccurrences.id),
+  templateVersion: integer('templateVersion').notNull().default(1),
+  environment: text('environment'),
+  deliveryStatus: text('deliveryStatus').notNull().default('untracked'),
+  deliveryEventAt: text('deliveryEventAt'), deliveredAt: text('deliveredAt'),
+  bouncedAt: text('bouncedAt'), complainedAt: text('complainedAt'), deliveryErrorCode: text('deliveryErrorCode'),
   createdAt: text('createdAt').notNull(),
   updatedAt: text('updatedAt').notNull(),
-}, (t) => [uniqueIndex('mail_outbox_event').on(t.eventKey), index('mail_outbox_pending').on(t.ownerId, t.status, t.nextAttemptAt)]);
+}, (t) => [uniqueIndex('mail_outbox_event').on(t.eventKey), index('mail_outbox_pending').on(t.ownerId, t.status, t.nextAttemptAt),
+  index('mail_outbox_alerts').on(t.ownerId, t.recipientMemberId, t.createdAt, t.id), index('mail_outbox_provider').on(t.providerId)]);
+
+// Unmatched, untagged provider receipts contain no recipient or message body.
+// They are retained briefly to reconcile a webhook arriving before the send response.
+export const mailDeliveryEvents = pgTable('mailDeliveryEvents', {
+  id: text('id').primaryKey(), outboxId: text('outboxId').references(() => mailOutbox.id), ownerId: text('ownerId'),
+  providerId: text('providerId').notNull(), eventType: text('eventType').notNull(),
+  occurredAt: text('occurredAt').notNull(), receivedAt: text('receivedAt').notNull(), payloadHash: text('payloadHash').notNull(),
+}, (t) => [index('mail_delivery_events_outbox').on(t.ownerId, t.outboxId, t.occurredAt), index('mail_delivery_events_provider').on(t.providerId)]);
 
 // Push endpoints and encryption keys are private device credentials; never expose them in feeds.
 export const pushSubscriptions = pgTable('pushSubscriptions', {

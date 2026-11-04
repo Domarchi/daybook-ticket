@@ -1,14 +1,21 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TicketAlert, Workspace } from '@/lib/types';
+import type { AlertsPage, TicketAlert, Workspace } from '@/lib/types';
 import { TicketAlertTracker } from '@/lib/alert-tracker';
 import { deliverAlertOnce } from '@/lib/alert-delivery';
+import { ALERT_VIEWER_HEADER, isUnreadAlert, mergeAlertPages } from '@/lib/alerts-state';
 import { useWebPush, type WebPushControls } from './use-web-push';
 
 export interface AlertControls {
   items: TicketAlert[];
   unreadIds: string[];
+  unreadCount: number;
+  filter: 'all' | 'unread';
+  loading: boolean;
+  saving: boolean;
+  error: string;
+  hasMore: boolean;
   latest: TicketAlert | null;
   soundEnabled: boolean;
   soundPending: boolean;
@@ -18,11 +25,16 @@ export interface AlertControls {
   dismissLatest: () => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
+  setFilter: (filter: 'all' | 'unread') => void;
+  loadMore: () => void;
+  refresh: () => void;
 }
 
 const INITIAL = {
   items: [] as TicketAlert[], unreadIds: [] as string[], latest: null as TicketAlert | null,
   soundEnabled: false, soundPending: false, audioError: '',
+  unreadCount: 0, filter: 'all' as 'all' | 'unread', loading: false, saving: false, error: '',
+  nextCursor: null as string | null,
 };
 // A short, quiet two-note chime, generated locally without external audio files.
 function chime(context: AudioContext) {
@@ -58,6 +70,102 @@ export function useTicketAlerts(): AlertControls & { receive: (workspace: Worksp
   const activating = useRef<string | null>(null);
   const mounted = useRef(false);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const listRequest = useRef<AbortController | null>(null);
+  const listRevision = useRef(0);
+  const filter = useRef<'all' | 'unread'>('all');
+  const loadedCount = useRef(20);
+  const cursor = useRef<string | null>(null);
+  const pendingMutations = useRef(0);
+  const mutationQueue = useRef(Promise.resolve());
+  const acknowledgedAt = useRef('');
+  const appliedAt = useRef('');
+
+  const applyPage = useCallback((page: AlertsPage, append = false) => {
+    if (appliedAt.current && page.snapshotAt < appliedAt.current) {
+      setState(previous => ({ ...previous, loading: false }));
+      return;
+    }
+    appliedAt.current = page.snapshotAt;
+    tracker.current.acknowledge(page.items.filter(item => !isUnreadAlert(item)).map(item => item.id));
+    cursor.current = page.nextCursor;
+    setState(previous => {
+      const items = mergeAlertPages(previous.items, page.items, append).filter(item => filter.current === 'all' || isUnreadAlert(item));
+      return { ...previous, items, unreadIds: items.filter(isUnreadAlert).map(item => item.id), unreadCount: page.unreadCount,
+        nextCursor: page.nextCursor, loading: false, error: '' };
+    });
+  }, []);
+
+  const refreshList = useCallback(async (append = false) => {
+    if (!account.current || pendingMutations.current) return;
+    const forAccount = account.current, forFilter = filter.current;
+    if (append && !cursor.current) return;
+    listRequest.current?.abort();
+    const controller = new AbortController();
+    listRequest.current = controller;
+    const revision = ++listRevision.current;
+    const timeout = setTimeout(() => controller.abort(), 15_000);
+    const firstCursor = append ? cursor.current : null;
+    setState(previous => ({ ...previous, loading: true, error: '' }));
+    try {
+      const desired = append ? 20 : Math.max(20, loadedCount.current);
+      let nextCursor = firstCursor;
+      let combined: TicketAlert[] = [];
+      let page: AlertsPage;
+      do {
+        const params = new URLSearchParams({ filter: forFilter, limit: '20' });
+        if (nextCursor) params.set('cursor', nextCursor);
+        const response = await fetch(`/api/alerts?${params}`, { cache: 'no-store', signal: controller.signal, headers: { [ALERT_VIEWER_HEADER]: forAccount.split(':')[0] } });
+        const result = await response.json();
+        if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'No se pudieron actualizar tus avisos.');
+        page = result as AlertsPage;
+        combined = mergeAlertPages(combined, page.items, true);
+        nextCursor = page.nextCursor;
+      } while (!append && nextCursor && combined.length < desired);
+      if (!mounted.current || account.current !== forAccount || filter.current !== forFilter || revision !== listRevision.current || controller.signal.aborted) return;
+      applyPage({ ...page, items: combined }, append);
+      loadedCount.current = append ? loadedCount.current + combined.length : Math.max(20, combined.length);
+    } catch (failure) {
+      if (mounted.current && account.current === forAccount && revision === listRevision.current) {
+        setState(previous => ({ ...previous, loading: false, error: failure instanceof Error && failure.name !== 'AbortError' ? failure.message : 'No se pudieron actualizar tus avisos. Vuelve a intentarlo.' }));
+      }
+    } finally {
+      clearTimeout(timeout);
+      if (listRequest.current === controller) listRequest.current = null;
+    }
+  }, [applyPage]);
+
+  const markRead = useCallback((change: { ids: string[] } | { all: true }) => {
+    const forAccount = account.current;
+    if (!forAccount) return;
+    pendingMutations.current++;
+    listRequest.current?.abort();
+    listRevision.current++;
+    setState(previous => ({ ...previous, saving: true, loading: false, error: '' }));
+    mutationQueue.current = mutationQueue.current.catch(() => {}).then(async () => {
+      if (account.current !== forAccount) return;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15_000);
+      try {
+        const response = await fetch('/api/alerts', { method: 'PATCH', headers: { 'Content-Type': 'application/json', [ALERT_VIEWER_HEADER]: forAccount.split(':')[0] }, body: JSON.stringify(change), signal: controller.signal });
+        const result = await response.json();
+        if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'No se pudo guardar la lectura.');
+        if (!mounted.current || account.current !== forAccount) return;
+        const page = result as AlertsPage;
+        acknowledgedAt.current = page.snapshotAt;
+        loadedCount.current = 20;
+        applyPage(page);
+        setState(previous => ({ ...previous, latest: previous.latest && ('all' in change || change.ids.includes(previous.latest.id)) ? null : previous.latest }));
+      } catch (failure) {
+        if (mounted.current && account.current === forAccount) setState(previous => ({ ...previous, error: failure instanceof Error && failure.name !== 'AbortError' ? failure.message : 'No se pudo guardar la lectura. Vuelve a intentarlo.' }));
+      } finally { clearTimeout(timeout); }
+    }).finally(() => {
+      pendingMutations.current = Math.max(0, pendingMutations.current - 1);
+      if (mounted.current && account.current === forAccount && !pendingMutations.current) {
+        setState(previous => ({ ...previous, saving: false }));
+        if (filter.current === 'unread') void refreshList();
+      }
+    });
+  }, [applyPage, refreshList]);
 
   const enableSound = useCallback(async (preview: boolean) => {
     if (!account.current || activating.current === account.current) return;
@@ -103,6 +211,7 @@ export function useTicketAlerts(): AlertControls & { receive: (workspace: Worksp
   const receive = useCallback((workspace: Workspace) => {
     const viewerKey = workspace.viewer ? `${workspace.viewer.id}:${workspace.viewer.role}` : null;
     const changedAccount = account.current !== viewerKey;
+    const page = workspace.alertsPage;
     const items = workspace.alerts;
     const fresh = tracker.current.receive(viewerKey, items);
     if (changedAccount) {
@@ -114,16 +223,26 @@ export function useTicketAlerts(): AlertControls & { receive: (workspace: Worksp
       if (audio.current) void audio.current.close().catch(() => {});
       audio.current = null;
       clearTimeout(toastTimer.current);
-      setState({ ...INITIAL, items });
+      listRequest.current?.abort();
+      listRevision.current++;
+      filter.current = 'all';
+      loadedCount.current = 20;
+      acknowledgedAt.current = '';
+      appliedAt.current = page?.snapshotAt || '';
+      cursor.current = page?.nextCursor || null;
+      setState({ ...INITIAL, items, unreadIds: items.filter(isUnreadAlert).map(item => item.id), unreadCount: page?.unreadCount || 0, nextCursor: page?.nextCursor || null });
       return;
     }
     if (!viewerKey) return;
-    const latest = fresh.at(-1);
+    const latest = fresh.filter(isUnreadAlert).at(-1);
     const availableIds = new Set(items.map(item => item.id));
+    const canApply = !pendingMutations.current && (!page || !acknowledgedAt.current || page.snapshotAt > acknowledgedAt.current);
+    if (canApply && page) {
+      if (filter.current === 'all' && loadedCount.current <= 20) applyPage(page);
+      else if (!listRequest.current) void refreshList();
+    }
     setState(previous => ({
       ...previous,
-      items,
-      unreadIds: [...new Set([...previous.unreadIds, ...fresh.map(item => item.id)])].filter(id => availableIds.has(id)),
       latest: latest || (previous.latest && availableIds.has(previous.latest.id) ? previous.latest : null),
       soundEnabled: wantsSound.current && audio.current?.state === 'running',
     }));
@@ -135,7 +254,7 @@ export function useTicketAlerts(): AlertControls & { receive: (workspace: Worksp
         () => mounted.current && account.current === viewerKey && wantsSound.current && audio.current?.state === 'running' && (!pushActive.current || document.visibilityState === 'visible'),
         () => { if (audio.current) chime(audio.current); });
     }
-  }, []);
+  }, [applyPage, refreshList]);
 
   useEffect(() => {
     mounted.current = true;
@@ -158,20 +277,31 @@ export function useTicketAlerts(): AlertControls & { receive: (workspace: Worksp
       document.removeEventListener('keydown', unlock);
       window.removeEventListener('storage', preferenceChanged);
       clearTimeout(toastTimer.current);
+      listRequest.current?.abort();
       if (audio.current) void audio.current.close().catch(() => {});
     };
   }, [enableSound]);
 
   useEffect(() => {
     const title = 'Daybook Ticket — Servicios Daybook';
-    document.title = state.unreadIds.length ? `(${state.unreadIds.length}) ${title}` : title;
+    document.title = state.unreadCount ? `(${state.unreadCount}) ${title}` : title;
     return () => { document.title = title; };
-  }, [state.unreadIds.length]);
+  }, [state.unreadCount]);
 
   return {
-    ...state, push, receive, toggleSound,
+    ...state, push, receive, toggleSound, hasMore: state.nextCursor !== null,
     dismissLatest: () => setState(previous => ({ ...previous, latest: null })),
-    markRead: id => setState(previous => ({ ...previous, unreadIds: previous.unreadIds.filter(value => value !== id), latest: previous.latest?.id === id ? null : previous.latest })),
-    markAllRead: () => setState(previous => ({ ...previous, unreadIds: [], latest: null })),
+    markRead: id => markRead({ ids: [id] }),
+    markAllRead: () => markRead({ all: true }),
+    setFilter: next => {
+      if (filter.current === next) return;
+      filter.current = next;
+      loadedCount.current = 20;
+      cursor.current = null;
+      setState(previous => ({ ...previous, filter: next, items: [], unreadIds: [], nextCursor: null }));
+      void refreshList();
+    },
+    loadMore: () => { if (!listRequest.current) void refreshList(true); },
+    refresh: () => { void refreshList(); },
   };
 }
