@@ -1,8 +1,10 @@
 # Publicación de empresas y trabajo del equipo
 
-Runbook de Daybook Ticket, actualizado el 4 de noviembre de 2026. Rama candidata: `codex/daybook-ticket-improvements`. Base: `5fc1d9828e1ff78b12aadec379502fb39f6a067f`. No afirma que la entrega esté publicada ni autoriza por sí mismo acciones productivas.
+Runbook de Daybook Ticket, actualizado el 4 de noviembre de 2026. Rama candidata: `codex/daybook-ticket-improvements`. Base: `5fc1d9828e1ff78b12aadec379502fb39f6a067f`. Código candidato integrado y enviado: `a5cf3b9b2c333c8cdf7ac095a1a4090f554386e2`; [PR #1](https://github.com/Domarchi/daybook-ticket/pull/1). Local, QA, CI y Preview del código candidato están validados; esto no afirma publicación productiva ni autoriza por sí mismo acciones productivas.
 
 ## Estado antes de publicar
+
+Este registro identifica las ejecuciones que validaron el código `a5cf3b9`. El commit de cierre puede añadir únicamente documentación; el PR registra su SHA y el deployment vigente. Ese cierre no cambia el código de aplicación ni sustituye la evidencia por una comprobación pendiente.
 
 | Condición | Evidencia o pendiente |
 | --- | --- |
@@ -22,20 +24,22 @@ Runbook de Daybook Ticket, actualizado el 4 de noviembre de 2026. Rama candidata
 | Validación completa anterior | `npm run check` PASS en `bfd2d72`: lint, 51 unitarias, tipos y build. |
 | Validación con locks, búsqueda y filtros | `npm run check` PASS con 52 pruebas, lint, tipos y build; snapshot `/tmp/daybook-ticket-final-ptns9ai6`, proceso 96926, exit 0. |
 | Build tras el último CSS móvil | PASS, proceso 4887, exit 0, mismo snapshot. Comparación de huellas de todos los archivos runtime/QA contra worktree sin diferencias. El CSS fue el único cambio posterior al check completo. |
-| CI remoto | Run `41766980174`: `startup_failure`, sin jobs. GitHub no inició la ejecución por pagos recientes fallidos o límite de gasto de la cuenta. No es una ejecución verde ni un fallo de tests. |
-| Preview aislado de la rama | Bloqueado: la revisión automática rechazó guardar secretos privados en Preview por falta de autorización específica para ese entorno. Hostname previsto `daybook-ticket-qa-domarchi.vercel.app`; deployment/acceso no confirmados. |
-| Configuración Blob | Almacenes privados separados QA/producción preparados; token productivo privado/sensible y selector `production` configurados. La app nueva aún no está desplegada. |
-| Publicación | Rama enviada hasta `4c26726`; los cambios posteriores tienen validación local/QA registrada y siguen pendientes de integrar en el commit final. Commit final, decisión de publicar, migración productiva y deployment pendientes. |
+| CI remoto | PASS para `a5cf3b9`, runs [41829072109](https://github.com/Domarchi/daybook-ticket/actions/runs/41829072109) y [41829071014](https://github.com/Domarchi/daybook-ticket/actions/runs/41829071014): `npm ci`, lint, unitarias, tipos y build. |
+| Preview aislado de la rama | READY desde `a5cf3b9`, deployment `dpl_FfdbyWGDXG49XLdFdeYq4zbt6wGN`; [alias confirmado](https://daybook-ticket-qa-domarchi.vercel.app). Build Vercel `npm run check` PASS. |
+| Recorrido remoto | PASS en Chrome autenticado en Vercel: cliente crea ticket #41 con TXT mediante selector real y lo descarga autenticado; equipo toma ticket con actividad de responsable, busca/inserta respuesta y envía manualmente; encargado con rol cliente ve archivo/respuesta y comenta desde móvil de 390 px, sin ver nota interna. |
+| Estado del PR | Todos los checks SUCCESS y mergeState CLEAN en [PR #1](https://github.com/Domarchi/daybook-ticket/pull/1). |
+| Configuración Blob | Almacenes privados separados QA/producción preparados; token productivo privado/sensible y selector `production` configurados. La app nueva está desplegada y probada en Preview QA; no está publicada en producción. |
+| Publicación | Código `a5cf3b9b2c333c8cdf7ac095a1a4090f554386e2` integrado/enviado, PR #1, CI y Preview PASS; listo para la decisión de publicar. Migración productiva y deployment productivo no realizados, sujetos a autorización posterior. |
 
 No promover con fallos de aislamiento, notas privadas, idempotencia o integridad de adjuntos. Código y workflow existentes no convierten comprobaciones pendientes en PASS.
 
-Las cuatro regresiones actuales terminaron PASS: acceso completo y limpieza; responsables, 17 comprobaciones; drenaje, 16 grupos; evento exacto, siete grupos. Cero correos o push externos. Sus fixtures quedaron limpios; los fixtures ficticios `team-release-qa` y archivos Blob QA se retienen para el Preview pendiente y se retirarán después de esa revisión.
+Las cuatro regresiones actuales terminaron PASS: acceso completo y limpieza; responsables, 17 comprobaciones; drenaje, 16 grupos; evento exacto, siete grupos. Cero correos o push externos. Sus fixtures quedaron limpios; los fixtures ficticios `team-release-qa` y archivos Blob QA se retienen para la revisión del usuario junto al ticket remoto #41; la prueba remota está terminada. Retirarlos al finalizar esa revisión.
 
 La ejecución concurrente tuvo un primer intento interrumpido por resolución DNS transitoria (`EAI_AGAIN`); la ejecución posterior PASS no mostró deadlock ni agotamiento del pool.
 
-Los dos bloqueos externos se mantienen separados del resultado local. La anotación de GitHub indica: “The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check Billing & plans”. No cambiar facturación, límites o planes desde este trabajo. Continuar las comprobaciones locales y preparar la revisión de código; registrar sus resultados sin atribuirlos a CI remoto.
+Los bloqueos iniciales ya no describen el estado actual: el run `41766980174` no arrancó por facturación/límite de gasto, pero el candidato tiene CI real PASS en [41829072109](https://github.com/Domarchi/daybook-ticket/actions/runs/41829072109). No se cambiaron pagos, límites ni planes desde este trabajo.
 
-La autorización anterior de secretos en producción no cubre por sí sola Preview. No intentar otro canal para eludir el rechazo automático. Tras completar el trabajo independiente, solicitar la autorización concreta para los secretos privados del Preview de esta rama/proyecto; hasta entonces, conservar la revisión local y no afirmar que el Preview está disponible.
+La revisión automática rechazó inicialmente guardar secretos Preview por falta de autorización específica. El usuario otorgó esa autorización después y la API guardó los tres secretos QA como Sensitive, limitados a Preview y a `codex/daybook-ticket-improvements`: `DATABASE_URL`, `BETTER_AUTH_SECRET` y `DAYBOOK_BLOB_QA_READ_WRITE_TOKEN`. No se eludió el rechazo ni se trasladaron secretos productivos. El deployment Preview quedó READY, con alias y recorrido remoto comprobados. La prueba usó Chrome con la sesión Vercel existente, sin share links ni cambios a Deployment Protection. La revisión automática rechazó un intento de enlace temporal; se descartó esa acción y se completó la prueba con acceso autenticado, sin eludir el rechazo.
 
 ## Aislamiento y secretos
 
@@ -45,7 +49,7 @@ El servidor QA usa `http://127.0.0.1:5173` y `.env.test.local`, con `DAYBOOK_QA_
 
 La base/URL productiva no se copia a QA. Mantener secretos de autenticación y cookies separados por entorno; no copiar sesiones productivas a fixtures ni usar `daybook-ticket.vercel.app` como origen QA. El prefijo `daybook` es común: no constituye aislamiento. Cada actor de prueba conserva sus propias cookies y solo se usa el origen QA.
 
-`.env*`, `.vercel/` y `work/` están ignorados. `work/team-release-qa.json` puede contener contraseñas/cookies de pruebas y debe permanecer ignorado y con permisos locales restringidos. No imprimir valores de conexión, autenticación, Resend, VAPID o Blob. Revisar el diff antes de versionar; un ejemplo no debe contener secretos reales.
+`.env*`, `.vercel/` y `work/` están ignorados. `work/team-release-qa.json` puede contener contraseñas/cookies de pruebas y debe permanecer ignorado y con permisos locales restringidos. Los accesos ficticios para revisión están en `work/PREVIEW_ACCESS.private.txt`, modo 600 e ignorado; sus valores no deben copiarse a documentación, PR ni registros. No imprimir valores de conexión, autenticación, Resend, VAPID o Blob. Revisar el diff antes de versionar; un ejemplo no debe contener secretos reales.
 
 Desarrollo/preview solo selecciona `DAYBOOK_BLOB_ENV=qa` y `DAYBOOK_BLOB_QA_READ_WRITE_TOKEN`; únicamente `VERCEL_ENV=production` permite `DAYBOOK_BLOB_ENV=production` y `DAYBOOK_BLOB_PRODUCTION_READ_WRITE_TOKEN`. Los almacenes son privados y distintos; no usar el token QA en producción. No hay fallback a credenciales Blob ambientales ni a endpoints de emulador.
 
@@ -63,7 +67,7 @@ Almacenes verificados durante la preparación: QA `store_jZdpTcfXmyijP3jw`, prod
 
 ## Orden de publicación
 
-Ejecutar solo dentro del alcance de publicación confirmado para Daybook Ticket y registrar el resultado de cada paso.
+Estos pasos productivos corresponden a una fase posterior a la entrega lista para desplegar y requieren autorización de publicación. Ejecutarlos solo dentro del alcance confirmado para Daybook Ticket y registrar el resultado de cada paso. Producción fue revalidada sin cambios: deployment `dpl_5PZkPffLHhyLvQUWAkgkE32TUR52`, código `5fc1d9828e1ff78b12aadec379502fb39f6a067f`; `0002` se aplicó solo en QA.
 
 1. Identificar versión/deployment productivo previo y el candidato. Verificar el punto de restauración disponible de la base antes de cambiar el esquema; no asumir que existe una copia comprobada.
 2. Revisar `0002_companies_team_workflow.sql` y el journal. Es aditiva: tablas nuevas y columnas con nulos/defaults compatibles. No backfillea empresas ni transfiere tickets. No alterar migraciones ya aplicadas.
@@ -86,6 +90,8 @@ Restaurar la base a un punto anterior es una recuperación distinta y puede perd
 
 ## Registro de cierre
 
-Validación local y QA registrada: lint, tipos y 52 unitarias PASS; build final tras CSS PASS; huellas runtime/QA del snapshot iguales al worktree; recorrido visual cliente con archivo → respuesta del equipo → comentario móvil del encargado PASS. Las cuatro regresiones adicionales quedaron PASS y limpias. Los fixtures de revisión y Blob ficticios se retienen para Preview.
+Validación local y QA registrada: lint, tipos y 52 unitarias PASS; build final tras CSS PASS; huellas runtime/QA del snapshot iguales al worktree; recorrido visual cliente con archivo → respuesta del equipo → comentario móvil del encargado PASS. Las cuatro regresiones adicionales quedaron PASS y limpias. Los fixtures de revisión, el ticket remoto #41 y Blob ficticios se retienen para que el usuario revise el Preview ya validado.
 
-Pendiente: commit candidato final; resolución y ejecución de CI remoto; autorización de secretos y deployment Preview observado; retirada posterior de sus fixtures/objetos. La migración productiva y el deployment productivo no se han realizado. Al publicar, registrar configuración efectiva, deployment, límites comunicados y versión de recuperación compatible con la nueva ACL. No se declara verde global mientras sigan pendientes CI/Preview. No incluir secretos, enlaces de invitación ni cookies.
+Código candidato `a5cf3b9b2c333c8cdf7ac095a1a4090f554386e2` integrado y enviado; gates local, QA, CI y Preview PASS. Secretos QA Preview autorizados y guardados con alcance de rama; deployment READY, [alias](https://daybook-ticket-qa-domarchi.vercel.app) y recorrido remoto completo confirmados. Todos los checks del PR están SUCCESS y el mergeState es CLEAN. No queda una prueba de Preview pendiente.
+
+La entrega está lista para desplegar; la migración productiva y el deployment productivo requieren autorización futura y no se han realizado. Al publicar, registrar configuración efectiva, deployment, límites comunicados y versión de recuperación compatible con la nueva ACL. Retirar los fixtures/objetos ficticios cuando el usuario termine de revisar. No incluir secretos, enlaces de invitación ni cookies.

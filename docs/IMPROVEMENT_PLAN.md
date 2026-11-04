@@ -6,9 +6,9 @@ Inicio: 3 de noviembre de 2026. Actualización: 4 de noviembre de 2026, America/
 
 La prioridad es el trabajo del equipo: empresas con contactos, clientes que ven sus propios tickets, un encargado que ve y comenta los de su empresa, bandeja común con «Tomar ticket» y accesos administrados por el equipo. Incluye respuestas guardadas, filtros persistentes, historial operativo, adjuntos privados e idempotencia de los envíos. Conserva la identidad de Daybook Ticket y los responsables configurados para los avisos.
 
-El trabajo se limita a este repositorio/proyecto. Los demás Daybook y la web, repositorios y DNS de Consorcio C17 quedan fuera. La implementación y pruebas usan la rama y base QA con datos ficticios, sin correos ni push reales. El almacenamiento real se valida solo en el almacén privado QA autorizado. El almacén privado de producción y su configuración están preparados; esto no significa que se haya desplegado la aplicación o migrado la base productiva.
+El trabajo se limita a este repositorio/proyecto. Los demás Daybook y la web, repositorios y DNS de Consorcio C17 quedan fuera. La implementación y pruebas usan la rama y base QA con datos ficticios, sin correos ni push reales. El almacenamiento real se valida solo en el almacén privado QA autorizado. El almacén privado de producción y su configuración están preparados; la aplicación nueva se publicó solo en Preview QA, sin publicar ni migrar producción.
 
-Completar pruebas locales no significa que CI o producción estén aprobados. [RELEASE_TEAM.md](RELEASE_TEAM.md) recoge condiciones pendientes y procedimiento de publicación/rollback.
+Las comprobaciones locales, QA, CI y la prueba remota del [Preview](https://daybook-ticket-qa-domarchi.vercel.app) pasaron. El candidato está listo para la siguiente decisión de publicación; producción conserva su versión anterior. [RELEASE_TEAM.md](RELEASE_TEAM.md) recoge la evidencia y el procedimiento de publicación/rollback.
 
 ## Paquetes y aceptación
 
@@ -16,14 +16,16 @@ Completar pruebas locales no significa que CI o producción estén aprobados. [R
 | --- | --- | --- |
 | M1. Borradores y acciones | Separar cuenta/ticket/audiencia; conservar modo de nota; limpiar solo lo enviado; selección masiva limitada a visibles. | Desarrollado; pruebas unitarias integradas. Recorrido visual desktop y móvil comprobado; corregida la navegación estrecha del portal. |
 | M2. Correo después de guardar | Drenaje acotado después de responder, sin duplicados ni consumo masivo de intentos ante `429`; preservar evento exacto y revalidación. | Desarrollado; suites QA de drenaje/evento dirigido PASS con proveedor simulado. No añade scheduler. |
-| M3. Comprobaciones automáticas | Comando para lint, unitarias, tipos y build; CI sin secretos, base real ni envíos. | Scripts/workflow desarrollados. `npm run check` completo PASS con 52 pruebas; build repetido tras el último CSS móvil PASS. Huellas de archivos runtime/QA del snapshot coinciden con el worktree. CI no inició por un bloqueo de facturación/límite de gasto de GitHub. |
+| M3. Comprobaciones automáticas | Comando para lint, unitarias, tipos y build; CI sin secretos, base real ni envíos. | Scripts/workflow desarrollados. `npm run check` completo PASS con 52 pruebas; build repetido tras el último CSS móvil PASS. Huellas de archivos runtime/QA del snapshot coinciden con el worktree. CI remoto del código `a5cf3b9` PASS: [run 41829072109](https://github.com/Domarchi/daybook-ticket/actions/runs/41829072109). |
 | E1. Empresas y acceso | Contacto de una empresa; encargado ve/comenta sus tickets; transferencia retira acceso sin mover historia; ACL consistente. | Desarrollado; 16 grupos QA PASS. Migración aplicada solo a QA. |
 | E2. Reparto y colaboración | Tomar/reasignar con versión; historial; respuestas guardadas; filtros; crear/responder con `operationId`. | Desarrollado; 11 grupos HTTP PASS. Replay de nota tras bajar rol: tres comprobaciones PASS. Cinco actores creando y respondiendo simultáneamente: PASS en 13,6 s. Búsqueda visual de respuestas guardadas e inserción manual PASS; todos los filtros conservan su selección tras recargar. |
 | E3. Adjuntos privados | Carga/validación/vinculación transaccional; descarga con ACL; notas privadas; límites y limpieza diferida. | Desarrollado; cinco grupos BD simulados y diez comprobaciones HTTP usando el SDK cliente real contra Blob privado QA PASS. Carga desde el selector real del cliente y envío de respuesta con TXT comprobados en la interfaz. |
 
 ## Evidencia registrada
 
-Resultados confirmados durante esta entrega; no sustituyen la revisión del candidato final:
+Los identificadores de CI y Preview registran la validación del código `a5cf3b9`. El cierre posterior añade solo documentación; el PR conserva el SHA final y el deployment vigente.
+
+Resultados confirmados del código candidato y de su Preview:
 
 | Comprobación | Resultado registrado | Entorno |
 | --- | --- | --- |
@@ -48,12 +50,17 @@ Resultados confirmados durante esta entrega; no sustituyen la revisión del cand
 | `npm run check` anterior | PASS en `bfd2d72`: lint, 51 unitarias, tipos y build | Local, configuración ficticia |
 | `npm run check` con locks, búsqueda y filtros | PASS: lint, 52 unitarias, tipos y build; snapshot `/tmp/daybook-ticket-final-ptns9ai6`, proceso 96926, exit 0 | Local, configuración ficticia |
 | Build tras el último CSS móvil | PASS, proceso 4887, exit 0, mismo snapshot. Comparación de huellas runtime/QA contra worktree sin diferencias | Local, configuración ficticia |
-| CI remoto, run `41766980174` | `startup_failure`, sin jobs: pagos recientes fallidos o límite de gasto de la cuenta | GitHub; no es PASS ni fallo de tests |
-| Preview de la rama | Bloqueado por rechazo automático de secretos Preview sin autorización específica | No desplegado/verificado |
+| CI remoto del candidato `a5cf3b9` | PASS, runs [41829072109](https://github.com/Domarchi/daybook-ticket/actions/runs/41829072109) y [41829071014](https://github.com/Domarchi/daybook-ticket/actions/runs/41829071014): `npm ci`, lint, unitarias, tipos y build | GitHub Actions |
+| Código candidato | `a5cf3b9b2c333c8cdf7ac095a1a4090f554386e2` integrado y enviado a la rama; [PR #1](https://github.com/Domarchi/daybook-ticket/pull/1) | GitHub |
+| Preview de la rama | READY, deployment `dpl_FfdbyWGDXG49XLdFdeYq4zbt6wGN` del código candidato; build Vercel con `npm run check` PASS | [Preview revisable](https://daybook-ticket-qa-domarchi.vercel.app) |
+| Recorrido remoto desktop/móvil | PASS: cliente crea ticket #41 con TXT desde selector real y descarga autenticada; equipo toma ticket y consulta actividad, inserta respuesta guardada y responde manualmente; encargado con rol cliente ve archivo/respuesta y comenta desde móvil de 390 px, sin ver la nota interna | Chrome autenticado en Vercel; QA ficticia |
+| Estado del PR | Todos los checks SUCCESS y mergeState CLEAN | [PR #1](https://github.com/Domarchi/daybook-ticket/pull/1) |
 
-Las suites de BD se coordinan de una en una. Las cuatro regresiones actuales de acceso, responsables, drenaje y evento dirigido terminaron PASS, con cero entregas externas; sus fixtures quedaron limpios. Los fixtures ficticios `team-release-qa` y los archivos Blob QA se retienen únicamente para la revisión Preview pendiente; retirarlos al cerrar esa revisión. Credenciales y cookies temporales permanecen en archivos locales ignorados, no en Git ni en este documento.
+Las suites de BD se coordinan de una en una. Las cuatro regresiones actuales de acceso, responsables, drenaje y evento dirigido terminaron PASS, con cero entregas externas; sus fixtures quedaron limpios. Los fixtures ficticios `team-release-qa` y los archivos Blob QA se retienen para la revisión del usuario, incluido el ticket remoto #41; la prueba remota ya terminó. Retirarlos cuando finalice esa revisión. Credenciales y cookies temporales permanecen en archivos locales ignorados, no en Git ni en este documento.
 
-La rama fue enviada hasta `4c26726`; los cambios posteriores ya tienen validación local y QA registrada; falta integrarlos en el commit final y completar los gates externos. La prueba de concurrencia tuvo un primer intento interrumpido por DNS transitorio (`EAI_AGAIN`); la ejecución posterior PASS no mostró bloqueo de filas ni agotamiento del pool. El bloqueo remoto no impide completar comprobaciones locales y preparar la revisión. No cambiar Billing & plans ni eludir el rechazo de Preview por otro canal. La autorización concreta para guardar secretos privados en Preview se solicita después de terminar el trabajo independiente; la autorización productiva previa no se extiende automáticamente a ese entorno.
+El código candidato `a5cf3b9b2c333c8cdf7ac095a1a4090f554386e2` está integrado y enviado en la rama, con [PR #1](https://github.com/Domarchi/daybook-ticket/pull/1) y CI remoto PASS. El run histórico `41766980174` no arrancó por facturación/límite de gasto; ese resultado no describe el run actual. La prueba de concurrencia tuvo un primer intento interrumpido por DNS transitorio (`EAI_AGAIN`); la ejecución posterior PASS no mostró bloqueo de filas ni agotamiento del pool.
+
+El rechazo automático inicial de secretos Preview quedó resuelto mediante autorización específica posterior del usuario. Los tres secretos QA (`DATABASE_URL`, `BETTER_AUTH_SECRET` y `DAYBOOK_BLOB_QA_READ_WRITE_TOKEN`) se guardaron como Sensitive, limitados a Preview y a esta rama; no se incluyen valores en Git. El Preview quedó READY y el recorrido remoto completo se comprobó en Chrome, ya autenticado en Vercel. Se conservaron las protecciones existentes: no se crearon share links ni se modificó Deployment Protection. Un intento de enlace temporal fue rechazado por revisión automática y se descartó; la prueba se completó con el acceso autenticado existente. No se cambió facturación ni se eludió la revisión por otro canal.
 
 ## Límites y trabajo posterior
 
@@ -65,4 +72,4 @@ La rama fue enviada hasta `4c26726`; los cambios posteriores ya tienen validaci�
 
 ## Cierre
 
-La validación local y QA del candidato quedó registrada. Falta registrar el commit final y resolver CI remoto y la autorización de Preview para completar la entrega revisable; no se declara verde global ni publicación productiva. No fusionar, migrar producción, rotar secretos ni publicar automáticamente a partir de este documento. El coordinador confirma el candidato final; el runbook mantiene los pasos y límites del rollback, incluida la incompatibilidad de la ACL anterior después de trasladar clientes entre empresas.
+La validación local, QA, CI y Preview del código candidato quedó completada y en verde. El recorrido remoto cliente con archivo → respuesta del equipo → comentario móvil del encargado pasó, con nota interna oculta y archivo descargado mediante autenticación. La publicación productiva es una fase posterior que requiere su autorización; no forma parte del gate de entrega lista para desplegar. Producción fue revalidada sin cambios: deployment `dpl_5PZkPffLHhyLvQUWAkgkE32TUR52`, código `5fc1d9828e1ff78b12aadec379502fb39f6a067f`, migración `0002` aplicada solo en QA. No fusionar, migrar producción, rotar secretos ni publicar automáticamente a partir de este documento. El runbook conserva los pasos y límites del rollback, incluida la incompatibilidad de la ACL anterior después de trasladar clientes entre empresas.
