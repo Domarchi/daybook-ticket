@@ -5,7 +5,7 @@ import { deliverAlertOnce, type AlertDeliveryDependencies } from '../lib/alert-d
 import type { TicketAlert } from '../lib/types';
 
 function alert(id: string, event: TicketAlert['event'] = 'ticket_created', createdAt = '2026-11-03T20:00:00.000Z'): TicketAlert {
-  return { id, event, ticketId: 1, subject: 'Ticket de prueba', createdAt };
+  return { id, event, ticketId: 1, subject: 'Ticket de prueba', createdAt, readAt: null, historical: false };
 }
 
 test('initial history stays silent, including an empty first snapshot', () => {

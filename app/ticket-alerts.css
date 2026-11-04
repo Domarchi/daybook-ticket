@@ -23,6 +23,18 @@
 .ticket-alert-icon-button:hover { color: #11120f; background: #f1f3ef; }
 .ticket-alert-read-all { display: flex; align-items: center; justify-content: flex-start; gap: 7px; min-height: 40px; padding: 10px 18px; border-bottom: 1px solid #eceee9; color: #805a0e; font-size: 12px; text-align: left; }
 .ticket-alert-read-all:hover { background: #fffaf0; }
+.ticket-alert-filters { display: flex; flex-shrink: 0; gap: 5px; padding: 9px 14px; border-bottom: 1px solid #eceee9; background: #fafbf9; }
+.ticket-alert-filters button { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 7px 12px; border: 1px solid transparent; border-radius: 8px; color: #687060; font-size: 12px; }
+.ticket-alert-filters button[aria-pressed="true"] { border-color: #e3d0a7; background: #fff8e9; color: #805a0e; font-weight: 600; }
+.ticket-alert-filters button span { padding: 1px 5px; border-radius: 8px; background: #eee8dc; font-size: 10px; }
+.ticket-alert-date-group { padding: 8px 18px; background: #f7f8f5; color: #777d6f; font-size: 10px; font-weight: 650; letter-spacing: .04em; }
+.ticket-alert-history-label { display: block; margin-top: 4px; color: #777d6f; font-size: 10px; line-height: 1.5; }
+.ticket-alert-load-more { display: flex; flex-shrink: 0; align-items: center; justify-content: center; gap: 7px; min-height: 42px; padding: 10px 18px; border-top: 1px solid #eceee9; color: #805a0e; font-size: 12px; }
+.ticket-alert-load-more:hover { background: #fffaf0; }
+.ticket-alert-persistence { flex-shrink: 0; margin: 0; padding: 9px 18px; border-top: 1px solid #eceee9; background: #fafbf9; color: #777d6f; font-size: 10px; line-height: 1.5; text-align: center; }
+.ticket-alert-error { padding: 10px 18px; background: #fff4ee; color: #8b4636; font-size: 12px; line-height: 1.5; }
+.ticket-alert-error p { margin: 0; }
+.ticket-alert-error button { min-height: 32px; margin-top: 4px; text-decoration: underline; }
 .ticket-alert-list { margin: 0; padding: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; }
 .ticket-alert-list li + li { border-top: 1px solid #eceee9; }
 .ticket-alert-item { display: flex; align-items: flex-start; gap: 11px; width: 100%; min-height: 96px; padding: 16px 18px; text-align: left; }

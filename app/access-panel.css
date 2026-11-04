@@ -62,7 +62,7 @@
 .mail-panel .section-head > .access-status { font-size: 12px; }
 .mail-panel-body { padding: 25px; }
 .mail-panel-body > p { font-size: 14px; color: var(--muted, #69717c); }
-.mail-counts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin: 23px 0; }
+.mail-counts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 23px 0; }
 .mail-counts > div { background: #f7f8f9; border: 1px solid var(--line, #e6e8ec); padding: 16px; border-radius: 8px; }
 .mail-counts strong { display: block; font-size: 27px; font-weight: 600; color: var(--ink, #11120f); }
 .mail-counts span { display: block; font-size: 12px; color: var(--muted, #69717c); margin-top: 7px; line-height: 1.6; }

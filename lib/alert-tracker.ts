@@ -1,9 +1,13 @@
 import type { TicketAlert } from './types';
+import { isUnreadAlert } from './alerts-state';
 
 /** Tracks arrivals for one signed-in account/role without replaying its history. */
 export class TicketAlertTracker {
   private viewerKey: string | null = null;
   private readonly seen = new Set<string>();
+
+  /** A saved read received ahead of an older poll must never announce again. */
+  acknowledge(ids: string[]): void { for (const id of ids) this.seen.add(id); }
 
   receive(viewerKey: string | null, items: TicketAlert[]): TicketAlert[] {
     if (viewerKey === null) {
@@ -23,7 +27,7 @@ export class TicketAlertTracker {
     for (const item of items) {
       if (this.seen.has(item.id)) continue;
       this.seen.add(item.id);
-      fresh.push(item);
+      if (isUnreadAlert(item)) fresh.push(item);
     }
 
     // Keep IDs for the session, including those outside the latest feed window.

@@ -11,13 +11,17 @@
     "start": "next start --hostname 127.0.0.1 --port 5173",
     "lint": "eslint . --ignore-pattern .next",
     "typecheck": "next typegen && tsc --noEmit",
-    "test:unit": "node --import tsx scripts/check-alert-tracker.test.ts && node --import tsx scripts/check-web-push.test.ts && node scripts/check-web-push-worker.test.mjs && node --import tsx scripts/check-ticket-drafts.test.ts && node --import tsx scripts/check-attachments.test.ts && node --import tsx scripts/check-collaboration-ui.test.ts",
+    "test:unit": "node --import tsx --test --test-concurrency=2 scripts/*.test.ts scripts/*.test.mjs",
     "check": "npm run lint && npm run test:unit && npm run typecheck && npm run build",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate.mjs",
     "owner:invite": "node scripts/provision-owner.mjs",
     "test:access": "tsx scripts/check-access.mjs",
-    "test:database": "tsx scripts/check-database.mjs"
+    "test:database": "tsx scripts/check-database.mjs",
+    "test:notifications:qa": "node --env-file=.env.test.local --import tsx scripts/check-alerts-db.mjs && node --env-file=.env.test.local --import tsx scripts/check-mail-delivery.mjs && node --env-file=.env.test.local --import tsx scripts/check-reminders-database.mjs",
+    "test:notifications:http": "node --env-file=.env.test.local --import tsx scripts/check-notifications-http.mjs",
+    "preview:mail": "node --import tsx scripts/render-mail-preview.mjs",
+    "build:notification-pinger": "node scripts/build-notification-pinger.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

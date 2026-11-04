@@ -3,29 +3,35 @@ import type { Database, DatabaseValue, PreparedStatement } from '../db/database'
 import { pushDeliveryStatements } from './push-queue';
 import { canAccessTicket } from './access';
 import type { CompanyAccess, MemberRole, MemberStatus } from './types';
+import { buildMailPayload, notificationEnvironment, readFrozenMailPayload, type MailPayload, type MailMetadata } from './mail-templates';
+import { acceptMailWithDelivery } from './mail-delivery';
+import type { DeliveryStatus } from './mail-delivery-validation';
 
-export type NotificationEvent = 'ticket_created' | 'agent_replied' | 'client_replied' | 'invitation' | 'password_reset';
+export type NotificationEvent = 'ticket_created' | 'agent_replied' | 'client_replied' | 'invitation' | 'password_reset' | 'reminder';
 export type NotificationStatus = 'awaiting_configuration' | 'queued' | 'processing' | 'accepted' | 'failed' | 'unknown' | 'cancelled';
 export interface MailStatus {
   configured: boolean;
   sender: string | null;
   counts: Record<NotificationStatus, number>;
+  deliveryCounts: Record<DeliveryStatus, number>;
+  webhookConfigured: boolean;
   lastError?: string;
 }
-type MailPayload = { from: string; to: string[]; subject: string; text: string };
 type OutboxRow = {
   id: string; ownerId: string; event: NotificationEvent; recipientMemberId: string;
   ticketId: number | null; payloadJson: string | null; status: NotificationStatus;
   actionUrl: string | null; expiresAt: string | null;
   attempts: number; firstAttemptAt: string | null; leaseUntil: string | null;
   claimedFrom: NotificationStatus;
+  templateVersion: number; environment: string | null; reminderId: string | null;
 };
 type Recipient = { id: string; userId: string | null; email: string; role: MemberRole; status: MemberStatus; customerCompanyId: string | null; companyAccess: CompanyAccess };
 const MAX_ATTEMPTS = 6;
 const IDEMPOTENCY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RETRY_DELAYS = [60, 300, 1800, 7200, 28800];
 const STATUSES: NotificationStatus[] = ['awaiting_configuration', 'queued', 'processing', 'accepted', 'failed', 'unknown', 'cancelled'];
-const EVENTS: NotificationEvent[] = ['ticket_created', 'agent_replied', 'client_replied', 'invitation', 'password_reset'];
+const EVENTS: NotificationEvent[] = ['ticket_created', 'agent_replied', 'client_replied', 'invitation', 'password_reset', 'reminder'];
+const DELIVERY_STATUSES: DeliveryStatus[] = ['untracked', 'sent', 'delayed', 'delivered', 'bounced', 'complained', 'failed', 'suppressed'];
 
 function database(): Database {
   return getDatabase();
@@ -46,7 +52,7 @@ function configuration() {
 /** Add these statements to the SAME transaction as the ticket/message/member change. */
 export function notificationStatements(db: Database, input: {
   ownerId: string; event: NotificationEvent; eventKey: string; recipientMemberId: string;
-  ticketId?: number; ticketCreationKey?: string; invitationId?: string; actionUrl?: string; expiresAt?: string;
+  ticketId?: number; ticketCreationKey?: string; invitationId?: string; actionUrl?: string; expiresAt?: string; reminderId?: string;
 }): PreparedStatement[] {
   if (!EVENTS.includes(input.event)) throw new Error('Unsupported notification event');
   const now = new Date().toISOString();
@@ -62,10 +68,10 @@ export function notificationStatements(db: Database, input: {
     ? `(SELECT id FROM tickets WHERE "creationKey" = ${param(input.ticketCreationKey)} AND "ownerId" = ${param(input.ownerId)})`
     : param(input.ticketId ?? null);
   return [db.prepare(`INSERT INTO "mailOutbox"
-    (id, "ownerId", "eventKey", event, "recipientMemberId", "ticketId", "invitationId", "actionUrl", "expiresAt", "payloadJson", status, attempts, "createdAt", "updatedAt")
+    (id, "ownerId", "eventKey", event, "recipientMemberId", "ticketId", "invitationId", "actionUrl", "expiresAt", "payloadJson", status, attempts, "createdAt", "updatedAt", "templateVersion", environment, "reminderId")
     VALUES (${id}, ${owner}, ${eventKey}, ${event}, ${recipient}, ${ticketExpression},
       ${param(input.invitationId ?? null)}, ${param(input.actionUrl ?? null)}, ${param(input.expiresAt ?? null)},
-      NULL, ${param(configuration().configured ? 'queued' : 'awaiting_configuration')}, 0, ${param(now)}, ${param(now)})
+      NULL, ${param(configuration().configured ? 'queued' : 'awaiting_configuration')}, 0, ${param(now)}, ${param(now)}, 2, ${param(notificationEnvironment())}, ${param(input.reminderId ?? null)})
     ON CONFLICT("eventKey") DO NOTHING`).bind(...values),
     ...pushDeliveryStatements(db, { eventId, ownerId: input.ownerId, event: input.event, recipientMemberId: input.recipientMemberId, createdAt: now }),
   ];
@@ -85,6 +91,7 @@ function errorMessage(code: string): string {
     provider_unavailable: 'El proveedor no respondió correctamente. Se reintentará.',
     provider_rejected: 'El proveedor rechazó el correo. Revisa el remitente y los destinatarios.',
     action_expired: 'El enlace de acceso expiró antes de enviarse. Genera uno nuevo.',
+    reminder_obsolete: 'El recordatorio dejó de ser necesario y no se envió.',
   };
   return messages[code] || 'No se pudo procesar una notificación de correo.';
 }
@@ -92,13 +99,16 @@ function errorMessage(code: string): string {
 export async function getMailStatus(ownerId: string): Promise<MailStatus> {
   const db = database();
   const config = configuration();
-  const [totals, lastError] = await Promise.all([
+  const [totals, lastError, deliveryTotals] = await Promise.all([
     db.prepare("SELECT status, COUNT(*)::integer AS total FROM \"mailOutbox\" WHERE \"ownerId\" = $1 GROUP BY status").bind(ownerId).all<{ status: NotificationStatus; total: number }>(),
     db.prepare("SELECT \"lastErrorCode\" FROM \"mailOutbox\" WHERE \"ownerId\" = $1 AND \"lastErrorCode\" IS NOT NULL AND status != 'cancelled' ORDER BY \"updatedAt\" DESC LIMIT 1").bind(ownerId).first<{ lastErrorCode: string }>(),
+    db.prepare('SELECT "deliveryStatus", COUNT(*)::integer AS total FROM "mailOutbox" WHERE "ownerId" = $1 GROUP BY "deliveryStatus"').bind(ownerId).all<{ deliveryStatus: DeliveryStatus; total: number }>(),
   ]);
   const counts = Object.fromEntries(STATUSES.map(status => [status, 0])) as Record<NotificationStatus, number>;
   for (const row of totals.results) if (STATUSES.includes(row.status)) counts[row.status] = row.total;
-  return { configured: config.configured, sender: config.sender, counts, ...(lastError ? { lastError: errorMessage(lastError.lastErrorCode) } : {}) };
+  const deliveryCounts = Object.fromEntries(DELIVERY_STATUSES.map(status => [status, 0])) as Record<DeliveryStatus, number>;
+  for (const row of deliveryTotals.results) if (DELIVERY_STATUSES.includes(row.deliveryStatus)) deliveryCounts[row.deliveryStatus] = row.total;
+  return { configured: config.configured, sender: config.sender, counts, deliveryCounts, webhookConfigured: Boolean(process.env.RESEND_WEBHOOK_SECRET?.trim()), ...(lastError ? { lastError: errorMessage(lastError.lastErrorCode) } : {}) };
 }
 
 export async function listNotifications(ownerId: string) {
@@ -131,6 +141,7 @@ function makePayload(row: OutboxRow, recipient: Recipient, from: string, siteUrl
     client_replied: `${label} tiene una nueva respuesta del cliente.`,
     invitation: 'Te han dado acceso a Daybook Ticket, un servicio Daybook. Inicia sesión con este mismo correo para entrar.',
     password_reset: 'Solicitaste restablecer tu contraseña de Daybook Ticket. Usa el enlace para elegir una nueva. Si no lo solicitaste, puedes ignorar este correo.',
+    reminder: `${label} requiere atención. Revisa la conversación y sus plazos en Daybook Ticket.`,
   };
   let url = new URL('/', siteUrl);
   if (row.ticketId) url.searchParams.set('ticket', String(row.ticketId));
@@ -147,16 +158,27 @@ function makePayload(row: OutboxRow, recipient: Recipient, from: string, siteUrl
   };
 }
 
-function readPayload(text: string): MailPayload | null {
-  try {
-    const data = JSON.parse(text) as MailPayload;
-    if (typeof data.from !== 'string' || typeof data.subject !== 'string' || typeof data.text !== 'string'
-      || !Array.isArray(data.to) || data.to.length !== 1 || typeof data.to[0] !== 'string') return null;
-    return data;
-  } catch { return null; }
+async function newPayload(db: Database, row: OutboxRow, recipient: Recipient, from: string, siteUrl: string): Promise<MailPayload | null> {
+  // Pending legacy notifications retain their old text template too. Previously
+  // frozen payloads bypass this function entirely, including HTML/attachments.
+  const legacy = makePayload(row, recipient, from, siteUrl);
+  if (!legacy || row.templateVersion === 1) return legacy;
+  if (row.templateVersion !== 2 || !['production', 'qa'].includes(row.environment || '')) return null;
+  const url = row.event === 'invitation' || row.event === 'password_reset' ? row.actionUrl! : new URL('/', siteUrl).toString();
+  const target = new URL(url);
+  if (row.ticketId) target.searchParams.set('ticket', String(row.ticketId));
+  const [metadata, reasons] = await Promise.all([
+    row.ticketId ? db.prepare('SELECT subject, status, priority, "dueAt" FROM tickets WHERE id = $1 AND "ownerId" = $2')
+      .bind(row.ticketId, row.ownerId).first<MailMetadata>() : null,
+    row.event === 'reminder' && row.reminderId
+      ? import('./reminders').then(({ getReminderDeliveryReasons }) => getReminderDeliveryReasons(db, row.reminderId!, row.ownerId)) : [],
+  ]);
+  return buildMailPayload({ id: row.id, environment: row.environment as 'production' | 'qa', event: row.event,
+    ticketId: row.ticketId, from, to: recipient.email, url: target.toString(), metadata: { ...metadata, reasons } });
 }
 
 async function finish(db: Database, row: OutboxRow, status: NotificationStatus, code: string | null, nextAttemptAt: string | null = null, providerId: string | null = null) {
+  if (status === 'accepted' && providerId) return acceptMailWithDelivery(db, { id: row.id, ownerId: row.ownerId, leaseUntil: row.leaseUntil, providerId });
   await db.prepare("UPDATE \"mailOutbox\" SET status = $1, \"lastErrorCode\" = $2, \"nextAttemptAt\" = $3, \"providerId\" = COALESCE($4, \"providerId\"),\n    \"leaseUntil\" = NULL, \"updatedAt\" = $5 WHERE id = $6 AND \"ownerId\" = $7 AND status = 'processing' AND \"leaseUntil\" = $8")
     .bind(status, code, nextAttemptAt, providerId, new Date().toISOString(), row.id, row.ownerId, row.leaseUntil).run();
 }
@@ -210,7 +232,11 @@ async function processOutboxBatch(ownerId: string, limit: number, eventId?: stri
     if (row.attempts >= MAX_ATTEMPTS) { await finish(db, row, 'unknown', 'retry_exhausted'); continue; }
     const recipient = await recipientFor(db, row);
     if (!recipient) { await finish(db, row, 'cancelled', 'invalid_recipient'); continue; }
-    const payload = row.payloadJson ? readPayload(row.payloadJson) : makePayload(row, recipient, config.sender, config.siteUrl);
+    if (row.event === 'reminder') {
+      const { isReminderEligibleForDelivery } = await import('./reminders');
+      if (!(await isReminderEligibleForDelivery(db, row))) { await finish(db, row, 'cancelled', 'reminder_obsolete'); continue; }
+    }
+    const payload = row.payloadJson ? readFrozenMailPayload(row.payloadJson) : await newPayload(db, row, recipient, config.sender, config.siteUrl);
     if (!payload) { await finish(db, row, 'failed', 'invalid_payload'); continue; }
     if (payload.to[0] !== recipient.email) { await finish(db, row, 'cancelled', 'invalid_recipient'); continue; }
     if (Date.now() >= deadline) {
@@ -223,8 +249,9 @@ async function processOutboxBatch(ownerId: string, limit: number, eventId?: stri
       break;
     }
     const attemptAt = new Date().toISOString();
+    const frozenBody = row.payloadJson ?? JSON.stringify(payload);
     const attempt = await db.prepare("UPDATE \"mailOutbox\" SET \"payloadJson\" = COALESCE(\"payloadJson\", $1), attempts = attempts + 1,\n      \"firstAttemptAt\" = COALESCE(\"firstAttemptAt\", $2), \"updatedAt\" = $3\n      WHERE id = $4 AND \"ownerId\" = $5 AND status = 'processing' AND \"leaseUntil\" = $6")
-      .bind(JSON.stringify(payload), attemptAt, attemptAt, row.id, ownerId, leaseUntil).run();
+      .bind(frozenBody, attemptAt, attemptAt, row.id, ownerId, leaseUntil).run();
     if (attempt.meta.changes !== 1) continue;
     row.attempts++;
     row.firstAttemptAt ||= attemptAt;
@@ -233,16 +260,16 @@ async function processOutboxBatch(ownerId: string, limit: number, eventId?: stri
       response = await fetch('https://api.resend.com/emails', {
         method: 'POST', redirect: 'error',
         headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json', 'Idempotency-Key': `daybook-ticket/${row.id}` },
-        body: JSON.stringify(payload), signal: AbortSignal.timeout(Math.max(1, Math.min(10000, deadline - Date.now()))),
+        body: frozenBody, signal: AbortSignal.timeout(Math.max(1, Math.min(10000, deadline - Date.now()))),
       });
     } catch {
       await retry(db, row, 'provider_unavailable'); continue;
     }
     const body: unknown = await response.json().catch(() => null);
     const result = body && typeof body === 'object' ? body as Record<string, unknown> : {};
-    if (response.ok && typeof result.id === 'string' && result.id.length <= 160) {
-      await finish(db, row, 'accepted', null, null, result.id);
-      summary.accepted++;
+    if (response.ok && typeof result.id === 'string' && /^[A-Za-z0-9_-]{1,160}$/.test(result.id)) {
+      const accepted = await finish(db, row, 'accepted', null, null, result.id);
+      if (accepted !== false) summary.accepted++;
       continue;
     }
     const code = typeof result.name === 'string' ? result.name : '';
