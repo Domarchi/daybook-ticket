@@ -171,13 +171,13 @@ async function retry(db: Database, row: OutboxRow, code: string, retryAfterSecon
 }
 
 /** Opportunistic delivery. A separate scheduler is required for retries while nobody visits the app. */
-export async function processOutbox(ownerId: string, limit = 5) {
+export async function processOutbox(ownerId: string, limit = 5, eventId?: string) {
   const config = configuration();
   const summary = { configured: config.configured, processed: 0, accepted: 0 };
   if (!config.configured || !config.sender || !config.siteUrl) return summary;
   const db = database();
   const now = new Date().toISOString();
-  const candidates = await db.prepare("SELECT id FROM \"mailOutbox\" WHERE \"ownerId\" = $1\n    AND (\"nextAttemptAt\" IS NULL OR \"nextAttemptAt\" <= $2)\n    AND (status IN ('queued', 'awaiting_configuration') OR (status = 'processing' AND \"leaseUntil\" <= $3))\n    ORDER BY \"createdAt\" ASC LIMIT $4").bind(ownerId, now, now, Math.min(10, Math.max(1, Math.floor(limit)))).all<{ id: string }>();
+  const candidates = await db.prepare("SELECT id FROM \"mailOutbox\" WHERE \"ownerId\" = $1\n    AND ($5::text IS NULL OR id = $5)\n    AND (\"nextAttemptAt\" IS NULL OR \"nextAttemptAt\" <= $2)\n    AND (status IN ('queued', 'awaiting_configuration') OR (status = 'processing' AND \"leaseUntil\" <= $3))\n    ORDER BY \"createdAt\" ASC LIMIT $4").bind(ownerId, now, now, Math.min(10, Math.max(1, Math.floor(limit))), eventId ?? null).all<{ id: string }>();
 
   for (const candidate of candidates.results) {
     const claimTime = new Date().toISOString();
