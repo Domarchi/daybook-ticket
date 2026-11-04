@@ -1,7 +1,8 @@
 import webpush from 'web-push';
 import { createECDH } from 'node:crypto';
 import { getDatabase } from '../db';
-import type { AccessContext } from './access';
+import { canAccessTicket, type AccessContext } from './access';
+import type { CompanyAccess, MemberRole, MemberStatus } from './types';
 import { ApiError } from './server';
 import { classifyPushFailure, pushSubscriptionSchema, type BrowserPushSubscription } from './push-validation';
 
@@ -92,17 +93,25 @@ export async function unregisterPushSubscription(access: AccessContext, endpoint
 }
 
 async function eligibleEvent(subscription: Subscription, eventId: string): Promise<Event | null> {
-  return getDatabase().prepare(`SELECT o.id, o.event, o."ticketId", o."createdAt"
+  const row = await getDatabase().prepare(`SELECT o.id, o.event, o."ticketId", o."createdAt",
+      t."requesterMemberId", t."customerCompanyId" AS "ticketCompanyId",
+      m.role, m.status AS "memberStatus", m."customerCompanyId", m."companyAccess"
     FROM "mailOutbox" o
     JOIN members m ON m.id = o."recipientMemberId" AND m."ownerId" = o."ownerId"
     JOIN tickets t ON t.id = o."ticketId" AND t."ownerId" = o."ownerId"
     JOIN "pushDeliveries" d ON d."eventId" = o.id AND d."subscriptionId" = $1 AND d."ownerId" = o."ownerId"
     WHERE o.id = $2 AND o."ownerId" = $3 AND o."recipientMemberId" = $4 AND m.status = 'active'
       AND m.role IN ('client', 'owner', 'admin', 'agent')
-      AND (m.role <> 'client' OR t."requesterMemberId" = m.id)
       AND o.event IN ('ticket_created', 'agent_replied', 'client_replied') AND o."createdAt" >= $5
       AND d.status <> 'cancelled'`)
-    .bind(subscription.id, eventId, subscription.ownerId, subscription.memberId, subscription.createdAt).first<Event>();
+    .bind(subscription.id, eventId, subscription.ownerId, subscription.memberId, subscription.createdAt).first<Event & {
+      requesterMemberId: string | null; ticketCompanyId: string | null; role: MemberRole;
+      memberStatus: MemberStatus; customerCompanyId: string | null; companyAccess: CompanyAccess;
+    }>();
+  if (!row || !canAccessTicket({ ownerId: subscription.ownerId, role: row.role, member: {
+    id: subscription.memberId, status: row.memberStatus, customerCompanyId: row.customerCompanyId, companyAccess: row.companyAccess,
+  } }, { ownerId: subscription.ownerId, requesterMemberId: row.requesterMemberId, customerCompanyId: row.ticketCompanyId })) return null;
+  return { id: row.id, event: row.event, ticketId: row.ticketId, createdAt: row.createdAt };
 }
 
 /** Called by the service worker with cookies before any OS notification is displayed. */

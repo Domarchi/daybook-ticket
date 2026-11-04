@@ -1,53 +1,56 @@
-# Daybook Ticket: plan de mejoras
+# Daybook Ticket: plan aceptado y estado
 
-Fecha de inicio: 3 de noviembre de 2026. Zona horaria: America/Santiago.
+Inicio: 3 de noviembre de 2026. Actualización: 4 de noviembre de 2026, America/Santiago. Rama: `codex/daybook-ticket-improvements`, creada desde `5fc1d9828e1ff78b12aadec379502fb39f6a067f`.
 
-## Objetivo y alcance
+## Alcance aceptado
 
-Preparar una versión revisable que reduzca errores del equipo y haga más fiable el envío de avisos. El trabajo se limita a Daybook Ticket y a la rama `codex/daybook-ticket-improvements`, creada desde producción `5fc1d9828e1ff78b12aadec379502fb39f6a067f`.
+La prioridad es el trabajo del equipo: empresas con contactos, clientes que ven sus propios tickets, un encargado que ve y comenta los de su empresa, bandeja común con «Tomar ticket» y accesos administrados por el equipo. Incluye respuestas guardadas, filtros persistentes, historial operativo, adjuntos privados e idempotencia de los envíos. Conserva la identidad de Daybook Ticket y los responsables configurados para los avisos.
 
-La entrega inicial se desarrolla y valida con datos ficticios en QA. La web, repositorios, DNS y claves de Consorcio C17 y los demás Daybook quedan fuera de este trabajo. Las pruebas de esta entrega no envían correo ni push a personas reales. No se contratan servicios ni se cambian planes. Publicación en producción, cambios de credenciales y migraciones remotas quedan fuera de la ejecución desatendida inicial.
+El trabajo se limita a este repositorio/proyecto. Los demás Daybook y la web, repositorios y DNS de Consorcio C17 quedan fuera. La implementación y pruebas usan la rama y base QA con datos ficticios, sin correos ni push reales. El almacenamiento real se valida solo en el almacén privado QA autorizado. El almacén privado de producción y su configuración están preparados; esto no significa que se haya desplegado la aplicación o migrado la base productiva.
 
-## Primera entrega: trabajo iniciado
+Completar pruebas locales no significa que CI o producción estén aprobados. [RELEASE_TEAM.md](RELEASE_TEAM.md) recoge condiciones pendientes y procedimiento de publicación/rollback.
 
-| Paquete | Problema observado | Resultado y aceptación | Estado |
-| --- | --- | --- | --- |
-| M1. Borradores y acciones del equipo | Un borrador de nota interna conserva texto pero al reabrir fuerza el modo respuesta. La selección masiva conserva tickets que los filtros pueden ocultar. El cliente pierde borradores al reabrir una conversación. | Separar notas internas y respuestas por cuenta y ticket; conservar el modo; no trasladar texto privado a una respuesta pública; limpiar solo el borrador enviado. Las acciones masivas afectan únicamente a la selección visible. Pruebas de aislamiento de borradores, cambio de modo, reapertura y filtrado. | En implementación |
-| M2. Correo después de guardar el ticket | El procesamiento automático toma solo dos filas y espera al proveedor durante la petición. Una cola mayor puede requerir otra actividad del usuario. | Drenaje de lotes limitado por cantidad y tiempo, ejecutado después de responder. Mantener exclusión por evento, idempotencia, bloqueo temporal y permisos actuales. Probar 21 avisos ficticios, concurrencia, 429, timeout, destinatario revocado y envíos ya aceptados. | En implementación |
-| M3. Comprobaciones automáticas | Las pruebas existen pero se ejecutan por separado; el análisis de código tiene errores y no hay integración continua. | Comando de pruebas sin base de datos ni red para alertas/push y nuevos helpers; análisis de código, TypeScript y compilación en CI con Node 24 y valores ficticios. Corregir los errores existentes sin desactivar las reglas globalmente. | En implementación |
+## Paquetes y aceptación
 
-Se consideran terminados cuando los cambios están revisados, las comprobaciones correspondientes pasan y los resultados están registrados. Un hallazgo sin reproducir o una comprobación no ejecutada no cuenta como validación.
+| Paquete | Resultado esperado | Estado actual |
+| --- | --- | --- |
+| M1. Borradores y acciones | Separar cuenta/ticket/audiencia; conservar modo de nota; limpiar solo lo enviado; selección masiva limitada a visibles. | Desarrollado; pruebas unitarias integradas. Revisión desktop/móvil en proceso. |
+| M2. Correo después de guardar | Drenaje acotado después de responder, sin duplicados ni consumo masivo de intentos ante `429`; preservar evento exacto y revalidación. | Desarrollado; suites QA de drenaje/evento dirigido PASS con proveedor simulado. No añade scheduler. |
+| M3. Comprobaciones automáticas | Comando para lint, unitarias, tipos y build; CI sin secretos, base real ni envíos. | Scripts/workflow desarrollados. Unitarias, lint global y TypeScript PASS. Build final y CI pendientes. |
+| E1. Empresas y acceso | Contacto de una empresa; encargado ve/comenta sus tickets; transferencia retira acceso sin mover historia; ACL consistente. | Desarrollado; 16 grupos QA PASS. Migración aplicada solo a QA. |
+| E2. Reparto y colaboración | Tomar/reasignar con versión; historial; respuestas guardadas; filtros; crear/responder con `operationId`. | Desarrollado; 11 grupos HTTP PASS. Regresión adicional de replay de nota tras bajar rol: tres comprobaciones PASS. |
+| E3. Adjuntos privados | Carga/validación/vinculación transaccional; descarga con ACL; notas privadas; límites y limpieza diferida. | Desarrollado; cinco grupos BD simulados y diez comprobaciones HTTP con Blob privado QA real PASS. |
 
-## Siguiente entrega: propuesta para priorizar
+## Evidencia registrada
 
-1. **Estado de avisos comprensible.** Mostrar errores, próxima tentativa y pendientes atascados. Conservar los avisos sin leer por cuenta. Distinguir aceptación del proveedor, entrega y lectura.
-2. **Recuperación sin visitas al portal.** Diseñar procesamiento programado autenticado y recuperación de fallos temporales de Web Push. Preparar código y pruebas sin activar servicios ni secretos remotos automáticamente.
-3. **Acceso y uso móvil.** Mostrar vencimiento de invitaciones y explicar que renovar invalida el enlace anterior; mejorar foco, Escape y navegación del menú móvil.
-4. **Trabajo diario del equipo.** Evaluar respuestas guardadas, filtros persistentes, historial de asignación y métricas de primera respuesta/resolución, según el uso real de Joaquín y Mario.
-5. **Evolución de producto.** Adjuntos privados y correo entrante requieren un diseño separado de almacenamiento, permisos, límites y costes. El dominio daybook.cl se conectará cuando el propietario lo adquiera.
+Resultados confirmados durante esta entrega; no sustituyen la revisión del candidato final:
 
-## Límites que no deben ocultarse
+| Comprobación | Resultado registrado | Entorno |
+| --- | --- | --- |
+| `npm run test:unit` | PASS, 51 casos | Sin BD ni entregas externas |
+| Lint global | PASS, cero errores/cero advertencias | Local |
+| `tsc --noEmit` | PASS | Local |
+| `scripts/check-company-access.mjs` | PASS, 16 grupos; fixtures limpiados | BD QA; correo/push simulados |
+| `scripts/check-team-release.mjs` | PASS, 11 grupos | HTTP local/BD QA; sin correo/push reales |
+| Replay de nota tras bajar a cliente | PASS, tres comprobaciones | HTTP QA; sin fuga de nota ni escritura nueva |
+| `scripts/check-attachments-db.mjs` | PASS, cinco grupos | BD QA; almacenamiento inyectado |
+| `scripts/check-attachments-http.mjs` | PASS, diez comprobaciones; ticket QA #20 y dos TXT ficticios | Blob privado QA real |
+| `scripts/check-mail-drain.mjs` | PASS, 16 grupos | BD QA; Resend simulado |
+| `scripts/check-targeted-mail.mjs` | PASS, siete grupos | BD QA; Resend simulado |
+| Migración `0002_companies_team_workflow` | Aplicada | Solo QA |
+| Interfaz desktop/móvil | En proceso | QA |
+| Build final y CI remoto | Pendientes de confirmación | Sin afirmar resultado verde |
 
-- El drenaje posterior a la respuesta mejora el procesamiento inicial, pero por sí solo no garantiza reintentos permanentes cuando no hay actividad.
-- Vercel Hobby permite cron diario y no reintenta automáticamente las ejecuciones fallidas. No debe presentarse como un programador puntual de pocos minutos.
-- Resend conserva la idempotencia durante 24 horas. Un envío de resultado incierto fuera de ese plazo necesita revisión antes de reintentarse.
-- La prueba real de nuevo ticket para Joaquín y Mario queda para el **4 de noviembre**, después de que Mario active su cuenta. No crear tickets ni enviar esa prueba durante el trabajo nocturno.
-- La prueba de Web Push con todas las pestañas cerradas aún necesita confirmación del usuario. La notificación local y el correo sí se comprobaron; no equivalen a validar ese caso.
+Las suites de BD se coordinan de una en una. Los fixtures retenidos para HTTP/UI siguen siendo ficticios y se retiran al cerrar la revisión. Credenciales y cookies temporales permanecen en archivos locales ignorados, no en Git ni en este documento.
 
-## Continuación y entrega
+## Límites y trabajo posterior
 
-Continuar en este mismo chat cada 30 minutos, usando esta rama y respetando el trabajo de los agentes que ya estén activos. Revisar sus resultados antes de asignar trabajo duplicado. Ejecutar las pruebas de base de datos de una en una sobre QA; nunca apuntarlas a producción. No instalar dependencias sobre un `node_modules` compartido mediante enlace simbólico.
+- La cola mejora su procesamiento inicial, pero no garantiza reintentos futuros sin actividad. Scheduler o cola externa requieren una decisión separada.
+- Aceptación del proveedor no confirma entrega/lectura. Web Push con pestañas cerradas sigue pendiente de una prueba observada por el usuario.
+- La prueba real para Joaquín y Mario queda separada de QA y requiere que Mario haya activado su cuenta. No crear ni enviar esa prueba automáticamente desde este plan.
+- El dominio `daybook.cl` y correo entrante quedan fuera de esta entrega.
+- Empresas no implica múltiples tenants ni auditoría completa. Véase [ARCHITECTURE.md](ARCHITECTURE.md).
 
-La primera entrega termina al completar M1–M3. Preparar commits y una revisión en la rama de mejoras; no fusionar ni publicar automáticamente en producción. Guardar aquí los resultados verificables. La continuación nocturna finalizará a las **09:00 del 4 de noviembre de 2026 (America/Santiago)** o antes si la primera entrega queda terminada. Si falta una decisión externa, registrar el bloqueo y continuar las partes independientes.
+## Cierre
 
-## Registro de validación
-
-- Base inicial: producción `5fc1d98`, correo configurado y comprobado con una invitación a Mario y un aviso del ticket #2 al propietario.
-- Auditoría inicial: errores de lint confirmados; defectos de borradores/selección identificados mediante lectura de código, pendientes de prueba de regresión.
-- Próximo registro: resultados de M1–M3, riesgos pendientes y pasos para la revisión.
-
-## Fuentes de las restricciones de infraestructura
-
-- [Límites de Vercel Cron](https://vercel.com/docs/cron-jobs/usage-and-pricing)
-- [Gestión de Vercel Cron](https://vercel.com/docs/cron-jobs/manage-cron-jobs)
-- [Idempotencia de Resend](https://resend.com/docs/dashboard/emails/idempotency-keys)
+Completar las comprobaciones pendientes, registrar resultados y preparar revisión de la rama. No fusionar, migrar producción, rotar secretos ni publicar automáticamente a partir de este documento. El coordinador confirma el candidato final; el runbook mantiene los pasos y límites del rollback, incluida la incompatibilidad de la ACL anterior después de trasladar clientes entre empresas.

@@ -1,7 +1,8 @@
 import { ApiError, db, handle, json, type RouteContext } from '@/lib/server';
 import { requireAccess, requireAdmin, getMember, checkMemberChange } from '@/lib/access';
 import { prepareInvitation } from '@/lib/invitations';
-import { notificationStatements, processOutboxBestEffort } from '@/lib/mail';
+import { notificationStatements, drainOutboxBestEffort } from '@/lib/mail';
+import { after } from 'next/server';
 export async function POST(request: Request, context: RouteContext) {
   return handle(async () => {
     const access = requireAdmin(await requireAccess(request));
@@ -15,7 +16,7 @@ export async function POST(request: Request, context: RouteContext) {
       database.prepare("UPDATE \"mailOutbox\" SET status = 'cancelled', \"updatedAt\" = $1, \"nextAttemptAt\" = NULL WHERE \"ownerId\" = $2 AND \"recipientMemberId\" = $3 AND event = 'invitation' AND status IN ('queued', 'awaiting_configuration')").bind(new Date().toISOString(), access.ownerId, member.id),
       ...notificationStatements(database, { ownerId: access.ownerId, event: 'invitation', eventKey: `invitation:${crypto.randomUUID()}:${member.id}`, recipientMemberId: member.id, actionUrl: invitation.url, expiresAt: invitation.expiresAt }),
     ]);
-    await processOutboxBestEffort(access.ownerId);
+    after(async () => { await drainOutboxBestEffort(access.ownerId); });
     return json({ invitationUrl: invitation.url });
   });
 }

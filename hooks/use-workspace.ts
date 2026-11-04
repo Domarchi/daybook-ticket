@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_SETTINGS, type Workspace } from '@/lib/types';
 
-const EMPTY: Workspace = { viewer: null, members: [], mailStatus: null, tickets: [], messages: [], alerts: [], articles: [], settings: DEFAULT_SETTINGS, demoLoaded: false };
+const EMPTY: Workspace = { viewer: null, members: [], companies: [], savedReplies: [], mailStatus: null, tickets: [], messages: [], alerts: [], articles: [], settings: DEFAULT_SETTINGS, demoLoaded: false };
 const INTERVAL = 5_000;
 export type ConnectionStatus = 'connecting' | 'live' | 'reconnecting' | 'offline';
 type Feed = Pick<Workspace, 'viewer' | 'tickets' | 'messages' | 'alerts'>;
@@ -59,7 +59,7 @@ export function useWorkspace(onSnapshot: (workspace: Workspace) => void) {
           }
           throw new DOMException('La sesión cambió.', 'AbortError');
         }
-        if (feed.viewer?.role !== previous.viewer?.role) {
+        if (feed.viewer?.role !== previous.viewer?.role || feed.viewer?.customerCompanyId !== previous.viewer?.customerCompanyId || feed.viewer?.companyAccess !== previous.viewer?.companyAccess) {
           if (mounted.current && active.current === controller) commit(EMPTY);
           next = await read<Workspace>('/api/workspace', controller.signal);
         } else {

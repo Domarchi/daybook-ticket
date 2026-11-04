@@ -1,0 +1,46 @@
+name: Daybook Ticket checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Build placeholders only. No database service, migrations, delivery keys,
+    # deployment credentials, or production secrets are used in this workflow.
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      DATABASE_URL: postgresql://daybook_ci:unused@127.0.0.1:5432/daybook_ci?sslmode=disable
+      BETTER_AUTH_SECRET: daybook-ci-placeholder-not-a-production-secret
+      DAYBOOK_SITE_URL: http://127.0.0.1:5173
+      DAYBOOK_OWNER_EMAIL: owner@example.test
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests (no database or delivery)
+        run: npm run test:unit
+      - name: Check types
+        run: npm run typecheck
+      - name: Build
+        run: npm run build

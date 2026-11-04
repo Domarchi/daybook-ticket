@@ -1,5 +1,6 @@
 import { ApiError, auth, db, getSettings } from './server';
-import type { Member, MemberRole, MemberStatus } from './types';
+import type { Member, MemberRole, MemberStatus, CompanyAccess, CustomerCompany } from './types';
+import type { DatabaseValue } from '../db/database';
 
 export interface MemberRecord extends Member {
   organizationId: string;
@@ -13,10 +14,59 @@ export interface AccessContext {
   member: Member;
   role: MemberRole;
 }
-export const memberColumns = 'id, name, email, role, status, ("userId" IS NOT NULL) AS "hasAccount", "createdAt", "updatedAt"';
+export const memberColumns = 'id, name, email, role, status, ("userId" IS NOT NULL) AS "hasAccount", "customerCompanyId", "companyAccess", "createdAt", "updatedAt"';
 const memberRecordColumns = `${memberColumns}, "organizationId", "ownerId", "userId"`;
 export function publicMember(row: MemberRecord | Member): Member {
-  return { id: row.id, name: row.name, email: row.email, role: row.role, status: row.status, hasAccount: Boolean(row.hasAccount), createdAt: row.createdAt, updatedAt: row.updatedAt };
+  return { id: row.id, name: row.name, email: row.email, role: row.role, status: row.status, hasAccount: Boolean(row.hasAccount), customerCompanyId: row.customerCompanyId ?? null, companyAccess: row.companyAccess ?? 'own', createdAt: row.createdAt, updatedAt: row.updatedAt };
+}
+
+export type TicketAccessContext = Pick<AccessContext, 'ownerId' | 'role'> & {
+  member: Pick<Member, 'id' | 'status' | 'customerCompanyId' | 'companyAccess'>;
+};
+type TicketAccessRecord = { ownerId: string; requesterMemberId: string | null; customerCompanyId: string | null };
+
+/** This rule also guards delivery: changing company or access never moves ticket history. */
+export function canAccessTicket(access: TicketAccessContext, ticket: TicketAccessRecord): boolean {
+  if (access.member.status !== 'active' || ticket.ownerId !== access.ownerId) return false;
+  if (['owner', 'admin', 'agent'].includes(access.role)) return true;
+  if (access.role !== 'client') return false;
+  const companyId = access.member.customerCompanyId ?? null;
+  const ticketCompanyId = ticket.customerCompanyId ?? null;
+  return (ticket.requesterMemberId === access.member.id && (ticketCompanyId === null || ticketCompanyId === companyId))
+    || (access.member.companyAccess === 'manager' && companyId !== null && ticketCompanyId === companyId);
+}
+
+/** Parameterized SQL equivalent of canAccessTicket; aliases are application-owned identifiers. */
+export function ticketAccessSql(access: TicketAccessContext, alias = 't', parameterStart = 1): { sql: string; values: DatabaseValue[] } {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(alias) || !Number.isInteger(parameterStart) || parameterStart < 1) throw new Error('Invalid ticket access SQL context');
+  if (access.member.status !== 'active' || !['owner', 'admin', 'agent', 'client'].includes(access.role)) return { sql: 'FALSE', values: [] };
+  const values: DatabaseValue[] = [access.ownerId];
+  const owner = `${alias}."ownerId" = $${parameterStart}`;
+  if (access.role !== 'client') return { sql: owner, values };
+  values.push(access.member.id, access.member.customerCompanyId ?? null, access.member.companyAccess === 'manager');
+  const member = `$${parameterStart + 1}`, company = `$${parameterStart + 2}::text`, manager = `$${parameterStart + 3}::boolean`;
+  return { sql: `(${owner} AND ((${alias}."requesterMemberId" = ${member} AND (${alias}."customerCompanyId" IS NULL OR ${alias}."customerCompanyId" = ${company})) OR (${manager} AND ${company} IS NOT NULL AND ${alias}."customerCompanyId" = ${company})))`, values };
+}
+
+export async function getCustomerCompany(access: Pick<AccessContext, 'ownerId' | 'organizationId'>, id: string): Promise<CustomerCompany> {
+  const company = await db().prepare('SELECT id, name, "createdAt", "updatedAt" FROM "customerCompanies" WHERE id = $1 AND "ownerId" = $2 AND "organizationId" = $3')
+    .bind(id, access.ownerId, access.organizationId).first<CustomerCompany>();
+  if (!company) throw new ApiError(400, 'Selecciona una empresa de este espacio.');
+  return company;
+}
+
+export async function getCustomerCompanies(access: AccessContext): Promise<CustomerCompany[]> {
+  const values: DatabaseValue[] = [access.ownerId, access.organizationId];
+  const scope = access.role === 'client' ? ' AND id = $3' : '';
+  if (access.role === 'client') values.push(access.member.customerCompanyId ?? null);
+  return (await db().prepare(`SELECT id, name, "createdAt", "updatedAt" FROM "customerCompanies" WHERE "ownerId" = $1 AND "organizationId" = $2${scope} ORDER BY name, id`)
+    .bind(...values).all<CustomerCompany>()).results;
+}
+
+export async function validateMemberCompany(access: AccessContext, member: { role: MemberRole; customerCompanyId: string | null; companyAccess: CompanyAccess }) {
+  if (member.role !== 'client' && (member.customerCompanyId !== null || member.companyAccess !== 'own')) throw new ApiError(400, 'Los permisos de empresa corresponden solo a cuentas de cliente.');
+  if (member.companyAccess === 'manager' && !member.customerCompanyId) throw new ApiError(400, 'Selecciona la empresa de la persona encargada.');
+  if (member.customerCompanyId) await getCustomerCompany(access, member.customerCompanyId);
 }
 
 export async function requireAccess(request?: Request): Promise<AccessContext> {
@@ -30,7 +80,7 @@ export async function requireAccess(request?: Request): Promise<AccessContext> {
 }
 
 export function requireStaff(access: AccessContext) {
-  if (access.role === 'client') throw new ApiError(403, 'Esta acción está disponible solo para el equipo.');
+  if (!['owner', 'admin', 'agent'].includes(access.role)) throw new ApiError(403, 'Esta acción está disponible solo para el equipo.');
   return access;
 }
 export function requireAdmin(access: AccessContext) {
@@ -58,7 +108,7 @@ export async function assigneeFor(access: AccessContext, id: string | null | und
 export async function requesterFor(access: AccessContext, id: string) {
   const member = await getMember(access, id);
   if (member.role !== 'client' || member.status === 'revoked') throw new ApiError(400, 'Selecciona una cuenta de cliente habilitada.');
-  return { requesterMemberId: member.id, requesterName: member.name, requesterEmail: member.email };
+  return { requesterMemberId: member.id, requesterName: member.name, requesterEmail: member.email, customerCompanyId: member.customerCompanyId };
 }
 export async function notificationRecipients(access: AccessContext, assigneeMemberId: string | null): Promise<string[]> {
   const { notificationMemberIds } = await getSettings(access.ownerId);
