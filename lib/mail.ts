@@ -1,6 +1,8 @@
 import { getDatabase } from '../db';
 import type { Database, DatabaseValue, PreparedStatement } from '../db/database';
 import { pushDeliveryStatements } from './push-queue';
+import { canAccessTicket } from './access';
+import type { CompanyAccess, MemberRole, MemberStatus } from './types';
 
 export type NotificationEvent = 'ticket_created' | 'agent_replied' | 'client_replied' | 'invitation' | 'password_reset';
 export type NotificationStatus = 'awaiting_configuration' | 'queued' | 'processing' | 'accepted' | 'failed' | 'unknown' | 'cancelled';
@@ -16,8 +18,9 @@ type OutboxRow = {
   ticketId: number | null; payloadJson: string | null; status: NotificationStatus;
   actionUrl: string | null; expiresAt: string | null;
   attempts: number; firstAttemptAt: string | null; leaseUntil: string | null;
+  claimedFrom: NotificationStatus;
 };
-type Recipient = { id: string; userId: string | null; email: string; role: string; status: string };
+type Recipient = { id: string; userId: string | null; email: string; role: MemberRole; status: MemberStatus; customerCompanyId: string | null; companyAccess: CompanyAccess };
 const MAX_ATTEMPTS = 6;
 const IDEMPOTENCY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RETRY_DELAYS = [60, 300, 1800, 7200, 28800];
@@ -107,17 +110,16 @@ export async function listNotifications(ownerId: string) {
 }
 
 async function recipientFor(db: Database, row: OutboxRow): Promise<Recipient | null> {
-  const member = await db.prepare("SELECT id, \"userId\", email, role, status FROM members WHERE id = $1 AND \"ownerId\" = $2")
+  const member = await db.prepare("SELECT id, \"userId\", email, role, status, \"customerCompanyId\", \"companyAccess\" FROM members WHERE id = $1 AND \"ownerId\" = $2")
     .bind(row.recipientMemberId, row.ownerId).first<Recipient>();
   if (!member || !/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(member.email)) return null;
   if (row.event === 'invitation') return member.status === 'invited' ? member : null;
   if (row.event === 'password_reset') return member.status === 'active' ? member : null;
   if (member.status !== 'active' || !row.ticketId) return null;
-  const ticket = await db.prepare("SELECT \"requesterMemberId\" FROM tickets WHERE id = $1 AND \"ownerId\" = $2")
-    .bind(row.ticketId, row.ownerId).first<{ requesterMemberId: string | null }>();
+  const ticket = await db.prepare("SELECT \"ownerId\", \"requesterMemberId\", \"customerCompanyId\" FROM tickets WHERE id = $1 AND \"ownerId\" = $2")
+    .bind(row.ticketId, row.ownerId).first<{ ownerId: string; requesterMemberId: string | null; customerCompanyId: string | null }>();
   if (!ticket) return null;
-  if (member.role === 'client' && member.id !== ticket.requesterMemberId) return null;
-  if (!['client', 'owner', 'admin', 'agent'].includes(member.role)) return null;
+  if (!canAccessTicket({ ownerId: row.ownerId, role: member.role, member }, ticket)) return null;
   return member;
 }
 
@@ -170,21 +172,33 @@ async function retry(db: Database, row: OutboxRow, code: string, retryAfterSecon
   await finish(db, row, 'queued', code, new Date(nextTime).toISOString());
 }
 
-/** Opportunistic delivery. A separate scheduler is required for retries while nobody visits the app. */
-export async function processOutbox(ownerId: string, limit = 5, eventId?: string) {
+function boundedInteger(value: number | undefined, fallback: number, maximum: number) {
+  return value !== undefined && Number.isFinite(value) ? Math.min(maximum, Math.max(1, Math.floor(value))) : fallback;
+}
+
+async function processOutboxBatch(ownerId: string, limit: number, eventId?: string, deadline = Infinity) {
   const config = configuration();
-  const summary = { configured: config.configured, processed: 0, accepted: 0 };
+  const summary = { configured: config.configured, processed: 0, accepted: 0, stopped: false };
   if (!config.configured || !config.sender || !config.siteUrl) return summary;
   const db = database();
-  const now = new Date().toISOString();
-  const candidates = await db.prepare("SELECT id FROM \"mailOutbox\" WHERE \"ownerId\" = $1\n    AND ($5::text IS NULL OR id = $5)\n    AND (\"nextAttemptAt\" IS NULL OR \"nextAttemptAt\" <= $2)\n    AND (status IN ('queued', 'awaiting_configuration') OR (status = 'processing' AND \"leaseUntil\" <= $3))\n    ORDER BY \"createdAt\" ASC LIMIT $4").bind(ownerId, now, now, Math.min(10, Math.max(1, Math.floor(limit))), eventId ?? null).all<{ id: string }>();
-
-  for (const candidate of candidates.results) {
+  for (let index = 0; index < limit && Date.now() < deadline; index++) {
     const claimTime = new Date().toISOString();
     const leaseUntil = new Date(Date.now() + 90000).toISOString();
-    const row = await db.prepare("UPDATE \"mailOutbox\" SET status = 'processing', \"leaseUntil\" = $1, \"updatedAt\" = $2\n      WHERE id = $3 AND \"ownerId\" = $4 AND (\"nextAttemptAt\" IS NULL OR \"nextAttemptAt\" <= $5)\n      AND (status IN ('queued', 'awaiting_configuration') OR (status = 'processing' AND \"leaseUntil\" <= $6)) RETURNING *")
-      .bind(leaseUntil, claimTime, candidate.id, ownerId, claimTime, claimTime).first<OutboxRow>();
-    if (!row) continue;
+    // Select and claim one due row atomically. Concurrent workers take different
+    // rows instead of competing over the same fixed snapshot of candidates.
+    const row = await db.prepare(`WITH candidate AS (
+      SELECT id, status FROM "mailOutbox" WHERE "ownerId" = $1
+        AND ($4::text IS NULL OR id = $4)
+        AND NOT EXISTS (SELECT 1 FROM "mailOutbox" throttled WHERE throttled."ownerId" = $1
+          AND throttled.status = 'queued' AND throttled."lastErrorCode" = 'rate_limit_exceeded' AND throttled."nextAttemptAt" > $2)
+        AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= $2)
+        AND (status IN ('queued', 'awaiting_configuration') OR (status = 'processing' AND "leaseUntil" <= $2))
+      ORDER BY "createdAt", id LIMIT 1 FOR UPDATE SKIP LOCKED
+    ) UPDATE "mailOutbox" o SET status = 'processing', "leaseUntil" = $3, "updatedAt" = $2
+      FROM candidate c WHERE o.id = c.id AND o."ownerId" = $1
+      RETURNING o.*, c.status AS "claimedFrom"`)
+      .bind(ownerId, claimTime, leaseUntil, eventId ?? null).first<OutboxRow>();
+    if (!row) break;
     summary.processed++;
     if (!EVENTS.includes(row.event)) { await finish(db, row, 'failed', 'invalid_payload'); continue; }
     if (row.expiresAt && (!Number.isFinite(Date.parse(row.expiresAt)) || Date.parse(row.expiresAt) <= Date.now())) {
@@ -199,6 +213,15 @@ export async function processOutbox(ownerId: string, limit = 5, eventId?: string
     const payload = row.payloadJson ? readPayload(row.payloadJson) : makePayload(row, recipient, config.sender, config.siteUrl);
     if (!payload) { await finish(db, row, 'failed', 'invalid_payload'); continue; }
     if (payload.to[0] !== recipient.email) { await finish(db, row, 'cancelled', 'invalid_recipient'); continue; }
+    if (Date.now() >= deadline) {
+      // Database work can consume the remaining budget. Release an unsent row
+      // without spending an attempt, clearing its error, or changing its payload.
+      await db.prepare(`UPDATE "mailOutbox" SET status = $1, "leaseUntil" = NULL, "updatedAt" = $2
+        WHERE id = $3 AND "ownerId" = $4 AND status = 'processing' AND "leaseUntil" = $5`)
+        .bind(row.claimedFrom === 'awaiting_configuration' ? 'awaiting_configuration' : 'queued', new Date().toISOString(), row.id, ownerId, row.leaseUntil).run();
+      summary.processed--;
+      break;
+    }
     const attemptAt = new Date().toISOString();
     const attempt = await db.prepare("UPDATE \"mailOutbox\" SET \"payloadJson\" = COALESCE(\"payloadJson\", $1), attempts = attempts + 1,\n      \"firstAttemptAt\" = COALESCE(\"firstAttemptAt\", $2), \"updatedAt\" = $3\n      WHERE id = $4 AND \"ownerId\" = $5 AND status = 'processing' AND \"leaseUntil\" = $6")
       .bind(JSON.stringify(payload), attemptAt, attemptAt, row.id, ownerId, leaseUntil).run();
@@ -210,7 +233,7 @@ export async function processOutbox(ownerId: string, limit = 5, eventId?: string
       response = await fetch('https://api.resend.com/emails', {
         method: 'POST', redirect: 'error',
         headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json', 'Idempotency-Key': `daybook-ticket/${row.id}` },
-        body: JSON.stringify(payload), signal: AbortSignal.timeout(10000),
+        body: JSON.stringify(payload), signal: AbortSignal.timeout(Math.max(1, Math.min(10000, deadline - Date.now()))),
       });
     } catch {
       await retry(db, row, 'provider_unavailable'); continue;
@@ -224,15 +247,43 @@ export async function processOutbox(ownerId: string, limit = 5, eventId?: string
     }
     const code = typeof result.name === 'string' ? result.name : '';
     if (code === 'daily_quota_exceeded' || code === 'monthly_quota_exceeded' || code === 'invalid_idempotent_request') {
-      await finish(db, row, 'failed', code); continue;
+      await finish(db, row, 'failed', code);
+      if (code !== 'invalid_idempotent_request') { summary.stopped = true; break; }
+      continue;
     }
     if (response.ok || response.status >= 500 || response.status === 429 || code === 'concurrent_idempotent_requests') {
       const rawRetryAfter = response.headers.get('retry-after') || '';
       const seconds = /^\d+$/.test(rawRetryAfter) ? Number(rawRetryAfter) : Math.max(0, (Date.parse(rawRetryAfter) - Date.now()) / 1000);
       await retry(db, row, response.status === 429 ? 'rate_limit_exceeded' : 'provider_unavailable', Number.isFinite(seconds) ? seconds : 0);
+      // A provider-wide throttle must not spend attempts on the rest of the queue.
+      if (response.status === 429) { summary.stopped = true; break; }
       continue;
     }
     await finish(db, row, 'failed', [401, 403].includes(response.status) ? 'invalid_configuration' : 'provider_rejected');
+    if ([401, 403].includes(response.status)) { summary.stopped = true; break; }
+  }
+  return summary;
+}
+
+/** Process a single bounded batch, optionally restricted to one explicitly selected event. */
+export async function processOutbox(ownerId: string, limit = 5, eventId?: string) {
+  const result = await processOutboxBatch(ownerId, boundedInteger(limit, 5, 10), eventId);
+  return { configured: result.configured, processed: result.processed, accepted: result.accepted };
+}
+
+/** Drain due work only. Future retries stay durable until another application trigger;
+ * this worker neither waits for backoff nor runs a permanent retry loop.
+ */
+export async function drainOutbox(ownerId: string, options: { maxMessages?: number; maxDurationMs?: number; eventId?: string } = {}) {
+  const summary = { configured: configuration().configured, processed: 0, accepted: 0 };
+  if (!summary.configured) return summary;
+  const maximum = boundedInteger(options.maxMessages, 100, 100);
+  const deadline = Date.now() + boundedInteger(options.maxDurationMs, 60_000, 120_000);
+  while (summary.processed < maximum && Date.now() < deadline) {
+    const batch = await processOutboxBatch(ownerId, Math.min(10, maximum - summary.processed), options.eventId, deadline);
+    summary.processed += batch.processed;
+    summary.accepted += batch.accepted;
+    if (!batch.processed || batch.stopped) break;
   }
   return summary;
 }
@@ -241,6 +292,12 @@ export async function processOutbox(ownerId: string, limit = 5, eventId?: string
 export async function processOutboxBestEffort(ownerId: string) {
   try { return await processOutbox(ownerId, 2); }
   catch { console.error('Daybook Ticket notification processing unavailable'); return { configured: configuration().configured, processed: 0, accepted: 0 }; }
+}
+
+/** Intended for Next.js after(): failures are recorded without changing a committed response. */
+export async function drainOutboxBestEffort(ownerId: string) {
+  try { return await drainOutbox(ownerId); }
+  catch { console.error('Daybook Ticket notification drain unavailable'); return { configured: configuration().configured, processed: 0, accepted: 0 }; }
 }
 
 /** Authentication reset emails also use the durable outbox; never include passwords or raw tokens in logs. */

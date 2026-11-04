@@ -1,38 +1,36 @@
-import { ApiError, db, handle, json, parseBody, messageSchema, getSettings, getTicket, parseId, messageColumns, type RouteContext } from '@/lib/server';
-import { requireAccess, notificationRecipients } from '@/lib/access';
-import { notificationStatements, processOutboxBestEffort } from '@/lib/mail';
-import type { Message } from '@/lib/types';
-import { after } from 'next/server';
-import { processPushOutboxBestEffort } from '@/lib/push';
-export async function POST(request: Request, context: RouteContext) {
-  return handle(async () => {
-    const access = await requireAccess(request);
-    const id = parseId((await context.params).id);
-    const data = await parseBody(request, messageSchema);
-    const ticket = await getTicket(access, id);
-    const client = access.role === 'client';
-    if (client && data.kind !== 'reply') throw new ApiError(403, 'Las notas internas están reservadas para el equipo.');
-    const now = new Date().toISOString();
-    const database = db();
-    const eventId = crypto.randomUUID();
-    const recipients = data.kind === 'note' ? [] : client
-      ? await notificationRecipients(access, ticket.assigneeMemberId)
-      : ticket.requesterMemberId ? [ticket.requesterMemberId] : [];
-    const settings = client ? await getSettings(access.ownerId) : null;
-    const deadline = (priority: 'urgent' | 'high' | 'normal' | 'low') => new Date(Date.parse(now) + settings!.slaHours[priority] * 3600000).toISOString();
-    // Evaluate the stored status and priority in the same transaction as the reply.
-    // A client's follow-up reopens a resolved case; staff messages preserve its state.
-    const updateTicket = client
-      ? database.prepare("UPDATE tickets SET \"updatedAt\" = $1,\n          status = CASE WHEN status = 'resolved' THEN 'open' ELSE status END,\n          \"dueAt\" = CASE WHEN status = 'resolved' THEN CASE priority\n            WHEN 'urgent' THEN $2 WHEN 'high' THEN $3 WHEN 'low' THEN $4 ELSE $5 END ELSE \"dueAt\" END\n          WHERE id = $6 AND \"ownerId\" = $7")
-        .bind(now, deadline('urgent'), deadline('high'), deadline('low'), deadline('normal'), id, access.ownerId)
-      : database.prepare("UPDATE tickets SET \"updatedAt\" = $1 WHERE id = $2 AND \"ownerId\" = $3").bind(now, id, access.ownerId);
-    const result = await database.batch([
-      database.prepare(`INSERT INTO messages ("ownerId", "ticketId", author, body, kind, "createdAt") VALUES ($1, $2, $3, $4, $5, $6) RETURNING ${messageColumns}`).bind(access.ownerId, id, access.member.name, data.body, data.kind, now),
-      updateTicket,
-      ...recipients.filter(memberId => memberId !== access.member.id).flatMap(recipientMemberId => notificationStatements(database, { ownerId: access.ownerId, event: client ? 'client_replied' : 'agent_replied', eventKey: `message:${eventId}:${recipientMemberId}`, recipientMemberId, ticketId: id })),
-    ]);
-    after(() => processPushOutboxBestEffort(access.ownerId));
-    await processOutboxBestEffort(access.ownerId);
-    return json({ message: result[0].results[0] as unknown as Message }, 201);
+import {ApiError,db,handle,json,parseBody,messageSchema,getSettings,parseId,type RouteContext} from '@/lib/server';
+import {requireAccess} from '@/lib/access';
+import {notificationStatements,drainOutboxBestEffort} from '@/lib/mail';
+import {runOperation,lockTicket,publicReplyRecipients,recordEvent,staffNotificationRecipients} from '@/lib/ticket-mutations';
+import {linkReadyAttachments} from '@/lib/attachments';
+import {after} from 'next/server';
+import {processPushOutboxBestEffort} from '@/lib/push';
+export async function POST(request:Request,context:RouteContext) {
+  return handle(async()=>{
+    const access=await requireAccess(request);
+    const id=parseId((await context.params).id);
+    const data=await parseBody(request,messageSchema);
+    const settings=await getSettings(access.ownerId);
+    const result=await runOperation(access,data.operationId,'message',{ticketId:id,...data},async(tx,fresh)=>{
+      const ticket=await lockTicket(tx,fresh,id);
+      const client=fresh.role==='client';
+      if(client && data.kind!=='reply') throw new ApiError(403,'Las notas internas están reservadas para el equipo.');
+      const now=new Date().toISOString();
+      const {rows}=await tx.query('INSERT INTO messages ("ownerId","ticketId",author,"authorMemberId","authorRole",body,kind,"createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,"ticketId",author,"authorMemberId","authorRole",body,kind,"createdAt"',[access.ownerId,id,fresh.member.name,fresh.member.id,fresh.role,data.body,data.kind,now]);
+      const message=rows[0];
+      await linkReadyAttachments(tx,fresh,{ids:data.attachmentIds,draftId:data.draftId||data.operationId,kind:data.kind,ticketId:id,messageId:message.id});
+      const attachments=await tx.query('SELECT id,name,size,"contentType" FROM attachments WHERE "messageId"=$1 AND "ownerId"=$2 AND status=\'attached\' ORDER BY "createdAt",id',[message.id,access.ownerId]);
+      message.attachments=attachments.rows;
+      const reopen=client && ticket.status==='resolved';
+      await tx.query('UPDATE tickets SET "updatedAt"=$1,version=version+1,status=$2,"dueAt"=$3 WHERE id=$4 AND "ownerId"=$5',[now,reopen?'open':ticket.status,reopen?new Date(Date.parse(now)+settings.slaHours[ticket.priority]*3600000).toISOString():ticket.dueAt,id,access.ownerId]);
+      if(reopen) await recordEvent(tx,fresh,id,'status','resolved','open');
+      if(data.kind!=='note') {
+        const recipients=await publicReplyRecipients(tx,fresh,ticket,client?await staffNotificationRecipients(tx,fresh,ticket.assigneeMemberId,settings):[]);
+        for(const recipientMemberId of recipients) for(const stmt of notificationStatements(db(),{ownerId:access.ownerId,event:client?'client_replied':'agent_replied',eventKey:`message:${data.operationId}:${recipientMemberId}`,recipientMemberId,ticketId:id})) await db().execute(stmt,tx);
+      }
+      return {message};
+    });
+    after(async()=>{await Promise.allSettled([processPushOutboxBestEffort(access.ownerId),drainOutboxBestEffort(access.ownerId)]);});
+    return json(result,201);
   });
 }

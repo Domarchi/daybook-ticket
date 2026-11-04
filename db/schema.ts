@@ -1,4 +1,5 @@
-import { pgTable, integer, serial, boolean, text, index, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, integer, serial, boolean, text, index, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 export const organizations = pgTable('organizations', {
   id: text('id').primaryKey(),
@@ -6,6 +7,15 @@ export const organizations = pgTable('organizations', {
   name: text('name').notNull(),
   createdAt: text('createdAt').notNull(),
 }, (t) => [uniqueIndex('organizations_owner').on(t.ownerId)]);
+
+export const customerCompanies = pgTable('customerCompanies', {
+  id: text('id').primaryKey(),
+  organizationId: text('organizationId').notNull().references(() => organizations.id),
+  ownerId: text('ownerId').notNull(),
+  name: text('name').notNull(),
+  createdAt: text('createdAt').notNull(),
+  updatedAt: text('updatedAt').notNull(),
+}, (t) => [index('customer_companies_owner').on(t.ownerId)]);
 
 export const members = pgTable('members', {
   id: text('id').primaryKey(),
@@ -16,6 +26,8 @@ export const members = pgTable('members', {
   name: text('name').notNull(),
   role: text('role').notNull(),
   status: text('status').notNull().default('invited'),
+  customerCompanyId: text('customerCompanyId').references(() => customerCompanies.id),
+  companyAccess: text('companyAccess').notNull().default('own'),
   invitedBy: text('invitedBy'),
   createdAt: text('createdAt').notNull(),
   updatedAt: text('updatedAt').notNull(),
@@ -23,6 +35,8 @@ export const members = pgTable('members', {
   uniqueIndex('members_organization_email').on(t.organizationId, t.email),
   uniqueIndex('members_organization_user').on(t.organizationId, t.userId),
   index('members_owner_status').on(t.ownerId, t.status),
+  index('members_company').on(t.ownerId, t.customerCompanyId),
+  check('members_company_access', sql`${t.companyAccess} IN ('own', 'manager') AND (${t.companyAccess} <> 'manager' OR (${t.role} = 'client' AND ${t.customerCompanyId} IS NOT NULL)) AND (${t.role} = 'client' OR ${t.customerCompanyId} IS NULL)`),
 ]);
 
 export const tickets = pgTable('tickets', {
@@ -33,6 +47,8 @@ export const tickets = pgTable('tickets', {
   requesterName: text('requesterName').notNull(),
   requesterEmail: text('requesterEmail').notNull(),
   requesterMemberId: text('requesterMemberId').references(() => members.id),
+  customerCompanyId: text('customerCompanyId').references(() => customerCompanies.id),
+  version: integer('version').notNull().default(0),
   department: text('department').notNull(),
   assignee: text('assignee').notNull().default(''),
   assigneeMemberId: text('assigneeMemberId').references(() => members.id),
@@ -41,17 +57,54 @@ export const tickets = pgTable('tickets', {
   createdAt: text('createdAt').notNull(),
   updatedAt: text('updatedAt').notNull(),
   dueAt: text('dueAt').notNull(),
-}, (t) => [index('tickets_owner_updated').on(t.ownerId, t.updatedAt), index('tickets_requester').on(t.ownerId, t.requesterMemberId), uniqueIndex('tickets_creation_key').on(t.creationKey)]);
+}, (t) => [index('tickets_owner_updated').on(t.ownerId, t.updatedAt), index('tickets_requester').on(t.ownerId, t.requesterMemberId), index('tickets_company').on(t.ownerId, t.customerCompanyId), uniqueIndex('tickets_creation_key').on(t.creationKey)]);
 
 export const messages = pgTable('messages', {
   id: serial('id').primaryKey(),
   ownerId: text('ownerId').notNull(),
   ticketId: integer('ticketId').notNull().references(() => tickets.id),
   author: text('author').notNull(),
+  authorMemberId: text('authorMemberId').references(() => members.id),
+  authorRole: text('authorRole'),
   body: text('body').notNull(),
   kind: text('kind').notNull(),
   createdAt: text('createdAt').notNull(),
 }, (t) => [index('messages_owner_ticket').on(t.ownerId, t.ticketId)]);
+
+export const savedReplies = pgTable('savedReplies', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull(),
+  title: text('title').notNull(), category: text('category').notNull(), body: text('body').notNull(),
+  createdAt: text('createdAt').notNull(), updatedAt: text('updatedAt').notNull(),
+}, (t) => [index('saved_replies_owner').on(t.ownerId)]);
+
+export const ticketEvents = pgTable('ticketEvents', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull(),
+  ticketId: integer('ticketId').notNull().references(() => tickets.id),
+  actorMemberId: text('actorMemberId').references(() => members.id), actorName: text('actorName').notNull(),
+  action: text('action').notNull(), beforeValue: text('beforeValue'), afterValue: text('afterValue'), createdAt: text('createdAt').notNull(),
+}, (t) => [index('ticket_events_owner_ticket').on(t.ownerId, t.ticketId, t.createdAt)]);
+
+export const operations = pgTable('operations', {
+  operationId: text('operationId').primaryKey(), ownerId: text('ownerId').notNull(),
+  memberId: text('memberId').notNull().references(() => members.id), kind: text('kind').notNull(),
+  requestHash: text('requestHash').notNull(), resultJson: text('resultJson').notNull(), createdAt: text('createdAt').notNull(),
+}, (t) => [index('operations_scope').on(t.ownerId, t.memberId, t.kind)]);
+
+export const attachments = pgTable('attachments', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull(),
+  memberId: text('memberId').notNull().references(() => members.id), draftId: text('draftId').notNull(),
+  ticketId: integer('ticketId').references(() => tickets.id), messageId: integer('messageId').references(() => messages.id),
+  kind: text('kind').notNull(), pathname: text('pathname').notNull(), name: text('name').notNull(),
+  contentType: text('contentType').notNull(), size: integer('size').notNull(), status: text('status').notNull().default('reserved'),
+  expiresAt: text('expiresAt').notNull(), uploadedAt: text('uploadedAt'), validatedAt: text('validatedAt'),
+  createdAt: text('createdAt').notNull(), updatedAt: text('updatedAt').notNull(),
+}, (t) => [
+  uniqueIndex('attachments_pathname').on(t.pathname), index('attachments_pending').on(t.ownerId, t.memberId, t.status, t.expiresAt),
+  index('attachments_message').on(t.ownerId, t.messageId),
+  check('attachments_size', sql`${t.size} BETWEEN 1 AND 10485760`),
+  check('attachments_kind', sql`${t.kind} IN ('request', 'reply', 'note')`),
+  check('attachments_status', sql`${t.status} IN ('reserved', 'uploaded', 'ready', 'attached', 'deleting', 'deleted')`),
+]);
 
 export const articles = pgTable('articles', {
   id: serial('id').primaryKey(),

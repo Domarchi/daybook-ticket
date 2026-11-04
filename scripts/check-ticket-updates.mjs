@@ -31,6 +31,7 @@ function actor(email, password) {
 }
 
 async function api(person, path, method = 'GET', body, extraHeaders = {}) {
+  if (method === 'POST' && (path === '/api/tickets' || /^\/api\/tickets\/\d+\/messages$/.test(path)) && body && !body.operationId) body = { ...body, operationId: crypto.randomUUID() };
   const cookie = Object.entries(person.cookies).map(([name, value]) => `${name}=${value}`).join('; ');
   const response = await fetch(`${origin}${path}`, {
     method,

@@ -2,8 +2,8 @@ import { getDatabase } from '../db';
 import type { Database } from '../db/database';
 import { z } from 'zod';
 import { getDaybookUser } from './daybook-auth';
-import { DEFAULT_SETTINGS, type Settings, type Ticket, type Message, type Article } from './types';
-import type { AccessContext } from './access';
+import { DEFAULT_SETTINGS, type Settings, type Ticket, type Article } from './types';
+import { ticketAccessSql, type AccessContext } from './access';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -15,6 +15,9 @@ export const ticketPriority = z.enum(['low', 'normal', 'high', 'urgent']);
 export const emailAddress = z.string().trim().email('Introduce un correo válido.').max(254).transform(v => v.toLowerCase());
 const memberId = z.union([z.string().uuid('Selecciona una cuenta válida.'), z.literal('')]).nullable().transform(v => v || null);
 export const createTicketSchema = z.object({
+  operationId: z.string().uuid(),
+  draftId: z.string().uuid().optional(),
+  attachmentIds: z.array(z.string().uuid()).max(5).default([]),
   subject: shortText,
   requesterName: shortText.optional(),
   requesterEmail: emailAddress.optional(),
@@ -26,6 +29,8 @@ export const createTicketSchema = z.object({
   body: messageBody,
 }).strict();
 export const patchTicketSchema = z.object({
+  expectedVersion: z.number().int().nonnegative().optional(),
+  customerCompanyId: memberId.optional(),
   subject: shortText.optional(),
   department: shortText.optional(),
   assignee: z.string().trim().max(160).optional(),
@@ -34,11 +39,16 @@ export const patchTicketSchema = z.object({
   priority: ticketPriority.optional(),
   status: ticketStatus.optional(),
 }).strict().refine(v => Object.keys(v).length > 0, 'No hay cambios para guardar.');
-export const messageSchema = z.object({ body: messageBody, kind: z.enum(['reply', 'note']) }).strict();
-export const inviteMemberSchema = z.object({ name: shortText, email: emailAddress, role: z.enum(['admin', 'agent', 'client']) }).strict();
+export const messageSchema = z.object({ operationId: z.string().uuid(), draftId: z.string().uuid().optional(), attachmentIds: z.array(z.string().uuid()).max(5).default([]), body: messageBody, kind: z.enum(['reply', 'note']) }).strict();
+export const inviteMemberSchema = z.object({
+  name: shortText, email: emailAddress, role: z.enum(['admin', 'agent', 'client']),
+  customerCompanyId: memberId.optional(), companyAccess: z.enum(['own', 'manager']).optional(),
+}).strict();
 export const patchMemberSchema = z.object({
   role: z.enum(['admin', 'agent', 'client']).optional(),
   status: z.enum(['invited', 'active', 'revoked']).optional(),
+  customerCompanyId: memberId.optional(),
+  companyAccess: z.enum(['own', 'manager']).optional(),
 }).strict().refine(v => Object.keys(v).length > 0, 'No hay cambios para guardar.');
 export const articleSchema = z.object({
   title: shortText,
@@ -119,9 +129,8 @@ export async function getSettings(ownerId: string): Promise<Settings> {
   return settings;
 }
 export async function getTicket(access: AccessContext, id: number): Promise<Ticket> {
-  const scope = access.role === 'client' ? ' AND "requesterMemberId" = $3' : '';
-  const values = access.role === 'client' ? [id, access.ownerId, access.member.id] : [id, access.ownerId];
-  const ticket = await db().prepare(`SELECT ${ticketColumns} FROM tickets WHERE id = $1 AND "ownerId" = $2${scope}`).bind(...values).first<Ticket>();
+  const scope = ticketAccessSql(access, 't', 2);
+  const ticket = await db().prepare(`SELECT ${ticketColumns} FROM tickets t WHERE t.id = $1 AND ${scope.sql}`).bind(id, ...scope.values).first<Ticket>();
   if (!ticket) throw new ApiError(404, 'El ticket no existe o no tienes acceso.');
   return ticket;
 }
@@ -132,8 +141,8 @@ export function parseId(raw: string) {
 export function checkAssignment(data: { department?: string; assignee?: string }, settings: Settings) {
   if (data.department !== undefined && !settings.departments.includes(data.department)) throw new ApiError(400, 'Selecciona un departamento válido.');
 }
-export const ticketColumns = 'id, subject, "requesterName", "requesterEmail", "requesterMemberId", department, assignee, "assigneeMemberId", status, priority, "createdAt", "updatedAt", "dueAt"';
-export const messageColumns = 'id, "ticketId", author, body, kind, "createdAt"';
+export const ticketColumns = 'id, subject, "requesterName", "requesterEmail", "requesterMemberId", "customerCompanyId", version, department, assignee, "assigneeMemberId", status, priority, "createdAt", "updatedAt", "dueAt"';
+export const messageColumns = 'id, "ticketId", author, "authorMemberId", "authorRole", body, kind, "createdAt", \'[]\'::jsonb AS attachments';
 export const articleColumns = 'id, title, category, body, published, "createdAt", "updatedAt"';
 export const asArticle = (row: Article) => ({ ...row, published: Boolean(row.published) });
 export type RouteContext = { params: Promise<{ id: string }> };

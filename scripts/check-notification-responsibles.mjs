@@ -25,9 +25,18 @@ const runId = randomUUID();
 const otherOrganization = `qa-notification-${runId}`;
 const otherOwner = randomUUID();
 const memberIds = [];
+const operationIds = new Set();
 let ownerId, organizationId, originalSettings, capturedSettings = false, appPool;
 
 async function api(person, path, method = 'GET', body, headers = {}) {
+  if (body && method === 'POST' && (path === '/api/tickets' || /^\/api\/tickets\/\d+\/messages$/.test(path))) {
+    body = { ...body, operationId: body.operationId ?? randomUUID() };
+    operationIds.add(body.operationId);
+  }
+  if (body && method === 'PATCH' && /^\/api\/tickets\/\d+$/.test(path) && ('assigneeMemberId' in body || 'assignee' in body) && body.expectedVersion === undefined) {
+    const row = (await pool.query('SELECT version FROM tickets WHERE id=$1', [Number(path.split('/').at(-1))])).rows[0];
+    body = { ...body, expectedVersion: row?.version ?? 0 };
+  }
   const cookie = Object.entries(person?.cookies || {}).map(([key, value]) => `${key}=${value}`).join('; ');
   const response = await fetch(`${origin}${path}`, {
     method, redirect: 'manual',
@@ -147,10 +156,12 @@ try {
       if (tickets.length) {
         await pool.query('DELETE FROM "pushDeliveries" WHERE "eventId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId" = ANY($1))', [tickets]);
         await pool.query('DELETE FROM "mailOutbox" WHERE "ticketId" = ANY($1)', [tickets]);
+        await pool.query('DELETE FROM "ticketEvents" WHERE "ticketId" = ANY($1)', [tickets]);
         await pool.query('DELETE FROM messages WHERE "ticketId" = ANY($1)', [tickets]);
         await pool.query('DELETE FROM tickets WHERE id = ANY($1)', [tickets]);
       }
     }
+    if (operationIds.size) await pool.query('DELETE FROM operations WHERE "operationId"=ANY($1::text[])', [[...operationIds]]);
     if (capturedSettings) {
       if (originalSettings === undefined) await pool.query('DELETE FROM settings WHERE "ownerId" = $1', [ownerId]);
       else await pool.query('UPDATE settings SET data = $1 WHERE "ownerId" = $2', [originalSettings, ownerId]);

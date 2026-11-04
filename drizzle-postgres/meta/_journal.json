@@ -15,6 +15,13 @@
       "when": 1793742279077,
       "tag": "0001_premium_silver_fox",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793761521497,
+      "tag": "0002_companies_team_workflow",
+      "breakpoints": true
     }
   ]
 }

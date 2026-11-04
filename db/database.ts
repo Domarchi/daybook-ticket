@@ -54,6 +54,19 @@ export class Database {
     return result<T>(await (client ?? this.pool).query(statement.sql, [...statement.values]));
   }
 
+  async transaction<T>(work: (client: PoolClient) => Promise<T>): Promise<T> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const value = await work(client);
+      await client.query('COMMIT');
+      return value;
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch { /* Preserve original error. */ }
+      throw error;
+    } finally { client.release(); }
+  }
+
   async batch<T = Record<string, unknown>>(statements: readonly PreparedStatement[]): Promise<DatabaseResult<T>[]> {
     if (statements.length === 0) return [];
     if (statements.some(statement => statement.database !== this)) throw new Error('Statement belongs to another database.');

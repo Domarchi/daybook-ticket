@@ -3,6 +3,7 @@ export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
 export type MessageKind = 'request' | 'reply' | 'note';
 export type MemberRole = 'owner' | 'admin' | 'agent' | 'client';
 export type MemberStatus = 'invited' | 'active' | 'revoked';
+export type CompanyAccess = 'own' | 'manager';
 export interface Member {
   id: string;
   name: string;
@@ -10,6 +11,8 @@ export interface Member {
   role: MemberRole;
   status: MemberStatus;
   hasAccount: boolean;
+  customerCompanyId: string | null;
+  companyAccess: CompanyAccess;
   createdAt: string;
   updatedAt: string;
 }
@@ -25,6 +28,8 @@ export interface Ticket {
   requesterName: string;
   requesterEmail: string;
   requesterMemberId: string | null;
+  customerCompanyId: string | null;
+  version: number;
   department: string;
   assignee: string;
   assigneeMemberId: string | null;
@@ -38,10 +43,17 @@ export interface Message {
   id: number;
   ticketId: number;
   author: string;
+  authorMemberId: string | null;
+  authorRole: MemberRole | null;
   body: string;
   kind: MessageKind;
   createdAt: string;
+  attachments: Attachment[];
 }
+export interface CustomerCompany { id: string; name: string; createdAt: string; updatedAt: string }
+export interface SavedReply { id: string; title: string; category: string; body: string; createdAt: string; updatedAt: string }
+export interface TicketEvent { id: string; ticketId: number; actorMemberId: string | null; actorName: string; action: string; beforeValue: string | null; afterValue: string | null; createdAt: string }
+export interface Attachment { id: string; name: string; size: number; contentType: string }
 export interface TicketAlert {
   id: string;
   event: 'ticket_created' | 'agent_replied' | 'client_replied';
@@ -74,6 +86,8 @@ export interface Workspace {
   messages: Message[];
   alerts: TicketAlert[];
   articles: Article[];
+  companies: CustomerCompany[];
+  savedReplies: SavedReply[];
   settings: Settings;
   demoLoaded: boolean;
 }
