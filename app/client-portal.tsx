@@ -1,4 +1,5 @@
 'use client';
+import {daybookFetch,UNCERTAIN_SEND_MESSAGE} from '@/lib/browser-request';
 import { MessageEditor } from './message-content';
 import { TicketChat } from './ticket-chat';
 import { TicketSatisfactionPanel } from './satisfaction';
@@ -8,13 +9,15 @@ import { PublicTicketProgress } from './public-ticket-progress';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, ChevronRight, CircleHelp, Clock3, Headphones, LoaderCircle, LogOut, MessageSquare, Plus, RefreshCw, Search, Send, ShieldCheck, Ticket as TicketIcon, X } from 'lucide-react';
-import type { Article, Ticket, TicketPriority, TicketStatus, Workspace } from '../lib/types';
+import type { Article, Message, Ticket, TicketPriority, TicketStatus, Workspace } from '../lib/types';
 import Brand from './brand';
+import {ThemeControl} from './evolution-controls';
 import { LiveStatus } from './live-status';
 import type { ConnectionStatus } from '@/hooks/use-workspace';
 import type { AlertControls } from '@/hooks/use-ticket-alerts';
 import { TicketAlerts } from './ticket-alerts';
 import { disconnectPushOnSignOut } from '@/lib/push-client';
+import { useDraftQuote } from '@/hooks/use-draft-quote';
 import { useTicketDraft } from '@/hooks/use-ticket-draft';
 import { ticketDraftKey } from '@/lib/ticket-drafts';
 import { getDraftOperations } from '@/lib/draft-operations';
@@ -31,7 +34,7 @@ const date = (value: string) => new Intl.DateTimeFormat('es', { day: 'numeric', 
 const number = (id: number) => `#${String(id).padStart(4, '0')}`;
 
 async function post<T = unknown>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const response = await daybookFetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },UNCERTAIN_SEND_MESSAGE);
   const result: unknown = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = result && typeof result === 'object' && 'error' in result ? result.error : null;
@@ -73,6 +76,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
   const headingRef = useRef<HTMLHeadingElement>(null);
   const feedKey = data.alertsPage?.snapshotAt;
   const accessKey = `${data.viewer?.id}:${data.viewer?.role}:${data.viewer?.customerCompanyId}:${data.viewer?.companyAccess}`;
+  const [replyTarget,setReplyTarget]=useState<{memberId:string;ticketId:number;message:Message}|null>(null);
   const conversation = useTicketConversation(data.viewer?.id, accessKey, selectedId, feedKey);
   const current = conversation.ticket;
   const searchResults = useTicketSearch(data.viewer?.id, { q: search, queue: filter as TicketFilters['queue'], priority: 'all', department: 'all', company: 'all', agent: 'all' }, feedKey, section === 'tickets' && !creating && selectedId === null);
@@ -158,7 +162,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
     </header>
 
     <main className="client-main">
-      <div className="workspace-sync"><LiveStatus connection={connection} /><TicketAlerts alerts={alerts} onOpen={id => { window.open(`/?ticket=${id}`, '_blank', 'noopener,noreferrer'); }} /></div>
+      <div className="workspace-sync"><ThemeControl key={data.viewer!.id} memberId={data.viewer!.id} preferred={data.preferences?.theme||'system'}/><LiveStatus connection={connection} /><TicketAlerts alerts={alerts} onOpen={id => { window.open(`/?ticket=${id}`, '_blank', 'noopener,noreferrer'); }} /></div>
       {error && <div className="client-feedback error" role="alert"><CircleHelp size={18} /><p>{error}</p><button aria-label="Cerrar aviso" onClick={() => setError('')}><X size={17} /></button></div>}
       {notice && <div className="client-feedback success" role="status"><CheckCircle2 size={18} /><p>{notice}</p><button aria-label="Cerrar confirmación" onClick={() => setNotice('')}><X size={17} /></button></div>}
 
@@ -180,8 +184,8 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
         <div className="client-heading detail"><div><div className="client-ticket-meta"><span>{number(current.id)}</span><Badge status={current.status} /></div><h1 ref={headingRef} tabIndex={-1}>{current.subject}</h1><p>{current.department} · Creado el {date(current.createdAt)}{isCompanyManager && ` · Solicitado por ${current.requesterName}`}</p></div></div>
         <PublicTicketProgress key={`${data.viewer!.id}:${current.id}`} ticketId={current.id} memberId={data.viewer!.id} version={current.version}/>
         <div className="client-detail-grid"><section className="client-conversation ticket-chat-panel" aria-label="Conversación del ticket">
-          <TicketChat key={`${accessKey}:${current.id}`} messages={conversation.messages} viewerId={data.viewer!.id} staff={false} hasOlder={conversation.hasOlder} loadingOlder={conversation.loadingOlder} onLoadOlder={conversation.loadOlder} loading={conversation.loading} error={conversation.error} title="Tu conversación">
-          {data.viewer && <ClientComposer key={ticketDraftKey({ memberId: data.viewer.id, role: 'client', ticketId: current.id })} memberId={data.viewer.id} ticketId={current.id} busy={busy} onSend={sendReply}/>}
+          <TicketChat key={`${accessKey}:${current.id}`} ticketId={current.id} collaboration={Boolean(data.evolution?.features.collaboration)} onReplyTo={message=>setReplyTarget({memberId:data.viewer!.id,ticketId:current.id,message})} messages={conversation.messages} viewerId={data.viewer!.id} staff={false} hasOlder={conversation.hasOlder} loadingOlder={conversation.loadingOlder} onLoadOlder={conversation.loadOlder} loading={conversation.loading} error={conversation.error} title="Tu conversación">
+          {data.viewer && <ClientComposer key={ticketDraftKey({ memberId: data.viewer.id, role: 'client', ticketId: current.id })} memberId={data.viewer.id} ticketId={current.id} busy={busy} replyTarget={replyTarget?.memberId===data.viewer.id&&replyTarget.ticketId===current.id?replyTarget.message:null} onClearReply={()=>setReplyTarget(null)} onSend={sendReply}/>}
           </TicketChat>
         <TicketSatisfactionPanel key={`${data.viewer!.id}:${current.id}`} ticketId={current.id} memberId={data.viewer!.id} version={current.version} status={current.status}/></section><aside className="client-ticket-summary"><Headphones size={25} /><h2>Seguimos tu caso</h2><p>Consulta aquí el estado y las respuestas de nuestro equipo.</p><dl><div><dt>Estado</dt><dd><Badge status={current.status} /></dd></div><div><dt>Prioridad</dt><dd>{PRIORITY[current.priority]}</dd></div><div><dt>Última actividad</dt><dd>{date(current.updatedAt)}</dd></div></dl><div className="client-private-note"><ShieldCheck size={16} /><span>{isCompanyManager ? 'Visible para los contactos autorizados de tu empresa y el equipo de Daybook.' : 'Visible para ti, el equipo de Daybook y los contactos autorizados de tu empresa, si corresponde.'}</span></div></aside></div>
       </> : section === 'help' ? <>
@@ -210,26 +214,30 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
 }
 
 
-type ClientMessageSubmission = { body: string; bodyFormat?: 'plain' | 'markdown'; draftId: string; attachmentIds: string[]; operationId: string };
-function ClientComposer({ memberId, ticketId, busy, onSend }: {
+type ClientMessageSubmission = { replyToMessageId?:number|null; body: string; bodyFormat?: 'plain' | 'markdown'; draftId: string; attachmentIds: string[]; operationId: string };
+function ClientComposer({ memberId, ticketId, busy, onSend, replyTarget, onClearReply }: {
   memberId: string;
   ticketId: number;
   busy: boolean;
+  replyTarget:Message|null;onClearReply:()=>void;
   onSend: (payload: ClientMessageSubmission) => Promise<boolean>;
 }) {
-  const { message, persistent, edit, complete } = useTicketDraft({ memberId, role: 'client', ticketId });
+  const { message, persistent, edit, complete, setReferences } = useTicketDraft({ memberId, role: 'client', ticketId });
   const scope = `${ticketDraftKey({ memberId, role: 'client', ticketId })}.reply`;
   const attachments = useDraftAttachments(scope, 'reply', ticketId);
+  const resolvedQuote=useDraftQuote({memberId,role:'client',ticketId},'reply',message.replyToMessageId),quote=resolvedQuote.quote;
+  useEffect(()=>{if(!replyTarget)return;if(replyTarget.kind!=='note'&&replyTarget.ticketId===ticketId)setReferences('reply',{replyToMessageId:replyTarget.id});onClearReply();},[replyTarget,ticketId,setReferences,onClearReply]);
   return <form className="client-composer ticket-chat-composer reply" onSubmit={async event => {
     event.preventDefault();
-    if (busy || !message.body.trim() || !attachments.canSubmit) return;
-    const payload = { body: message.body, ...attachments.payload(), bodyFormat: 'markdown' as const };
+    if (busy || !message.body.trim() || !attachments.canSubmit || resolvedQuote.loading || resolvedQuote.error) return;
+    const payload = { body: message.body, ...attachments.payload(), bodyFormat: 'markdown' as const,...('replyToMessageId' in message?{replyToMessageId:message.replyToMessageId}:{}) };
     const operations = getDraftOperations();
     if (await onSend({ ...payload, operationId: operations.forPayload(scope, payload) })) { complete(message); attachments.complete(); operations.clear(scope); }
   }}>
     {!persistent && <p className="draft-notice" role="status">Tu navegador no permite guardar este borrador al recargar. Conservaremos el texto mientras esta página siga abierta.</p>}
+    {message.replyToMessageId&&<div className="ticket-reply-banner"><span><strong>{quote?`Respondiendo a ${quote.author}`:resolvedQuote.loading?'Comprobando cita…':'Cita pendiente de comprobar'}</strong>{quote&&<small>{quote.body.slice(0,180)}</small>}{resolvedQuote.error&&<><small role="alert">{resolvedQuote.error}</small><button type="button" className="text-button" onClick={resolvedQuote.retry}>Reintentar cita</button></>}</span><button type="button" className="icon-button" aria-label="Quitar cita" onClick={()=>setReferences('reply',{})}><X size={16}/></button></div>}
     <MessageEditor compact id="client-reply" label="Añadir una respuesta" value={message.body} onChange={edit} disabled={busy} rows={5} placeholder="Escribe tu respuesta o añade información…"/>
     <AttachmentComposer controls={attachments} disabled={busy}/>
-    <div className="composer-footer"><span>Compartida con quienes tienen acceso a este ticket.</span><button className="primary" disabled={busy || !message.body.trim() || !attachments.canSubmit}>{busy ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}Enviar respuesta</button></div>
+    <div className="composer-footer"><span>Compartida con quienes tienen acceso a este ticket.</span><button className="primary" disabled={busy || !message.body.trim() || !attachments.canSubmit || resolvedQuote.loading || Boolean(resolvedQuote.error)}>{busy ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}Enviar respuesta</button></div>
   </form>;
 }

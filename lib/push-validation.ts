@@ -34,7 +34,7 @@ export const pushSubscriptionSchema = z.object({
 }).strict();
 
 export type BrowserPushSubscription = z.infer<typeof pushSubscriptionSchema>;
-export const PUSH_EVENTS = ['ticket_created', 'agent_replied', 'client_replied'] as const;
+export const PUSH_EVENTS = ['ticket_created', 'agent_replied', 'client_replied', 'member_mentioned', 'ticket_followed_update'] as const;
 export function classifyPushFailure(error: unknown): 'expired_subscription' | 'provider_unavailable' | 'provider_rejected' {
   const status = error && typeof error === 'object' && 'statusCode' in error ? Number(error.statusCode) : 0;
   if (status === 404 || status === 410) return 'expired_subscription';

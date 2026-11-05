@@ -1,3 +1,5 @@
+import {getEvolutionFeatures} from '@/lib/evolution-features';
+import {getUserPreferences} from '@/lib/user-preferences';
 import { db, handle, json, getSettings, articleColumns, asArticle } from '@/lib/server';
 import { requireAccess, memberColumns, publicMember, getCustomerCompanies } from '@/lib/access';
 import { getSavedReplies } from '@/lib/saved-replies';
@@ -11,7 +13,7 @@ export async function GET(request: Request) {
     const access = await requireAccess(request);
     const database = db();
     const client = access.role === 'client';
-    const [feed, articles, settings, demo, members, companies, savedReplies] = await Promise.all([
+    const [feed, articles, settings, demo, members, companies, savedReplies, evolution, preferences] = await Promise.all([
       getTicketFeed(access),
       database.prepare(`SELECT ${articleColumns} FROM articles WHERE "ownerId" = $1${client ? ' AND published = true' : ''} ORDER BY "updatedAt" DESC`).bind(access.ownerId).all<Article>(),
       getSettings(access.ownerId),
@@ -19,11 +21,13 @@ export async function GET(request: Request) {
       client ? { results: [] as Member[] } : database.prepare(`SELECT ${memberColumns} FROM members WHERE "ownerId" = $1 ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'agent' THEN 2 ELSE 3 END, name`).bind(access.ownerId).all<Member>(),
       getCustomerCompanies(access),
       getSavedReplies(access),
+      getEvolutionFeatures(access.ownerId),
+      getUserPreferences(access.userId),
     ]);
     if (!client) after(async () => { await drainOutboxBestEffort(access.ownerId); });
     const mailStatus = ['owner', 'admin'].includes(access.role) ? await getMailStatus(access.ownerId) : null;
     return json({
-      viewer: access.member,
+      viewer: access.member, evolution, preferences,
       members: members.results.map(publicMember),
       companies,
       savedReplies,

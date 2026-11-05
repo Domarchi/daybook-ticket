@@ -1,3 +1,4 @@
+import { collaborationMessageFields } from './collaboration-model';
 import { getDatabase } from '../db';
 import type { Database } from '../db/database';
 import { z } from 'zod';
@@ -41,7 +42,7 @@ export const patchTicketSchema = z.object({
   priority: ticketPriority.optional(),
   status: ticketStatus.optional(),
 }).strict().refine(v => Object.keys(v).length > 0, 'No hay cambios para guardar.');
-export const messageSchema = z.object({ operationId: z.string().uuid(), draftId: z.string().uuid().optional(), attachmentIds: z.array(z.string().uuid()).max(5).default([]), body: messageBody, bodyFormat: z.enum(['plain', 'markdown']).optional(), kind: z.enum(['reply', 'note']) }).strict();
+export const messageSchema = z.object({ ...collaborationMessageFields, operationId: z.string().uuid(), draftId: z.string().uuid().optional(), attachmentIds: z.array(z.string().uuid()).max(5).default([]), body: messageBody, bodyFormat: z.enum(['plain', 'markdown']).optional(), kind: z.enum(['reply', 'note']) }).strict();
 export const inviteMemberSchema = z.object({
   isTest: z.boolean().optional(),
   name: shortText, email: emailAddress, role: z.enum(['admin', 'agent', 'client']),
