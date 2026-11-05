@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { ticketReturnPath } from '@/lib/return-path';
 import { DEFAULT_SETTINGS, type Workspace } from '@/lib/types';
 
 const EMPTY: Workspace = { viewer: null, members: [], companies: [], savedReplies: [], mailStatus: null, tickets: [], messages: [], alerts: [], articles: [], settings: DEFAULT_SETTINGS, demoLoaded: false };
@@ -82,7 +83,9 @@ export function useWorkspace(onSnapshot: (workspace: Workspace) => void) {
       return next;
     } catch (failure) {
       if (mounted.current && active.current === controller && !(failure instanceof Error && failure.name === 'AbortError')) {
-        if (failure instanceof ReadError && (failure.status === 401 || failure.status === 403)) {
+        if (failure instanceof ReadError && failure.status===428) {
+          denied.current=true; commit(EMPTY); window.location.replace(`/security?return_to=${encodeURIComponent(ticketReturnPath(new URLSearchParams(window.location.search).get('ticket')))}`);
+        } else if (failure instanceof ReadError && (failure.status === 401 || failure.status === 403)) {
           denied.current = true;
           commit(EMPTY);
           setLoadError('Tu sesión terminó o tu acceso cambió. Vuelve a iniciar sesión.');

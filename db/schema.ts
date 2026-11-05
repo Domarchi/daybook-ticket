@@ -318,3 +318,10 @@ export const automaticBackupRuns=pgTable('automaticBackupRuns',{
 export const automaticBackupUsage=pgTable('automaticBackupUsage',{
   ownerId:text('ownerId').notNull().references(()=>organizations.ownerId),environment:text('environment').notNull(),month:text('month').notNull(),transferBytes:bigint('transferBytes',{mode:'number'}).notNull().default(0),
 },t=>[primaryKey({columns:[t.ownerId,t.environment,t.month]}),check('automatic_backup_usage_environment',sql`${t.environment} IN ('qa','production')`),check('automatic_backup_usage_bytes',sql`${t.transferBytes} >= 0`)]);
+
+export const securityPolicies=pgTable('securityPolicies',{
+  ownerId:text('ownerId').primaryKey().references(()=>organizations.ownerId),requireStaffMfa:boolean('requireStaffMfa').notNull().default(false),activatedAt:text('activatedAt'),version:integer('version').notNull().default(0),updatedAt:text('updatedAt').notNull(),
+},t=>[check('security_policy_version',sql`${t.version} >= 0`)]);
+export const securityAudit=pgTable('securityAudit',{
+  id:text('id').primaryKey(),ownerId:text('ownerId').notNull().references(()=>organizations.ownerId),actorMemberId:text('actorMemberId'),actorUserId:text('actorUserId').notNull(),actorName:text('actorName').notNull(),action:text('action').notNull(),targetId:text('targetId'),createdAt:text('createdAt').notNull(),
+},t=>[index('security_audit_page').on(t.ownerId,t.createdAt.desc(),t.id.desc())]);

@@ -5,6 +5,7 @@ import { lockAccess } from '@/lib/ticket-mutations';
 import { getSettingsInTransaction } from '@/lib/settings-transaction';
 import { getEffectiveServicePolicy } from '@/lib/service-policies';
 import { resolutionDeadline } from '@/lib/ticket-sla';
+import { recordSecurityEvent } from '@/lib/security';
 export async function PATCH(request: Request) {
   return handle(async () => {
     const access = requireAdmin(await requireAccess(request));
@@ -40,6 +41,7 @@ export async function PATCH(request: Request) {
           SET "slaHoursJson"=EXCLUDED."slaHoursJson",version="servicePolicies".version+1,"updatedAt"=EXCLUDED."updatedAt"`,
         [crypto.randomUUID(), fresh.ownerId, JSON.stringify(calendar), JSON.stringify(hours), now]);
       }
+      await recordSecurityEvent(tx,fresh,'configuration_changed');
       return next;
     });
     return json({ settings });

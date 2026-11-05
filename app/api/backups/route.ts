@@ -3,21 +3,25 @@ import { requireAccess } from '@/lib/access';
 import { ApiError, handle, json, parseBody } from '@/lib/server';
 import { encryptBackup, MAX_BACKUP_BYTES } from '@/lib/backup-format';
 import { createWorkspaceBackup } from '@/lib/workspace-backup';
+import { requireFreshSecurity,recordSecurityEvent } from '@/lib/security';
+import { db } from '@/lib/server';
 export const maxDuration = 300;
 export async function GET(request: Request) {
   return handle(async () => {
     const access = await requireAccess(request);
-    if (access.role !== 'owner') throw new ApiError(403, 'Solo el propietario puede crear un respaldo completo.');
+    if (access.role !== 'owner' || access.organizationId!=='daybook') throw new ApiError(403, 'El respaldo completo está reservado al propietario de la plataforma. Usa la exportación privada del negocio.');
     return json({ available: true, format: 'daybook.workspace.v1', maximumBytes: MAX_BACKUP_BYTES, includes: ['cuentas y contraseñas cifradas', 'empresas', 'tickets y conversaciones', 'notas internas', 'archivos enviados', 'configuración e historial'], freshSignInAfterRecovery: true });
   });
 }
 export async function POST(request: Request) {
   return handle(async () => {
     const access = await requireAccess(request);
-    if (access.role !== 'owner') throw new ApiError(403, 'Solo el propietario puede crear un respaldo completo.');
+    if (access.role !== 'owner' || access.organizationId!=='daybook') throw new ApiError(403, 'El respaldo completo está reservado al propietario de la plataforma. Usa la exportación privada del negocio.');
+    await requireFreshSecurity(access);
     const { password } = await parseBody(request, z.object({ password: z.string().min(16).max(256), confirmation: z.literal('RESPALDAR') }).strict());
     const backup = await createWorkspaceBackup(access);
     const encrypted = encryptBackup(backup, password);
+    await db().transaction(tx=>recordSecurityEvent(tx,access,'platform_backup_created'));
     let offset = 0;
     // Stream bounded chunks; a buffered Function response cannot exceed Vercel's payload limit.
     const stream = new ReadableStream<Uint8Array>({

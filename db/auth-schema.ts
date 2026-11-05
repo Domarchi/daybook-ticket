@@ -2,6 +2,7 @@ import { pgTable, text, integer, bigint, boolean, timestamp, index, uniqueIndex 
 
 export const user = pgTable('authUser', {
   id: text('id').primaryKey(), name: text('name').notNull(), email: text('email').notNull().unique(),
+  twoFactorEnabled: boolean('twoFactorEnabled').notNull().default(false),
   emailVerified: boolean('emailVerified').notNull().default(false), image: text('image'),
   createdAt: timestamp('createdAt', { withTimezone: true, mode: 'date' }).notNull(), updatedAt: timestamp('updatedAt', { withTimezone: true, mode: 'date' }).notNull(),
 });
@@ -32,3 +33,16 @@ export const invitations = pgTable('invitations', {
   memberId: text('memberId').primaryKey(), ownerId: text('ownerId').notNull(), tokenHash: text('tokenHash').notNull().unique(),
   expiresAt: text('expiresAt').notNull(), createdAt: text('createdAt').notNull(),
 });
+
+export const twoFactor = pgTable('twoFactor', {
+  id: text('id').primaryKey(), userId: text('userId').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  secret: text('secret').notNull(), backupCodes: text('backupCodes').notNull(), verified: boolean('verified').notNull().default(true),
+  failedVerificationCount: integer('failedVerificationCount').notNull().default(0), lockedUntil: timestamp('lockedUntil', { withTimezone: true, mode: 'date' }),
+}, t => [uniqueIndex('two_factor_user').on(t.userId)]);
+export const securityProfiles = pgTable('securityProfiles', {
+  userId: text('userId').primaryKey().references(() => user.id, { onDelete: 'cascade' }), recoveryAcknowledgedAt: text('recoveryAcknowledgedAt'), updatedAt: text('updatedAt').notNull(),
+});
+export const securityAssurances = pgTable('securityAssurances', {
+  sessionId: text('sessionId').primaryKey().references(() => session.id, { onDelete: 'cascade' }), userId: text('userId').notNull().references(() => user.id, { onDelete: 'cascade' }),
+  passwordVerifiedAt: text('passwordVerifiedAt'), mfaVerifiedAt: text('mfaVerifiedAt'), updatedAt: text('updatedAt').notNull(),
+}, t => [index('security_assurance_user').on(t.userId)]);

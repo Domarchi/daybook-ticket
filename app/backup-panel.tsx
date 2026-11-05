@@ -4,8 +4,8 @@ import { Download, ShieldCheck, LoaderCircle } from 'lucide-react';
 export function BackupPanel({ memberId }: { memberId: string }) {
   const [password, setPassword] = useState(''), [confirmation, setConfirmation] = useState(''), [accepted, setAccepted] = useState(false);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [result, setResult] = useState('');
-  return <section className="panel backup-panel"><div className="section-head"><h2><ShieldCheck size={18}/>Respaldo completo del espacio</h2><span>Solo propietario</span></div><div>
-    <p>Descarga cuentas, empresas, tickets, conversaciones, notas internas y archivos enviados en un único archivo cifrado. Guarda la clave por separado: Daybook no la almacena ni puede recuperarla. Al restaurar será necesario volver a iniciar sesión.</p>
+  return <section className="panel backup-panel"><div className="section-head"><h2><ShieldCheck size={18}/>Respaldo de la plataforma Daybook</h2><span>Solo propietario de plataforma</span></div><div>
+    <p>Respaldo operativo con cuentas de acceso y datos privados de Daybook, reservado al propietario de la plataforma. Para compartir o trasladar datos de un negocio usa su exportación privada desde Seguridad. Verifica tu identidad antes de crear el respaldo.</p><p>Conserva por separado la clave de este archivo y la clave original de autenticación de la plataforma. Los autenticadores se recuperan únicamente con esa configuración privada, nunca desactivándolos automáticamente.</p>
     <form onSubmit={async event => {
       event.preventDefault(); if (busy || !accepted || password.length < 16 || password !== confirmation) return;
       setBusy(true); setError(''); setResult('');

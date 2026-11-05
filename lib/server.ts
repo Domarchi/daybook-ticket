@@ -6,7 +6,7 @@ import { DEFAULT_SETTINGS, type Settings, type Ticket, type Article } from './ty
 import { ticketAccessSql, type AccessContext } from './access';
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) { super(message); }
+  constructor(public status: number, message: string, public redirectTo?: string) { super(message); }
 }
 export const shortText = z.string().trim().min(1, 'Completa los campos obligatorios.').max(160, 'El texto es demasiado largo.');
 export const messageBody = z.string().trim().min(1, 'Escribe un mensaje.').max(20000, 'El mensaje no puede superar 20.000 caracteres.');
@@ -105,7 +105,7 @@ export function json(value: unknown, status = 200) {
 export async function handle(fn: () => Promise<Response>) {
   try { return await fn(); }
   catch (error) {
-    if (error instanceof ApiError) return json({ error: error.message }, error.status);
+    if (error instanceof ApiError) return json({ error: error.message, ...(error.redirectTo ? { redirectTo: error.redirectTo } : {}) }, error.status);
     if (error instanceof z.ZodError) return json({ error: error.issues[0]?.message || 'Revisa los datos enviados.' }, 400);
     console.error('Daybook Ticket API failure', error instanceof Error ? error.message : 'Unknown error');
     return json({ error: 'No se pudieron guardar o consultar los datos. Intenta nuevamente.' }, 500);

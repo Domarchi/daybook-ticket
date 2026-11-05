@@ -2,6 +2,7 @@ import { ApiError, db, handle, json, parseBody, patchMemberSchema, type RouteCon
 import { requireAccess, requireAdmin, checkMemberChange, publicMember, validateMemberCompany, type MemberRecord } from '@/lib/access';
 import { acquireTicketWorkLock } from '@/lib/work-lock';
 import { lockAccess } from '@/lib/ticket-mutations';
+import { recordSecurityEvent } from '@/lib/security';
 
 export async function PATCH(request: Request, context: RouteContext) {
   return handle(async () => {
@@ -31,6 +32,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         await tx.query('DELETE FROM invitations WHERE "memberId"=$1 AND "ownerId"=$2', [id, fresh.ownerId]);
         await tx.query(`UPDATE "mailOutbox" SET status='cancelled',"updatedAt"=$1,"nextAttemptAt"=NULL WHERE "ownerId"=$2 AND "recipientMemberId"=$3 AND status IN ('queued','awaiting_configuration')`, [changes.updatedAt, fresh.ownerId, id]);
       }
+      await recordSecurityEvent(tx,fresh,'member_permissions_changed',id);
       return json({ member: publicMember(updated.rows[0]) });
     });
   });

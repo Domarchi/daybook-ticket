@@ -54,7 +54,7 @@ export async function createWorkspaceBackup(access: AccessContext, database = db
       if (!tableColumns.length) throw new ApiError(503, 'Aplica la migración de esta versión antes de crear respaldos.');
       let where = '"ownerId"=$1';
       if (table === 'authUser') where = 'id IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
-      else if (table === 'authAccount') where = '"userId" IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
+      else if (['authAccount','twoFactor','securityProfiles'].includes(table)) where = '"userId" IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
       else if (table === 'attachments') where += " AND status='attached'";
       else if (table === 'invitations' || table === 'ticketPresence') where += ' AND FALSE';
       else if (table === 'inboundMailJobFiles') where = '"providerId" IN (SELECT "providerId" FROM "inboundMailJobs" WHERE "ownerId"=$1) AND "attachmentId" IN (SELECT id FROM attachments WHERE "ownerId"=$1 AND status=\'attached\')';
@@ -112,17 +112,17 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
       await tx.query("SET LOCAL statement_timeout='90s'");
       await tx.query("SELECT pg_advisory_xact_lock(hashtextextended('daybook-workspace-restore',0))");
       // Lock all target tables before verifying emptiness. Existing customers are never overwritten.
-      const locked = [...BACKUP_TABLES, ...(schema === 'public' ? ['authSession', 'authVerification', 'authRateLimit'] : [])];
+      const locked = [...BACKUP_TABLES, ...(schema === 'public' ? ['authSession', 'authVerification', 'authRateLimit','securityAssurances'] : [])];
       await tx.query(`LOCK TABLE ${locked.map(table => qualified(schema, table)).join(',')} IN ACCESS EXCLUSIVE MODE`);
       for (const table of BACKUP_TABLES) {
         if (Number((await tx.query(`SELECT count(*)::int AS n FROM ${qualified(schema, table)}`)).rows[0].n) !== 0) throw new Error('Recovery requires an empty destination. No existing data was changed.');
         const source = backup.tables.find(item => item.name === table);
         if (!source) continue; // A verified v1 archive predates the additive reliability tables.
         const target = await columns(tx, table, schema);
-        const compatible = target.filter(column => !(column === 'isTest' && ['members','tickets'].includes(table) && !source.columns.includes(column)));
+        const compatible = target.filter(column => !((column === 'isTest' && ['members','tickets'].includes(table) || column === 'twoFactorEnabled' && table==='authUser') && !source.columns.includes(column)));
         if (JSON.stringify(compatible) !== JSON.stringify(source.columns)) throw new Error(`Schema version mismatch: ${table}`);
       }
-      if (schema === 'public') for (const table of ['authSession', 'authVerification', 'authRateLimit']) {
+      if (schema === 'public') for (const table of ['authSession', 'authVerification', 'authRateLimit','securityAssurances']) {
         if (Number((await tx.query(`SELECT count(*)::int AS n FROM ${qualified(schema, table)}`)).rows[0].n) !== 0) throw new Error('Recovery requires empty temporary authentication tables.');
       }
       for (const file of backup.files) {
