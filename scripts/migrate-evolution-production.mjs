@@ -15,6 +15,7 @@ export {MigrationOperatorError};
 export const REVIEWED_EVOLUTION_MIGRATIONS=Object.freeze([
  Object.freeze({tag:'0007_collaboration',when:1793912000000,hash:'19a2066c705193953e3aae2aaf3311bebf732dd7de38f6632a96f79d4da597a5'}),
  Object.freeze({tag:'0008_organization',when:1793912001000,hash:'7f9a8e8d585752e8cecce99414aa10042e517f4e03e84abe579046e90d78f058'}),
+ Object.freeze({tag:'0009_service_context',when:1793912002000,hash:'c0326e1ea6366594eb186020800ae9b413cd309b3dcc789ce6cd466b9b799a25'}),
 ]);
 export const EVOLUTION_PINNED_MIGRATIONS=Object.freeze([...RELIABILITY_PINNED_MIGRATIONS,...REVIEWED_EVOLUTION_MIGRATIONS]);
 const BASE_TARGET='daybook-ticket:ep-dawn-moon-bbwpjcrp.c-15.us-east-1.aws.neon.tech/daybook_ticket';

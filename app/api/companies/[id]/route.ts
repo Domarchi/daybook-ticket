@@ -24,9 +24,14 @@ export async function DELETE(request: Request, context: RouteContext) {
     const removed = await db().prepare(`DELETE FROM "customerCompanies" c WHERE c.id = $1 AND c."ownerId" = $2 AND c."organizationId" = $3
       AND NOT EXISTS (SELECT 1 FROM members m WHERE m."customerCompanyId" = c.id)
       AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t."customerCompanyId" = c.id)
-      AND NOT EXISTS (SELECT 1 FROM "ticketSlaOutcomes" o WHERE o."customerCompanyId" = c.id) RETURNING c.id`)
+      AND NOT EXISTS (SELECT 1 FROM "ticketSlaOutcomes" o WHERE o."customerCompanyId" = c.id)
+      AND NOT EXISTS (SELECT 1 FROM "companyProfiles" p WHERE p."companyId" = c.id)
+      AND NOT EXISTS (SELECT 1 FROM "companySites" s WHERE s."companyId" = c.id)
+      AND NOT EXISTS (SELECT 1 FROM "customerAssets" a WHERE a."companyId" = c.id)
+      AND NOT EXISTS (SELECT 1 FROM "customerServices" s WHERE s."companyId" = c.id)
+      AND NOT EXISTS (SELECT 1 FROM "serviceContracts" s WHERE s."companyId" = c.id) RETURNING c.id`)
       .bind(id, access.ownerId, access.organizationId).first<{ id: string }>();
-    if (!removed) throw new ApiError(409, 'La empresa tiene contactos, tickets o mediciones; conserva su historial.');
+    if (!removed) throw new ApiError(409, 'La empresa tiene contactos, tickets, fichas de servicio o mediciones; conserva su historial.');
     return json({ ok: true });
   });
 }

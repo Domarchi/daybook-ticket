@@ -11,6 +11,7 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 
 const url = new URL(process.env.DATABASE_URL), ci = process.env.CI === 'true' && process.env.DAYBOOK_RECOVERY_CI === '1';
 const realStorage = process.argv.slice(2).includes('--real-qa-storage');
+const expectedFiles=BACKUP_TABLES.includes('serviceContracts')?3:2;
 assert.ok(process.argv.slice(2).every(value => value === '--real-qa-storage'));
 assert.ok(!ci || !realStorage, 'The CI drill never uses an external file store.');
 if (ci) {
@@ -96,6 +97,20 @@ try {
     await pool.query('INSERT INTO "ticketTasks" (id,"ownerId","ticketId","createdByMemberId","operationId","requestHash",title,status,"createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,\'Tarea ficticia recuperable\',\'open\',$7,$7)',[randomUUID(),ownerId,ticket,owner,randomUUID(),sha256('qa-task'),now]);
     await pool.query('INSERT INTO "savedTicketViews" (id,"ownerId","memberId",name,"filtersJson",version,"createdAt","updatedAt") VALUES ($1,$2,$3,\'Vista ficticia\',$4,0,$5,$5)',[randomUUID(),ownerId,owner,JSON.stringify({queue:'mine',q:'recuperación'}),now]);
   }
+  if(BACKUP_TABLES.includes('serviceContracts')){
+    const site=randomUUID(),asset=randomUUID(),contract=randomUUID(),document=randomUUID();
+    await pool.query('INSERT INTO "companyProfiles" ("companyId","ownerId","legalName","createdAt","updatedAt") VALUES ($1,$2,\'Empresa ficticia recuperable\',$3,$3)',[company,ownerId,now]);
+    await pool.query('INSERT INTO "companySites" (id,"ownerId","companyId",name,"createdAt","updatedAt") VALUES ($1,$2,$3,\'Sede ficticia\',$4,$4)',[site,ownerId,company,now]);
+    await pool.query('INSERT INTO "customerAssets" (id,"ownerId","companyId",name,"siteId","responsibleMemberId","warrantyUntil","reminderBaselineAt","createdAt","updatedAt") VALUES ($1,$2,$3,\'Equipo ficticio recuperable\',$4,$5,\'2027-12-31\',$6,$6,$6)',[asset,ownerId,company,site,owner,now]);
+    await pool.query('INSERT INTO "serviceContracts" (id,"ownerId","companyId",name,"startsOn","endsOn","responsibleMemberId","reminderBaselineAt","createdAt","updatedAt") VALUES ($1,$2,$3,\'Contrato ficticio recuperable\',\'2026-01-01\',\'2027-12-31\',$4,$5,$5,$5)',[contract,ownerId,company,owner,now]);
+    await pool.query('INSERT INTO "ticketServiceContext" ("ticketId","ownerId",version,"updatedAt") VALUES ($1,$2,1,$3)',[ticket,ownerId,now]);
+    await pool.query('INSERT INTO "ticketAssetLinks" ("ticketId","assetId","ownerId","createdAt","createdBy") VALUES ($1,$2,$3,$4,$5)',[ticket,asset,ownerId,now,owner]);
+    await pool.query('INSERT INTO "ticketContractLinks" ("ticketId","contractId","ownerId","createdAt","createdBy") VALUES ($1,$2,$3,$4,$5)',[ticket,contract,ownerId,now,owner]);
+    await pool.query('INSERT INTO "serviceContextNotificationSettings" ("ownerId",enabled,"activatedAt",version,"updatedAt") VALUES ($1,true,$2,1,$2)',[ownerId,now]);
+    await pool.query('INSERT INTO "serviceContextJobHealth" ("ownerId","leaseToken","leaseUntil") VALUES ($1,\'qa-nonportable-lease\',$2)',[ownerId,now]);
+    const pathname=`qa-backup-fixture/${document}.txt`,bytes=Buffer.from('Documento contractual privado ficticio.');fileMap.set(pathname,bytes);
+    await pool.query('INSERT INTO attachments (id,"ownerId","memberId","draftId","contractId",kind,pathname,name,"contentType",size,status,"expiresAt","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,\'contract\',$6,\'qa-contract.txt\',\'text/plain\',$7,\'attached\',$8,$8,$8)',[document,ownerId,owner,randomUUID(),contract,pathname,bytes.length,now]);
+  }
   const queuedId = randomUUID(), processingId = randomUUID();
   for (const [id, status] of [[queuedId, 'queued'], [processingId, 'processing']]) await pool.query('INSERT INTO "mailOutbox" (id,"ownerId","eventKey",event,"recipientMemberId","ticketId",status,attempts,"payloadJson","createdAt","updatedAt") VALUES ($1,$2,$1,\'ticket_created\',$3,$4,$5,1,$6,$7,$7)', [id, ownerId, owner, ticket, status, JSON.stringify({ fixture: 'frozen-qa-payload' }), now]);
   await pool.query('INSERT INTO "notificationSettings" ("ownerId","alertsActivatedAt","remindersEnabled","remindersActivatedAt") VALUES ($1,$2,true,$2)', [ownerId, now]);
@@ -104,7 +119,7 @@ try {
   assert.equal(archive.tables.find(table=>table.name==='userPreferences').rows[0].theme,'dark');
   assert.equal(archive.tables.find(table=>table.name==='ticketFollowers').rows.length,1);
   assert.equal(archive.tables.find(table=>table.name==='messages').rows.find(row=>row.kind==='note').replyToMessageId,requestId);
-  assert.equal(archive.files.length, 2); assert.equal(archive.tables.find(table => table.name === 'messages').rows.length, 2);
+  assert.equal(archive.files.length, expectedFiles); assert.equal(archive.tables.find(table => table.name === 'messages').rows.length, 2);
   assert.match(archive.tables.find(table => table.name === 'authUser').rows[0].createdAt, /123456/);
   assert.ok(archive.tables.find(table => table.name === 'authAccount').rows.every(row => row.password === 'QA-NOT-A-REAL-CREDENTIAL'));
   assert.ok(archive.tables.find(table => table.name === 'authAccount').rows.every(row => temporaryAccountColumns.every(column => row[column] === null)));
@@ -115,18 +130,22 @@ try {
   assert.deepEqual(recovered, archive);
   await cloneEmpty(schema); await cloneEmpty(failedSchema);
   const result = await restoreWorkspaceBackup(recovered, database, targetStorage, { environment: 'qa', schema });
-  assert.equal(result.restored, true); assert.equal(result.fingerprints.length, BACKUP_TABLES.length); assert.equal(result.files, 2);
+  assert.equal(result.restored, true); assert.equal(result.fingerprints.length, BACKUP_TABLES.length); assert.equal(result.files, expectedFiles);
   assert.equal(result.temporaryCredentialsRestored, false);
+  if(BACKUP_TABLES.includes('serviceContextNotificationSettings')){
+    assert.equal((await pool.query(`SELECT enabled FROM "${schema}"."serviceContextNotificationSettings"`)).rows[0].enabled,false);
+    assert.equal((await pool.query(`SELECT "leaseToken" FROM "${schema}"."serviceContextJobHealth"`)).rows[0].leaseToken,null);
+  }
   await assertTemporaryCredentialsNotRestored(schema);
   assert.equal((await pool.query(`SELECT "remindersEnabled" FROM "${schema}"."notificationSettings"`)).rows[0].remindersEnabled, false);
   assert.equal((await pool.query(`SELECT status FROM "${schema}"."mailOutbox" WHERE id=$1`, [queuedId])).rows[0].status, 'cancelled');
   assert.equal((await pool.query(`SELECT status FROM "${schema}"."mailOutbox" WHERE id=$1`, [processingId])).rows[0].status, 'unknown');
-  if (!realStorage) { assert.equal(restoredFiles.size, 2); assert.deepEqual([...restoredFiles.values()].map(sha256).sort(), [...fileMap.values()].map(sha256).sort()); }
-  else assert.equal(realPaths.length, 2, 'Two private QA objects were written and verified by the recovery operator.');
+  if (!realStorage) { assert.equal(restoredFiles.size, expectedFiles); assert.deepEqual([...restoredFiles.values()].map(sha256).sort(), [...fileMap.values()].map(sha256).sort()); }
+  else assert.equal(realPaths.length, expectedFiles, 'Two private QA objects were written and verified by the recovery operator.');
   const countBefore = restoredFiles.size;
   await assert.rejects(restoreWorkspaceBackup(recovered, database, targetStorage, { environment: 'qa', schema }), /empty destination/);
   assert.equal(restoredFiles.size, countBefore, 'Refusing an occupied destination creates no new files.');
-  if (realStorage) assert.equal(realPaths.length, 2);
+  if (realStorage) assert.equal(realPaths.length, expectedFiles);
   const brokenFiles = new Map(), broken = { ...fakeStorage(brokenFiles), async write(pathname, bytes) { brokenFiles.set(pathname, Buffer.from('corrupt')); void bytes; } };
   await assert.rejects(restoreWorkspaceBackup(recovered, database, broken, { environment: 'qa', schema: failedSchema }), /checksum|size/i);
   assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${failedSchema}".tickets`)).rows[0].n, 0);
@@ -134,6 +153,7 @@ try {
   // The v1 reader must also accept old archives, verify their original rows and invalidate
   // temporary credentials inside the recovery transaction before they become usable.
   const legacy = structuredClone(recovered);
+  const legacyAttachments=legacy.tables.find(table=>table.name==='attachments');legacyAttachments.rows=legacyAttachments.rows.filter(row=>row.kind!=='contract');const legacyFileIds=new Set(legacyAttachments.rows.map(row=>row.id));legacy.files=legacy.files.filter(file=>legacyFileIds.has(file.attachmentId));
   legacy.tables=legacy.tables.filter(table=>RELIABILITY_BACKUP_TABLES.includes(table.name));
   for(const table of legacy.tables){
     const omitted=ADDED_BACKUP_COLUMNS[table.name]??[];
@@ -148,7 +168,7 @@ try {
   assert.equal(uncertainFiles.size, 2, 'An uncertain commit never deletes files that the committed rows reference.');
   assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${failedSchema}".tickets`)).rows[0].n, 1);
   await assertTemporaryCredentialsNotRestored(failedSchema);
-  console.log(JSON.stringify({ result: 'PASS', tables: BACKUP_TABLES.length, files: 2, storage: realStorage ? 'real-private-qa' : 'injected-private', checks: ['owner-only-export', 'private-note-and-file-preservation', 'credential-and-microsecond-preservation', 'temporary-credentials-excluded', 'legacy-v1-credentials-invalidated', 'invited-members-preserved', 'encrypted-exact-roundtrip', 'real-foreign-keys', 'empty-destination-only', 'all-row-checksums', 'private-file-hashes', 'restored-deliveries-paused', 'corrupt-file-rollback', 'uncertain-commit-keeps-files'], externalEmailRequests: 0 }));
+  console.log(JSON.stringify({ result: 'PASS', tables: BACKUP_TABLES.length, files: expectedFiles, storage: realStorage ? 'real-private-qa' : 'injected-private', checks: ['owner-only-export', 'private-note-and-file-preservation', 'credential-and-microsecond-preservation', 'temporary-credentials-excluded', 'legacy-v1-credentials-invalidated', 'invited-members-preserved', 'encrypted-exact-roundtrip', 'real-foreign-keys', 'empty-destination-only', 'all-row-checksums', 'private-file-hashes', 'restored-deliveries-paused', 'corrupt-file-rollback', 'uncertain-commit-keeps-files'], externalEmailRequests: 0 }));
 } finally {
   const storageCleanupErrors = [];
   for (const pathname of realPaths) {

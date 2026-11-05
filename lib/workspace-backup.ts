@@ -151,6 +151,10 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
         if (fingerprint !== source.sha256) throw new Error(`Recovery checksum mismatch: ${table}`);
         fingerprints.push({ table, rows: restored.length, sha256: fingerprint });
       }
+      if(backup.tables.some(table=>table.name==='serviceContextNotificationSettings')){
+        await tx.query(`UPDATE ${qualified(schema,'serviceContextNotificationSettings')} SET enabled=false,"activatedAt"=NULL`);
+        await tx.query(`UPDATE ${qualified(schema,'serviceContextJobHealth')} SET "leaseToken"=NULL,"leaseUntil"=NULL,"cursorKey"='',"lastErrorCode"='restore_paused'`);
+      }
       // Older v1 archives may contain these credentials. Verify their original fingerprints first,
       // then invalidate them before COMMIT; password hashes and account/provider identities stay intact.
       await tx.query(`DELETE FROM ${qualified(schema, 'invitations')}`);

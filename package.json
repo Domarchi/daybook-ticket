@@ -35,7 +35,8 @@
     "test:reliability:http": "node --env-file=.env.test.local --import tsx scripts/check-reliability-http.mjs",
     "test:collaboration:qa": "node --env-file=.env.test.local --import tsx scripts/check-collaboration-database.mjs",
     "db:migrate:evolution:qa": "node --env-file=.env.test.local scripts/migrate-evolution-qa.mjs",
-    "test:organization:qa": "node --env-file=.env.test.local --import tsx scripts/check-work-organization-database.mjs"
+    "test:organization:qa": "node --env-file=.env.test.local --import tsx scripts/check-work-organization-database.mjs",
+    "test:service-context:qa": "node --env-file=.env.test.local --import tsx scripts/check-service-context-database.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
