@@ -5,7 +5,9 @@ import pg from 'pg';
 import {Database} from '../db/database.ts';
 import {registerPushSubscriptionBatch} from '../lib/push-registration-compat.ts';
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE,'1');
-assert.equal(new URL(process.env.DATABASE_URL).hostname,'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+let qaTarget;try{qaTarget=new URL(process.env.DATABASE_URL||'');}catch{throw Error('Falta una conexión válida para la base aislada de QA.');}
+assert.equal(qaTarget.hostname,'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+assert.equal(qaTarget.pathname,'/daybook_ticket');
 for(const name of ['RESEND_API_KEY','RESEND_INBOUND_API_KEY','VAPID_PRIVATE_KEY'])assert.ok(!process.env[name]);
 const schema=`qa_push_transition_${randomUUID().replaceAll('-','')}`,pool=new pg.Pool({connectionString:process.env.DATABASE_URL,max:1}),client=await pool.connect();
 assert.match(schema,/^qa_push_transition_[a-f0-9]{32}$/);
