@@ -1,7 +1,10 @@
 /** SERIAL legacy HTTP regression coordinator. Obtain the shared QA lease first.
  * Uses only .env.test.local, the fixed QA host and the already running local server.
  * No fixture is retained; each child is responsible for its own finally cleanup.
- * node --env-file=.env.test.local --import tsx scripts/check-legacy-http-regressions.mjs
+ * The local server must start with DAYBOOK_NOTIFICATION_JOB_ENABLED=true so the
+ * authenticated manual notification tick can run; remote schedules stay disabled
+ * and all email/push provider keys remain absent. No .env file change is needed.
+ * DAYBOOK_NOTIFICATION_JOB_ENABLED=true node --env-file=.env.test.local --import tsx scripts/check-legacy-http-regressions.mjs
  * Optional: --from <allowed-script.mjs> resumes at a previously failed child.
  */
 import assert from 'node:assert/strict';
