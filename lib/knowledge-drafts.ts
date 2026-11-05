@@ -1,6 +1,7 @@
+import {workspaceStorageKey} from './workspace-client';
 type StoragePort=Pick<Storage,'getItem'|'setItem'|'removeItem'>;
 export interface KnowledgeDraft {baseVersion:number;title:string;category:string;body:string;changeNote:string}
-export const knowledgeDraftKey=(memberId:string,articleId:number)=>`daybook.knowledge.draft.v1.${encodeURIComponent(memberId)}.${articleId}`;
+export const knowledgeDraftKey=(memberId:string,articleId:number)=>workspaceStorageKey(`daybook.knowledge.draft.v1.${encodeURIComponent(memberId)}.${articleId}`);
 export class KnowledgeDraftStore {
  private readonly memory=new Map<string,KnowledgeDraft>();
  constructor(private readonly storage:StoragePort|null){}

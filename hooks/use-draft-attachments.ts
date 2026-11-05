@@ -1,4 +1,5 @@
 'use client';
+import {workspaceStorageKey} from '@/lib/workspace-client';
 import { useEffect, useRef, useState } from 'react';
 import { upload } from '@vercel/blob/client';
 import { attachmentDraftId, attachmentValidation, restorePendingAttachmentIds } from '@/lib/attachment-drafts';
@@ -8,14 +9,14 @@ export type DraftAttachment = { id: string; name: string; size: number; contentT
 type State = { scope: string; draftId: string; attachments: DraftAttachment[]; loading: boolean; configured: boolean; error: string; uploading: boolean; failedLoad: boolean };
 const cachedAttachments = new Map<string, DraftAttachment[]>();
 function rememberAttachments(draftId: string, attachments: DraftAttachment[]) {
-  cachedAttachments.set(draftId, attachments);
-  try { sessionStorage.setItem(`daybook.ticket.attachment-files.v1.${draftId}`, JSON.stringify(attachments)); } catch { /* Current-page retries still retain file metadata. */ }
+  cachedAttachments.set(workspaceStorageKey(draftId), attachments);
+  try { sessionStorage.setItem(workspaceStorageKey(`daybook.ticket.attachment-files.v1.${draftId}`), JSON.stringify(attachments)); } catch { /* Current-page retries still retain file metadata. */ }
 }
 function rememberedAttachments(draftId: string): DraftAttachment[] {
-  const memory = cachedAttachments.get(draftId);
+  const memory = cachedAttachments.get(workspaceStorageKey(draftId));
   if (memory) return memory;
   try {
-    const value: unknown = JSON.parse(sessionStorage.getItem(`daybook.ticket.attachment-files.v1.${draftId}`) || '[]');
+    const value: unknown = JSON.parse(sessionStorage.getItem(workspaceStorageKey(`daybook.ticket.attachment-files.v1.${draftId}`)) || '[]');
     if (Array.isArray(value)) return value.filter((item): item is DraftAttachment => Boolean(item && typeof item === 'object' && typeof item.id === 'string' && typeof item.name === 'string' && typeof item.size === 'number' && typeof item.contentType === 'string'));
   } catch { /* Optional recovery from session storage. */ }
   return [];

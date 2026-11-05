@@ -1,3 +1,4 @@
+import {workspaceStorageKey} from './workspace-client';
 type Channel = 'sound' | 'desktop';
 type DeliveryStorage = Pick<Storage, 'getItem' | 'setItem'>;
 export interface AlertDeliveryDependencies {
@@ -29,7 +30,7 @@ export async function deliverAlertOnce(
   dependencies: AlertDeliveryDependencies = browserDependencies(),
 ): Promise<void> {
   if (!ids.length) return;
-  const key = `daybook.ticket.alert-delivery.v1.${encodeURIComponent(viewerKey)}.${channel}`;
+  const key = workspaceStorageKey(`daybook.ticket.alert-delivery.v1.${encodeURIComponent(viewerKey)}.${channel}`);
   let attempted = false;
   const attempt = () => {
     attempted = true;

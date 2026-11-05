@@ -1,6 +1,6 @@
 # Espacios independientes y pilotos invitados
 
-Esta entrega prepara pilotos manuales. No registra negocios públicamente, no crea proveedores, no cambia DNS ni planes y no activa pilotos existentes. Requiere integrar primero las entregas 1 y 6, con sus migraciones; `0013_workspaces.sql` es aditiva salvo el reemplazo transaccional del índice único de suscripciones push, explicado abajo.
+Esta entrega prepara pilotos manuales. No registra negocios públicamente, no crea proveedores, no cambia DNS ni planes y no activa pilotos existentes. Integra las entregas 1–6 con sus migraciones; `0013_workspaces.sql` es aditiva salvo el reemplazo transaccional del índice único de suscripciones push, explicado abajo.
 
 ## Identidad y límites de confianza
 
@@ -39,19 +39,15 @@ Las rutas antiguas `/` y `/api/...` pertenecen exclusivamente a Daybook. Las nue
 
 `lib/workspace-route-registry.ts` es una lista positiva de APIs del dominio. Ordena primero los controladores con menos segmentos dinámicos, de modo que rutas como `attachments/reserve` y `tickets/updates` no se interpreten como identificadores. El router conserva la solicitud original, su URL, cuerpo, query, origen y cabecera de cuenta, y entrega únicamente los parámetros esperados al controlador. No admite autenticación global, cuentas, operador, proveedores/webhooks, activación, datos demo, trabajos internos o respaldos de plataforma.
 
-Puntos precisos para integrar con los shells y entregas 1–5:
+Integración de los shells y entregas 1–5:
 
-- Importar `workspaceFetch` en `desk.tsx` y `client-portal.tsx` y sustituir sus llamadas directas a `fetch`. Los demás componentes y helpers de esta base ya lo utilizan. Aplicarlo también a los componentes de las entregas 1–5.
-- Usar `workspaceHome(currentWorkspaceId(), ticketId)` al abrir avisos en otra pestaña; conservar `window.location.pathname` al actualizar el ticket seleccionado.
-- Montar los shells y paneles con `key={workspaceId}` para que una navegación de Next entre dos espacios no conserve el estado del anterior. Las páginas `/w/:id` ya lo aplican.
-- Insertar `WorkspaceSwitcher` en navegación; muestra únicamente las membresías activas de la identidad. Abre una URL nueva, sin cambiar el contexto de otras pestañas.
-- Incorporar `WorkspaceAdministrationPanel({workspaceId})` a los ajustes del negocio y `SecurityCenter` a su seguridad. Ocultar respaldos de plataforma a propietarios sin concesión de operador y ofrecer la exportación de negocio.
-- Ampliar la lista positiva de controladores con las rutas de las entregas 1–5. Sus APIs deben seguir utilizando `requireAccess`/`lockAccess` y filtrar por `ownerId`.
-- Mantener los campos adicionales de `AccessContext`, incluyendo `sessionId` y el permiso interno de preparación. Ese permiso únicamente se crea en el servidor para las rutas de incorporación; nunca habilita tickets.
-
-Las peticiones legacy cuyo referente pertenece a `/w/...` se rechazan para detectar clientes aún no adaptados. Esta comprobación es defensiva: la autorización siempre depende de sesión, URL explícita y membresía, y no confía en el referente.
-
-Borradores de respuestas, notas, adjuntos, nuevos tickets, operaciones idempotentes, filtros y sonido añaden el espacio a sus claves de navegador. Las claves anteriores de Daybook permanecen compatibles. Las notas antiguas sin audiencia solo se recuperan dentro de Daybook. No se almacenan conversaciones privadas en el service worker ni en una caché compartida.
+- `daybookFetch` conserva los errores de transporte, los recibos y el manejo de verificación, y delega en `workspaceFetch`. Este último reescribe strings, URL y Request del mismo origen por llamada y pestaña, sin selección global mutable ni reintentos. Auth, account, operador y preferencias personales permanecen globales.
+- Listados, citas, búsqueda, archivos, seguimiento, organización, tareas, reglas, contexto técnico, conocimiento e informes utilizan el registro positivo. Sus lectores y mutaciones conservan la cabecera de membresía actual. Las descargas de informes y el handle de carga Blob mantienen el mismo contexto.
+- Los avisos, relaciones, ejecuciones y antecedentes de equipos abren `workspaceHome(currentWorkspaceId(), ticketId)`. Cada página de negocio monta el shell con su ID como clave y el selector navega de forma independiente mediante URL.
+- Borradores de respuesta y nota, citas por ID, menciones, metadatos del formulario, recibos inciertos, archivos pendientes, conocimiento, filtros y deduplicación de avisos se separan por espacio y cuenta. Los borradores legacy de Daybook conservan sus claves originales.
+- Las mutaciones interactivas E1–4 y de incorporación leen JSON una sola vez y validan un contrato mínimo real antes de confirmar. Un 2xx truncado, vacío o con DTO incompleto conserva el borrador y operationId; una plantilla que añade cero tareas sigue siendo un resultado válido.
+- `WorkspaceAdministrationPanel` está montado en ajustes de pilotos; la incorporación permite preparar seguridad y remitente. La exportación privada del negocio se ofrece desde Seguridad. El respaldo de plataforma solo aparece para el propietario Daybook con concesión de operador explícita.
+- La preferencia de tema pertenece a la identidad global, mediante `/api/preferences`; no se transforma en una preferencia de tenant ni requiere pertenecer a Daybook.
 
 ## Correo, archivos, avisos y trabajos
 
@@ -59,7 +55,7 @@ La marca se guarda por espacio. El operador comprueba el dominio y el alcance de
 
 Los nuevos correos incluyen el nombre escapado del negocio, el CID existente de Daybook y un enlace explícito a su portal. Los payloads congelados e idempotencias anteriores no se reconstruyen. Antes del envío se revisan de nuevo estado, remitente y destinatario. Un remitente revocado no modifica un payload congelado ni permite enviarlo desde otra identidad. Los correos de recuperación usan siempre la configuración global.
 
-La recepción conserva las capacidades HMAC ligadas a negocio, contacto y evento. Comprueba de nuevo estado, habilitación y acceso antes de la ingesta; el proveedor no elige el negocio mediante un campo arbitrario. Los trabajos tienen dueño, recibo, cursor, lease, consumo y errores independientes. El programador multiplexa negocios activos de forma acotada y rota según última ejecución, manteniendo las garantías existentes. Los respaldos automáticos existentes siguen reservados a la operación de Daybook.
+La recepción conserva las capacidades HMAC ligadas a negocio, contacto y evento. Comprueba de nuevo estado, habilitación y acceso antes de la ingesta; el proveedor no elige el negocio mediante un campo arbitrario. Los trabajos tienen dueño, recibo, cursor, lease, consumo y errores independientes. El programador multiplexa negocios activos de forma acotada y rota según última ejecución, manteniendo las garantías existentes. Los respaldos automáticos existentes siguen reservados a la operación de Daybook. Los workers de automatizaciones y garantías/renovaciones comprueban el estado operativo dentro de sus transacciones, incluyendo los drenes posteriores a mutaciones. La pausa comercial usa el mismo bloqueo del negocio antes del perfil y conserva colas, etapas e historial; no consume intentos. Los correos de garantías/renovaciones conservan el enlace y filtro de empresa del negocio correspondiente.
 
 Una suscripción nativa del navegador puede recibir avisos de varios espacios. `0013` reemplaza únicamente el índice `push_subscription_endpoint` por `(ownerId, memberId, endpoint)` sin modificar ninguna fila. El upsert y las consultas usan esa clave; desactivar un espacio no cancela la suscripción nativa compartida de los demás. Los payloads transportan `workspaceId`; el worker consulta el receipt de esa URL y solo muestra información después de comprobar sesión, MFA y permisos actuales. Acepta enlaces seguros `/w/:id?ticket=...`; la deduplicación y los tags separan eventos y vínculos.
 
@@ -81,8 +77,17 @@ La restauración verifica primero las huellas originales y después deja perfile
 
 `test:workspaces:qa` está preparado para ejecución coordinada y serial, exclusivamente con `.env.test.local` y el host aislado de QA. La primera fase usa fixtures ficticios en una transacción con rollback y compara inventarios. Comprueba roles distintos para la misma sesión, aislamiento de tickets, revocación, MFA, aceptación exclusiva e idempotente de invitaciones, transferencia sin mover datos, activación y cuotas. La segunda fase prueba dos transacciones reales contra la función exacta de cuotas en un esquema `qa_commercial_<UUID>`; exige un solo ganador y elimina únicamente ese esquema de prueba. No envía correos/push ni consulta almacenamiento externo. No se ha ejecutado desde esta rama sin coordinación.
 
-Después de integrar todos los dominios: ejecutar QA en serie, revisar rutas de búsqueda, descargas, archivos de contratos, informes, reglas, programación y conocimiento, y hacer el recorrido en dos pestañas, escritorio y móvil, temas claro y oscuro, sobre el mismo commit de la vista previa protegida. Revisar los contadores e inventarios anteriores y posteriores antes de autorizar producción. No activar pilotos durante la publicación del código.
+Después de validar el commit integrado: ejecutar QA en serie, revisar rutas de búsqueda, descargas, archivos de contratos, informes, reglas, programación y conocimiento, y hacer el recorrido en dos pestañas, escritorio y móvil, temas claro y oscuro, sobre el mismo commit de la vista previa protegida. Revisar los contadores e inventarios anteriores y posteriores antes de autorizar producción. No activar pilotos durante la publicación del código.
 
 La reversión segura, una vez existan pilotos o varias invitaciones para una identidad, mantiene la capa E7 de identidad y autorización y pausa los pilotos/funciones desde sus interruptores. No volver a un build que vincule automáticamente todas las invitaciones por email. El índice push anterior tampoco puede reconstruirse si ya hay vínculos múltiples sin perderlos: no eliminarlos para forzar una reversión. Antes del primer piloto, una reversión de esquema requiere comprobar inventarios y ausencia de esos vínculos y permanecer transaccional; el mecanismo preferido es desactivar la admisión comercial conservando datos y código compatible.
 
-Validación local: `npm run check` superó lint, 266 pruebas unitarias, tipos y compilación. También pasaron `git diff --check` y el análisis sintáctico del script de QA. Las pruebas de base, concurrencia PostgreSQL y revisión visual protegida quedan preparadas para el coordinador; esta rama no ejecutó migraciones, no consultó QA/producción y no envió notificaciones reales.
+Comprobaciones de esta integración: las pruebas puras de dos pestañas cubren citas, menciones, metadatos de empresa, archivos del envío y recuperaciones con la misma clave de operación, además de los contratos JSON incompletos. Los scripts de QA de E3/E4 incorporan perfiles ficticios activos y continúan terminando en rollback. El coordinador debe ejecutar las pruebas de base y concurrencia en serie, revisar escritorio/móvil y registrar el resultado sobre el SHA final.
+
+El acceso QA de migraciones reutiliza el operador revisado, sin una excepción genérica de DDL destructivo:
+
+```sh
+npm run db:migrate:evolution:qa -- --through=0013
+npm run db:migrate:evolution:qa -- --through=0013 --apply
+```
+
+La primera llamada ensaya y revierte; solo el coordinador ejecutará la segunda después de comprobar el resultado. Ambas exigen el host aislado exacto, `DAYBOOK_QA_ALLOW_TEST_DATABASE=1`, TLS verificado, ausencia de credenciales de entrega y hashes/journal aprobados. No aceptan un destino productivo. El reemplazo del índice push es únicamente el autorizado por el operador y el pin de SQL13; no se modifica ninguna fila para realizarlo.

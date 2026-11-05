@@ -1,3 +1,4 @@
+import {operatorGranted} from '@/lib/workspace-model';
 import {getEvolutionFeatures} from '@/lib/evolution-features';
 import {getUserPreferences} from '@/lib/user-preferences';
 import {knowledgeWorkspaceArticles} from '@/lib/knowledge';
@@ -32,6 +33,7 @@ export async function GET(request: Request) {
     if(profile)settings.brandName=profile.brandName;
     return json({
       workspaceId:access.organizationId,
+      platformBackupAllowed:access.organizationId==='daybook'&&access.role==='owner'&&operatorGranted({userId:access.userId}),
       viewer: access.member, evolution, preferences,
       members: members.results.map(publicMember),
       companies,

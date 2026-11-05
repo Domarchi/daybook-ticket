@@ -99,6 +99,8 @@ export interface Settings {
   slaHours: Record<TicketPriority, number>;
 }
 export interface Workspace {
+  workspaceId?: string;
+  platformBackupAllowed?: boolean;
   evolution?: { features: import('./evolution-feature-model').EvolutionFeatures; version: number; available: boolean };
   preferences?: { theme: 'system' | 'light' | 'dark' };
   viewer: Member | null;
