@@ -32,8 +32,8 @@ test('sensitive operations require a recent password and the enabled second fact
   assert.equal(recentProof(new Date(now+1).toISOString(),now),false);
 });
 test('fresh verification protects scoped and legacy permission/configuration/export mutations',()=>{
-  for(const path of ['/api/members/a','/api/settings','/api/service-policies/default','/api/assignment-rules/a','/api/notifications/settings','/api/organization/catalog','/api/evolution/features','/api/service-context/notifications','/api/service-context/config/current','/api/automation/rules/a','/api/automation/settings','/api/automation/templates/a','/api/workspaces/business-a/members/a'])assert.equal(securityActionNeedsReauthentication(path,'PATCH'),true,path);
-  for(const path of ['/api/workspaces/business-a/service-context/config/current','/api/workspaces/business-b/automation/settings','/api/workspaces/business-a/automation/rules/abc'])assert.equal(securityActionNeedsReauthentication(path,'PATCH'),true,path);
+  for(const path of ['/api/members/a','/api/settings','/api/service-policies/default','/api/assignment-rules/a','/api/notifications/settings','/api/organization/catalog','/api/evolution/features','/api/service-context/notifications','/api/service-context/config/current','/api/automation/rules/a','/api/automation/settings','/api/automation/templates/a','/api/task-templates','/api/workspaces/business-a/members/a'])assert.equal(securityActionNeedsReauthentication(path,'PATCH'),true,path);
+  for(const path of ['/api/workspaces/business-a/service-context/config/current','/api/workspaces/business-b/automation/settings','/api/workspaces/business-a/automation/rules/abc','/api/workspaces/business-a/task-templates'])assert.equal(securityActionNeedsReauthentication(path,'PATCH'),true,path);
   assert.equal(securityActionNeedsReauthentication('/api/backups/schedule/a/download','GET'),true);
   assert.equal(securityActionNeedsReauthentication('/api/tickets/123/messages','POST'),false);
   assert.equal(securityActionNeedsReauthentication('/api/members','GET'),false);

@@ -20,7 +20,7 @@ export function safeOperationalCode(value: unknown): string | null { return type
 export function securityActionNeedsReauthentication(pathname: string, method: string): boolean {
   const path=pathname.replace(/^\/api\/workspaces\/[^/]+(?=\/)/,'/api');
   if (/^\/api\/backups(?:\/|$)/.test(path)) return method !== 'GET' || /\/download$/.test(path);
-  return !['GET','HEAD','OPTIONS'].includes(method) && /^\/api\/(?:members|settings|service-policies|assignment-rules|escalations|notifications\/settings|organization\/catalog|evolution\/features|service-context\/(?:notifications|config)|automation\/(?:rules|settings|templates))(?:\/|$)/.test(path);
+  return !['GET','HEAD','OPTIONS'].includes(method) && /^\/api\/(?:members|settings|service-policies|assignment-rules|escalations|notifications\/settings|organization\/catalog|task-templates|evolution\/features|service-context\/(?:notifications|config)|automation\/(?:rules|settings|templates))(?:\/|$)/.test(path);
 }
 export function publicSessionLabel(userAgent: string | null): string {
   const agent = userAgent || '';
