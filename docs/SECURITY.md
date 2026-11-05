@@ -57,3 +57,13 @@ Integración acumulada con las entregas 1–5: respaldo actual de 74 tablas, inc
 Los cambios de funciones, avisos contractuales y reglas/plantillas/configuración de automatización registran auditoría administrativa sin contenido. La verificación reciente cubre las rutas reales de activación, tanto heredadas como bajo un espacio explícito. La salud operativa distingue avisos y recordatorios, garantías y renovaciones, y reglas internas; los errores se presentan como códigos clasificados.
 
 Las descargas y vistas previas comprueban los permisos actuales antes y después de consultar el almacenamiento privado. El segundo control vuelve a verificar pertenencia, rol, empresa, tipo de archivo, política MFA, vigencia de la sesión y pausa de contratos. Si cambian permisos o metadatos, el flujo se cancela sin entregar bytes; se mantienen tamaño y cabeceras privadas. Las pruebas locales simulan cada revocación durante la lectura remota, sin base ni proveedores.
+
+## Evidencia acumulada del coordinador
+
+Código integrado `24e61e6` (misma implementación comprobada en `2d5e887`, con la evidencia de E5 añadida): lint, tipos, **363 pruebas unitarias** y compilación aprobados. El ensayo y la aplicación de 0012 en QA conservaron **73 tablas y 676 filas** originales; hash y fecha quedan fijados en el operador revisado.
+
+QA pasó nueve grupos de política, identidad reciente, sesiones propias, auditoría inalterable y exportación sin credenciales. Se comprobó por separado que no quedaron organizaciones ni cuentas de esa suite. El recorrido HTTP real del entorno ficticio rechazó prueba ausente y contraseña incorrecta, confirmó la contraseña correcta, permitió el control sensible, ocultó tokens de sesión y mantuvo privados auditoría/salud. La política de MFA del espacio de demostración siguió apagada; no se enroló ni modificó ninguna cuenta real.
+
+La recuperación de **74 tablas y tres archivos** conservó autenticador cifrado, códigos y custodia, política y demás historial. Una clave original de autenticación ausente o incorrecta se rechazó antes de abrir SQL o copiar archivos. Conocimiento y trabajos quedaron pausados, MFA se conservó y todas las fixtures/esquemas se limpiaron. No hubo entregas externas.
+
+Revisión visual: escritorio y móvil 390×844 sin desbordamiento, negro Daybook, estado de verificación, obligación gradual, controles de sesiones y exportación. Vista previa protegida: https://daybook-ticket-evolution-06-qa-domarchi.vercel.app/ . Programadores y envíos externos apagados. La publicación productiva y el enrolamiento personal requieren la revisión posterior prevista en el plan.
