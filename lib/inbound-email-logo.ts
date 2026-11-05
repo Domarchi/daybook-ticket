@@ -40,10 +40,13 @@ export async function withoutQuotedDaybookLogos(email: ReceivedEmail, config: In
       || metadata.content_type !== 'image/png' || metadata.content_disposition !== 'inline') return email;
     let url: URL;
     try { url = new URL(metadata.download_url); } catch { throw new InvalidInboundEmail('invalid_inline_logo_url'); }
-    // Current documented receiving CDN; do not follow provider redirects or
-    // trust an address copied from email HTML, headers, or arbitrary metadata.
-    if (url.protocol !== 'https:' || url.hostname !== 'inbound-cdn.resend.com' || url.port || url.username || url.password || url.hash
-      || url.pathname !== `/${email.id}/attachments/${file.id}`) throw new InvalidInboundEmail('invalid_inline_logo_url');
+    // Accept only the documented CDN or the receiving CDN currently returned by
+    // Resend, each bound to this exact email/attachment. Never follow redirects.
+    const documentedCdn = url.hostname === 'inbound-cdn.resend.com' && url.pathname === `/${email.id}/attachments/${file.id}`;
+    const receivingCdn = url.hostname === 'cdn.resend.app' && url.pathname === `/receiving/${email.id}/attachments/${file.id}`;
+    if (url.protocol !== 'https:' || url.port || url.username || url.password || url.hash || (!documentedCdn && !receivingCdn)) {
+      throw new InvalidInboundEmail('invalid_inline_logo_url');
+    }
     const bytes = await bounded(await fetcher(url.toString(), { cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(10000) }), DAYBOOK_MAIL_LOGO_BYTES);
     if (bytes.length !== DAYBOOK_MAIL_LOGO_BYTES || createHash('sha256').update(bytes).digest('hex') !== DAYBOOK_MAIL_LOGO_SHA256) return email;
   }

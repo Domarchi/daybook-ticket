@@ -123,6 +123,45 @@ test('only the byte-identical inline Daybook logo may be omitted from quoted ema
   await assert.rejects(withoutQuotedDaybookLogos(email, config, unsafe), InvalidInboundEmail);
 });
 
+test('both receiving CDN URL shapes require the exact authenticated email and attachment before fetching bytes', async () => {
+  const email = { ...normalizeReceivedEmail(providerEmail(), envelope()), attachments: [{ id: outboxId, name: 'daybook.png', contentType: 'image/png', size: DAYBOOK_MAIL_LOGO_BYTES, disposition: 'inline' }] };
+  const logo = readFileSync(new URL('../public/icons/daybook-192.png', import.meta.url));
+  const documented = `https://inbound-cdn.resend.com/${providerId}/attachments/${outboxId}`;
+  const receiving = `https://cdn.resend.app/receiving/${providerId}/attachments/${outboxId}`;
+  const metadata = (downloadUrl: string) => ({ id: outboxId, filename: 'daybook.png', size: DAYBOOK_MAIL_LOGO_BYTES,
+    content_type: 'image/png', content_disposition: 'inline', download_url: downloadUrl });
+  for (const url of [documented, `${receiving}?signature=fictional&expires=123`]) {
+    let downloads = 0;
+    const fetcher: typeof fetch = async (input, init) => {
+      assert.equal(init?.redirect, 'error');
+      if (String(input).startsWith('https://api.resend.com/')) return Response.json(metadata(url));
+      downloads++; assert.equal(input, url); assert.equal(init?.headers, undefined);
+      return new Response(logo);
+    };
+    assert.deepEqual((await withoutQuotedDaybookLogos(email, config, fetcher)).attachments, []);
+    assert.equal(downloads, 1);
+    const changed: typeof fetch = async input => String(input).startsWith('https://api.resend.com/')
+      ? Response.json(metadata(url)) : new Response(Buffer.alloc(DAYBOOK_MAIL_LOGO_BYTES));
+    assert.equal((await withoutQuotedDaybookLogos(email, config, changed)).attachments.length, 1, 'Both origins require the exact logo bytes.');
+  }
+  const rejected = [
+    receiving.replace('https:', 'http:'), receiving.replace('cdn.resend.app', 'cdn.resend.app.attacker.test'),
+    receiving.replace('cdn.resend.app', 'inbound-cdn.resend.com'), documented.replace('inbound-cdn.resend.com', 'cdn.resend.app'),
+    receiving.replace('cdn.resend.app', 'cdn.resend.app:444'), receiving.replace('https://', 'https://user:password@'),
+    `${receiving}#fragment`, receiving.replace(providerId, memberId), receiving.replace(outboxId, memberId),
+    `${receiving}/`, `${receiving}/daybook.png`, receiving.replace('/receiving/', '/receiving-extra/'),
+  ];
+  for (const url of rejected) {
+    let downloads = 0;
+    const fetcher: typeof fetch = async input => {
+      if (String(input).startsWith('https://api.resend.com/')) return Response.json(metadata(url));
+      downloads++; assert.fail('An unapproved URL must never receive a download request.');
+    };
+    await assert.rejects(withoutQuotedDaybookLogos(email, config, fetcher), error => error instanceof InvalidInboundEmail && error.message === 'invalid_inline_logo_url');
+    assert.equal(downloads, 0);
+  }
+});
+
 test('only new reply-capable payloads change footer; already frozen payload bytes retain their content', () => {
   const input = { id: outboxId, environment: 'qa' as const, event: 'agent_replied' as const, ticketId: 6, from: 'mail@example.test', to: scope.email, url: 'https://qa.example.test/?ticket=6' };
   const legacy = buildMailPayload(input), reply = buildMailPayload({ ...input, replyTo: makeInboundAddress({ ...scope, id: outboxId, kind: 'reply' }, config)! });
