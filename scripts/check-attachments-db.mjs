@@ -8,7 +8,7 @@ const expectedHost = 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.t
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
 assert.equal(new URL(process.env.DATABASE_URL).hostname, expectedHost);
 assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, expectedHost);
-assert.equal(new URL(process.env.DAYBOOK_SITE_URL).origin, 'http://127.0.0.1:5173');
+assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:5175'].includes(process.env.DAYBOOK_SITE_URL), 'Use only an approved local QA origin.');
 assert.ok(!process.env.RESEND_API_KEY && !process.env.DAYBOOK_EMAIL_FROM);
 assert.notEqual(process.env.VERCEL_ENV, 'production');
 
@@ -158,6 +158,7 @@ try {
   try {
     await pool.query('DELETE FROM attachments WHERE "ownerId"=$1', [ownerId]);
     await pool.query('DELETE FROM messages WHERE "ownerId"=$1', [ownerId]);
+    await pool.query('DELETE FROM "ticketSlaOutcomes" WHERE "ownerId"=$1', [ownerId]);
     await pool.query('DELETE FROM tickets WHERE "ownerId"=$1', [ownerId]);
     await pool.query('DELETE FROM members WHERE "ownerId"=$1 AND "organizationId"=$2', [ownerId, organizationId]);
     await pool.query('DELETE FROM "customerCompanies" WHERE "ownerId"=$1', [ownerId]);

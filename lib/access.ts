@@ -76,6 +76,8 @@ export async function requireAccess(request?: Request): Promise<AccessContext> {
   if (!organization) throw new ApiError(503, 'El propietario debe activar Daybook Ticket.');
   const member = await database.prepare(`SELECT ${memberRecordColumns} FROM members WHERE "organizationId" = $1 AND "userId" = $2`).bind(organization.id, user.userId).first<MemberRecord>();
   if (!member || member.status !== 'active' || member.ownerId !== organization.ownerId) throw new ApiError(403, 'Tu cuenta no tiene acceso a Daybook Ticket. Solicita una invitación al equipo.');
+  const expectedMember = request?.headers.get('X-Daybook-Member-Id');
+  if (expectedMember && expectedMember !== member.id) throw new ApiError(409, 'La cuenta cambió. Actualiza la página antes de continuar.');
   return { organizationId: organization.id, ownerId: organization.ownerId, userId: user.userId, member: publicMember(member), role: member.role };
 }
 

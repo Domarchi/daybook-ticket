@@ -6,7 +6,8 @@ assert.ok(process.argv.slice(2).every(arg => arg === '--push-api-fixtures'), 'Un
 process.loadEnvFile('.env.test.local');
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE,'1');
 assert.equal(new URL(process.env.DATABASE_URL).hostname,'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
-assert.equal(process.env.DAYBOOK_SITE_URL,'http://127.0.0.1:5173');
+assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:5175'].includes(process.env.DAYBOOK_SITE_URL));
+const port = new URL(process.env.DAYBOOK_SITE_URL).port;
 assert.ok(!process.env.RESEND_API_KEY,'QA cannot send real mail.');
 assert.ok(!process.env.DAYBOOK_EMAIL_FROM,'QA cannot configure a real sender.');
 if (pushApiFixtures) {
@@ -21,5 +22,5 @@ if (pushApiFixtures) {
   } finally { await pool.end(); }
   for (const key of ['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT']) process.env[key] = qa[key];
 } else process.env.VAPID_PRIVATE_KEY='';
-process.argv=[process.argv[0],'next','dev','--webpack','--hostname','127.0.0.1','--port','5173'];
+process.argv=[process.argv[0],'next','dev','--webpack','--hostname','127.0.0.1','--port',port];
 await import('next/dist/bin/next');

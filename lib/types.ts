@@ -40,6 +40,8 @@ export interface Ticket {
   createdAt: string;
   updatedAt: string;
   dueAt: string;
+  slaPolicySnapshot?: string | null;
+  slaStartedAt?: string | null;
 }
 export interface Message {
   id: number;

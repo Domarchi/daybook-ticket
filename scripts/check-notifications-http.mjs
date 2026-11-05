@@ -6,7 +6,7 @@ import { provisionOwner } from './provision-owner.mjs';
 import { buildMailPayload } from '../lib/mail-templates.ts';
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
 assert.equal(new URL(process.env.DATABASE_URL).hostname, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
-assert.equal(process.env.DAYBOOK_SITE_URL, 'http://127.0.0.1:5173');
+assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:5175'].includes(process.env.DAYBOOK_SITE_URL));
 assert.ok(!process.env.RESEND_API_KEY && !process.env.DAYBOOK_EMAIL_FROM);
 assert.ok(process.env.RESEND_WEBHOOK_SECRET?.startsWith('whsec_'));
 const origin = process.env.DAYBOOK_SITE_URL, runId = randomUUID(), pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });

@@ -244,6 +244,7 @@ console.log('Daybook acceso verificado: propietario sin ChatGPT, invitaciones, s
     await database.query('DELETE FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[])', [tickets, members]);
     await database.query('DELETE FROM operations WHERE "operationId"=ANY($1::text[])', [[...operationIds]]);
     await database.query('DELETE FROM "ticketEvents" WHERE "ticketId"=ANY($1::int[])', [tickets]);
+    await database.query('DELETE FROM "ticketSlaOutcomes" WHERE "ticketId"=ANY($1::int[])', [tickets]);
     await database.query('DELETE FROM messages WHERE "ticketId"=ANY($1::int[])', [tickets]);
     await database.query('DELETE FROM tickets WHERE id=ANY($1::int[])', [tickets]);
     await database.query('DELETE FROM articles WHERE id=ANY($1::int[])', [[...articleIds]]);

@@ -20,6 +20,9 @@
     "test:database": "tsx scripts/check-database.mjs",
     "test:notifications:qa": "node --env-file=.env.test.local --import tsx scripts/check-alerts-db.mjs && node --env-file=.env.test.local --import tsx scripts/check-mail-delivery.mjs && node --env-file=.env.test.local --import tsx scripts/check-reminders-database.mjs",
     "test:notifications:http": "node --env-file=.env.test.local --import tsx scripts/check-notifications-http.mjs",
+    "db:migrate:operations:qa": "node --env-file=.env.test.local --import tsx scripts/migrate-operations-qa.mjs",
+    "test:operations:qa": "node --env-file=.env.test.local --import tsx scripts/check-service-policies-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-automatic-assignment-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-agent-metrics-database.mjs",
+    "test:operations:http": "node --env-file=.env.test.local --import tsx scripts/check-operations-http.mjs && node --env-file=.env.test.local --import tsx scripts/check-legacy-sla-http.mjs",
     "preview:mail": "node --import tsx scripts/render-mail-preview.mjs",
     "build:notification-pinger": "node scripts/build-notification-pinger.mjs"
   },

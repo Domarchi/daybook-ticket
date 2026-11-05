@@ -68,7 +68,7 @@ export async function loadPinnedMigrationArtifacts(folder = new URL('../drizzle-
   const journalText = await readFile(join(directory, 'meta/_journal.json'), 'utf8');
   let journal;
   try { journal = JSON.parse(journalText); } catch { throw new MigrationOperatorError('invalid_source_journal'); }
-  guard(journal.version === '7' && journal.dialect === 'postgresql' && journal.entries?.length === 4, 'unexpected_source_journal');
+  guard(journal.version === '7' && journal.dialect === 'postgresql' && journal.entries?.length >= 4, 'unexpected_source_journal');
   const files = [];
   for (const [index, pinned] of PINNED_MIGRATIONS.entries()) {
     const entry = journal.entries[index];
@@ -77,7 +77,8 @@ export async function loadPinnedMigrationArtifacts(folder = new URL('../drizzle-
     guard(hash(content) === pinned.hash, 'migration_source_hash_mismatch');
     files.push({ ...pinned, content });
   }
-  return { journalText, files };
+  // This historical operator owns 0003 only, even when the repository advances.
+  return { journalText: JSON.stringify({ ...journal, entries: journal.entries.slice(0, 4) }), files };
 }
 
 export function validateMigrationJournal(rows) {

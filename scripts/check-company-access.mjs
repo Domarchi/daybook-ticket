@@ -8,7 +8,7 @@ const expectedHost = 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.t
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
 assert.equal(new URL(process.env.DATABASE_URL).hostname, expectedHost);
 assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, expectedHost);
-assert.equal(new URL(process.env.DAYBOOK_SITE_URL).origin, 'http://127.0.0.1:5173');
+assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:5175'].includes(new URL(process.env.DAYBOOK_SITE_URL).origin));
 assert.ok(!Object.hasOwn(process.env, 'RESEND_API_KEY') && !Object.hasOwn(process.env, 'DAYBOOK_EMAIL_FROM'));
 const runId = randomUUID(), ownerId = randomUUID(), organizationId = `qa-companies-${runId}`;
 const companyA = randomUUID(), companyB = randomUUID();
