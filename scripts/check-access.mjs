@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { provisionOwner } from './provision-owner.mjs';
+import { readAllTicketPages, readAllConversationPages } from './qa-paged-read.mjs';
 import { safeTicketReturnPath, ticketReturnPath, ticketLoginPath } from '../lib/return-path.ts';
 assert.equal(ticketReturnPath('42'), '/?ticket=42');
 assert.equal(ticketLoginPath('/?ticket=42'), '/login?return_to=%2F%3Fticket%3D42');
@@ -69,7 +70,13 @@ function expectStatus(result, status, label) {
   assert.equal(result.status, status, `${label}: ${JSON.stringify(result)}`);
   return result;
 }
-const workspace = actor => api(actor, '/api/workspace');
+const workspace = async actor => {
+  const result = await api(actor, '/api/workspace');
+  if (result.status !== 200) return result;
+  assert.ok(result.tickets.length <= 50); assert.deepEqual(result.messages, []);
+  return { ...result, tickets: await readAllTicketPages(async path => expectStatus(await api(actor, path), 200, 'Página autorizada de tickets')) };
+};
+const conversation = (actor, ticketId) => readAllConversationPages(async path => expectStatus(await api(actor, path), 200, 'Página autorizada de conversación'), ticketId);
 const post = (actor, path, body, headers) => api(actor, path, 'POST', body, headers);
 const patch = (actor, path, body, headers) => api(actor, path, 'PATCH', body, headers);
 function inviteToken(url) { return new URL(url).searchParams.get('invite'); }
@@ -168,7 +175,10 @@ expectStatus(await patch(a, `/api/tickets/${ticketA.id}`, { status: 'resolved' }
 let aSpace = expectStatus(await workspace(a), 200, 'Recargar cliente A');
 assert.ok(aSpace.tickets.some(t => t.id === ticketA.id));
 assert.ok(!aSpace.tickets.some(t => t.id === ticketB.id));
-assert.ok(!aSpace.messages.some(m => m.kind === 'note' || m.body === secret || m.ticketId === ticketB.id));
+const aMessages = await conversation(a, ticketA.id);
+assert.ok(aMessages.some(m => m.body === 'Respuesta pública del equipo'));
+assert.ok(!aMessages.some(m => m.kind === 'note' || m.body === secret || m.ticketId === ticketB.id));
+expectStatus(await api(a, `/api/tickets/${ticketB.id}/conversation`), 404, 'Cliente no abre conversación ajena');
 assert.deepEqual(aSpace.members, []);
 assert.deepEqual(aSpace.settings.agents, []);
 assert.equal(aSpace.mailStatus, null);
@@ -176,8 +186,8 @@ assert.ok(!aSpace.articles.some(article => article.id === draft.article.id));
 assert.ok(aSpace.articles.some(article => article.id === published.article.id));
 const bSpace = expectStatus(await workspace(b), 200, 'Recargar cliente B');
 assert.ok(!bSpace.tickets.some(t => t.id === ticketA.id));
-assert.ok(!bSpace.messages.some(m => m.ticketId === ticketA.id));
-assert.ok((await workspace(agent)).messages.some(m => m.body === secret));
+expectStatus(await api(b, `/api/tickets/${ticketA.id}/conversation`), 404, 'Cliente B no abre conversación A');
+assert.ok((await conversation(agent, ticketA.id)).some(m => m.body === secret));
 expectStatus(await patch(owner, `/api/tickets/${ticketA.id}`, { assigneeMemberId: a.member.id }), 400, 'Cliente no es agente asignable');
 const assigned = expectStatus(await patch(owner, `/api/tickets/${ticketA.id}`, { assigneeMemberId: agent.member.id }), 200, 'Asignar agente activo').ticket;
 assert.equal(assigned.assignee, agent.member.name);
@@ -240,9 +250,11 @@ console.log('Daybook acceso verificado: propietario sin ChatGPT, invitaciones, s
 } finally {
   try {
     const tickets = [...ticketIds], members = [...memberIds];
+    await database.query('DELETE FROM "mailDeliveryEvents" WHERE "outboxId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[]))', [tickets, members]);
     await database.query('DELETE FROM "pushDeliveries" WHERE "eventId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[]))', [tickets, members]);
     await database.query('DELETE FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[])', [tickets, members]);
     await database.query('DELETE FROM operations WHERE "operationId"=ANY($1::text[])', [[...operationIds]]);
+    for (const table of ['inboundMailReceipts', 'ticketSatisfaction', 'escalationOccurrences', 'reminderOccurrences']) await database.query(`DELETE FROM "${table}" WHERE "ticketId"=ANY($1::int[])`, [tickets]);
     await database.query('DELETE FROM "ticketEvents" WHERE "ticketId"=ANY($1::int[])', [tickets]);
     await database.query('DELETE FROM "ticketSlaOutcomes" WHERE "ticketId"=ANY($1::int[])', [tickets]);
     await database.query('DELETE FROM messages WHERE "ticketId"=ANY($1::int[])', [tickets]);

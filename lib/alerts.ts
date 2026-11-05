@@ -6,13 +6,23 @@ import type { z } from 'zod';
 import type { AlertsPage } from './types';
 import type { DatabaseValue } from '../db/database';
 
-const events = "('ticket_created', 'agent_replied', 'client_replied', 'reminder')";
+const events = "('ticket_created', 'agent_replied', 'client_replied', 'reminder', 'escalation', 'satisfaction_requested')";
 
 function alertScope(access: AccessContext) {
   const scope = ticketAccessSql(access);
+  const values: DatabaseValue[] = [...scope.values];
+  const bind = (value: DatabaseValue) => { values.push(value); return `$${values.length}`; };
+  const member = bind(access.member.id), role = bind(access.role), company = bind(access.member.customerCompanyId ?? null);
+  const permission = bind(access.member.companyAccess), organization = bind(access.organizationId), user = bind(access.userId);
+  // requireAccess and the alert statement are separate snapshots. Reject an old
+  // staff/company context if the membership changed between those two reads.
+  const live = `EXISTS (SELECT 1 FROM members live WHERE live.id=${member} AND live."ownerId"=t."ownerId"
+    AND live."organizationId"=${organization} AND live."userId"=${user} AND live.status='active' AND live.role=${role}
+    AND live."customerCompanyId" IS NOT DISTINCT FROM ${company}::text AND live."companyAccess"=${permission})`;
   return {
-    sql: `${scope.sql} AND o."recipientMemberId" = $${scope.values.length + 1} AND o.event IN ${events}${access.role === 'client' ? " AND o.event <> 'reminder'" : ''}`,
-    values: [...scope.values, access.member.id] as DatabaseValue[],
+    sql: `${scope.sql} AND ${live} AND o."recipientMemberId" = ${member} AND o.event IN ${events}${access.role === 'client' ? " AND o.event NOT IN ('reminder','escalation')" : ''}
+      AND (o.event <> 'satisfaction_requested' OR (${access.role === 'client' ? 'TRUE' : 'FALSE'} AND t."requesterMemberId"=o."recipientMemberId" AND EXISTS (SELECT 1 FROM "ticketSatisfaction" s WHERE s.id=o."satisfactionId" AND s."ownerId"=o."ownerId" AND s."requesterMemberId"=o."recipientMemberId")))`,
+    values,
   };
 }
 

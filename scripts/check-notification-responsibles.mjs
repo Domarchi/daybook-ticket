@@ -154,8 +154,10 @@ try {
     if (ownerId) {
       const tickets = (await pool.query('SELECT id FROM tickets WHERE "ownerId" = $1 AND subject LIKE $2', [ownerId, `QA notification ${runId}%`])).rows.map(row => row.id);
       if (tickets.length) {
+        await pool.query('DELETE FROM "mailDeliveryEvents" WHERE "outboxId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]))', [tickets]);
         await pool.query('DELETE FROM "pushDeliveries" WHERE "eventId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId" = ANY($1))', [tickets]);
         await pool.query('DELETE FROM "mailOutbox" WHERE "ticketId" = ANY($1)', [tickets]);
+        for (const table of ['inboundMailReceipts', 'ticketSatisfaction', 'escalationOccurrences', 'reminderOccurrences', 'ticketSlaOutcomes']) await pool.query(`DELETE FROM "${table}" WHERE "ticketId"=ANY($1::int[])`, [tickets]);
         await pool.query('DELETE FROM "ticketEvents" WHERE "ticketId" = ANY($1)', [tickets]);
         await pool.query('DELETE FROM messages WHERE "ticketId" = ANY($1)', [tickets]);
         await pool.query('DELETE FROM tickets WHERE id = ANY($1)', [tickets]);

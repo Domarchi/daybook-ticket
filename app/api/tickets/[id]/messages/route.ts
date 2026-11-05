@@ -19,7 +19,7 @@ export async function POST(request:Request,context:RouteContext) {
       const client=fresh.role==='client';
       if(client && data.kind!=='reply') throw new ApiError(403,'Las notas internas están reservadas para el equipo.');
       const now=new Date().toISOString();
-      const {rows}=await tx.query('INSERT INTO messages ("ownerId","ticketId",author,"authorMemberId","authorRole",body,kind,"createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,"ticketId",author,"authorMemberId","authorRole",body,kind,"createdAt"',[access.ownerId,id,fresh.member.name,fresh.member.id,fresh.role,data.body,data.kind,now]);
+      const {rows}=await tx.query('INSERT INTO messages ("ownerId","ticketId",author,"authorMemberId","authorRole",body,kind,"createdAt","bodyFormat") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,"ticketId",author,"authorMemberId","authorRole",body,"bodyFormat",kind,"createdAt"',[access.ownerId,id,fresh.member.name,fresh.member.id,fresh.role,data.body,data.kind,now,data.bodyFormat || 'plain']);
       const message=rows[0];
       await linkReadyAttachments(tx,fresh,{ids:data.attachmentIds,draftId:data.draftId||data.operationId,kind:data.kind,ticketId:id,messageId:message.id});
       const attachments=await tx.query('SELECT id,name,size,"contentType" FROM attachments WHERE "messageId"=$1 AND "ownerId"=$2 AND status=\'attached\' ORDER BY "createdAt",id',[message.id,access.ownerId]);

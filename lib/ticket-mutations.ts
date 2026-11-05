@@ -6,6 +6,7 @@ import { getSettingsInTransaction } from './settings-transaction';
 import { getEffectiveServicePolicy } from './service-policies';
 import { resolutionDeadline, storedTicketPolicy } from './ticket-sla';
 import { recordSlaOutcome } from './agent-metrics';
+import { createSatisfactionForResolution } from './satisfaction';
 import { canAccessTicket, publicMember, type AccessContext, type MemberRecord } from './access';
 import type { Settings, Ticket, TicketEvent } from './types';
 
@@ -129,15 +130,19 @@ export async function patchTicket(access:AccessContext,id:number,data:Record<str
       changes.slaPolicySnapshot=JSON.stringify(snapshot); changes.slaStartedAt=now;
       changes.dueAt=resolutionDeadline(now,(changes.priority||old.priority) as Ticket['priority'],snapshot);
     }
-    if(changes.status==='resolved') await recordSlaOutcome(tx,{
+    const resolutionKey=changes.status==='resolved'?await recordSlaOutcome(tx,{
       ownerId:access.ownerId,ticketId:id,actorMemberId:fresh.member.id,
       startedAt:old.slaStartedAt || null,dueAt:String(changes.dueAt || old.dueAt),resolvedAt:now,
       customerCompanyId:(changes.customerCompanyId===undefined?old.customerCompanyId:changes.customerCompanyId) as string|null,
       policySnapshot:old.slaPolicySnapshot || null,
-    });
+    }):null;
     changes.updatedAt=now;changes.version=old.version+1;
     const keys=Object.keys(changes);
     const {rows}=await tx.query(`UPDATE tickets SET ${keys.map((key,i)=>`"${key}"=$${i+1}`).join(',')} WHERE id=$${keys.length+1} AND "ownerId"=$${keys.length+2} RETURNING *`,[...Object.values(changes),id,access.ownerId]);
+    if(resolutionKey) await createSatisfactionForResolution(tx,db(),{
+      ownerId:access.ownerId,ticketId:id,resolutionKey,resolvedAt:now,
+      requesterMemberId:rows[0].requesterMemberId,resolverMemberId:fresh.member.id,customerCompanyId:rows[0].customerCompanyId,
+    });
     for(const key of ['subject','status','priority','assigneeMemberId','customerCompanyId','requesterMemberId','department']) if(key in changes) await recordEvent(tx,fresh,id,key,old[key as keyof Ticket],changes[key]);
     return {ticket:rows[0] as Ticket};
   });

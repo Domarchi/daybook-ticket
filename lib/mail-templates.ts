@@ -1,10 +1,12 @@
 import type { NotificationEvent } from './mail';
 import { REMINDER_REASON_LABELS } from './reminders-policy';
+import { ESCALATION_LABELS } from './escalation-policy';
 
 export type MailEnvironment = 'production' | 'qa';
 export interface MailPayload {
   from: string; to: string[]; subject: string; text: string;
   html?: string;
+  reply_to?: string;
   attachments?: { filename: string; content: string; content_type: string; content_id: string }[];
   tags?: { name: string; value: string }[];
 }
@@ -33,7 +35,7 @@ export function escapeMailHtml(value: string): string {
  * the server's fixed labels, even if another caller provides extra properties. */
 export function buildMailPayload(input: {
   id: string; environment: MailEnvironment; event: NotificationEvent;
-  ticketId: number | null; from: string; to: string; url: string; metadata?: MailMetadata;
+  ticketId: number | null; from: string; to: string; url: string; metadata?: MailMetadata; replyTo?: string;
 }): MailPayload {
   const ticket = input.ticketId ? `Ticket #${input.ticketId}` : 'Daybook Ticket';
   const copy: Record<NotificationEvent, { heading: string; body: string; action: string }> = {
@@ -43,8 +45,12 @@ export function buildMailPayload(input: {
     invitation: { heading: 'Bienvenido a Daybook Ticket', body: 'Tu acceso está listo. Activa tu cuenta con este mismo correo para comunicarte con nuestro equipo de soporte.', action: 'Activar mi cuenta' },
     password_reset: { heading: 'Elige una nueva contraseña', body: 'Solicitaste restablecer tu contraseña. Usa este enlace para elegir una nueva. Si no lo solicitaste, puedes ignorar este correo.', action: 'Restablecer contraseña' },
     reminder: { heading: 'Este ticket requiere atención', body: `${ticket} tiene atención pendiente. Revisa la conversación y sus plazos en el portal.`, action: 'Revisar ticket' },
+    escalation: { heading: 'Este ticket necesita apoyo', body: `${ticket} fue escalado al equipo. Revisa su atención y su plazo para continuar la conversación a tiempo.`, action: 'Revisar ticket' },
+    satisfaction_requested: { heading: '¿Cómo fue la atención?', body: `${ticket} fue resuelto. Tu opinión nos ayuda a mejorar: califica la atención desde tu portal.`, action: 'Calificar atención' },
   };
   const message = copy[input.event];
+  const replyTo = input.replyTo && /^[^\s<>@\r\n]+@[^\s<>@\r\n]+\.[^\s<>@\r\n]+$/.test(input.replyTo) ? input.replyTo : null;
+  const footer = replyTo ? 'Puedes responder a este correo desde tu dirección registrada. Envía los archivos desde el portal.' : FOOTER;
   const metadata: [string, string][] = [];
   if (input.ticketId) metadata.push(['Ticket', `#${input.ticketId}`]);
   if (input.metadata?.subject) metadata.push(['Asunto', input.metadata.subject.replace(/[\r\n\t]+/g, ' ').slice(0, 160)]);
@@ -53,20 +59,21 @@ export function buildMailPayload(input: {
   if (input.metadata?.dueAt && Number.isFinite(Date.parse(input.metadata.dueAt))) {
     metadata.push(['Vencimiento', new Intl.DateTimeFormat('es-CL', { timeZone: 'America/Santiago', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(input.metadata.dueAt))]);
   }
-  if (input.event === 'reminder' && input.metadata?.reasons) {
-    const allowed = Object.values(REMINDER_REASON_LABELS);
+  if ((input.event === 'reminder' || input.event === 'escalation') && input.metadata?.reasons) {
+    const allowed = Object.values(input.event === 'reminder' ? REMINDER_REASON_LABELS : ESCALATION_LABELS);
     for (const reason of [...new Set(input.metadata.reasons)].filter(reason => allowed.includes(reason)).slice(0, allowed.length)) metadata.push(['Motivo', reason]);
   }
   const safeUrl = escapeMailHtml(input.url);
   const rows = metadata.map(([label, value]) => `<tr><td style="padding:6px 12px 6px 0;color:#69675f;font-size:14px;vertical-align:top">${escapeMailHtml(label)}</td><td style="padding:6px 0;color:#11120f;font-size:14px;font-weight:600">${escapeMailHtml(value)}</td></tr>`).join('');
-  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${escapeMailHtml(message.heading)}</title></head><body style="margin:0;padding:0;background-color:#f7f8f9;color:#11120f;font-family:Arial,Helvetica,sans-serif"><div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeMailHtml(message.body)}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7f8f9"><tr><td align="center" style="padding:24px 12px"><table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #d9dbdc;border-radius:16px;overflow:hidden"><tr><td bgcolor="#11120f" style="padding:24px;background-color:#11120f"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td width="60" style="vertical-align:middle"><img src="cid:${LOGO_CID}" width="48" height="48" alt="" style="display:block;border:0;width:48px;height:48px"></td><td style="vertical-align:middle;color:#ffffff;font-size:23px;font-weight:700;letter-spacing:2px">DAYBOOK<br><span style="font-size:12px;letter-spacing:3px;color:#efc56e">TICKET</span></td></tr></table></td></tr><tr><td style="padding:32px 24px"><p style="margin:0 0 12px;color:#805a0e;font-size:12px;font-weight:700;letter-spacing:1px">TU SOPORTE, CONECTADO</p><h1 style="margin:0 0 16px;color:#11120f;font-size:25px;line-height:1.25">${escapeMailHtml(message.heading)}</h1><p style="margin:0 0 24px;color:#45463f;font-size:16px;line-height:1.6">${escapeMailHtml(message.body)}</p>${rows ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px">${rows}</table>` : ''}<table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#efc56e" style="border-radius:8px;background-color:#efc56e"><a href="${safeUrl}" style="display:inline-block;padding:14px 24px;border:1px solid #efc56e;border-radius:8px;color:#11120f;font-size:16px;font-weight:700;text-decoration:none;line-height:20px">${escapeMailHtml(message.action)}</a></td></tr></table><p style="margin:24px 0 0;color:#69675f;font-size:12px;line-height:1.6">Si el botón no funciona, abre este enlace:<br><a href="${safeUrl}" style="color:#805a0e;word-break:break-all">${safeUrl}</a></p></td></tr><tr><td style="padding:20px 24px;border-top:1px solid #d9dbdc;background-color:#fafaf9;color:#69675f;font-size:12px;line-height:1.6">${escapeMailHtml(FOOTER)}<br><strong style="color:#45463f">Daybook Ticket</strong> · Un servicio Daybook</td></tr></table></td></tr></table></body></html>`;
+  const html = `<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>${escapeMailHtml(message.heading)}</title></head><body style="margin:0;padding:0;background-color:#f7f8f9;color:#11120f;font-family:Arial,Helvetica,sans-serif"><div style="display:none;max-height:0;overflow:hidden;mso-hide:all">${escapeMailHtml(message.body)}</div><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f7f8f9"><tr><td align="center" style="padding:24px 12px"><table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background-color:#ffffff;border:1px solid #d9dbdc;border-radius:16px;overflow:hidden"><tr><td bgcolor="#11120f" style="padding:24px;background-color:#11120f"><table role="presentation" cellpadding="0" cellspacing="0"><tr><td width="60" style="vertical-align:middle"><img src="cid:${LOGO_CID}" width="48" height="48" alt="" style="display:block;border:0;width:48px;height:48px"></td><td style="vertical-align:middle;color:#ffffff;font-size:23px;font-weight:700;letter-spacing:2px">DAYBOOK<br><span style="font-size:12px;letter-spacing:3px;color:#efc56e">TICKET</span></td></tr></table></td></tr><tr><td style="padding:32px 24px"><p style="margin:0 0 12px;color:#805a0e;font-size:12px;font-weight:700;letter-spacing:1px">TU SOPORTE, CONECTADO</p><h1 style="margin:0 0 16px;color:#11120f;font-size:25px;line-height:1.25">${escapeMailHtml(message.heading)}</h1><p style="margin:0 0 24px;color:#45463f;font-size:16px;line-height:1.6">${escapeMailHtml(message.body)}</p>${rows ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px">${rows}</table>` : ''}<table role="presentation" cellpadding="0" cellspacing="0"><tr><td bgcolor="#efc56e" style="border-radius:8px;background-color:#efc56e"><a href="${safeUrl}" style="display:inline-block;padding:14px 24px;border:1px solid #efc56e;border-radius:8px;color:#11120f;font-size:16px;font-weight:700;text-decoration:none;line-height:20px">${escapeMailHtml(message.action)}</a></td></tr></table><p style="margin:24px 0 0;color:#69675f;font-size:12px;line-height:1.6">Si el botón no funciona, abre este enlace:<br><a href="${safeUrl}" style="color:#805a0e;word-break:break-all">${safeUrl}</a></p></td></tr><tr><td style="padding:20px 24px;border-top:1px solid #d9dbdc;background-color:#fafaf9;color:#69675f;font-size:12px;line-height:1.6">${escapeMailHtml(footer)}<br><strong style="color:#45463f">Daybook Ticket</strong> · Un servicio Daybook</td></tr></table></td></tr></table></body></html>`;
   return {
     from: input.from, to: [input.to],
     subject: input.event === 'invitation' ? 'Tu acceso a Daybook Ticket'
       : input.event === 'password_reset' ? 'Restablecer contraseña · Daybook Ticket'
         : input.event === 'reminder' ? `${ticket} requiere atención · Daybook Ticket` : `${ticket} · Daybook Ticket`,
-    text: `${message.heading}\n\n${message.body}${metadata.length ? `\n\n${metadata.map(([key, value]) => `${key}: ${value}`).join('\n')}` : ''}\n\n${message.action}: ${input.url}\n\n${FOOTER}\nDaybook Ticket · Un servicio Daybook`,
+    text: `${message.heading}\n\n${message.body}${metadata.length ? `\n\n${metadata.map(([key, value]) => `${key}: ${value}`).join('\n')}` : ''}\n\n${message.action}: ${input.url}\n\n${footer}\nDaybook Ticket · Un servicio Daybook`,
     html,
+    ...(replyTo ? { reply_to: replyTo } : {}),
     attachments: [{ filename: 'daybook.png', content: LOGO_PNG_BASE64, content_type: 'image/png', content_id: LOGO_CID }],
     tags: [{ name: 'app', value: 'daybook_ticket' }, { name: 'environment', value: input.environment }, { name: 'outbox_id', value: input.id }],
   };

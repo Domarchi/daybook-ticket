@@ -250,7 +250,7 @@ try {
   const tx = await pool.connect();
   try {
     await tx.query('BEGIN');
-    for (const table of ['mailDeliveryEvents', 'pushDeliveries', 'mailOutbox', 'reminderOccurrences', 'ticketEvents', 'attachments', 'messages', 'tickets', 'notificationJobHealth', 'notificationSettings', 'settings', 'members']) {
+    for (const table of ['mailDeliveryEvents', 'pushDeliveries', 'mailOutbox', 'inboundMailReceipts', 'ticketSatisfaction', 'escalationOccurrences', 'reminderOccurrences', 'ticketEvents', 'attachments', 'messages', 'ticketSlaOutcomes', 'tickets', 'escalationSettings', 'notificationJobHealth', 'notificationSettings', 'settings', 'members']) {
       await tx.query(`DELETE FROM "${table}" WHERE "ownerId"=$1`, [ownerId]);
     }
     await tx.query('DELETE FROM organizations WHERE id=$1 AND "ownerId"=$2', [orgId, ownerId]);

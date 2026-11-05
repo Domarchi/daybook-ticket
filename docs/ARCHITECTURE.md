@@ -70,7 +70,7 @@ No se avisa a todos los contactos de una empresa. Los responsables configurados 
 
 `mailOutbox` conserva una clave única por evento/destinatario. Sin configuración válida queda en `awaiting_configuration`. Al intentar un envío se fija su payload; los reintentos conservan esa carga y su clave de idempotencia. Un resultado incierto fuera de la ventana de 24 horas del código no se reenvía automáticamente.
 
-Las rutas programan drenaje después de responder, con límites predeterminados de 100 eventos y 60 segundos. Un `429` respeta la próxima tentativa y corta el drenaje para no consumir intentos en el resto de la cola. Se conserva el procesamiento por `eventId` exacto. No hay scheduler permanente: los reintentos futuros requieren actividad o procesamiento administrativo.
+Las rutas programan drenaje después de responder, con límites predeterminados de 100 eventos y 60 segundos. Un `429` respeta la próxima tentativa y corta el drenaje para no consumir intentos en el resto de la cola. Se conserva el procesamiento por `eventId` exacto. El programador autenticado de avisos drena también los reintentos vencidos en lotes acotados cada treinta minutos; se conserva el procesamiento administrativo.
 
 `accepted` significa aceptación de Resend, no entrega ni lectura confirmadas. No hay webhooks de rebote, entrega o quejas. Los correos no copian el cuerpo de la conversación. Web Push depende de permisos, suscripción y disponibilidad del navegador/sistema; la prueba local no verifica por sí sola la llegada con todas las pestañas cerradas. No hay recepción de respuestas por correo.
 
@@ -82,6 +82,6 @@ Los almacenes y tokens de QA y producción se separan. Sin configuración válid
 
 ## Persistencia y límites
 
-`0002_companies_team_workflow.sql` añade empresas, respuestas guardadas, operaciones, historial y adjuntos; añade empresa/permisos a membresías, empresa/versión a tickets y autoría a mensajes. No elimina datos ni transfiere tickets históricos. Fue aplicada a QA; producción sigue pendiente de publicación.
+`0002_companies_team_workflow.sql` añade empresas, respuestas guardadas, operaciones, historial y adjuntos; añade empresa/permisos a membresías, empresa/versión a tickets y autoría a mensajes. No elimina datos ni transfiere tickets históricos. La primera entrega fue publicada posteriormente; 0003 y 0004 añadieron avisos/calendarios. La nueva 0005 de esta rama se aplica primero solo a QA, conservando las columnas originales.
 
-La aplicación conserva estas limitaciones: un espacio sin facturación por tenant; consultas completas del conjunto autorizado sin paginación del servidor; SLA en horas corridas sin calendario laboral; sin correo entrante ni automatizaciones permanentes. Las pruebas de esta entrega usan datos ficticios y no envían correo ni push a personas reales. El almacenamiento real se verifica exclusivamente en el almacén privado QA autorizado.
+La aplicación conserva un único espacio Daybook sin facturación por tenant. El SLA de resolución utiliza calendarios y acuerdos por empresa; las métricas mantienen su atribución real. Esta rama incorpora páginas de tickets/conversaciones, búsqueda autorizada, correo entrante opt-in, escalamiento y satisfacción. Ver SERVICE_PLUS_PLAN.md y SERVICE_PLUS_RELEASE.md para el estado de la entrega. QA usa datos ficticios y almacenamiento privado independiente, sin correo ni push reales.

@@ -6,7 +6,7 @@ export interface PrivateAttachmentStorage {
   remove(pathname: string): Promise<void>;
 }
 export class AttachmentSizeError extends Error {}
-export function attachmentStorageConfig(env: Readonly<Record<string, string | undefined>> = process.env) {
+export function attachmentStorageConfig(env: Readonly<Record<string, string | undefined>> = process.env): { environment: 'qa' | 'production'; token: string } | null {
   const environment = env.VERCEL_ENV === 'production' ? 'production' : 'qa';
   const token = environment === 'production' ? env.DAYBOOK_BLOB_PRODUCTION_READ_WRITE_TOKEN : env.DAYBOOK_BLOB_QA_READ_WRITE_TOKEN;
   // Never fall back to SDK ambient credentials, or let a preview use production.

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
 import {upload as clientUpload} from '@vercel/blob/client';
+import {readAllConversationPages} from './qa-paged-read.mjs';
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE,'1');
 assert.equal(process.env.DAYBOOK_SITE_URL,'http://127.0.0.1:5173');
 assert.equal(new URL(process.env.DATABASE_URL).hostname,'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
@@ -27,7 +28,7 @@ const {ticket}=await api(client,'/api/tickets','POST',payload,201);
 const replay=await api(client,'/api/tickets','POST',payload,201);assert.equal(replay.ticket.id,ticket.id);
 for(const person of [client,owner,manager]){const response=await request(person,`/api/attachments/${file}/download`);assert.equal(response.status,200);assert.ok(response.headers.get('cache-control').includes('no-store'));assert.ok(response.headers.get('content-disposition').startsWith('attachment;'));assert.equal(await response.text(),text);}
 await api(outsider,`/api/attachments/${file}/download`,'GET',undefined,404);
-const feed=await api(client,'/api/tickets/updates');assert.ok(feed.messages.find(m=>m.ticketId===ticket.id)?.attachments.some(a=>a.id===file));
+const feed=await api(client,'/api/tickets/updates');assert.deepEqual(feed.messages,[]);const conversation=await readAllConversationPages(path=>api(client,path),ticket.id);assert.ok(conversation.find(m=>m.ticketId===ticket.id)?.attachments.some(a=>a.id===file));
 const noteDraft=randomUUID(),noteFile=await upload(owner,{draftId:noteDraft,kind:'note',ticketId:ticket.id},'nota-interna-qa.txt','Archivo interno ficticio QA.');
 await api(owner,`/api/tickets/${ticket.id}/messages`,'POST',{operationId:randomUUID(),draftId:noteDraft,attachmentIds:[noteFile],body:'Nota interna con archivo privado.',kind:'reply'},409);
 const note={operationId:randomUUID(),draftId:noteDraft,attachmentIds:[noteFile],body:'Nota interna con archivo privado.',kind:'note'};

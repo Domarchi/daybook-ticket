@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {writeFile,mkdir} from 'node:fs/promises';
 import pg from 'pg';
+import {readAllTicketPages,readAllConversationPages} from './qa-paged-read.mjs';
 const host='ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech';
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE,'1');
 assert.equal(new URL(process.env.DATABASE_URL).hostname,host);
@@ -47,7 +48,7 @@ try{
  assert.equal(ok(simultaneous[1],201).ticket.id,ticket.id,'Duplicate create must return same ticket');
  ok(await api(client,'/api/tickets','POST',{...createBody,subject:'Otro contenido'}),409);
  const count=await pool.query('SELECT count(*)::int AS n FROM tickets WHERE "creationKey"=$1',[createBody.operationId]);assert.equal(count.rows[0].n,1);
- const feed=async person=>ok(await api(person,'/api/tickets/updates'));
+ const feed=async person=>{const result=ok(await api(person,'/api/tickets/updates'));assert.ok(result.tickets.length<=50);assert.deepEqual(result.messages,[]);return {...result,tickets:await readAllTicketPages(async path=>ok(await api(person,path)))};};
  assert.ok((await feed(manager)).tickets.some(t=>t.id===ticket.id));
  for(const person of [peer,outsider])assert.ok(!(await feed(person)).tickets.some(t=>t.id===ticket.id));
  ok(await api(peer,`/api/tickets/${ticket.id}/messages`,'POST',{operationId:randomUUID(),body:'Prohibido',kind:'reply'}),404);
@@ -67,7 +68,9 @@ try{
  ok(await api(manager,`/api/tickets/${ticket.id}/messages`,'POST',{...body,body:'Distinto'}),409);
  ok(await api(owner,`/api/tickets/${ticket.id}/messages`,'POST',{operationId:randomUUID(),body:'Solo equipo QA',kind:'note'}),201);
  ok(await api(agent,`/api/tickets/${ticket.id}/messages`,'POST',{operationId:randomUUID(),body:'Respuesta pública QA',kind:'reply'}),201);
- assert.ok(!(await feed(manager)).messages.some(m=>m.kind==='note'));
+ const managerMessages=await readAllConversationPages(async path=>ok(await api(manager,path)),ticket.id);
+ assert.ok(managerMessages.some(m=>m.body==='Respuesta pública QA'));
+ assert.ok(!managerMessages.some(m=>m.kind==='note'||m.body==='Solo equipo QA'));
  assert.ok((await feed(client)).alerts.some(n=>n.ticketId===ticket.id&&n.event==='agent_replied'));
  assert.ok((await feed(manager)).alerts.some(n=>n.ticketId===ticket.id&&n.event==='agent_replied'));
  const events=ok(await api(owner,`/api/tickets/${ticket.id}/events`)).events;
@@ -82,7 +85,7 @@ try{
  console.log(JSON.stringify({result:'PASS',groups:['company-isolation','manager-comment','private-notes','admin-boundaries','concurrent-claim','stale-reassignment','saved-replies','concurrent-operation-idempotency','recipient-alerts','history','membership-revocation'],fixtureRetained:keep}));
 }finally{
  if(!keep){
-  for(const id of createdTickets){await pool.query('DELETE FROM "pushDeliveries" WHERE "eventId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=$1)',[id]);await pool.query('DELETE FROM "mailOutbox" WHERE "ticketId"=$1',[id]);await pool.query('DELETE FROM attachments WHERE "ticketId"=$1',[id]);await pool.query('DELETE FROM "ticketEvents" WHERE "ticketId"=$1',[id]);await pool.query('DELETE FROM messages WHERE "ticketId"=$1',[id]);await pool.query('DELETE FROM tickets WHERE id=$1',[id]);}
+  for(const id of createdTickets){await pool.query('DELETE FROM "mailDeliveryEvents" WHERE "outboxId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=$1)',[id]);await pool.query('DELETE FROM "pushDeliveries" WHERE "eventId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=$1)',[id]);await pool.query('DELETE FROM "mailOutbox" WHERE "ticketId"=$1',[id]);for(const table of ['inboundMailReceipts','ticketSatisfaction','escalationOccurrences','reminderOccurrences','ticketSlaOutcomes'])await pool.query(`DELETE FROM "${table}" WHERE "ticketId"=$1`,[id]);await pool.query('DELETE FROM attachments WHERE "ticketId"=$1',[id]);await pool.query('DELETE FROM "ticketEvents" WHERE "ticketId"=$1',[id]);await pool.query('DELETE FROM messages WHERE "ticketId"=$1',[id]);await pool.query('DELETE FROM tickets WHERE id=$1',[id]);}
   for(const id of savedIds)await pool.query('DELETE FROM "savedReplies" WHERE id=$1',[id]);
   for(const id of createdMembers)await pool.query('UPDATE members SET status=\'revoked\' WHERE id=$1',[id]);
  }

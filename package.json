@@ -24,7 +24,12 @@
     "test:operations:qa": "node --env-file=.env.test.local --import tsx scripts/check-service-policies-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-automatic-assignment-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-agent-metrics-database.mjs",
     "test:operations:http": "node --env-file=.env.test.local --import tsx scripts/check-operations-http.mjs && node --env-file=.env.test.local --import tsx scripts/check-legacy-sla-http.mjs",
     "preview:mail": "node --import tsx scripts/render-mail-preview.mjs",
-    "build:notification-pinger": "node scripts/build-notification-pinger.mjs"
+    "build:notification-pinger": "node scripts/build-notification-pinger.mjs",
+    "db:migrate:service-plus:qa": "node --env-file=.env.test.local --import tsx scripts/migrate-service-plus-qa.mjs",
+    "test:service-plus:qa": "node --env-file=.env.test.local --import tsx scripts/check-inbound-email-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-service-plus-automation-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-ticket-search-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-backup-recovery-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-service-plus-access-races-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-attachment-preview-database.mjs",
+    "test:service-plus:http": "node --env-file=.env.test.local --import tsx scripts/check-service-plus-automation-http.mjs && node --env-file=.env.test.local --import tsx scripts/check-service-plus-editor-backup-http.mjs",
+    "backup": "node --import tsx scripts/daybook-backup.mjs",
+    "test:recovery:ci": "node --import tsx scripts/check-backup-recovery-database.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

@@ -92,7 +92,7 @@ test('delivery projection is idempotent and independent of arrival order', () =>
 });
 
 test('all supported notification templates have HTML, text, existing CID logo and frozen routing tags', () => {
-  for (const event of ['ticket_created', 'agent_replied', 'client_replied', 'invitation', 'password_reset', 'reminder'] as const) {
+  for (const event of ['ticket_created', 'agent_replied', 'client_replied', 'invitation', 'password_reset', 'reminder', 'escalation', 'satisfaction_requested'] as const) {
     const payload = buildMailPayload({ id: outboxId, environment: 'qa', event, ticketId: 123, from: 'QA <mail@example.test>', to: 'client@example.test', url: 'https://daybook-qa.example.test/?ticket=123', metadata: { subject: 'Solicitud de acceso', status: 'open', priority: 'high', dueAt: now.toISOString() } });
     assert.match(payload.html!, /DAYBOOK/); assert.match(payload.html!, /cid:daybook-brand-v2/);
     assert.match(payload.html!, /width="48" height="48"/); assert.match(payload.text, /portal/);

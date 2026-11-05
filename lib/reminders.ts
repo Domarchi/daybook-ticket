@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { getDatabase } from '../db';
 import type { Database } from '../db/database';
+import { enqueueTicketEscalation } from './escalations';
 import {
   activeReminderReasons, nextReminderReasons, parseReminderReasons, reminderRecipients,
   REMINDER_GRACE_MS, REMINDER_REASON_LABELS, type ReminderClock, type ReminderHistory,
@@ -187,6 +188,7 @@ export async function runNotificationTick(invocationId: string, options: { datab
     for (const { id } of ids.slice(0, maxTickets)) {
       if (clock().getTime() >= deadline - 2000) { incomplete = true; break; }
       queued += await enqueueTicketReminder(database, ownerId, id, clock());
+      queued += await enqueueTicketEscalation(database, ownerId, id, clock());
       processed++; cursor = id;
       await database.prepare('UPDATE "notificationJobHealth" SET "cursorTicketId"=$3 WHERE "ownerId"=$1 AND "leaseToken"=$2').bind(ownerId, token, cursor).run();
     }

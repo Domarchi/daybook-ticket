@@ -50,6 +50,7 @@ export interface Message {
   authorMemberId: string | null;
   authorRole: MemberRole | null;
   body: string;
+  bodyFormat?: 'plain' | 'markdown';
   kind: MessageKind;
   createdAt: string;
   attachments: Attachment[];
@@ -60,7 +61,7 @@ export interface TicketEvent { id: string; ticketId: number; actorMemberId: stri
 export interface Attachment { id: string; name: string; size: number; contentType: string }
 export interface TicketAlert {
   id: string;
-  event: 'ticket_created' | 'agent_replied' | 'client_replied' | 'reminder';
+  event: 'ticket_created' | 'agent_replied' | 'client_replied' | 'reminder' | 'escalation' | 'satisfaction_requested';
   ticketId: number;
   subject: string;
   createdAt: string;
@@ -104,6 +105,9 @@ export interface Workspace {
   savedReplies: SavedReply[];
   settings: Settings;
   demoLoaded: boolean;
+  ticketCounts?: import('./ticket-search').TicketCounts;
+  ticketDepartments?: import('./ticket-search').TicketDepartmentCount[];
+  ticketPage?: import('./ticket-search').TicketPage;
 }
 export const DEFAULT_SETTINGS: Settings = {
   brandName: 'Daybook Ticket',

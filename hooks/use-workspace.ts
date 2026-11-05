@@ -6,7 +6,7 @@ import { DEFAULT_SETTINGS, type Workspace } from '@/lib/types';
 const EMPTY: Workspace = { viewer: null, members: [], companies: [], savedReplies: [], mailStatus: null, tickets: [], messages: [], alerts: [], articles: [], settings: DEFAULT_SETTINGS, demoLoaded: false };
 const INTERVAL = 5_000;
 export type ConnectionStatus = 'connecting' | 'live' | 'reconnecting' | 'offline';
-type Feed = Pick<Workspace, 'viewer' | 'tickets' | 'messages' | 'alerts' | 'alertsPage'>;
+type Feed = Pick<Workspace, 'viewer' | 'tickets' | 'messages' | 'alerts' | 'alertsPage' | 'ticketCounts' | 'ticketDepartments' | 'ticketPage'>;
 
 class ReadError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
