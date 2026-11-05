@@ -20,7 +20,7 @@ import { disconnectPushOnSignOut } from '@/lib/push-client';
 import { useTicketDraft } from '@/hooks/use-ticket-draft';
 import { ticketDraftKey } from '@/lib/ticket-drafts';
 import { getDraftOperations } from '@/lib/draft-operations';
-import { readNewTicketDraft, writeNewTicketDraft, clearNewTicketDraft } from '@/lib/new-ticket-draft';
+import { readNewTicketDraft, writeNewTicketDraft, clearNewTicketDraft,readNewTicketOrganization,writeNewTicketOrganization } from '@/lib/new-ticket-draft';
 import { useDraftAttachments } from '@/hooks/use-draft-attachments';
 import { AttachmentComposer } from './attachments';
 import './client-portal.css';
@@ -69,7 +69,8 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
   const [draft, setDraft] = useState(() => { const saved = readNewTicketDraft(createScope); return { subject: saved.subject || '', body: saved.body || '', priority: saved.priority || 'normal', department: saved.department || data.settings.departments[0] || '' }; });
   const updateDraft = (next: typeof draft) => { setDraft(next); writeNewTicketDraft(createScope, next); };
   const operation = useRef(false);
-  const [organizationRequest,setOrganizationRequest]=useState<OrganizationRequestValue>({});
+  const [organizationRequest,setOrganizationRequest]=useState<OrganizationRequestValue>(()=>readNewTicketOrganization(createScope));
+  const changeOrganizationRequest=(value:OrganizationRequestValue)=>{setOrganizationRequest(value);writeNewTicketOrganization(createScope,value);};
   const createAttachments = useDraftAttachments(createScope, 'request');
   const isCompanyManager = data.viewer?.companyAccess === 'manager' && Boolean(data.viewer.customerCompanyId);
   const companyName = data.companies?.find(company => company.id === data.viewer?.customerCompanyId)?.name;
@@ -117,7 +118,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
     if (operation.current || !createAttachments.canSubmit) return;
     operation.current = true; setBusy(true); setError('');
     try {
-      const payload = { ...draft, ...createAttachments.payload(), bodyFormat: 'markdown' as const,...(data.evolution?.features.organization&&(organizationRequest.requestTypeId||Object.keys(organizationRequest.fieldValues||{}).length)?organizationRequest:{}) };
+      const payload = { ...draft, ...createAttachments.payload(), bodyFormat: 'markdown' as const,...((organizationRequest.requestTypeId||Object.keys(organizationRequest.fieldValues||{}).length)?organizationRequest:{}) };
       const operations = getDraftOperations();
       const result = await post<{ ticket: Ticket }>('/api/tickets', { ...payload, operationId: operations.forPayload(createScope, payload) });
       createAttachments.complete(); clearNewTicketDraft(createScope); operations.clear(createScope);setOrganizationRequest({});
@@ -176,7 +177,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
             <div className="client-fields"><label>Departamento<select value={draft.department} onChange={event => updateDraft({ ...draft, department: event.target.value })}>{data.settings.departments.map(department => <option key={department}>{department}</option>)}</select></label><label>Prioridad<select value={draft.priority} onChange={event => updateDraft({ ...draft, priority: event.target.value })}>{Object.entries(PRIORITY).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
             <div className="client-description"><label htmlFor="new-ticket-description">Descripción</label><MessageEditor id="new-ticket-description" label="Descripción" value={draft.body} onChange={value => updateDraft({ ...draft, body: value })} disabled={busy} rows={7} placeholder="Incluye qué sucede, desde cuándo y cómo podemos ayudarte."/></div>
           </fieldset>
-          {data.evolution?.features.organization&&<RequestOrganizationFields key={accessKey} memberId={data.viewer!.id} companyId={data.viewer!.customerCompanyId} value={organizationRequest} onChange={setOrganizationRequest} disabled={busy}/>}
+          {data.evolution?.features.organization&&<RequestOrganizationFields key={accessKey} memberId={data.viewer!.id} companyId={data.viewer!.customerCompanyId} value={organizationRequest} onChange={changeOrganizationRequest} disabled={busy}/>}
           <AttachmentComposer controls={createAttachments} disabled={busy}/>
           <div className="client-form-footer"><span>Podrás consultar las respuestas en Mis tickets.</span><button className="primary" disabled={busy || !draft.subject.trim() || !draft.body.trim() || !createAttachments.canSubmit}>{busy ? <LoaderCircle size={16} className="spin" /> : <Send size={16} />}Crear ticket</button></div>
         </form>
