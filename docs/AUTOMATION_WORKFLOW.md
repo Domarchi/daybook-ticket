@@ -84,3 +84,8 @@ El recorrido HTTP ficticio creó el ticket #398: simulación, alta idempotente, 
 La recuperación de **65 tablas y tres archivos** pasó con huellas, claves foráneas, compatibilidad del archivo histórico y limpieza completa. Los trabajos quedaron pausados conservando reglas, versiones e historial. No hubo correo, push ni Blob externos.
 
 Pinger existente: fanout simulado y compilación aprobados. No se crearon ni actualizaron Functions, programaciones, proveedores, DNS o planes. Los destinos nuevos siguen desactivados. Vista previa protegida de QA: https://daybook-ticket-evolution-04-qa-domarchi.vercel.app/ . No hay publicación productiva.
+
+
+## Estabilidad de la revisión y almacenamiento QA
+
+El código `f4f666e1d88928bce1ebba47d4a76df1b1ced84d` superó lint, 323 pruebas unitarias, tipos y compilación. Los paneles hermanos de organización y relaciones y el chat del cliente usan claves React con prefijos distintos para impedir que cada actualización acumule paneles anteriores. La comparación del árbol sintáctico confirmó cambios exclusivamente en claves: no se alteraron mensajes, propiedades ni operaciones. El almacenamiento de esta rama Preview está fijado en QA, con su credencial aislada y protección Vercel.
