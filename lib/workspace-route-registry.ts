@@ -114,4 +114,4 @@ export const WORKSPACE_ROUTE_REGISTRY=[
 {pattern:new RegExp('^tickets/search$'),names:[],handlers:r54},
 {pattern:new RegExp('^tickets/updates$'),names:[],handlers:r55},
 {pattern:new RegExp('^workspace$'),names:[],handlers:r56},
-];
+].sort((left,right)=>left.names.length-right.names.length);

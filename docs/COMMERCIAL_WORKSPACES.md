@@ -37,7 +37,7 @@ Las rutas antiguas `/` y `/api/...` pertenecen exclusivamente a Daybook. Las nue
 
 `resolveWorkspaceAccess` centraliza la autorización por sesión, organización, membresía, estado y MFA. `requireAccess` lo invoca después de autenticar y comprobar el origen de mutaciones. Los cambios vuelven a comprobar el acceso dentro de sus transacciones. Cambios de estado del piloto y de permisos no trasladan el historial.
 
-`lib/workspace-route-registry.ts` es una lista positiva de APIs del dominio. El router conserva la solicitud original, su URL, cuerpo, query, origen y cabecera de cuenta, y entrega únicamente los parámetros esperados al controlador. No admite autenticación global, cuentas, operador, proveedores/webhooks, activación, datos demo, trabajos internos o respaldos de plataforma.
+`lib/workspace-route-registry.ts` es una lista positiva de APIs del dominio. Ordena primero los controladores con menos segmentos dinámicos, de modo que rutas como `attachments/reserve` y `tickets/updates` no se interpreten como identificadores. El router conserva la solicitud original, su URL, cuerpo, query, origen y cabecera de cuenta, y entrega únicamente los parámetros esperados al controlador. No admite autenticación global, cuentas, operador, proveedores/webhooks, activación, datos demo, trabajos internos o respaldos de plataforma.
 
 Puntos precisos para integrar con los shells y entregas 1–5:
 

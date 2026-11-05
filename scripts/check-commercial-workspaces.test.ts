@@ -68,3 +68,10 @@ test('draft setup never admits domain exports, conversations, audit or provider 
  for(const path of ['security','security/policy','security/sessions','administration','evolution/features'])assert.equal(isWorkspaceSetupPath(`/api/workspaces/alpha/${path}`),true,path);
  for(const path of ['workspace','tickets','security/export','security/audit','security/health','security/policy/extra','evolution/features/extra'])assert.equal(isWorkspaceSetupPath(`/api/workspaces/alpha/${path}`),false,path);
 });
+
+test('literal scoped endpoints win over generic IDs and resolve their actual HTTP handlers',()=>{
+ for(const [path,method] of [['attachments/reserve','POST'],['attachments/upload','POST'],['attachments/cleanup','POST'],['tickets/contacts','GET'],['tickets/search','GET'],['tickets/updates','GET']]){
+  const route=WORKSPACE_ROUTE_REGISTRY.find(item=>item.pattern.test(path));assert.ok(route,path);assert.deepEqual(route.names,[],path);assert.equal(typeof (route.handlers as Record<string,unknown>)[method],'function',`${method} ${path}`);
+ }
+ const message=WORKSPACE_ROUTE_REGISTRY.find(item=>item.pattern.test('tickets/123/messages'));assert.deepEqual(message?.names,['id']);assert.equal(typeof (message?.handlers as Record<string,unknown>).POST,'function');
+});
