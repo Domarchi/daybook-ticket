@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { resolveWorkspaceAccess,ticketAccessSql,canAccessTicket } from '../lib/access.ts';
 import { acceptInvitation,hashInvite,readInvitation } from '../lib/invitations.ts';
-import { transferWorkspaceOwner,changePilot,listPlatformWorkspaces,createPilot,renewPilotOwnerInvitation } from '../lib/workspaces.ts';
+import { transferWorkspaceOwner,changePilot,listPlatformWorkspaces,createPilot,renewPilotOwnerInvitation,workspaceOperationalInTransaction } from '../lib/workspaces.ts';
 import { DEFAULT_PILOT_LIMITS,operatorGranted } from '../lib/workspace-model.ts';
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE,'1');
 assert.equal(new URL(process.env.DATABASE_URL).hostname,'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
@@ -61,6 +61,7 @@ try{
  await client.query('UPDATE "workspaceProfiles" SET state=\'suspended\' WHERE "workspaceId"=$1',[scopes.a.id]);
  await assert.rejects(()=>resolveWorkspaceAccess(identity,request(scopes.a.id),{},database),error=>error.status===423);
  assert.equal((await resolveWorkspaceAccess(identity,request(scopes.b.id),{},database)).role,'client');
+ assert.equal(await workspaceOperationalInTransaction(scopes.a.ownerId,client),false);assert.equal(await workspaceOperationalInTransaction(scopes.b.ownerId,client),true);
  await client.query('UPDATE \"workspaceProfiles\" SET state=\'draft\' WHERE \"workspaceId\"=$1',[scopes.a.id]);
  await assert.rejects(()=>resolveWorkspaceAccess({userId:other},new Request(`https://qa.example.test/api/workspaces/${scopes.a.id}/security/export`),{allowSecuritySetup:true},database),error=>error.status===423);
  assert.equal((await resolveWorkspaceAccess({userId:other},new Request(`https://qa.example.test/api/workspaces/${scopes.a.id}/security`),{allowSecuritySetup:true},database)).workspaceSetup,true);
