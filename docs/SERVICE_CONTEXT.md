@@ -63,3 +63,8 @@ El recorrido HTTP sobre datos ficticios comprobó sedes, equipos, servicios y co
 ## Candidato revisable
 
 Código `8ce2f01`: lint, tipos y compilación aprobados después de la revisión visual; 301 pruebas unitarias de la integración aprobadas. La vista previa protegida de esta entrega usará la base aislada de QA y los mismos controles de acceso comprobados por HTTP. Los programadores, correo y push permanecen apagados; activar garantías y renovaciones requiere revisar la configuración del pinger existente, según las instrucciones de publicación.
+
+
+## Estabilidad de la revisión y almacenamiento QA
+
+El código `8cae5d33940d4de6ebdd22a8f6b48c9dd74fbca6` superó lint, 301 pruebas unitarias, tipos y compilación. Incorpora claves únicas para el chat y la organización del portal de cliente, conservando propiedades y operaciones. Esta rama Preview usa explícitamente almacenamiento `qa`, con credencial de QA y protección Vercel; producción y documentos reales permanecen intactos.
