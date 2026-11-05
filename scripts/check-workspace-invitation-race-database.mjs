@@ -11,6 +11,8 @@ import {DEFAULT_PILOT_LIMITS} from '../lib/workspace-model.ts';
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE,'1');
 const target=new URL(process.env.DATABASE_URL);assert.equal(target.hostname,'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');assert.equal(target.pathname,'/daybook_ticket');
 for(const key of ['RESEND_API_KEY','RESEND_INBOUND_API_KEY','VAPID_PRIVATE_KEY'])assert.ok(!process.env[key]);
+// These connections retain a private schema across transactions. Use direct QA, not PgBouncer.
+target.hostname='ep-falling-water-bbfa4ijl.c-15.us-east-1.aws.neon.tech';target.searchParams.set('sslmode','verify-full');
 const pool=new pg.Pool({connectionString:target.href,max:2}),left=await pool.connect(),right=await pool.connect();
 const schema=`qa_invitation_${randomUUID().replaceAll('-','')}`,ownerId=`qa-invitation-${randomUUID()}`,workspaceId=randomUUID(),memberId=randomUUID(),userId=randomUUID(),now=new Date().toISOString(),email=`${userId}@example.test`;
 assert.match(schema,/^qa_invitation_[a-f0-9]{32}$/);
@@ -26,7 +28,7 @@ function database(client){return {
 };}
 try{
  await left.query(`CREATE SCHEMA "${schema}"`);created=true;
- for(const connection of [left,right])await connection.query(`SET search_path TO "${schema}",public`);
+ for(const connection of [left,right]){await connection.query(`SET search_path TO "${schema}",public`);assert.equal((await connection.query('SELECT current_schema() AS name')).rows[0].name,schema);}
  for(const table of tables)await left.query(`CREATE TABLE "${schema}"."${table}" (LIKE public."${table}" INCLUDING ALL)`);
  const sql=await readFile(new URL('../drizzle-postgres/0013_workspaces.sql',import.meta.url),'utf8'),quota=sql.match(/CREATE FUNCTION "daybook_workspace_quota"\(\)[\s\S]+?END; \$\$;/)?.[0];assert.ok(quota);
  await left.query(quota);await left.query('CREATE TRIGGER qa_member_quota BEFORE INSERT OR UPDATE OF status ON members FOR EACH ROW EXECUTE FUNCTION "daybook_workspace_quota"()');

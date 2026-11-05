@@ -10,10 +10,12 @@ import { DEFAULT_PILOT_LIMITS,operatorGranted } from '../lib/workspace-model.ts'
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE,'1');
 assert.equal(new URL(process.env.DATABASE_URL).hostname,'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
 for(const key of ['RESEND_API_KEY','RESEND_INBOUND_API_KEY','VAPID_PRIVATE_KEY'])assert.ok(!process.env[key]);
-const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,max:3}),client=await pool.connect();
+const target=new URL(process.env.DATABASE_URL);assert.equal(target.pathname,'/daybook_ticket');target.hostname='ep-falling-water-bbfa4ijl.c-15.us-east-1.aws.neon.tech';target.searchParams.set('sslmode','verify-full');
+// Session search_path belongs to a dedicated connection, never a transaction pool.
+const pool=new pg.Pool({connectionString:target.href,max:3}),client=await pool.connect();
 const run=randomUUID(),now=new Date().toISOString(),before=new Date(Date.now()-1000).toISOString(),month=now.slice(0,7),shared=randomUUID(),other=randomUUID(),invitee=randomUUID(),outsider=randomUUID(),session=randomUUID();
 const scopes={a:{id:randomUUID(),ownerId:randomUUID()},b:{id:randomUUID(),ownerId:randomUUID()}};let savepoint=0;
-const database={prepare(sql){return{bind(...values){return{sql,values,async all(){const r=await client.query(sql,values);return{results:r.rows,meta:{changes:r.rowCount||0}};},async first(){return(await client.query(sql,values)).rows[0]||null;},async run(){const r=await client.query(sql,values);return{results:r.rows,meta:{changes:r.rowCount||0}};}};}};},async execute(statement){const r=await client.query(statement.sql,statement.values);return{results:r.rows,meta:{changes:r.rowCount||0}};},async transaction(work){const name=`commercial_${++savepoint}`;await client.query(`SAVEPOINT ${name}`);try{const result=await work(client);await client.query(`RELEASE SAVEPOINT ${name}`);return result;}catch(error){await client.query(`ROLLBACK TO SAVEPOINT ${name}`);throw error;}}};
+const database={prepare(sql){const statement=(values=[])=>({sql,values,async all(){const r=await client.query(sql,values);return{results:r.rows,meta:{changes:r.rowCount||0}};},async first(){return(await client.query(sql,values)).rows[0]||null;},async run(){const r=await client.query(sql,values);return{results:r.rows,meta:{changes:r.rowCount||0}};}});return{...statement(),bind(...values){return statement(values);}};},async execute(statement){const r=await client.query(statement.sql,statement.values);return{results:r.rows,meta:{changes:r.rowCount||0}};},async transaction(work){const name=`commercial_${++savepoint}`;await client.query(`SAVEPOINT ${name}`);try{const result=await work(client);await client.query(`RELEASE SAVEPOINT ${name}`);return result;}catch(error){await client.query(`ROLLBACK TO SAVEPOINT ${name}`);throw error;}}};
 const request=id=>new Request(`https://qa.example.test/api/workspaces/${id}/tickets`),identity={userId:shared,sessionId:session};
 const snapshot=async()=>{const result={};for(const table of ['organizations','workspaceProfiles','authUser','members','tickets','messages'])result[table]=Number((await client.query(`SELECT count(*)::int AS n FROM "${table}"`)).rows[0].n);return result;};
 const inventory=await snapshot();
@@ -78,7 +80,7 @@ try{
 const schema=`qa_commercial_${randomUUID().replaceAll('-','')}`,left=await pool.connect(),right=await pool.connect();
 assert.ok(/^qa_commercial_[a-f0-9]{32}$/.test(schema));
 try{
- await left.query(`CREATE SCHEMA "${schema}"`);for(const connection of [left,right])await connection.query(`SET search_path TO "${schema}",public`);
+ await left.query(`CREATE SCHEMA "${schema}"`);for(const connection of [left,right]){await connection.query(`SET search_path TO "${schema}",public`);assert.equal((await connection.query('SELECT current_schema() AS name')).rows[0].name,schema);}
  await left.query('CREATE TABLE "workspaceProfiles"("workspaceId" text,"ownerId" text PRIMARY KEY,state text,"limitsJson" text,"quotaEpoch" bigint DEFAULT 0)');
  await left.query('CREATE TABLE organizations(id text PRIMARY KEY,"ownerId" text UNIQUE)');
  await left.query('CREATE TABLE articles(id text PRIMARY KEY,body text)');
@@ -87,7 +89,7 @@ try{
  await left.query(functionSql);await left.query('CREATE TRIGGER "quota_fixture" BEFORE INSERT ON tickets FOR EACH ROW EXECUTE FUNCTION "daybook_workspace_quota"()');
  await left.query('INSERT INTO "workspaceProfiles"("ownerId",state,"limitsJson") VALUES(\'fictitious\',\'active\',$1)',[JSON.stringify({...DEFAULT_PILOT_LIMITS,ticketsMonthly:1})]);
  const results=await Promise.allSettled([left.query('INSERT INTO tickets VALUES(1,\'fictitious\',$1)',[now]),right.query('INSERT INTO tickets VALUES(2,\'fictitious\',$1)',[now])]);
- assert.equal(results.filter(result=>result.status==='fulfilled').length,1);assert.equal(results.filter(result=>result.status==='rejected'&&result.reason.message==='workspace_quota_exceeded').length,1);
+ const outcomes=results.map(result=>result.status==='fulfilled'?{status:result.status}:{status:result.status,code:result.reason.code,message:result.reason.message});assert.equal(results.filter(result=>result.status==='fulfilled').length,1,JSON.stringify(outcomes));assert.equal(results.filter(result=>result.status==='rejected'&&result.reason.message==='workspace_quota_exceeded').length,1,JSON.stringify(outcomes));
  assert.equal((await left.query('SELECT count(*)::int AS n FROM tickets')).rows[0].n,1);
  const pauseOwner=`qa-editorial-${run}`,pauseWorkspace=randomUUID();
  await left.query('INSERT INTO organizations VALUES($1,$2)',[pauseWorkspace,pauseOwner]);
