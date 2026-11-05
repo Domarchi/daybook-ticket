@@ -33,3 +33,7 @@ Las capturas locales se guardan en `outputs/evolution-01/`. Las pruebas usan ún
 5. Para detener la función, apagar su interruptor. Para volver a la aplicación anterior, promover el despliegue anterior conservando las tablas aditivas; no ejecutar migraciones destructivas ni restaurar una copia antigua sobre nuevos tickets.
 
 Esta entrega no publica producción, cambia DNS, activa MFA ni habilita negocios comerciales.
+
+## Candidato revisable
+
+Código validado localmente en `9f7efa1`: `npm run check` final aprobado (252 pruebas), segunda pasada de lint sin advertencias, ocho grupos QA con rollback y recorrido HTTP/visual de #379. Este registro autenticado solicita únicamente la construcción del Preview protegido de la entrega 1. Producción y proveedores reales siguen sin cambios.
