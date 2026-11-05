@@ -28,18 +28,33 @@ La función queda desactivada mientras falte una conexión completa. QA y produc
 | Variable privada de servidor | Uso |
 | --- | --- |
 | `DAYBOOK_INBOUND_ENABLED` | `true` como último paso de activación; ausente conserva la recepción pausada. |
+| `DAYBOOK_INBOUND_WEBHOOK_MODE` | `independent` por defecto; `shared` habilita expresamente recepción en el endpoint existente de entregas. Otros valores desactivan la recepción y devuelven 503 para eventos entrantes. |
 | `DAYBOOK_INBOUND_DOMAIN` | Dominio de recepción exacto, por ejemplo el `<id>.resend.app` proporcionado por Resend. |
 | `DAYBOOK_INBOUND_TOKEN_SECRET` | Secreto aleatorio independiente de al menos 32 caracteres para direcciones privadas. |
-| `RESEND_INBOUND_API_KEY` | Clave con acceso de lectura al correo recibido; no sustituye la clave restringida de envío existente. |
-| `RESEND_INBOUND_WEBHOOK_SECRET` | Firma propia del webhook entrante, diferente de la firma del seguimiento de entregas. |
+| `RESEND_INBOUND_API_KEY` | Clave independiente para recuperar correo recibido. Resend ofrece actualmente `Full access`, sin permiso de solo lectura ni restricción receptora por dominio/inbox; no sustituye la clave restringida de envío existente. |
+| `RESEND_INBOUND_WEBHOOK_SECRET` | En modo `independent`, firma propia del webhook entrante, diferente de la firma del seguimiento de entregas. |
+| `RESEND_WEBHOOK_SECRET` | Firma existente del seguimiento de entregas. Solo el modo explícito `shared` la utiliza también para autenticar eventos entrantes del mismo webhook. |
 
 La recepción directa de Resend permite usar su dominio `.resend.app` sin cambiar DNS. No reemplazar los MX de Consorcio C17. Si posteriormente se utiliza un dominio propio, dedicar un subdominio y comprobar sus registros por separado antes de activarlo.
 
 1. Aplicar la migración aditiva de esta entrega y comprobar conservación de datos.
 2. Consultar cuota disponible; no aumentar planes automáticamente. Obtener la dirección de recepción del proyecto/cuenta del proveedor.
-3. Registrar un webhook independiente para `email.received` hacia `https://<host-de-daybook>/api/webhooks/resend/inbound`. Guardar su firma y las demás variables como secretos privados del ambiente correspondiente.
+3. Elegir el modo según la capacidad disponible. En `independent`, registrar un webhook para `email.received` hacia `https://<host-de-daybook>/api/webhooks/resend/inbound` y guardar su firma propia. En `shared`, seguir el procedimiento siguiente sin crear otro webhook. Guardar las demás variables como secretos privados del ambiente correspondiente.
 4. Conectar y probar en QA con clientes ficticios, manteniendo los avisos de prueba sin entregas externas. Antes de activar producción, comprobar el remitente, la cuenta invitada, el acceso a la empresa y los registros de rechazo.
 5. Activar `DAYBOOK_INBOUND_ENABLED=true`. Los clientes obtienen su dirección desde `GET /api/email-inbound`; sus respuestas usarán el `Reply-To` de los avisos nuevos.
+
+### Un único webhook en el plan Free
+
+La [tabla actual de Resend](https://resend.com/pricing) incluye un endpoint de webhook en Free. Los [límites de correo](https://resend.com/docs/knowledge-base/account-quotas-and-limits) son compartidos entre envíos y recepciones: 100 al día y 3.000 al mes. No aumentar el plan ni activar sobreconsumo automáticamente. El dominio administrado de recepción no necesita un Inbox adicional.
+
+Para conservar el webhook de entregas y evitar otro endpoint:
+
+1. Desplegar la aplicación con `DAYBOOK_INBOUND_WEBHOOK_MODE=shared` y recepción todavía pausada. Mantener el endpoint existente `https://<host-de-daybook>/api/webhooks/resend`, su firma `RESEND_WEBHOOK_SECRET` y todos sus eventos de entrega.
+2. Añadir exclusivamente `email.received` a la suscripción de ese mismo webhook. No sustituir la URL ni retirar eventos de seguimiento. Mientras la recepción está pausada, los eventos entrantes reciben 503 para reintento; las entregas siguen registrándose.
+3. Configurar el dominio receptor, `RESEND_INBOUND_API_KEY` independiente y secreto de direcciones. El modo compartido usa la firma del webhook existente; no requiere `RESEND_INBOUND_WEBHOOK_SECRET` ni acepta esa firma alternativa.
+4. Activar `DAYBOOK_INBOUND_ENABLED=true` como último paso y desplegar la configuración. El endpoint independiente `/api/webhooks/resend/inbound` devuelve 503 en modo compartido para evitar dos vías activas.
+
+Ambos modos verifican la firma sobre los bytes originales antes de interpretar eventos o acceder a la base/proveedor. Comparten exactamente el mismo procesamiento transaccional, permisos y claves de idempotencia. Cambiar de modo no modifica las direcciones privadas si se conservan dominio, ambiente y secreto de direcciones. La clave de API receptora sigue siendo independiente de la de envío en ambos modos. Para volver al modo independiente, preparar primero su webhook y firma propios y cambiar la suscripción de forma coordinada, manteniendo la recepción pausada durante el cambio.
 
 Los correos antiguos y sus claves de idempotencia se conservan. Solo las notificaciones nuevas se crean con versión 3; los payloads ya congelados de cualquier versión se reenvían con sus bytes originales. No añadir `Reply-To` a un envío previamente congelado.
 
@@ -48,7 +63,7 @@ Para pausar, desactivar `DAYBOOK_INBOUND_ENABLED`, manteniendo datos, dominio y 
 ## Comprobaciones
 
 ```sh
-node --import tsx --test scripts/check-inbound-email.test.ts scripts/check-mail-delivery.test.ts
+node --import tsx --test scripts/check-inbound-email.test.ts scripts/check-resend-webhook-handlers.test.ts scripts/check-mail-delivery.test.ts
 node --env-file=.env.test.local --import tsx scripts/check-inbound-email-database.mjs
 ```
 

@@ -6,6 +6,7 @@ export class InvalidInboundEmail extends Error {}
 export type InboundRouteKind = 'new' | 'reply';
 export interface InboundConfiguration {
   enabled: boolean; domain: string | null; tokenSecret: string; apiKey: string; webhookSecret: string;
+  webhookMode: 'independent' | 'shared' | null;
   environment: MailEnvironment;
 }
 export interface InboundRoute { kind: InboundRouteKind; id: string; signature: string; address: string }
@@ -25,14 +26,17 @@ export function inboundConfiguration(env: Record<string, string | undefined> = p
   const domain = DOMAIN.test(rawDomain) ? rawDomain : null;
   const tokenSecret = (env.DAYBOOK_INBOUND_TOKEN_SECRET || '').trim();
   const apiKey = (env.RESEND_INBOUND_API_KEY || '').trim();
-  const webhookSecret = (env.RESEND_INBOUND_WEBHOOK_SECRET || '').trim();
+  const rawMode = env.DAYBOOK_INBOUND_WEBHOOK_MODE || 'independent';
+  const webhookMode = rawMode === 'independent' || rawMode === 'shared' ? rawMode : null;
+  // Sharing the existing endpoint is explicit. It never changes API credentials.
+  const webhookSecret = ((webhookMode === 'shared' ? env.RESEND_WEBHOOK_SECRET : env.RESEND_INBOUND_WEBHOOK_SECRET) || '').trim();
   const signingKey = webhookSecret.startsWith('whsec_') ? webhookSecret.slice(6) : '';
   const signingBytes = /^[A-Za-z0-9+/]+={0,2}$/.test(signingKey) ? Buffer.from(signingKey, 'base64') : Buffer.alloc(0);
   const validSigningKey = signingKey.length <= 1024 && signingBytes.length >= 16
     && signingBytes.toString('base64').replace(/=+$/, '') === signingKey.replace(/=+$/, '');
   const environment = env.DAYBOOK_NOTIFICATION_ENVIRONMENT === 'production' || env.DAYBOOK_NOTIFICATION_ENVIRONMENT === 'qa'
     ? env.DAYBOOK_NOTIFICATION_ENVIRONMENT : env.VERCEL_ENV === 'production' ? 'production' : 'qa';
-  return { enabled: env.DAYBOOK_INBOUND_ENABLED === 'true' && Boolean(domain && tokenSecret.length >= 32 && /^[A-Za-z0-9_-]{8,512}$/.test(apiKey) && validSigningKey), domain, tokenSecret, apiKey, webhookSecret, environment };
+  return { enabled: env.DAYBOOK_INBOUND_ENABLED === 'true' && Boolean(webhookMode && domain && tokenSecret.length >= 32 && /^[A-Za-z0-9_-]{8,512}$/.test(apiKey) && validSigningKey), domain, tokenSecret, apiKey, webhookSecret, webhookMode, environment };
 }
 
 function digest(scope: { kind: InboundRouteKind; id: string; ownerId: string; memberId: string; email: string }, config: InboundConfiguration) {
@@ -75,12 +79,16 @@ function addresses(value: unknown): string[] | null {
   return result.every(Boolean) ? [...new Set(result as string[])] : null;
 }
 
-export function normalizeInboundWebhook(raw: Buffer, webhookId: string, now = new Date()): InboundEnvelope | null {
+export function decodeInboundWebhook(raw: Buffer): Record<string, unknown> {
   let decoded: unknown;
   try { decoded = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(raw)); }
   catch { throw new InvalidInboundEmail('invalid_json'); }
   const parsed = object(decoded);
   if (!parsed || typeof parsed.type !== 'string') throw new InvalidInboundEmail('invalid_event');
+  return parsed;
+}
+
+export function normalizeInboundWebhookEvent(parsed: Record<string, unknown>, webhookId: string, now = new Date()): InboundEnvelope | null {
   if (parsed.type !== 'email.received') return null;
   const data = object(parsed.data);
   const from = typeof data?.from === 'string' ? mailAddress(data.from) : null;
@@ -90,6 +98,10 @@ export function normalizeInboundWebhook(raw: Buffer, webhookId: string, now = ne
     || typeof parsed.created_at !== 'string' || !Number.isFinite(Date.parse(parsed.created_at))
     || Date.parse(parsed.created_at) > now.getTime() + 300_000) throw new InvalidInboundEmail('invalid_envelope');
   return { providerId: data.email_id.toLowerCase(), webhookId, from, to, subject: data.subject, createdAt: new Date(parsed.created_at).toISOString() };
+}
+
+export function normalizeInboundWebhook(raw: Buffer, webhookId: string, now = new Date()): InboundEnvelope | null {
+  return normalizeInboundWebhookEvent(decodeInboundWebhook(raw), webhookId, now);
 }
 
 /** HTML is converted to inert text only; it is never stored or rendered as HTML. */

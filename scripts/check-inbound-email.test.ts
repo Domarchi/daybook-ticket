@@ -137,11 +137,12 @@ test('only new reply-capable payloads change footer; already frozen payload byte
 });
 
 test('the HTTP receiver rejects unsigned requests and ignores foreign mail before any database or provider access', async () => {
-  const keys = ['DAYBOOK_INBOUND_ENABLED', 'DAYBOOK_INBOUND_DOMAIN', 'DAYBOOK_INBOUND_TOKEN_SECRET', 'RESEND_INBOUND_API_KEY', 'RESEND_INBOUND_WEBHOOK_SECRET', 'DAYBOOK_NOTIFICATION_ENVIRONMENT', 'DATABASE_URL'] as const;
+  const keys = ['DAYBOOK_INBOUND_ENABLED', 'DAYBOOK_INBOUND_WEBHOOK_MODE', 'DAYBOOK_INBOUND_DOMAIN', 'DAYBOOK_INBOUND_TOKEN_SECRET', 'RESEND_INBOUND_API_KEY', 'RESEND_INBOUND_WEBHOOK_SECRET', 'DAYBOOK_NOTIFICATION_ENVIRONMENT', 'DATABASE_URL'] as const;
   const saved = Object.fromEntries(keys.map(key => [key, process.env[key]]));
   try {
     Object.assign(process.env, { DAYBOOK_INBOUND_ENABLED: 'true', DAYBOOK_INBOUND_DOMAIN: config.domain, DAYBOOK_INBOUND_TOKEN_SECRET: config.tokenSecret,
       RESEND_INBOUND_API_KEY: config.apiKey, RESEND_INBOUND_WEBHOOK_SECRET: config.webhookSecret, DAYBOOK_NOTIFICATION_ENVIRONMENT: 'qa' });
+    delete process.env.DAYBOOK_INBOUND_WEBHOOK_MODE;
     delete process.env.DATABASE_URL;
     const { POST } = await import('../app/api/webhooks/resend/inbound/route');
     assert.equal((await POST(new Request('https://qa.example.test/api/webhooks/resend/inbound', { method: 'POST', body: rawEvent() }))).status, 400);
