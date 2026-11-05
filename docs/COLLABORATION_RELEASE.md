@@ -41,3 +41,5 @@ Código validado localmente en `9f7efa1`: `npm run check` final aprobado (252 pr
 ## Ensayo de recuperación ampliado
 
 El primer CI detectó un error de limpieza del ensayo: las preferencias se identifican por `userId`, no por `ownerId`. Se corrigió el alcance de limpieza y se añadieron fixtures de cita, seguimiento y tema. La recuperación QA posterior pasó con 40 tablas, dos archivos privados, claves foráneas reales, huellas exactas y limpieza completa de cuentas/esquemas ficticios. No hubo envíos externos.
+
+La corrección del ensayo está en `0eaf98f`; su recorrido QA completo terminó con `QA recovery cleanup PASS`. El contenido y las capturas del chat siguen correspondiendo al código revisado de la entrega 1.
