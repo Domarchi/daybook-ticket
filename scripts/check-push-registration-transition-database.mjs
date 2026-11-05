@@ -8,8 +8,13 @@ assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE,'1');
 let qaTarget;try{qaTarget=new URL(process.env.DATABASE_URL||'');}catch{throw Error('Falta una conexión válida para la base aislada de QA.');}
 assert.equal(qaTarget.hostname,'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
 assert.equal(qaTarget.pathname,'/daybook_ticket');
+assert.ok(['postgres:','postgresql:'].includes(qaTarget.protocol));
+assert.notEqual(process.env.NODE_TLS_REJECT_UNAUTHORIZED,'0');
+// Session-scoped search_path requires the verified direct connection, never the transaction pooler.
+qaTarget.hostname='ep-falling-water-bbfa4ijl.c-15.us-east-1.aws.neon.tech';
+qaTarget.searchParams.set('sslmode','verify-full');
 for(const name of ['RESEND_API_KEY','RESEND_INBOUND_API_KEY','VAPID_PRIVATE_KEY'])assert.ok(!process.env[name]);
-const schema=`qa_push_transition_${randomUUID().replaceAll('-','')}`,pool=new pg.Pool({connectionString:process.env.DATABASE_URL,max:1}),client=await pool.connect();
+const schema=`qa_push_transition_${randomUUID().replaceAll('-','')}`,pool=new pg.Pool({connectionString:qaTarget.toString(),max:1}),client=await pool.connect();
 assert.match(schema,/^qa_push_transition_[a-f0-9]{32}$/);
 const trace={legacy:0,composite:0,savepointRollbacks:0};
 const scoped={async query(sql,values){if(sql.includes('ON CONFLICT(endpoint)'))trace.legacy++;if(sql.includes('ON CONFLICT("ownerId","memberId",endpoint)'))trace.composite++;if(sql.startsWith('ROLLBACK TO SAVEPOINT daybook_push_registration'))trace.savepointRollbacks++;return client.query(sql,values);},release(){}};
@@ -17,7 +22,7 @@ const database=new Database({connect:async()=>scoped}),now='2026-11-05T18:00:00.
 const row={id:randomUUID(),ownerId:'qa-owner-a',memberId:'qa-member-a',endpoint,p256dh:'fictitious-key',auth:'fictitious-auth',now};
 async function seedExtra(ownerId,memberId){for(let i=0;i<9;i++)await client.query('INSERT INTO "pushSubscriptions"(id,"ownerId","memberId",endpoint,p256dh,auth,active,"createdAt","updatedAt") VALUES($1,$2,$3,$4,\'fake\',\'fake\',true,$5,$5)',[randomUUID(),ownerId,memberId,`https://fcm.googleapis.com/fcm/send/${ownerId}-fictitious-${i}`,now]);}
 try{
- await client.query(`CREATE SCHEMA "${schema}"`);await client.query(`SET search_path TO "${schema}"`);
+ await client.query(`CREATE SCHEMA "${schema}"`);await client.query(`SET search_path TO "${schema}"`);assert.equal((await client.query('SELECT current_schema() AS name')).rows[0].name,schema);
  await client.query('CREATE TABLE "pushSubscriptions"(id text PRIMARY KEY,"ownerId" text NOT NULL,"memberId" text NOT NULL,endpoint text NOT NULL,p256dh text NOT NULL,auth text NOT NULL,active boolean NOT NULL,"createdAt" text NOT NULL,"updatedAt" text NOT NULL)');
  await client.query('CREATE UNIQUE INDEX push_subscription_endpoint ON "pushSubscriptions"(endpoint)');
  await client.query('CREATE TABLE "mailOutbox"(id text PRIMARY KEY,"recipientMemberId" text NOT NULL,"createdAt" text NOT NULL)');
