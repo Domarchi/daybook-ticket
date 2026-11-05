@@ -88,10 +88,19 @@ try {
   await pool.query('INSERT INTO "ticketFollowers" ("ownerId","ticketId","memberId","createdAt") VALUES ($1,$2,$3,$4)',[ownerId,ticket,owner,now]);
   await pool.query('INSERT INTO "evolutionFeatures" ("ownerId","featuresJson",version,"updatedAt") VALUES ($1,$2,1,$3)',[ownerId,JSON.stringify({collaboration:true}),now]);
   await pool.query('INSERT INTO "userPreferences" ("userId",theme,"updatedAt") VALUES ($1,\'dark\',$2)',[authIds[0],now]);
+  if(BACKUP_TABLES.includes('workOrganizationCatalog')){
+    const tag=randomUUID(),definition=JSON.stringify({name:'Recuperación ficticia',color:'gold'});
+    await pool.query('INSERT INTO "workOrganizationCatalog" (id,"ownerId",kind,name,"definitionJson",version,archived,"createdAt","updatedAt") VALUES ($1,$2,\'tag\',\'Recuperación ficticia\',$3,0,false,$4,$4)',[tag,ownerId,definition,now]);
+    await pool.query('INSERT INTO "workOrganizationRevisions" ("catalogId",version,"ownerId","definitionJson","createdAt") VALUES ($1,0,$2,$3,$4)',[tag,ownerId,definition,now]);
+    await pool.query('INSERT INTO "ticketOrganization" ("ticketId","ownerId","metadataJson","tagIdsJson","waitReason",version,"updatedAt") VALUES ($1,$2,$3,$4,\'Esperando revisión ficticia\',0,$5)',[ticket,ownerId,JSON.stringify({requestType:null,form:null,values:{}}),JSON.stringify([tag]),now]);
+    await pool.query('INSERT INTO "ticketTasks" (id,"ownerId","ticketId","createdByMemberId","operationId","requestHash",title,status,"createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,\'Tarea ficticia recuperable\',\'open\',$7,$7)',[randomUUID(),ownerId,ticket,owner,randomUUID(),sha256('qa-task'),now]);
+    await pool.query('INSERT INTO "savedTicketViews" (id,"ownerId","memberId",name,"filtersJson",version,"createdAt","updatedAt") VALUES ($1,$2,$3,\'Vista ficticia\',$4,0,$5,$5)',[randomUUID(),ownerId,owner,JSON.stringify({queue:'mine',q:'recuperación'}),now]);
+  }
   const queuedId = randomUUID(), processingId = randomUUID();
   for (const [id, status] of [[queuedId, 'queued'], [processingId, 'processing']]) await pool.query('INSERT INTO "mailOutbox" (id,"ownerId","eventKey",event,"recipientMemberId","ticketId",status,attempts,"payloadJson","createdAt","updatedAt") VALUES ($1,$2,$1,\'ticket_created\',$3,$4,$5,1,$6,$7,$7)', [id, ownerId, owner, ticket, status, JSON.stringify({ fixture: 'frozen-qa-payload' }), now]);
   await pool.query('INSERT INTO "notificationSettings" ("ownerId","alertsActivatedAt","remindersEnabled","remindersActivatedAt") VALUES ($1,$2,true,$2)', [ownerId, now]);
   const archive = await createWorkspaceBackup(access, database, sourceStorage);
+  if(BACKUP_TABLES.includes('ticketTasks'))assert.equal(archive.tables.find(table=>table.name==='ticketTasks').rows[0].title,'Tarea ficticia recuperable');
   assert.equal(archive.tables.find(table=>table.name==='userPreferences').rows[0].theme,'dark');
   assert.equal(archive.tables.find(table=>table.name==='ticketFollowers').rows.length,1);
   assert.equal(archive.tables.find(table=>table.name==='messages').rows.find(row=>row.kind==='note').replyToMessageId,requestId);

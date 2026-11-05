@@ -5,8 +5,9 @@ export const BACKUP_MAGIC = Buffer.from('DAYBOOK1\n');
 export const MAX_BACKUP_BYTES = 128 * 1024 * 1024;
 export const LEGACY_BACKUP_TABLES = ['authUser', 'authAccount', 'organizations', 'customerCompanies', 'members', 'tickets', 'messages', 'articles', 'settings', 'demoImports', 'savedReplies', 'operations', 'attachments', 'ticketEvents', 'servicePolicies', 'assignmentRules', 'agentAvailability', 'ticketSlaOutcomes', 'notificationSettings', 'reminderOccurrences', 'escalationSettings', 'escalationOccurrences', 'ticketSatisfaction', 'inboundMailReceipts', 'mailOutbox', 'mailDeliveryEvents', 'pushSubscriptions', 'pushDeliveries', 'invitations', 'notificationJobHealth'] as const;
 export const RELIABILITY_BACKUP_TABLES = [...LEGACY_BACKUP_TABLES, 'inboundMailJobs', 'inboundMailJobFiles', 'ticketPresence', 'automaticBackupSettings', 'automaticBackupRuns', 'automaticBackupUsage'] as const;
-export const BACKUP_TABLES = [...RELIABILITY_BACKUP_TABLES,'messageMentions','ticketFollowers','evolutionFeatures','userPreferences'] as const;
-export const BACKUP_TABLE_PROFILES: readonly (readonly string[])[] = [LEGACY_BACKUP_TABLES, RELIABILITY_BACKUP_TABLES, BACKUP_TABLES];
+export const COLLABORATION_BACKUP_TABLES = [...RELIABILITY_BACKUP_TABLES,'messageMentions','ticketFollowers','evolutionFeatures','userPreferences'] as const;
+export const BACKUP_TABLES = [...COLLABORATION_BACKUP_TABLES, 'workOrganizationCatalog', 'workOrganizationRevisions', 'ticketOrganization', 'ticketTasks', 'savedTicketViews'] as const;
+export const BACKUP_TABLE_PROFILES: readonly (readonly string[])[] = [LEGACY_BACKUP_TABLES, RELIABILITY_BACKUP_TABLES, COLLABORATION_BACKUP_TABLES, BACKUP_TABLES];
 export const ADDED_BACKUP_COLUMNS: Readonly<Record<string,readonly string[]>> = {members:['isTest'],tickets:['isTest'],messages:['replyToMessageId'],mailOutbox:['sourceMessageId']};
 export function compatibleBackupColumns(table:string,target:readonly string[],source:readonly string[]){
  const optional=ADDED_BACKUP_COLUMNS[table]??[];

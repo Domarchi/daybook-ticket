@@ -1,3 +1,5 @@
+import {prepareTicketOrganization,saveTicketOrganization} from '@/lib/work-organization';
+import {getEvolutionFeatures,requireEvolutionFeature} from '@/lib/evolution-features';
 import { ApiError,db,handle,json,parseBody,createTicketSchema,checkAssignment } from '@/lib/server';
 import { getSettingsInTransaction } from '@/lib/settings-transaction';
 import { getEffectiveServicePolicy } from '@/lib/service-policies';
@@ -13,6 +15,8 @@ export async function POST(request:Request) {
   return handle(async()=>{
     const access=await requireAccess(request);
     const data=await parseBody(request,createTicketSchema);
+    const organizationEnabled=(await getEvolutionFeatures(access.ownerId)).features.organization;
+    if(data.requestTypeId!==undefined||data.fieldValues!==undefined)await requireEvolutionFeature(access,'organization');
     const result=await runOperation(access,data.operationId,'ticket',data,async(tx,fresh)=>{
       const settings=await getSettingsInTransaction(tx,access.ownerId);
       checkAssignment(data,settings);
@@ -27,6 +31,7 @@ export async function POST(request:Request) {
         requester={requesterMemberId:rows[0].id,requesterName:rows[0].name,requesterEmail:rows[0].email,customerCompanyId:rows[0].customerCompanyId};
       }
       if(!requester.requesterName || !requester.requesterEmail) throw new ApiError(400,'Selecciona un cliente o completa su nombre y correo.');
+      const organization=organizationEnabled?await prepareTicketOrganization(tx,fresh,{customerCompanyId:requester.customerCompanyId,requestTypeId:data.requestTypeId,fieldValues:data.fieldValues}):null;
       let assigneeMemberId:string|null=null,assignee='';
       if(!client && data.assigneeMemberId) {
         const {rows}=await tx.query('SELECT id,name FROM members WHERE id=$1 AND "ownerId"=$2 AND status=\'active\' AND role IN (\'owner\',\'admin\',\'agent\')',[data.assigneeMemberId,access.ownerId]);
@@ -41,6 +46,7 @@ export async function POST(request:Request) {
       const dueAt=resolutionDeadline(now,data.priority,policy);
       const {rows}=await tx.query('INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail","requesterMemberId","customerCompanyId",department,assignee,"assigneeMemberId",status,priority,"createdAt","updatedAt","dueAt","slaPolicySnapshot","slaStartedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,\'open\',$11,$12,$12,$13,$14,$12) RETURNING *',[access.ownerId,data.operationId,data.subject,requester.requesterName,requester.requesterEmail,requester.requesterMemberId,requester.customerCompanyId,data.department,assignee,assigneeMemberId,data.priority,now,dueAt,JSON.stringify(policy)]);
       const ticket=rows[0];
+      if(organization)await saveTicketOrganization(tx,fresh,ticket.id,organization);
       if(requesterIsTest) {await tx.query('UPDATE tickets SET "isTest"=true WHERE id=$1 AND "ownerId"=$2',[ticket.id,access.ownerId]);ticket.isTest=true;}
       const message=await tx.query('INSERT INTO messages ("ownerId","ticketId",author,"authorMemberId","authorRole",body,kind,"createdAt","bodyFormat") VALUES ($1,$2,$3,$4,$5,$6,\'request\',$7,$8) RETURNING id',[access.ownerId,ticket.id,fresh.member.name,fresh.member.id,fresh.role,data.body,now,data.bodyFormat || 'plain']);
       await linkReadyAttachments(tx,fresh,{ids:data.attachmentIds,draftId:data.draftId||data.operationId,kind:'request',ticketId:ticket.id,messageId:message.rows[0].id});

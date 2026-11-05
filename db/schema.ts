@@ -322,6 +322,32 @@ export const automaticBackupUsage=pgTable('automaticBackupUsage',{
   ownerId:text('ownerId').notNull().references(()=>organizations.ownerId),environment:text('environment').notNull(),month:text('month').notNull(),transferBytes:bigint('transferBytes',{mode:'number'}).notNull().default(0),
 },t=>[primaryKey({columns:[t.ownerId,t.environment,t.month]}),check('automatic_backup_usage_environment',sql`${t.environment} IN ('qa','production')`),check('automatic_backup_usage_bytes',sql`${t.transferBytes} >= 0`)]);
 
+
+export const workOrganizationCatalog = pgTable('workOrganizationCatalog', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull().references(() => organizations.ownerId),
+  kind: text('kind').notNull(), name: text('name').notNull(), definitionJson: text('definitionJson').notNull(),
+  version: integer('version').notNull().default(0), archived: boolean('archived').notNull().default(false),
+  createdAt: text('createdAt').notNull(), updatedAt: text('updatedAt').notNull(),
+}, t => [index('work_organization_catalog_owner_kind').on(t.ownerId,t.kind,t.archived,t.name,t.id), uniqueIndex('work_organization_catalog_active_name').on(t.ownerId,t.kind,sql`lower(${t.name})`).where(sql`NOT ${t.archived}`), check('work_organization_catalog_kind',sql`${t.kind} IN ('tag','requestType','field','form')`)]);
+export const workOrganizationRevisions = pgTable('workOrganizationRevisions', {
+  catalogId: text('catalogId').notNull().references(() => workOrganizationCatalog.id), version: integer('version').notNull(),
+  ownerId: text('ownerId').notNull(), definitionJson: text('definitionJson').notNull(), createdAt: text('createdAt').notNull(),
+}, t => [primaryKey({ columns: [t.catalogId,t.version] })]);
+export const ticketOrganization = pgTable('ticketOrganization', {
+  ticketId: integer('ticketId').primaryKey().references(() => tickets.id), ownerId: text('ownerId').notNull(),
+  metadataJson: text('metadataJson').notNull(), tagIdsJson: text('tagIdsJson').notNull().default('[]'), waitReason: text('waitReason').notNull().default(''),
+  version: integer('version').notNull().default(0), updatedAt: text('updatedAt').notNull(),
+}, t => [index('ticket_organization_owner').on(t.ownerId,t.ticketId)]);
+export const ticketTasks = pgTable('ticketTasks', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull(), ticketId: integer('ticketId').notNull().references(() => tickets.id),
+  createdByMemberId: text('createdByMemberId').notNull().references(() => members.id), operationId: text('operationId').notNull(), requestHash: text('requestHash').notNull(),
+  title: text('title').notNull(), assigneeMemberId: text('assigneeMemberId').references(() => members.id), dueAt: text('dueAt'),
+  status: text('status').notNull().default('open'), version: integer('version').notNull().default(0), createdAt: text('createdAt').notNull(), updatedAt: text('updatedAt').notNull(),
+}, t => [uniqueIndex('ticket_tasks_operation').on(t.ownerId,t.operationId),index('ticket_tasks_owner_ticket').on(t.ownerId,t.ticketId,t.createdAt.desc(),t.id.desc()),index('ticket_tasks_assignee').on(t.ownerId,t.assigneeMemberId,t.status,t.dueAt),check('ticket_tasks_status',sql`${t.status} IN ('open','done','cancelled')`)]);
+export const savedTicketViews = pgTable('savedTicketViews', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull(), memberId: text('memberId').notNull().references(() => members.id), name: text('name').notNull(), filtersJson: text('filtersJson').notNull(),
+  version: integer('version').notNull().default(0), createdAt: text('createdAt').notNull(), updatedAt: text('updatedAt').notNull(),
+}, t => [uniqueIndex('saved_ticket_views_name').on(t.memberId,t.name),index('saved_ticket_views_member').on(t.ownerId,t.memberId,t.name,t.id)]);
 export const messageMentions = pgTable('messageMentions', {
   ownerId: text('ownerId').notNull(), messageId: integer('messageId').notNull().references(() => messages.id),
   memberId: text('memberId').notNull().references(() => members.id), createdAt: text('createdAt').notNull(),

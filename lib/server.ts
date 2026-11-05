@@ -1,3 +1,4 @@
+import {organizationSubmissionSchema} from './work-organization-model';
 import { collaborationMessageFields } from './collaboration-model';
 import { getDatabase } from '../db';
 import type { Database } from '../db/database';
@@ -16,6 +17,7 @@ export const ticketPriority = z.enum(['low', 'normal', 'high', 'urgent']);
 export const emailAddress = z.string().trim().email('Introduce un correo válido.').max(254).transform(v => v.toLowerCase());
 const memberId = z.union([z.string().uuid('Selecciona una cuenta válida.'), z.literal('')]).nullable().transform(v => v || null);
 export const createTicketSchema = z.object({
+  ...organizationSubmissionSchema.shape,
   operationId: z.string().uuid(),
   draftId: z.string().uuid().optional(),
   attachmentIds: z.array(z.string().uuid()).max(5).default([]),
