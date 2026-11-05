@@ -3,12 +3,12 @@ import { useEffect,useRef,useState } from 'react';
 import { ArrowLeft,ArrowRight,BookOpen,Check,Clock,FileText,History,LoaderCircle,Plus,RefreshCw,Save,Search,ShieldCheck,Upload,X } from 'lucide-react';
 import type { CustomerCompany } from '@/lib/types';
 import type { KnowledgeArticle,KnowledgeDetail,KnowledgePage,KnowledgeRevision } from '@/lib/knowledge-model';
-import {daybookFetch} from '@/lib/browser-request';
+import {knowledgeRequest} from '@/lib/knowledge-request';
+export {knowledgeRequest} from '@/lib/knowledge-request';
 import { getDraftOperations } from '@/lib/draft-operations';
 import { KnowledgeDraftStore,type KnowledgeDraft } from '@/lib/knowledge-drafts';
 import './knowledge-reports.css';
 
-export async function knowledgeRequest<T>(memberId:string,path:string,method='GET',body?:unknown,signal?:AbortSignal):Promise<T>{const response=await daybookFetch(path,{method,signal,cache:'no-store',headers:{'X-Daybook-Member-Id':memberId,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})},method==='GET'?undefined:'Se interrumpió la conexión. No se ha confirmado esta operación. Revisa el resultado y vuelve a intentarlo.');const data=await response.json().catch(()=>({}));if(!response.ok)throw new Error(typeof data.error==='string'?data.error:'No se pudo completar esta operación.');return data;}
 const STATES={draft:'Borrador',review:'En revisión',approved:'Aprobado',changes:'Con cambios solicitados'};
 function Feedback({error}:{error:string}){return error?<p role="alert" className="kr-error">{error}</p>:null;}
 
