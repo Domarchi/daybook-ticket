@@ -520,3 +520,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #a46d09;outline-offset:3p
 @media(max-width:750px){.saved-reply-list li{flex-direction:column;gap:12px}.saved-reply-picker select,.member-company-editor select{font-size:16px}.companies-panel .section-head,.saved-replies-panel .section-head{flex-wrap:wrap;gap:12px}.attachment-toolbar{align-items:flex-start;flex-direction:column}.attachment-composer{padding:12px}.attachment-list .text-button{font-size:12px}.filter-row select{min-width:0;flex:1 1 160px}}
 
 .client-composer>.attachment-composer{display:block}.client-composer .attachment-picker{display:inline-flex;align-items:center;gap:7px;font-weight:500;border:1px solid var(--line);background:#fff}.client-form .attachment-picker input{padding:0;border:0}
+
+/* Keep the expanded staff navigation usable on short and mobile screens. */
+.sidebar{overflow-y:auto;overscroll-behavior:contain}
+.sidebar>nav,.sidebar>.workspace,.sidebar>.brand,.sidebar>.sidebar-bottom{flex-shrink:0}

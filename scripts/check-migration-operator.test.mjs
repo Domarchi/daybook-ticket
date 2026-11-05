@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import {
@@ -13,6 +16,16 @@ const environment = {
 };
 const journal = PINNED_MIGRATIONS.map(item => ({ hash: item.hash, created_at: String(item.when) }));
 const text = query => typeof query === 'string' ? query : query.text;
+
+async function legacyMigrationFolder(t) {
+  const source = await loadPinnedMigrationArtifacts();
+  const directory = await mkdtemp(join(tmpdir(), 'daybook-legacy-migration-test-'));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  await mkdir(join(directory, 'meta'));
+  await writeFile(join(directory, 'meta/_journal.json'), source.journalText);
+  for (const file of source.files) await writeFile(join(directory, `${file.tag}.sql`), file.content);
+  return directory;
+}
 
 test('production operator pins direct/pooled hosts, database, TLS and URL override options', () => {
   assert.equal(validateProductionConnectionTargets(environment), environment.DIRECT_DATABASE_URL);
@@ -44,23 +57,24 @@ test('database journal permits only the exact known three or four migration reco
   }
 });
 
-test('actual installed Drizzle migrator uses one savepoint and cannot commit the outer transaction', async () => {
+test('actual installed Drizzle migrator uses one savepoint and cannot commit the outer transaction', async t => {
   const queries = [];
   const client = { query: async query => {
     const sql = text(query); queries.push(sql);
     return { rows: /select id, hash, created_at/.test(sql) ? [{ ...journal[2], id: 3 }] : [], rowCount: 0 };
   } };
   const adapter = createMigrationSavepointClient(client);
-  await migrate(drizzle({ client: adapter.client, logger: false }), { migrationsFolder: new URL('../drizzle-postgres', import.meta.url).pathname });
+  await migrate(drizzle({ client: adapter.client, logger: false }), { migrationsFolder: await legacyMigrationFolder(t) });
   adapter.assertReleased();
   assert.equal(queries.filter(sql => /^SAVEPOINT /.test(sql)).length, 1);
   assert.equal(queries.filter(sql => /^RELEASE SAVEPOINT /.test(sql)).length, 1);
   assert.equal(queries.some(sql => /^\s*(begin|commit|rollback)\s*$/i.test(sql)), false);
   assert.equal(queries.some(sql => /CREATE TABLE "mailDeliveryEvents"/.test(sql)), true);
   assert.equal(queries.some(sql => /CREATE TABLE "tickets"/.test(sql)), false, 'Only 0003 is selected after the exact 0002 timestamp');
+  assert.equal(queries.some(sql => /CREATE TABLE "servicePolicies"/.test(sql)), false, 'The historical operator never applies a later feature migration');
 });
 
-test('migration failure rolls back its savepoint without emitting an outer commit', async () => {
+test('migration failure rolls back its savepoint without emitting an outer commit', async t => {
   const queries = [];
   const client = { query: async query => {
     const sql = text(query); queries.push(sql);
@@ -68,7 +82,7 @@ test('migration failure rolls back its savepoint without emitting an outer commi
     return { rows: /select id, hash, created_at/.test(sql) ? [{ ...journal[2], id: 3 }] : [], rowCount: 0 };
   } };
   const adapter = createMigrationSavepointClient(client);
-  await assert.rejects(migrate(drizzle({ client: adapter.client, logger: false }), { migrationsFolder: new URL('../drizzle-postgres', import.meta.url).pathname }), error => error.cause?.message === 'fictitious-DDL-failure');
+  await assert.rejects(migrate(drizzle({ client: adapter.client, logger: false }), { migrationsFolder: await legacyMigrationFolder(t) }), error => error.cause?.message === 'fictitious-DDL-failure');
   assert.ok(queries.some(sql => /^ROLLBACK TO SAVEPOINT /.test(sql)));
   assert.equal(queries.some(sql => /^\s*(begin|commit|rollback)\s*$/i.test(sql)), false);
   assert.throws(adapter.assertReleased, MigrationOperatorError);

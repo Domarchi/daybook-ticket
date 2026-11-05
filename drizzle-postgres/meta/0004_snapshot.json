@@ -1,0 +1,3422 @@
+{
+  "id": "e187fc53-5fc2-448e-a3f7-da9f70025fc8",
+  "prevId": "12b7c9bb-0101-4234-8a8c-e6a32a2dfae8",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.agentAvailability": {
+      "name": "agentAvailability",
+      "schema": "",
+      "columns": {
+        "memberId": {
+          "name": "memberId",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "available": {
+          "name": "available",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "capacity": {
+          "name": "capacity",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 20
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "lastAssignedAt": {
+          "name": "lastAssignedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "agent_availability_owner": {
+          "name": "agent_availability_owner",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "agentAvailability_memberId_members_id_fk": {
+          "name": "agentAvailability_memberId_members_id_fk",
+          "tableFrom": "agentAvailability",
+          "tableTo": "members",
+          "columnsFrom": [
+            "memberId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "agentAvailability_ownerId_organizations_ownerId_fk": {
+          "name": "agentAvailability_ownerId_organizations_ownerId_fk",
+          "tableFrom": "agentAvailability",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "ownerId"
+          ],
+          "columnsTo": [
+            "ownerId"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "agent_availability_capacity": {
+          "name": "agent_availability_capacity",
+          "value": "\"agentAvailability\".\"capacity\" BETWEEN 1 AND 1000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.articles": {
+      "name": "articles",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "published": {
+          "name": "published",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "articles_owner": {
+          "name": "articles_owner",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.assignmentRules": {
+      "name": "assignmentRules",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "customerCompanyId": {
+          "name": "customerCompanyId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "department": {
+          "name": "department",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "enabled": {
+          "name": "enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "agentMemberIdsJson": {
+          "name": "agentMemberIdsJson",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "assignment_rules_owner_position": {
+          "name": "assignment_rules_owner_position",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "assignmentRules_ownerId_organizations_ownerId_fk": {
+          "name": "assignmentRules_ownerId_organizations_ownerId_fk",
+          "tableFrom": "assignmentRules",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "ownerId"
+          ],
+          "columnsTo": [
+            "ownerId"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "assignmentRules_customerCompanyId_customerCompanies_id_fk": {
+          "name": "assignmentRules_customerCompanyId_customerCompanies_id_fk",
+          "tableFrom": "assignmentRules",
+          "tableTo": "customerCompanies",
+          "columnsFrom": [
+            "customerCompanyId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "assignment_rules_position": {
+          "name": "assignment_rules_position",
+          "value": "\"assignmentRules\".\"position\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.attachments": {
+      "name": "attachments",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "memberId": {
+          "name": "memberId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "draftId": {
+          "name": "draftId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ticketId": {
+          "name": "ticketId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "messageId": {
+          "name": "messageId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pathname": {
+          "name": "pathname",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contentType": {
+          "name": "contentType",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size": {
+          "name": "size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'reserved'"
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "uploadedAt": {
+          "name": "uploadedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "validatedAt": {
+          "name": "validatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "attachments_pathname": {
+          "name": "attachments_pathname",
+          "columns": [
+            {
+              "expression": "pathname",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "attachments_pending": {
+          "name": "attachments_pending",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "memberId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expiresAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "attachments_message": {
+          "name": "attachments_message",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "messageId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "attachments_memberId_members_id_fk": {
+          "name": "attachments_memberId_members_id_fk",
+          "tableFrom": "attachments",
+          "tableTo": "members",
+          "columnsFrom": [
+            "memberId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "attachments_ticketId_tickets_id_fk": {
+          "name": "attachments_ticketId_tickets_id_fk",
+          "tableFrom": "attachments",
+          "tableTo": "tickets",
+          "columnsFrom": [
+            "ticketId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "attachments_messageId_messages_id_fk": {
+          "name": "attachments_messageId_messages_id_fk",
+          "tableFrom": "attachments",
+          "tableTo": "messages",
+          "columnsFrom": [
+            "messageId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "attachments_size": {
+          "name": "attachments_size",
+          "value": "\"attachments\".\"size\" BETWEEN 1 AND 10485760"
+        },
+        "attachments_kind": {
+          "name": "attachments_kind",
+          "value": "\"attachments\".\"kind\" IN ('request', 'reply', 'note')"
+        },
+        "attachments_status": {
+          "name": "attachments_status",
+          "value": "\"attachments\".\"status\" IN ('reserved', 'uploaded', 'ready', 'attached', 'deleting', 'deleted')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.customerCompanies": {
+      "name": "customerCompanies",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organizationId": {
+          "name": "organizationId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "customer_companies_owner": {
+          "name": "customer_companies_owner",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "customerCompanies_organizationId_organizations_id_fk": {
+          "name": "customerCompanies_organizationId_organizations_id_fk",
+          "tableFrom": "customerCompanies",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organizationId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.demoImports": {
+      "name": "demoImports",
+      "schema": "",
+      "columns": {
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "importedAt": {
+          "name": "importedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mailDeliveryEvents": {
+      "name": "mailDeliveryEvents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "outboxId": {
+          "name": "outboxId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "providerId": {
+          "name": "providerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eventType": {
+          "name": "eventType",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurredAt": {
+          "name": "occurredAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "receivedAt": {
+          "name": "receivedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payloadHash": {
+          "name": "payloadHash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "mail_delivery_events_outbox": {
+          "name": "mail_delivery_events_outbox",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "outboxId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurredAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mail_delivery_events_provider": {
+          "name": "mail_delivery_events_provider",
+          "columns": [
+            {
+              "expression": "providerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mailDeliveryEvents_outboxId_mailOutbox_id_fk": {
+          "name": "mailDeliveryEvents_outboxId_mailOutbox_id_fk",
+          "tableFrom": "mailDeliveryEvents",
+          "tableTo": "mailOutbox",
+          "columnsFrom": [
+            "outboxId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.mailOutbox": {
+      "name": "mailOutbox",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eventKey": {
+          "name": "eventKey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event": {
+          "name": "event",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recipientMemberId": {
+          "name": "recipientMemberId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ticketId": {
+          "name": "ticketId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invitationId": {
+          "name": "invitationId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actionUrl": {
+          "name": "actionUrl",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payloadJson": {
+          "name": "payloadJson",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'queued'"
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "firstAttemptAt": {
+          "name": "firstAttemptAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nextAttemptAt": {
+          "name": "nextAttemptAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "leaseUntil": {
+          "name": "leaseUntil",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "providerId": {
+          "name": "providerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lastErrorCode": {
+          "name": "lastErrorCode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "readAt": {
+          "name": "readAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reminderId": {
+          "name": "reminderId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "templateVersion": {
+          "name": "templateVersion",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "environment": {
+          "name": "environment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deliveryStatus": {
+          "name": "deliveryStatus",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'untracked'"
+        },
+        "deliveryEventAt": {
+          "name": "deliveryEventAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deliveredAt": {
+          "name": "deliveredAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bouncedAt": {
+          "name": "bouncedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "complainedAt": {
+          "name": "complainedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "deliveryErrorCode": {
+          "name": "deliveryErrorCode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "mail_outbox_event": {
+          "name": "mail_outbox_event",
+          "columns": [
+            {
+              "expression": "eventKey",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mail_outbox_pending": {
+          "name": "mail_outbox_pending",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "nextAttemptAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mail_outbox_alerts": {
+          "name": "mail_outbox_alerts",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recipientMemberId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "createdAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "mail_outbox_provider": {
+          "name": "mail_outbox_provider",
+          "columns": [
+            {
+              "expression": "providerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "mailOutbox_recipientMemberId_members_id_fk": {
+          "name": "mailOutbox_recipientMemberId_members_id_fk",
+          "tableFrom": "mailOutbox",
+          "tableTo": "members",
+          "columnsFrom": [
+            "recipientMemberId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "mailOutbox_ticketId_tickets_id_fk": {
+          "name": "mailOutbox_ticketId_tickets_id_fk",
+          "tableFrom": "mailOutbox",
+          "tableTo": "tickets",
+          "columnsFrom": [
+            "ticketId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "mailOutbox_reminderId_reminderOccurrences_id_fk": {
+          "name": "mailOutbox_reminderId_reminderOccurrences_id_fk",
+          "tableFrom": "mailOutbox",
+          "tableTo": "reminderOccurrences",
+          "columnsFrom": [
+            "reminderId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.members": {
+      "name": "members",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organizationId": {
+          "name": "organizationId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'invited'"
+        },
+        "customerCompanyId": {
+          "name": "customerCompanyId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "companyAccess": {
+          "name": "companyAccess",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'own'"
+        },
+        "invitedBy": {
+          "name": "invitedBy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "members_organization_email": {
+          "name": "members_organization_email",
+          "columns": [
+            {
+              "expression": "organizationId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "email",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "members_organization_user": {
+          "name": "members_organization_user",
+          "columns": [
+            {
+              "expression": "organizationId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "members_owner_status": {
+          "name": "members_owner_status",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "members_company": {
+          "name": "members_company",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "customerCompanyId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "members_organizationId_organizations_id_fk": {
+          "name": "members_organizationId_organizations_id_fk",
+          "tableFrom": "members",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "organizationId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "members_customerCompanyId_customerCompanies_id_fk": {
+          "name": "members_customerCompanyId_customerCompanies_id_fk",
+          "tableFrom": "members",
+          "tableTo": "customerCompanies",
+          "columnsFrom": [
+            "customerCompanyId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "members_company_access": {
+          "name": "members_company_access",
+          "value": "\"members\".\"companyAccess\" IN ('own', 'manager') AND (\"members\".\"companyAccess\" <> 'manager' OR (\"members\".\"role\" = 'client' AND \"members\".\"customerCompanyId\" IS NOT NULL)) AND (\"members\".\"role\" = 'client' OR \"members\".\"customerCompanyId\" IS NULL)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.messages": {
+      "name": "messages",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ticketId": {
+          "name": "ticketId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "author": {
+          "name": "author",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "authorMemberId": {
+          "name": "authorMemberId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "authorRole": {
+          "name": "authorRole",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "messages_owner_ticket": {
+          "name": "messages_owner_ticket",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ticketId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "messages_ticketId_tickets_id_fk": {
+          "name": "messages_ticketId_tickets_id_fk",
+          "tableFrom": "messages",
+          "tableTo": "tickets",
+          "columnsFrom": [
+            "ticketId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "messages_authorMemberId_members_id_fk": {
+          "name": "messages_authorMemberId_members_id_fk",
+          "tableFrom": "messages",
+          "tableTo": "members",
+          "columnsFrom": [
+            "authorMemberId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.notificationJobHealth": {
+      "name": "notificationJobHealth",
+      "schema": "",
+      "columns": {
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "lastStartedAt": {
+          "name": "lastStartedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lastSucceededAt": {
+          "name": "lastSucceededAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lastFailedAt": {
+          "name": "lastFailedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lastErrorCode": {
+          "name": "lastErrorCode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lastInvocationId": {
+          "name": "lastInvocationId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cursorTicketId": {
+          "name": "cursorTicketId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "leaseToken": {
+          "name": "leaseToken",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "leaseUntil": {
+          "name": "leaseUntil",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.notificationSettings": {
+      "name": "notificationSettings",
+      "schema": "",
+      "columns": {
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "alertsActivatedAt": {
+          "name": "alertsActivatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "remindersEnabled": {
+          "name": "remindersEnabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "remindersActivatedAt": {
+          "name": "remindersActivatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "notificationSettings_ownerId_organizations_ownerId_fk": {
+          "name": "notificationSettings_ownerId_organizations_ownerId_fk",
+          "tableFrom": "notificationSettings",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "ownerId"
+          ],
+          "columnsTo": [
+            "ownerId"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.operations": {
+      "name": "operations",
+      "schema": "",
+      "columns": {
+        "operationId": {
+          "name": "operationId",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "memberId": {
+          "name": "memberId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requestHash": {
+          "name": "requestHash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resultJson": {
+          "name": "resultJson",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "operations_scope": {
+          "name": "operations_scope",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "memberId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "operations_memberId_members_id_fk": {
+          "name": "operations_memberId_members_id_fk",
+          "tableFrom": "operations",
+          "tableTo": "members",
+          "columnsFrom": [
+            "memberId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.organizations": {
+      "name": "organizations",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "organizations_owner": {
+          "name": "organizations_owner",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pushDeliveries": {
+      "name": "pushDeliveries",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "eventId": {
+          "name": "eventId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subscriptionId": {
+          "name": "subscriptionId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'queued'"
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "leaseUntil": {
+          "name": "leaseUntil",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lastErrorCode": {
+          "name": "lastErrorCode",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "push_delivery_event_device": {
+          "name": "push_delivery_event_device",
+          "columns": [
+            {
+              "expression": "eventId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "subscriptionId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "push_delivery_pending": {
+          "name": "push_delivery_pending",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "createdAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pushDeliveries_eventId_mailOutbox_id_fk": {
+          "name": "pushDeliveries_eventId_mailOutbox_id_fk",
+          "tableFrom": "pushDeliveries",
+          "tableTo": "mailOutbox",
+          "columnsFrom": [
+            "eventId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "pushDeliveries_subscriptionId_pushSubscriptions_id_fk": {
+          "name": "pushDeliveries_subscriptionId_pushSubscriptions_id_fk",
+          "tableFrom": "pushDeliveries",
+          "tableTo": "pushSubscriptions",
+          "columnsFrom": [
+            "subscriptionId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.pushSubscriptions": {
+      "name": "pushSubscriptions",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "memberId": {
+          "name": "memberId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "endpoint": {
+          "name": "endpoint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "p256dh": {
+          "name": "p256dh",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "auth": {
+          "name": "auth",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "active": {
+          "name": "active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lastTestAt": {
+          "name": "lastTestAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "push_subscription_endpoint": {
+          "name": "push_subscription_endpoint",
+          "columns": [
+            {
+              "expression": "endpoint",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "push_subscription_member": {
+          "name": "push_subscription_member",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "memberId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "active",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "pushSubscriptions_memberId_members_id_fk": {
+          "name": "pushSubscriptions_memberId_members_id_fk",
+          "tableFrom": "pushSubscriptions",
+          "tableTo": "members",
+          "columnsFrom": [
+            "memberId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.reminderOccurrences": {
+      "name": "reminderOccurrences",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ticketId": {
+          "name": "ticketId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cycleMessageId": {
+          "name": "cycleMessageId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unansweredMessageId": {
+          "name": "unansweredMessageId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "activationAt": {
+          "name": "activationAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reasonsJson": {
+          "name": "reasonsJson",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recipientMemberIdsJson": {
+          "name": "recipientMemberIdsJson",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dueAtSnapshot": {
+          "name": "dueAtSnapshot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "reminder_occurrences_sequence": {
+          "name": "reminder_occurrences_sequence",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ticketId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "activationAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "cycleMessageId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sequence",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "reminder_occurrences_ticket": {
+          "name": "reminder_occurrences_ticket",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ticketId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "activationAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "cycleMessageId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "createdAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "reminderOccurrences_ticketId_tickets_id_fk": {
+          "name": "reminderOccurrences_ticketId_tickets_id_fk",
+          "tableFrom": "reminderOccurrences",
+          "tableTo": "tickets",
+          "columnsFrom": [
+            "ticketId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "reminderOccurrences_cycleMessageId_messages_id_fk": {
+          "name": "reminderOccurrences_cycleMessageId_messages_id_fk",
+          "tableFrom": "reminderOccurrences",
+          "tableTo": "messages",
+          "columnsFrom": [
+            "cycleMessageId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "reminderOccurrences_unansweredMessageId_messages_id_fk": {
+          "name": "reminderOccurrences_unansweredMessageId_messages_id_fk",
+          "tableFrom": "reminderOccurrences",
+          "tableTo": "messages",
+          "columnsFrom": [
+            "unansweredMessageId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.savedReplies": {
+      "name": "savedReplies",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "saved_replies_owner": {
+          "name": "saved_replies_owner",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.servicePolicies": {
+      "name": "servicePolicies",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scopeKey": {
+          "name": "scopeKey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "customerCompanyId": {
+          "name": "customerCompanyId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "calendarJson": {
+          "name": "calendarJson",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slaHoursJson": {
+          "name": "slaHoursJson",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "service_policies_scope": {
+          "name": "service_policies_scope",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "scopeKey",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "servicePolicies_ownerId_organizations_ownerId_fk": {
+          "name": "servicePolicies_ownerId_organizations_ownerId_fk",
+          "tableFrom": "servicePolicies",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "ownerId"
+          ],
+          "columnsTo": [
+            "ownerId"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "servicePolicies_customerCompanyId_customerCompanies_id_fk": {
+          "name": "servicePolicies_customerCompanyId_customerCompanies_id_fk",
+          "tableFrom": "servicePolicies",
+          "tableTo": "customerCompanies",
+          "columnsFrom": [
+            "customerCompanyId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "service_policies_scope_check": {
+          "name": "service_policies_scope_check",
+          "value": "(\"servicePolicies\".\"scopeKey\" = 'default' AND \"servicePolicies\".\"customerCompanyId\" IS NULL) OR (\"servicePolicies\".\"customerCompanyId\" IS NOT NULL AND \"servicePolicies\".\"scopeKey\" = \"servicePolicies\".\"customerCompanyId\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.settings": {
+      "name": "settings",
+      "schema": "",
+      "columns": {
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "data": {
+          "name": "data",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ticketEvents": {
+      "name": "ticketEvents",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ticketId": {
+          "name": "ticketId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actorMemberId": {
+          "name": "actorMemberId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actorName": {
+          "name": "actorName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "beforeValue": {
+          "name": "beforeValue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "afterValue": {
+          "name": "afterValue",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "ticket_events_owner_ticket": {
+          "name": "ticket_events_owner_ticket",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ticketId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "createdAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ticketEvents_ticketId_tickets_id_fk": {
+          "name": "ticketEvents_ticketId_tickets_id_fk",
+          "tableFrom": "ticketEvents",
+          "tableTo": "tickets",
+          "columnsFrom": [
+            "ticketId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ticketEvents_actorMemberId_members_id_fk": {
+          "name": "ticketEvents_actorMemberId_members_id_fk",
+          "tableFrom": "ticketEvents",
+          "tableTo": "members",
+          "columnsFrom": [
+            "actorMemberId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.ticketSlaOutcomes": {
+      "name": "ticketSlaOutcomes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ticketId": {
+          "name": "ticketId",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actorMemberId": {
+          "name": "actorMemberId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "startedAt": {
+          "name": "startedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dueAt": {
+          "name": "dueAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "resolvedAt": {
+          "name": "resolvedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "customerCompanyId": {
+          "name": "customerCompanyId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "policySnapshot": {
+          "name": "policySnapshot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "ticket_sla_outcomes_period": {
+          "name": "ticket_sla_outcomes_period",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "resolvedAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "ticket_sla_outcomes_ticket": {
+          "name": "ticket_sla_outcomes_ticket",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ticketId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ticketSlaOutcomes_ownerId_organizations_ownerId_fk": {
+          "name": "ticketSlaOutcomes_ownerId_organizations_ownerId_fk",
+          "tableFrom": "ticketSlaOutcomes",
+          "tableTo": "organizations",
+          "columnsFrom": [
+            "ownerId"
+          ],
+          "columnsTo": [
+            "ownerId"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ticketSlaOutcomes_ticketId_tickets_id_fk": {
+          "name": "ticketSlaOutcomes_ticketId_tickets_id_fk",
+          "tableFrom": "ticketSlaOutcomes",
+          "tableTo": "tickets",
+          "columnsFrom": [
+            "ticketId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ticketSlaOutcomes_actorMemberId_members_id_fk": {
+          "name": "ticketSlaOutcomes_actorMemberId_members_id_fk",
+          "tableFrom": "ticketSlaOutcomes",
+          "tableTo": "members",
+          "columnsFrom": [
+            "actorMemberId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "ticketSlaOutcomes_customerCompanyId_customerCompanies_id_fk": {
+          "name": "ticketSlaOutcomes_customerCompanyId_customerCompanies_id_fk",
+          "tableFrom": "ticketSlaOutcomes",
+          "tableTo": "customerCompanies",
+          "columnsFrom": [
+            "customerCompanyId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.tickets": {
+      "name": "tickets",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "serial",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "creationKey": {
+          "name": "creationKey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subject": {
+          "name": "subject",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requesterName": {
+          "name": "requesterName",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requesterEmail": {
+          "name": "requesterEmail",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requesterMemberId": {
+          "name": "requesterMemberId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "customerCompanyId": {
+          "name": "customerCompanyId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "department": {
+          "name": "department",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "assignee": {
+          "name": "assignee",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "assigneeMemberId": {
+          "name": "assigneeMemberId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "priority": {
+          "name": "priority",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'normal'"
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "dueAt": {
+          "name": "dueAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slaPolicySnapshot": {
+          "name": "slaPolicySnapshot",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "slaStartedAt": {
+          "name": "slaStartedAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "tickets_owner_updated": {
+          "name": "tickets_owner_updated",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updatedAt",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tickets_requester": {
+          "name": "tickets_requester",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "requesterMemberId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tickets_company": {
+          "name": "tickets_company",
+          "columns": [
+            {
+              "expression": "ownerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "customerCompanyId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "tickets_creation_key": {
+          "name": "tickets_creation_key",
+          "columns": [
+            {
+              "expression": "creationKey",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "tickets_requesterMemberId_members_id_fk": {
+          "name": "tickets_requesterMemberId_members_id_fk",
+          "tableFrom": "tickets",
+          "tableTo": "members",
+          "columnsFrom": [
+            "requesterMemberId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tickets_customerCompanyId_customerCompanies_id_fk": {
+          "name": "tickets_customerCompanyId_customerCompanies_id_fk",
+          "tableFrom": "tickets",
+          "tableTo": "customerCompanies",
+          "columnsFrom": [
+            "customerCompanyId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "tickets_assigneeMemberId_members_id_fk": {
+          "name": "tickets_assigneeMemberId_members_id_fk",
+          "tableFrom": "tickets",
+          "tableTo": "members",
+          "columnsFrom": [
+            "assigneeMemberId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.authAccount": {
+      "name": "authAccount",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "accountId": {
+          "name": "accountId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "providerId": {
+          "name": "providerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "accessToken": {
+          "name": "accessToken",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refreshToken": {
+          "name": "refreshToken",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "idToken": {
+          "name": "idToken",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accessTokenExpiresAt": {
+          "name": "accessTokenExpiresAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refreshTokenExpiresAt": {
+          "name": "refreshTokenExpiresAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password": {
+          "name": "password",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "auth_account_user": {
+          "name": "auth_account_user",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "auth_account_provider": {
+          "name": "auth_account_provider",
+          "columns": [
+            {
+              "expression": "providerId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "accountId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "authAccount_userId_authUser_id_fk": {
+          "name": "authAccount_userId_authUser_id_fk",
+          "tableFrom": "authAccount",
+          "tableTo": "authUser",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.invitations": {
+      "name": "invitations",
+      "schema": "",
+      "columns": {
+        "memberId": {
+          "name": "memberId",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ownerId": {
+          "name": "ownerId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tokenHash": {
+          "name": "tokenHash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "invitations_tokenHash_unique": {
+          "name": "invitations_tokenHash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tokenHash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.authRateLimit": {
+      "name": "authRateLimit",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "count": {
+          "name": "count",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lastRequest": {
+          "name": "lastRequest",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "authRateLimit_key_unique": {
+          "name": "authRateLimit_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.authSession": {
+      "name": "authSession",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ipAddress": {
+          "name": "ipAddress",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "userAgent": {
+          "name": "userAgent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "auth_session_user": {
+          "name": "auth_session_user",
+          "columns": [
+            {
+              "expression": "userId",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "authSession_userId_authUser_id_fk": {
+          "name": "authSession_userId_authUser_id_fk",
+          "tableFrom": "authSession",
+          "tableTo": "authUser",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "authSession_token_unique": {
+          "name": "authSession_token_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.authUser": {
+      "name": "authUser",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "emailVerified": {
+          "name": "emailVerified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "image": {
+          "name": "image",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "authUser_email_unique": {
+          "name": "authUser_email_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "email"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.authVerification": {
+      "name": "authVerification",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "identifier": {
+          "name": "identifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "auth_verification_identifier": {
+          "name": "auth_verification_identifier",
+          "columns": [
+            {
+              "expression": "identifier",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {},
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto';
 import type { PoolClient } from 'pg';
-import { ApiError, db, getSettings } from './server';
+import { ApiError, db } from './server';
+import { acquireTicketWorkLock } from './work-lock';
+import { getSettingsInTransaction } from './settings-transaction';
+import { getEffectiveServicePolicy } from './service-policies';
+import { resolutionDeadline, storedTicketPolicy } from './ticket-sla';
+import { recordSlaOutcome } from './agent-metrics';
 import { canAccessTicket, publicMember, type AccessContext, type MemberRecord } from './access';
 import type { Settings, Ticket, TicketEvent } from './types';
 
@@ -28,6 +33,7 @@ export async function lockTicket(tx: PoolClient, access: AccessContext,id:number
 export async function runOperation<T>(access: AccessContext,id:string,kind:string,payload:unknown,work:(tx:PoolClient,fresh:AccessContext)=>Promise<T>):Promise<T> {
   const hash=operationHash(payload);
   return db().transaction(async tx=>{
+    await acquireTicketWorkLock(tx, access.ownerId);
     const fresh=await lockAccess(tx,access);
     await tx.query('INSERT INTO operations ("operationId","ownerId","memberId",kind,"requestHash","resultJson","createdAt") VALUES ($1,$2,$3,$4,$5,\'null\',$6) ON CONFLICT ("operationId") DO NOTHING',[id,access.ownerId,access.member.id,kind,hash,new Date().toISOString()]);
     const {rows}=await tx.query('SELECT * FROM operations WHERE "operationId"=$1 FOR UPDATE',[id]);
@@ -48,6 +54,11 @@ export async function runOperation<T>(access: AccessContext,id:string,kind:strin
 export async function recordEvent(tx:PoolClient,access:AccessContext,ticketId:number,action:string,before:unknown,after:unknown) {
   const encode=(v:unknown)=>v===null||v===undefined?null:typeof v==='string'?v:JSON.stringify(v);
   await tx.query('INSERT INTO "ticketEvents" (id,"ownerId","ticketId","actorMemberId","actorName",action,"beforeValue","afterValue","createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)',[crypto.randomUUID(),access.ownerId,ticketId,access.member.id,access.member.name,action,encode(before),encode(after),new Date().toISOString()]);
+}
+export async function recordAutomaticAssignmentEvent(tx: PoolClient, ownerId: string, ticketId: number, target: { id: string; name: string; ruleId: string }) {
+  await tx.query(`INSERT INTO "ticketEvents" (id,"ownerId","ticketId","actorMemberId","actorName",action,"beforeValue","afterValue","createdAt")
+    VALUES ($1,$2,$3,NULL,'Daybook Ticket','automatic_assignment',NULL,$4,$5)`,
+  [crypto.randomUUID(), ownerId, ticketId, JSON.stringify({ memberId: target.id, name: target.name, ruleId: target.ruleId }), new Date().toISOString()]);
 }
 export async function eligibleRecipients(tx:PoolClient,access:AccessContext,ticket:Ticket & {ownerId:string},ids:string[]) {
   if(!ids.length) return [];
@@ -71,9 +82,10 @@ export async function publicReplyRecipients(tx:PoolClient,access:AccessContext,t
   return eligibleRecipients(tx,access,ticket,[...(ticket.requesterMemberId?[ticket.requesterMemberId]:[]),...rows.map(row=>row.id)]);
 }
 export async function patchTicket(access:AccessContext,id:number,data:Record<string,unknown>,claim=false) {
-  const settings=await getSettings(access.ownerId);
   return db().transaction(async tx=>{
+    await acquireTicketWorkLock(tx, access.ownerId);
     const fresh=await lockAccess(tx,access);
+    const settings=await getSettingsInTransaction(tx, access.ownerId);
     if(fresh.role==='client') throw new ApiError(403,'Esta acción está disponible solo para el equipo.');
     const old=await lockTicket(tx,fresh,id);
     const assigning=claim || 'assigneeMemberId' in data || 'assignee' in data;
@@ -106,8 +118,23 @@ export async function patchTicket(access:AccessContext,id:number,data:Record<str
     }
     if(!Object.keys(changes).length) return {ticket:old};
     const now=new Date().toISOString();
-    if(changes.priority) changes.dueAt=new Date(Date.parse(old.createdAt)+settings.slaHours[changes.priority as keyof typeof settings.slaHours]*3600000).toISOString();
-    if(changes.status && changes.status!=='resolved' && old.status==='resolved') changes.dueAt=new Date(Date.parse(now)+settings.slaHours[(changes.priority||old.priority) as keyof typeof settings.slaHours]*3600000).toISOString();
+    if(changes.priority) {
+      const snapshot=storedTicketPolicy(old);
+      changes.dueAt=snapshot
+        ? resolutionDeadline(old.slaStartedAt || old.createdAt,changes.priority as Ticket['priority'],snapshot)
+        : new Date(Date.parse(old.createdAt)+settings.slaHours[changes.priority as keyof typeof settings.slaHours]*3600000).toISOString();
+    }
+    if(changes.status && changes.status!=='resolved' && old.status==='resolved') {
+      const snapshot=await getEffectiveServicePolicy(tx,access.ownerId,(changes.customerCompanyId===undefined?old.customerCompanyId:changes.customerCompanyId) as string|null,settings.slaHours);
+      changes.slaPolicySnapshot=JSON.stringify(snapshot); changes.slaStartedAt=now;
+      changes.dueAt=resolutionDeadline(now,(changes.priority||old.priority) as Ticket['priority'],snapshot);
+    }
+    if(changes.status==='resolved') await recordSlaOutcome(tx,{
+      ownerId:access.ownerId,ticketId:id,actorMemberId:fresh.member.id,
+      startedAt:old.slaStartedAt || null,dueAt:String(changes.dueAt || old.dueAt),resolvedAt:now,
+      customerCompanyId:(changes.customerCompanyId===undefined?old.customerCompanyId:changes.customerCompanyId) as string|null,
+      policySnapshot:old.slaPolicySnapshot || null,
+    });
     changes.updatedAt=now;changes.version=old.version+1;
     const keys=Object.keys(changes);
     const {rows}=await tx.query(`UPDATE tickets SET ${keys.map((key,i)=>`"${key}"=$${i+1}`).join(',')} WHERE id=$${keys.length+1} AND "ownerId"=$${keys.length+2} RETURNING *`,[...Object.values(changes),id,access.ownerId]);

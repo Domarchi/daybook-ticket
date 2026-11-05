@@ -57,7 +57,43 @@ export const tickets = pgTable('tickets', {
   createdAt: text('createdAt').notNull(),
   updatedAt: text('updatedAt').notNull(),
   dueAt: text('dueAt').notNull(),
+  slaPolicySnapshot: text('slaPolicySnapshot'),
+  slaStartedAt: text('slaStartedAt'),
 }, (t) => [index('tickets_owner_updated').on(t.ownerId, t.updatedAt), index('tickets_requester').on(t.ownerId, t.requesterMemberId), index('tickets_company').on(t.ownerId, t.customerCompanyId), uniqueIndex('tickets_creation_key').on(t.creationKey)]);
+
+export const servicePolicies = pgTable('servicePolicies', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull().references(() => organizations.ownerId),
+  scopeKey: text('scopeKey').notNull(),
+  customerCompanyId: text('customerCompanyId').references(() => customerCompanies.id, { onDelete: 'cascade' }),
+  calendarJson: text('calendarJson').notNull(), slaHoursJson: text('slaHoursJson').notNull(),
+  version: integer('version').notNull().default(0),
+  createdAt: text('createdAt').notNull(), updatedAt: text('updatedAt').notNull(),
+}, t => [uniqueIndex('service_policies_scope').on(t.ownerId, t.scopeKey),
+  check('service_policies_scope_check', sql`(${t.scopeKey} = 'default' AND ${t.customerCompanyId} IS NULL) OR (${t.customerCompanyId} IS NOT NULL AND ${t.scopeKey} = ${t.customerCompanyId})`)]);
+
+export const assignmentRules = pgTable('assignmentRules', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull().references(() => organizations.ownerId),
+  customerCompanyId: text('customerCompanyId').references(() => customerCompanies.id, { onDelete: 'cascade' }),
+  department: text('department'), name: text('name').notNull(), enabled: boolean('enabled').notNull().default(false),
+  position: integer('position').notNull(), agentMemberIdsJson: text('agentMemberIdsJson').notNull(),
+  version: integer('version').notNull().default(0), createdAt: text('createdAt').notNull(), updatedAt: text('updatedAt').notNull(),
+}, t => [index('assignment_rules_owner_position').on(t.ownerId, t.position), check('assignment_rules_position', sql`${t.position} >= 0`)]);
+
+export const agentAvailability = pgTable('agentAvailability', {
+  memberId: text('memberId').primaryKey().references(() => members.id, { onDelete: 'cascade' }),
+  ownerId: text('ownerId').notNull().references(() => organizations.ownerId),
+  available: boolean('available').notNull().default(true), capacity: integer('capacity').notNull().default(20),
+  version: integer('version').notNull().default(0), lastAssignedAt: text('lastAssignedAt'), updatedAt: text('updatedAt').notNull(),
+}, t => [index('agent_availability_owner').on(t.ownerId), check('agent_availability_capacity', sql`${t.capacity} BETWEEN 1 AND 1000`)]);
+
+// Genuine future resolution transitions only: migration never invents old SLA outcomes.
+export const ticketSlaOutcomes = pgTable('ticketSlaOutcomes', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull().references(() => organizations.ownerId),
+  ticketId: integer('ticketId').notNull().references(() => tickets.id),
+  actorMemberId: text('actorMemberId').references(() => members.id, { onDelete: 'set null' }),
+  startedAt: text('startedAt'), dueAt: text('dueAt').notNull(), resolvedAt: text('resolvedAt').notNull(),
+  customerCompanyId: text('customerCompanyId').references(() => customerCompanies.id), policySnapshot: text('policySnapshot'),
+}, t => [index('ticket_sla_outcomes_period').on(t.ownerId, t.resolvedAt), index('ticket_sla_outcomes_ticket').on(t.ownerId, t.ticketId)]);
 
 export const messages = pgTable('messages', {
   id: serial('id').primaryKey(),
