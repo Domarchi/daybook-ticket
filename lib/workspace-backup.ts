@@ -7,6 +7,7 @@ import type { Database } from '../db/database';
 import { lockAccess } from './ticket-mutations';
 import { attachmentStorage, attachmentStorageConfig, readAttachmentBytes, type PrivateAttachmentStorage } from './attachments-storage';
 import { BACKUP_TABLES, compatibleBackupColumns, canonicalBackupRows, MAX_BACKUP_BYTES, sha256, validateBackup, type BackupRow, type WorkspaceBackup } from './backup-format';
+import { verifyMfaBackupSecret } from './mfa-backup';
 import {pauseKnowledgeFeaturesJson} from './knowledge-model';
 import { validateAttachment } from './attachments-validation';
 
@@ -55,7 +56,7 @@ export async function createWorkspaceBackup(access: AccessContext, database = db
       if (!tableColumns.length) throw new ApiError(503, 'Aplica la migración de esta versión antes de crear respaldos.');
       let where = '"ownerId"=$1';
       if (table === 'authUser') where = 'id IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
-      else if (['authAccount','twoFactor','securityProfiles','userPreferences'].includes(table)) where = '"userId" IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
+      else if (['authAccount','userPreferences','twoFactor','securityProfiles'].includes(table)) where = '"userId" IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
       else if (table === 'attachments') where += " AND status='attached'";
       else if (table === 'invitations' || table === 'ticketPresence') where += ' AND FALSE';
       else if (table === 'inboundMailJobFiles') where = '"providerId" IN (SELECT "providerId" FROM "inboundMailJobs" WHERE "ownerId"=$1) AND "attachmentId" IN (SELECT id FROM attachments WHERE "ownerId"=$1 AND status=\'attached\')';
@@ -100,8 +101,9 @@ export function backupRestoreStorage(): BackupRestoreStorage {
 }
 
 /** Operator-only recovery into EMPTY, already-migrated tables. Never deletes/replaces existing data. */
-export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: Database, storage: BackupRestoreStorage, options: { environment: 'qa' | 'production'; schema?: string; allowProduction?: boolean }) {
+export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: Database, storage: BackupRestoreStorage, options: { environment: 'qa' | 'production'; schema?: string; allowProduction?: boolean; authSecret?:string }) {
   const backup = validateBackup(input), schema = options.schema || 'public';
+  await verifyMfaBackupSecret(backup,options.authSecret??process.env.BETTER_AUTH_SECRET);
   if (storage.environment !== options.environment) throw new Error('Destination storage environment mismatch.');
   if (schema !== 'public' && (!/^daybook_restore_qa_[a-f0-9]{16}$/.test(schema) || options.environment !== 'qa')) throw new Error('Invalid isolated recovery schema.');
   if (options.environment === 'production' && !options.allowProduction) throw new Error('Production recovery requires a separate operator confirmation.');

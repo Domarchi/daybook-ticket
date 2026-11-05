@@ -32,7 +32,8 @@ export async function readIdentitySecurity(access: Pick<AccessContext, 'ownerId'
     a."passwordVerifiedAt",a."mfaVerifiedAt",profile."recoveryAcknowledgedAt"
     FROM "authUser" u LEFT JOIN "securityPolicies" p ON p."ownerId"=$1
     LEFT JOIN "securityAssurances" a ON a."sessionId"=$2 AND a."userId"=u.id
-    LEFT JOIN "securityProfiles" profile ON profile."userId"=u.id WHERE u.id=$3`, [access.ownerId, access.sessionId ?? null, access.userId]);
+    LEFT JOIN "securityProfiles" profile ON profile."userId"=u.id WHERE u.id=$3
+      AND ($2::text IS NULL OR EXISTS (SELECT 1 FROM "authSession" s WHERE s.id=$2 AND s."userId"=u.id AND s."expiresAt">NOW()))`, [access.ownerId, access.sessionId ?? null, access.userId]);
   const row = result.rows[0];
   if (!row) throw new ApiError(401, 'Inicia sesión para continuar.');
   const policy: SecurityPolicy = { requireStaffMfa: Boolean(row.requireStaffMfa), activatedAt: row.activatedAt ?? null, version: row.version ?? 0 };
@@ -132,12 +133,15 @@ export async function listSecurityAudit(access:AccessContext,cursor:string|null,
 }
 export async function getSecurityHealth(access:AccessContext,database=getDatabase()) {
   if(!['owner','admin'].includes(access.role))throw new ApiError(403,'Solo administración puede consultar la salud del servicio.');
-  const [mail,inbound,scheduler,backups]=await Promise.all([
+  const [mail,inbound,scheduler,backups,serviceContext,automation]=await Promise.all([
     database.prepare('SELECT status,count(*)::int AS count FROM "mailOutbox" WHERE "ownerId"=$1 GROUP BY status').bind(access.ownerId).all<{status:string;count:number}>(),
     database.prepare('SELECT status,count(*)::int AS count FROM "inboundMailJobs" WHERE "ownerId"=$1 GROUP BY status').bind(access.ownerId).all<{status:string;count:number}>(),
     database.prepare('SELECT "lastStartedAt","lastSucceededAt","lastFailedAt","lastErrorCode" FROM "notificationJobHealth" WHERE "ownerId"=$1').bind(access.ownerId).first<{lastStartedAt:string|null;lastSucceededAt:string|null;lastFailedAt:string|null;lastErrorCode:string|null}>(),
     database.prepare('SELECT id,status,"localDate","verifiedAt","errorCode" FROM "automaticBackupRuns" WHERE "ownerId"=$1 ORDER BY "createdAt" DESC LIMIT 5').bind(access.ownerId).all<{id:string;status:string;localDate:string;verifiedAt:string|null;errorCode:string|null}>(),
+    database.prepare('SELECT "lastStartedAt","lastSucceededAt","lastFailedAt","lastErrorCode" FROM "serviceContextJobHealth" WHERE "ownerId"=$1').bind(access.ownerId).first<{lastStartedAt:string|null;lastSucceededAt:string|null;lastFailedAt:string|null;lastErrorCode:string|null}>(),
+    database.prepare('SELECT "lastStartedAt","lastSucceededAt","lastFailedAt","lastErrorCode" FROM "automationJobHealth" WHERE "ownerId"=$1').bind(access.ownerId).first<{lastStartedAt:string|null;lastSucceededAt:string|null;lastFailedAt:string|null;lastErrorCode:string|null}>(),
   ]);
-  return {mail:mail.results,inbound:inbound.results,scheduler:scheduler?{...scheduler,lastErrorCode:safeOperationalCode(scheduler.lastErrorCode)}:null,
+  const jobs=[{id:'notifications',name:'Avisos y recordatorios',state:scheduler},{id:'service-context',name:'Garantías y renovaciones',state:serviceContext},{id:'automation',name:'Reglas internas',state:automation}].map(({id,name,state})=>({id,name,lastStartedAt:state?.lastStartedAt??null,lastSucceededAt:state?.lastSucceededAt??null,lastFailedAt:state?.lastFailedAt??null,lastErrorCode:safeOperationalCode(state?.lastErrorCode)}));
+  return {mail:mail.results,inbound:inbound.results,jobs,scheduler:scheduler?{...scheduler,lastErrorCode:safeOperationalCode(scheduler.lastErrorCode)}:null,
     backups:backups.results.map(row=>({...row,errorCode:safeOperationalCode(row.errorCode)})),checkedAt:new Date().toISOString()};
 }

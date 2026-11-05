@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, scryptSync } from 'node:crypto';
 import { gzipSync, gunzipSync } from 'node:zlib';
+import { validateMfaBackup } from './mfa-backup';
 
 export const BACKUP_MAGIC = Buffer.from('DAYBOOK1\n');
 export const MAX_BACKUP_BYTES = 128 * 1024 * 1024;
@@ -8,10 +9,11 @@ export const RELIABILITY_BACKUP_TABLES = [...LEGACY_BACKUP_TABLES, 'inboundMailJ
 export const COLLABORATION_BACKUP_TABLES = [...RELIABILITY_BACKUP_TABLES,'messageMentions','ticketFollowers','evolutionFeatures','userPreferences'] as const;
 export const ORGANIZATION_BACKUP_TABLES = [...COLLABORATION_BACKUP_TABLES, 'workOrganizationCatalog', 'workOrganizationRevisions', 'ticketOrganization', 'ticketTasks', 'savedTicketViews'] as const;
 export const SERVICE_CONTEXT_BACKUP_TABLES = ['companyProfiles','companySites','customerServices','customerAssets','serviceContracts','ticketServiceContext','ticketAssetLinks','ticketContractLinks','serviceContextEvents','serviceContextNotificationSettings','serviceContextReminders','serviceContextJobHealth'] as const;
+export const SECURITY_TABLES=['twoFactor','securityProfiles','securityPolicies','securityAudit'] as const;
+export const SECURITY_BACKUP_TABLES=[...RELIABILITY_BACKUP_TABLES,...SECURITY_TABLES] as const;
 export const AUTOMATION_BACKUP_TABLES=['automationSettings','taskTemplates','automationRules','automationRuleVersions','automationEvents','automationExecutions','automationJobHealth','ticketRelations'] as const;
-export const LEGACY_SECURITY_BACKUP_TABLES=[...RELIABILITY_BACKUP_TABLES,'twoFactor','securityProfiles','securityPolicies','securityAudit'] as const;
-export const LEGACY_WORKSPACE_BACKUP_TABLES=[...LEGACY_SECURITY_BACKUP_TABLES,'workspaceProfiles'] as const;
-type BackupTableName=typeof ORGANIZATION_BACKUP_TABLES[number]|typeof SERVICE_CONTEXT_BACKUP_TABLES[number]|typeof AUTOMATION_BACKUP_TABLES[number]|'twoFactor'|'securityProfiles'|'securityPolicies'|'securityAudit'|'workspaceProfiles';
+export const KNOWLEDGE_BACKUP_TABLES=['knowledgeArticleRevisions','knowledgeArticleReviews','knowledgeArticlePublications','knowledgeEvents','companyMonthlyReports'] as const;
+type BackupTableName='workspaceProfiles'|typeof SECURITY_TABLES[number]|typeof ORGANIZATION_BACKUP_TABLES[number]|typeof SERVICE_CONTEXT_BACKUP_TABLES[number]|typeof AUTOMATION_BACKUP_TABLES[number]|typeof KNOWLEDGE_BACKUP_TABLES[number];
 const orderedBackupTables:BackupTableName[]=[];
 for(const table of ORGANIZATION_BACKUP_TABLES){
  if(table==='attachments')orderedBackupTables.push(...SERVICE_CONTEXT_BACKUP_TABLES.slice(0,9));
@@ -20,15 +22,17 @@ for(const table of ORGANIZATION_BACKUP_TABLES){
 }
 export const PRE_AUTOMATION_BACKUP_TABLES:readonly BackupTableName[]=orderedBackupTables;
 export const SERVICE_CONTEXT_BACKUP_PROFILE=PRE_AUTOMATION_BACKUP_TABLES;
+export const SERVICE_BACKUP_TABLES=PRE_AUTOMATION_BACKUP_TABLES;
+export const SECURITY_SERVICE_BACKUP_TABLES=[...PRE_AUTOMATION_BACKUP_TABLES,...SECURITY_TABLES] as const;
 export const PRE_KNOWLEDGE_BACKUP_TABLES:readonly BackupTableName[]=[...PRE_AUTOMATION_BACKUP_TABLES,...AUTOMATION_BACKUP_TABLES];
+export const KNOWLEDGE_BACKUP_PROFILE=[...PRE_KNOWLEDGE_BACKUP_TABLES,...KNOWLEDGE_BACKUP_TABLES] as const;
+export const LEGACY_WORKSPACE_BACKUP_TABLES=[...SECURITY_BACKUP_TABLES,'workspaceProfiles'] as const;
 export const AUTOMATION_RELEASE_BACKUP_TABLES=PRE_KNOWLEDGE_BACKUP_TABLES;
-export const KNOWLEDGE_BACKUP_TABLES=['knowledgeArticleRevisions','knowledgeArticleReviews','knowledgeArticlePublications','knowledgeEvents','companyMonthlyReports'] as const;
-export const KNOWLEDGE_RELEASE_BACKUP_TABLES=[...PRE_KNOWLEDGE_BACKUP_TABLES,...KNOWLEDGE_BACKUP_TABLES] as const;
-export const PRE_KNOWLEDGE_SECURITY_BACKUP_TABLES=[...PRE_KNOWLEDGE_BACKUP_TABLES,'twoFactor','securityProfiles','securityPolicies','securityAudit'] as const;
+export const PRE_KNOWLEDGE_SECURITY_BACKUP_TABLES=[...PRE_KNOWLEDGE_BACKUP_TABLES,...SECURITY_TABLES] as const;
 export const PRE_KNOWLEDGE_WORKSPACE_BACKUP_TABLES=[...PRE_KNOWLEDGE_SECURITY_BACKUP_TABLES,'workspaceProfiles'] as const;
-export const SECURITY_BACKUP_TABLES=[...KNOWLEDGE_RELEASE_BACKUP_TABLES,'twoFactor','securityProfiles','securityPolicies','securityAudit'] as const;
-export const BACKUP_TABLES=[...SECURITY_BACKUP_TABLES,'workspaceProfiles'] as const;
-export const BACKUP_TABLE_PROFILES:readonly (readonly string[])[]=[LEGACY_BACKUP_TABLES,RELIABILITY_BACKUP_TABLES,COLLABORATION_BACKUP_TABLES,ORGANIZATION_BACKUP_TABLES,SERVICE_CONTEXT_BACKUP_PROFILE,PRE_KNOWLEDGE_BACKUP_TABLES,KNOWLEDGE_RELEASE_BACKUP_TABLES,LEGACY_SECURITY_BACKUP_TABLES,LEGACY_WORKSPACE_BACKUP_TABLES,PRE_KNOWLEDGE_SECURITY_BACKUP_TABLES,PRE_KNOWLEDGE_WORKSPACE_BACKUP_TABLES,SECURITY_BACKUP_TABLES,BACKUP_TABLES];
+export const KNOWLEDGE_SECURITY_BACKUP_TABLES=[...KNOWLEDGE_BACKUP_PROFILE,...SECURITY_TABLES] as const;
+export const BACKUP_TABLES:readonly BackupTableName[]=[...KNOWLEDGE_SECURITY_BACKUP_TABLES,'workspaceProfiles'];
+export const BACKUP_TABLE_PROFILES:readonly (readonly string[])[]=[LEGACY_BACKUP_TABLES,RELIABILITY_BACKUP_TABLES,COLLABORATION_BACKUP_TABLES,SECURITY_BACKUP_TABLES,ORGANIZATION_BACKUP_TABLES,SERVICE_CONTEXT_BACKUP_PROFILE,SECURITY_SERVICE_BACKUP_TABLES,PRE_KNOWLEDGE_BACKUP_TABLES,KNOWLEDGE_BACKUP_PROFILE,LEGACY_WORKSPACE_BACKUP_TABLES,PRE_KNOWLEDGE_SECURITY_BACKUP_TABLES,PRE_KNOWLEDGE_WORKSPACE_BACKUP_TABLES,KNOWLEDGE_SECURITY_BACKUP_TABLES,BACKUP_TABLES];
 export const ADDED_BACKUP_COLUMNS: Readonly<Record<string,readonly string[]>> = {authUser:['twoFactorEnabled'],invitations:['acceptedAt','acceptedUserId'],members:['isTest'],tickets:['isTest'],messages:['replyToMessageId'],mailOutbox:['sourceMessageId','serviceReminderId'],attachments:['contractId'],articles:['version','contentRevision','reviewState','archived']};
 export function compatibleBackupColumns(table:string,target:readonly string[],source:readonly string[]){
  const optional=ADDED_BACKUP_COLUMNS[table]??[];
@@ -102,6 +106,7 @@ export function validateBackup(input: unknown): WorkspaceBackup {
   }
   const required = BACKUP_TABLE_PROFILES.find(profile=>profile.length===names.size&&profile.every(name=>names.has(name)));
   if (!required) throw new Error('Backup is missing required tables');
+  validateMfaBackup(data);
   const attachments = new Map(data.tables.find(table => table.name === 'attachments')!.rows.map(row => [row.id, row]));
   const files = new Set<string>();
   for (const file of data.files) {

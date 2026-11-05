@@ -1,5 +1,5 @@
 'use client';
-import { workspaceFetch } from '@/lib/workspace-client';
+import {daybookFetch} from '@/lib/browser-request';
 
 import { useState } from 'react';
 import { ArrowRight, ShieldCheck, LoaderCircle } from 'lucide-react';
@@ -24,7 +24,7 @@ export default function LoginForm({ invite, invalidInvite, resetToken, returnTo 
     else if (resetToken) { path = 'reset-password'; body = { token: resetToken, newPassword: password }; }
     else if (mode === 'forgot') { path = 'request-password-reset'; body = { email, redirectTo: `${location.origin}/login?reset=1${destination === '/' ? '' : `&return_to=${encodeURIComponent(destination)}`}` }; }
     try {
-      const response = await workspaceFetch(`/api/auth/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(invite ? { 'x-daybook-invite': invite.token } : {}) }, body: JSON.stringify(body) });
+      const response = await daybookFetch(`/api/auth/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(invite ? { 'x-daybook-invite': invite.token } : {}) }, body: JSON.stringify(body) });
       const result = await response.json().catch(() => ({})) as { message?: string;twoFactorRedirect?:boolean };
       if (!response.ok) {
         if (response.status === 429) throw new Error('Has realizado varios intentos. Espera unos minutos y vuelve a probar.');
@@ -35,7 +35,7 @@ export default function LoginForm({ invite, invalidInvite, resetToken, returnTo 
       if(result.twoFactorRedirect) { setSecondFactor(true);form.reset(); }
       else if (mode === 'forgot' && !invite && !resetToken) setNotice('Si existe una cuenta activa con ese correo, recibirás un enlace para recuperar el acceso.');
       else if (resetToken) { location.replace(ticketLoginPath(destination)); }
-      else if(invite){const accepted=await workspaceFetch('/api/workspaces/invitations/accept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:invite.token})});if(!accepted.ok)throw new Error('La sesión está iniciada, pero no se pudo aceptar esta invitación. Solicita un enlace nuevo.');const result=await accepted.json();location.replace(result.workspaceId==='daybook'?'/':`/w/${result.workspaceId}`);}
+      else if(invite){const accepted=await daybookFetch('/api/workspaces/invitations/accept',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:invite.token})});if(!accepted.ok)throw new Error('La sesión está iniciada, pero no se pudo aceptar esta invitación. Solicita un enlace nuevo.');const result=await accepted.json();location.replace(result.workspaceId==='daybook'?'/':`/w/${result.workspaceId}`);}
       else location.replace(destination);
     } catch (e) { setError(e instanceof Error ? e.message : 'No pudimos completar la operación.'); }
     finally { setBusy(false); }

@@ -3,7 +3,9 @@ import test from 'node:test';
 import { createDecipheriv,scryptSync } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { hasFreshProof,publicAuthResponse,publicSessionLabel,recentProof,requiresMfaChallenge,securityActionNeedsReauthentication,safeOperationalCode,SECURITY_FRESH_MS } from '../lib/security-model';
-import { assertPlatformBackupAccess } from '../lib/security';
+import { assertPlatformBackupAccess,getSecurityHealth } from '../lib/security';
+import type {Database} from '../db/database';
+import type {AccessContext} from '../lib/access';
 import { BUSINESS_EXPORT_MAGIC,BUSINESS_EXPORT_TABLES,businessExportColumns,encryptBusinessExport,type BusinessExport } from '../lib/business-export';
 const now=Date.parse('2026-11-05T18:00:00.000Z'),at=new Date(now).toISOString(),before=new Date(now-1).toISOString();
 test('activation challenges existing staff sessions but does not add a client obligation',()=>{
@@ -30,7 +32,8 @@ test('sensitive operations require a recent password and the enabled second fact
   assert.equal(recentProof(new Date(now+1).toISOString(),now),false);
 });
 test('fresh verification protects scoped and legacy permission/configuration/export mutations',()=>{
-  for(const path of ['/api/members/a','/api/settings','/api/service-policies/default','/api/assignment-rules/a','/api/notifications/settings','/api/organization/catalog','/api/workspaces/business-a/members/a'])assert.equal(securityActionNeedsReauthentication(path,'PATCH'),true,path);
+  for(const path of ['/api/members/a','/api/settings','/api/service-policies/default','/api/assignment-rules/a','/api/notifications/settings','/api/organization/catalog','/api/evolution/features','/api/service-context/notifications','/api/service-context/config/current','/api/automation/rules/a','/api/automation/settings','/api/automation/templates/a','/api/task-templates','/api/workspaces/business-a/members/a'])assert.equal(securityActionNeedsReauthentication(path,'PATCH'),true,path);
+  for(const path of ['/api/workspaces/business-a/service-context/config/current','/api/workspaces/business-b/automation/settings','/api/workspaces/business-a/automation/rules/abc','/api/workspaces/business-a/task-templates'])assert.equal(securityActionNeedsReauthentication(path,'PATCH'),true,path);
   assert.equal(securityActionNeedsReauthentication('/api/backups/schedule/a/download','GET'),true);
   assert.equal(securityActionNeedsReauthentication('/api/tickets/123/messages','POST'),false);
   assert.equal(securityActionNeedsReauthentication('/api/members','GET'),false);
@@ -43,7 +46,7 @@ test('session DTO labels and auth JSON do not expose bearer tokens or arbitrary 
   assert.ok(!JSON.stringify(dto).includes('sentinel'));
 });
 test('business export reads only domain allowlist and excludes credential-shaped columns',()=>{
-  for(const table of ['authUser','authAccount','authSession','authVerification','authRateLimit','twoFactor','securityAssurances','securityProfiles','mailOutbox','pushSubscriptions','invitations'])assert.ok(!(BUSINESS_EXPORT_TABLES as readonly string[]).includes(table));
+  for(const table of ['authUser','authAccount','authSession','authVerification','authRateLimit','userPreferences','twoFactor','securityAssurances','securityProfiles','mailOutbox','pushSubscriptions','invitations'])assert.ok(!(BUSINESS_EXPORT_TABLES as readonly string[]).includes(table));
   assert.deepEqual(businessExportColumns(['id','ownerId','email','userId','actorUserId','pathname','password','passwordHash','MFASecret','replyTokenHash','apiKey','backupCodes','endpoint','auth','createdAt','invalid"name']),['id','ownerId','email','createdAt']);
 });
 test('platform identity backup does not become a tenant owner/admin privilege',()=>{
@@ -64,4 +67,11 @@ test('business archive has authenticated encryption and a distinct non-restorabl
   const key=scryptSync(password,bytes.subarray(start,start+16),32,{N:32768,maxmem:128*1024*1024});
   try{const decipher=createDecipheriv('aes-256-gcm',key,bytes.subarray(start+16,start+28));decipher.setAAD(BUSINESS_EXPORT_MAGIC);decipher.setAuthTag(bytes.subarray(start+28,start+44));assert.deepEqual(JSON.parse(gunzipSync(Buffer.concat([decipher.update(bytes.subarray(start+44)),decipher.final()])).toString()),payload);}finally{key.fill(0);bytes.fill(0);}
   assert.throws(()=>encryptBusinessExport(payload,'short'));
+});
+
+test('health covers every integrated scheduler and redacts provider and job error details',async()=>{
+ const database={prepare(sql:string){return {bind(){return {all:async()=>({results:sql.includes('mailOutbox')?[{status:'queued',count:1}]:sql.includes('inboundMailJobs')?[]:[{id:'backup',status:'failed',localDate:'2026-11-05',verifiedAt:null,errorCode:'PRIVATE_PROVIDER_SENTINEL password=value'}]}),first:async()=>({lastStartedAt:at,lastSucceededAt:null,lastFailedAt:at,lastErrorCode:sql.includes('automationJobHealth')?'lease_lost':'PRIVATE_JOB_SENTINEL credential=value'})};}};}} as unknown as Database;
+ const result=await getSecurityHealth({role:'owner',ownerId:'owner'} as AccessContext,database);
+ assert.deepEqual(result.jobs.map(job=>job.id),['notifications','service-context','automation']);
+ assert.equal(result.jobs[0].lastErrorCode,'operation_failed');assert.equal(result.jobs[2].lastErrorCode,'lease_lost');assert.equal(result.backups[0].errorCode,'operation_failed');assert.ok(!JSON.stringify(result).includes('PRIVATE_'));
 });

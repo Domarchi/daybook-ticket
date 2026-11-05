@@ -1,5 +1,5 @@
 'use client';
-import { workspaceFetch } from '@/lib/workspace-client';
+import {daybookFetch} from '@/lib/browser-request';
 
 import { useCallback, useEffect, useState } from 'react';
 import { Clock, Download, LoaderCircle, ShieldCheck } from 'lucide-react';
@@ -31,14 +31,14 @@ export function AutomaticBackupPanel({ memberId }: { memberId: string }) {
   const headers = useCallback(() => ({ 'X-Daybook-Member-Id': memberId }), [memberId]);
   const apply = useCallback((status: Status) => { setData(status); setEnabled(status.settings.enabled); setLocalTime(status.settings.localTime); setRetention(status.settings.retention); setBudget(status.settings.storageBudgetMiB); }, []);
   const load = useCallback(async () => {
-    const response = await workspaceFetch('/api/backups/schedule', { credentials: 'same-origin', cache: 'no-store', headers: headers() });
+    const response = await daybookFetch('/api/backups/schedule', { credentials: 'same-origin', cache: 'no-store', headers: headers() });
     const status = await response.json();
     if (!response.ok) throw new Error(status.error || 'No se pudo consultar los respaldos.');
     apply(status);
   }, [headers, apply]);
   useEffect(() => {
     const controller = new AbortController();
-    workspaceFetch('/api/backups/schedule', { credentials: 'same-origin', cache: 'no-store', headers: headers(), signal: controller.signal })
+    daybookFetch('/api/backups/schedule', { credentials: 'same-origin', cache: 'no-store', headers: headers(), signal: controller.signal })
       .then(async response => { const status = await response.json(); if (!response.ok) throw new Error(status.error || 'No se pudo consultar los respaldos.'); return status as Status; })
       .then(apply).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : 'No se pudo consultar los respaldos.'); });
     return () => controller.abort();
@@ -52,7 +52,7 @@ export function AutomaticBackupPanel({ memberId }: { memberId: string }) {
       <form onSubmit={async event => {
         event.preventDefault(); if (busy) return; setBusy(true); setError(''); setMessage('');
         try {
-          const response = await workspaceFetch('/api/backups/schedule', { method: 'PATCH', credentials: 'same-origin', cache: 'no-store', headers: { ...headers(), 'Content-Type': 'application/json' },
+          const response = await daybookFetch('/api/backups/schedule', { method: 'PATCH', credentials: 'same-origin', cache: 'no-store', headers: { ...headers(), 'Content-Type': 'application/json' },
             body: JSON.stringify({ enabled, localTime, retention, storageBudgetMiB: budget, version: data.settings.version, planConfirmed: confirmed }) });
           const status = await response.json(); if (!response.ok) throw new Error(status.error || 'No se pudo guardar la programación.');
           apply(status); setConfirmed(false); setMessage(enabled ? 'Programación guardada. La próxima pasada comprobará la hora y los presupuestos.' : 'Programación pausada. Los respaldos guardados se conservan.');
@@ -70,7 +70,7 @@ export function AutomaticBackupPanel({ memberId }: { memberId: string }) {
       <div className="automatic-backup-history"><h3>Últimos intentos</h3>{!data.runs.length ? <p>Aún no hay respaldos automáticos.</p> : <ul>{data.runs.map(run => <li key={run.id}><div><strong>{run.localDate}</strong><span>{runLabels[run.status] || run.status}{run.sizeBytes ? ` · ${(run.sizeBytes / 1048576).toFixed(1)} MiB` : ''}</span>{run.verifiedAt && <small>{run.rowCount} registros · {run.fileCount} archivos · integridad comprobada</small>}{run.errorCode && <small>{reasons[run.errorCode] || 'Se conservaron los datos y el último respaldo verificado.'}</small>}</div>
         {run.downloadable && <button type="button" disabled={busy} onClick={async () => {
           setBusy(true); setError(''); try {
-            const response = await workspaceFetch(`/api/backups/schedule/${encodeURIComponent(run.id)}/download`, { credentials: 'same-origin', cache: 'no-store', headers: headers() });
+            const response = await daybookFetch(`/api/backups/schedule/${encodeURIComponent(run.id)}/download`, { credentials: 'same-origin', cache: 'no-store', headers: headers() });
             if (!response.ok) { const result = await response.json().catch(() => ({})); throw new Error(result.error || 'No se pudo descargar el respaldo.'); }
             const blob = await response.blob(), url = URL.createObjectURL(blob), link = document.createElement('a');
             link.href = url; link.download = `daybook-automatico-${run.localDate}.daybook`; link.click(); setTimeout(() => URL.revokeObjectURL(url), 30000);

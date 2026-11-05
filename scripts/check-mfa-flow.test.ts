@@ -1,3 +1,4 @@
+import { verifyMfaBackupSecret } from '../lib/mfa-backup';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHmac } from 'node:crypto';
@@ -29,6 +30,7 @@ test('installed Better Auth completes enrollment, challenges sign-in, consumes r
   assert.ok(!String(store.twoFactor[0].secret).includes(secret));assert.ok(!String(store.twoFactor[0].backupCodes).includes(setup.body.backupCodes[0]));
   assert.equal((await call('two-factor/verify-totp',{code:totp(secret)})).ok,true);
   const enrolled=await auth.api.getSession({headers:headers()});assert.ok(enrolled?.user.twoFactorEnabled);assert.notEqual(enrolled.session.id,before.session.id);
+  await verifyMfaBackupSecret({tables:[{name:'authUser',rows:[{id:enrolled.user.id,twoFactorEnabled:true}]},{name:'twoFactor',rows:store.twoFactor}]},'in-memory-only-deterministic-secret-for-mfa-qa-2026');
   const enrollmentProof=proofs.findLast(proof=>proof.factor==='mfa');assert.equal(enrollmentProof?.token,enrolled.session.token,'The persisted assurance must belong to the rotated session, not the deleted enrollment session.');
   await call('sign-out',{});
   const login=await call('sign-in/email',{email:'security-qa@example.test',password});assert.equal(login.body.twoFactorRedirect,true);assert.equal(await auth.api.getSession({headers:headers()}),null,'A pending factor is not an authenticated session.');

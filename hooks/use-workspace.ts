@@ -1,7 +1,7 @@
 'use client';
 import { currentWorkspaceId } from '@/lib/workspace-client';
 import { workspaceHome } from '@/lib/workspace-model';
-import { workspaceFetch } from '@/lib/workspace-client';
+import {daybookFetch} from '@/lib/browser-request';
 
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -17,7 +17,7 @@ class ReadError extends Error {
 }
 
 async function read<T>(path: string, signal: AbortSignal): Promise<T> {
-  const response = await workspaceFetch(path, { signal, cache: 'no-store' });
+  const response = await daybookFetch(path, { signal, cache: 'no-store' });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
     throw new ReadError(typeof result.error === 'string' ? result.error : 'No se pudo actualizar la conversación.', response.status);

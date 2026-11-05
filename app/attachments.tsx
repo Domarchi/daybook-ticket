@@ -1,7 +1,7 @@
 'use client';
 import { workspaceApiPath } from '@/lib/workspace-model';
 import { currentWorkspaceId } from '@/lib/workspace-client';
-import { workspaceFetch } from '@/lib/workspace-client';
+import {daybookFetch} from '@/lib/browser-request';
 
 import { useEffect, useId, useRef, useState } from 'react';
 import { Download, Eye, FileText, Paperclip, X } from 'lucide-react';
@@ -33,7 +33,7 @@ function AttachmentPreview({ attachment, onClose }: { attachment: PreviewFile; o
     let objectUrl: string | undefined;
     void (async () => {
       try {
-        const response = await workspaceFetch(`/api/attachments/${attachment.id}/preview`, { cache: 'no-store', credentials: 'same-origin', signal: controller.signal });
+        const response = await daybookFetch(`/api/attachments/${attachment.id}/preview`, { cache: 'no-store', credentials: 'same-origin', signal: controller.signal });
         if (!response.ok) throw new Error('No se pudo abrir el archivo. Comprueba tu acceso o vuelve a intentarlo.');
         const type = response.headers.get('Content-Type') || '';
         if (!['image/png', 'image/jpeg', 'image/webp', 'application/pdf'].includes(type)) throw new Error('Este formato no tiene vista previa.');

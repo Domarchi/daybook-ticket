@@ -1,5 +1,7 @@
 import type { Database } from '../db/database';
 import { ApiError } from './server';
+import {acquireTicketWorkLock} from './work-lock';
+import {lockWorkspaceState,assertWorkspaceOperational} from './workspaces';
 
 export async function hashInvite(token: string) {
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
@@ -28,6 +30,11 @@ export async function acceptInvitation(database:Database,token:string,user:{user
   if(!/^[a-f0-9]{64}$/.test(token))throw new ApiError(400,'La invitación no es válida.');
   const hash=await hashInvite(token);
   return database.transaction(async tx=>{
+    const target=(await tx.query('SELECT "ownerId" FROM invitations WHERE "tokenHash"=$1',[hash])).rows[0];
+    if(!target)throw new ApiError(403,'Inicia sesión con el correo de esta invitación.');
+    await acquireTicketWorkLock(tx,target.ownerId);
+    await lockWorkspaceState(tx,target.ownerId);
+    await assertWorkspaceOperational(target.ownerId,tx,true);
     const invitation=(await tx.query(`SELECT i.*,m.email,m."organizationId",m.status,m."userId" FROM invitations i JOIN members m ON m.id=i."memberId" AND m."ownerId"=i."ownerId" WHERE i."tokenHash"=$1 FOR UPDATE OF i,m`,[hash])).rows[0];
     if(!invitation||invitation.email.toLowerCase()!==user.email.toLowerCase())throw new ApiError(403,'Inicia sesión con el correo de esta invitación.');
     if(invitation.acceptedAt){if(invitation.acceptedUserId!==user.userId||invitation.userId!==user.userId||invitation.status!=='active')throw new ApiError(409,'La invitación ya no permite activar esta cuenta.');return{workspaceId:invitation.organizationId,accepted:true};}

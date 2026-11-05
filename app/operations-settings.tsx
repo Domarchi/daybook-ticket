@@ -1,5 +1,5 @@
 'use client';
-import { workspaceFetch } from '@/lib/workspace-client';
+import {daybookFetch} from '@/lib/browser-request';
 
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { ArrowRight, CalendarClock, Check, CheckCircle2, ChevronDown, Edit3, Loader2, Plus, RefreshCw, Route, Trash2, UsersRound } from 'lucide-react';
@@ -55,7 +55,7 @@ function useOperationsRequests(memberId?: string) {
         headers.set('Content-Type', 'application/json');
       if (memberId)
         headers.set('X-Daybook-Member-Id', memberId);
-      const response = await workspaceFetch(path, { method, headers, cache: 'no-store', signal: controller.signal,
+      const response = await daybookFetch(path, { method, headers, cache: 'no-store', signal: controller.signal,
         body: body === undefined ? undefined : JSON.stringify(body) });
       const value: unknown = await response.json().catch(() => null);
       if (!response.ok) {

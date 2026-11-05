@@ -18,6 +18,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, ChevronRight, CircleHelp, Clock3, Headphones, LoaderCircle, LogOut, MessageSquare, Plus, RefreshCw, Search, Send, ShieldCheck, Ticket as TicketIcon, X } from 'lucide-react';
 import type { Message, Ticket, TicketPriority, TicketStatus, Workspace } from '../lib/types';
 import Brand from './brand';
+import {SecurityCenter} from './security-center';
 import {ThemeControl} from './evolution-controls';
 import { LiveStatus } from './live-status';
 import type { ConnectionStatus } from '@/hooks/use-workspace';
@@ -59,7 +60,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [section, setSection] = useState<'tickets' | 'help'>('tickets');
+  const [section, setSection] = useState<'tickets' | 'help' | 'security'>('tickets');
   const [selectedId, setSelectedId] = useState<number | null>(() => { const id = Number(searchParams.get('ticket')); return Number.isSafeInteger(id) && id > 0 ? id : null; });
   const [creating, setCreating] = useState(false);
   const [search, setSearch] = useState('');
@@ -95,7 +96,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
 
   useEffect(() => { headingRef.current?.focus(); }, [selectedId, creating, section]);
 
-  const navigate = (next: 'tickets' | 'help') => {
+  const navigate = (next: 'tickets' | 'help' | 'security') => {
     if (busy) return;
     setSection(next); setSelectedId(null); setCreating(false); setSearch(''); setError('');
   };
@@ -158,8 +159,9 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
       <nav aria-label="Portal de clientes">
         <button className={section === 'tickets' ? 'is-active' : ''} onClick={() => navigate('tickets')} disabled={busy}><TicketIcon size={17} />{isCompanyManager ? 'Tickets de mi empresa' : 'Mis tickets'}</button>
         <button className={section === 'help' ? 'is-active' : ''} onClick={() => navigate('help')} disabled={busy}><BookOpen size={17} />Centro de ayuda</button>
+        <button className={section==='security'?'is-active':''} onClick={()=>navigate('security')} disabled={busy}><ShieldCheck size={17}/>Seguridad</button>
       </nav>
-      <div className="client-account"><span>{displayName}<small>{email}</small></span><button disabled={busy} onClick={signOut} aria-label="Cerrar sesión" title="Cerrar sesión"><LogOut size={18} /></button></div>
+      <div className="client-account"><button type="button" className="profile-security" onClick={()=>navigate('security')} disabled={busy} title="Gestionar seguridad de mi cuenta">{displayName}<small>{email}</small></button><button disabled={busy} onClick={signOut} aria-label="Cerrar sesión" title="Cerrar sesión"><LogOut size={18} /></button></div>
     </header>
 
     <main className="client-main">
@@ -167,7 +169,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
       {error && <div className="client-feedback error" role="alert"><CircleHelp size={18} /><p>{error}</p><button aria-label="Cerrar aviso" onClick={() => setError('')}><X size={17} /></button></div>}
       {notice && <div className="client-feedback success" role="status"><CheckCircle2 size={18} /><p>{notice}</p><button aria-label="Cerrar confirmación" onClick={() => setNotice('')}><X size={17} /></button></div>}
 
-      {creating ? <>
+      {section==='security'?<><div className="client-heading"><h1 ref={headingRef} tabIndex={-1}>Seguridad de mi cuenta</h1></div><SecurityCenter key={`security:${data.viewer!.id}`} memberId={data.viewer!.id}/></>:creating ? <>
         <button className="client-back" onClick={() => { setCreating(false); setError(''); }} disabled={busy}><ArrowLeft size={16} />Volver</button>
         <div className="client-heading"><div><span className="eyebrow">ESTAMOS PARA AYUDARTE</span><h1 ref={headingRef} tabIndex={-1}>Cuéntanos qué necesitas</h1><p>Tu solicitud tendrá un número de seguimiento y una conversación con nuestro equipo.</p></div><span className="client-heading-icon"><MessageSquare size={27} /></span></div>
         <form className="client-new-ticket" onSubmit={createTicket}>

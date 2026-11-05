@@ -1,5 +1,5 @@
 'use client';
-import { workspaceFetch } from '@/lib/workspace-client';
+import {daybookFetch} from '@/lib/browser-request';
 
 
 import { useEffect, useState } from 'react';
@@ -26,7 +26,7 @@ export function AgentMetricsPanel({ companies, memberId }: { companies: Customer
   useEffect(() => {
     if (incomplete) return;
     const controller = new AbortController();
-    void workspaceFetch(`/api/metrics/agents?${query}`, { cache: 'no-store', signal: controller.signal,
+    void daybookFetch(`/api/metrics/agents?${query}`, { cache: 'no-store', signal: controller.signal,
       ...(memberId ? { headers: { 'X-Daybook-Member-Id': memberId } } : {}),
     })
       .then(async response => {

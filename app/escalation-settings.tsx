@@ -1,5 +1,5 @@
 'use client';
-import { workspaceFetch } from '@/lib/workspace-client';
+import {daybookFetch} from '@/lib/browser-request';
 
 
 import { useEffect, useRef, useState } from 'react';
@@ -18,7 +18,7 @@ export function EscalationSettingsPanel({ memberId, members }: { memberId: strin
     mounted.current = true;
     const version = ++readRevision.current;
     const controller = new AbortController();
-    void workspaceFetch('/api/escalations', { cache: 'no-store', headers: { 'X-Daybook-Member-Id': memberId }, signal: controller.signal })
+    void daybookFetch('/api/escalations', { cache: 'no-store', headers: { 'X-Daybook-Member-Id': memberId }, signal: controller.signal })
       .then(async response => { const value = await response.json(); if (!response.ok) throw new Error(value.error || 'No se pudo consultar el escalamiento.'); if (!controller.signal.aborted && readRevision.current === version) { setPolicy(value); setPersisted(value); setError(''); } })
       .catch(failure => { if (!controller.signal.aborted && readRevision.current === version) setError(failure instanceof Error ? failure.message : 'No se pudo consultar el escalamiento.'); });
     return () => { controller.abort(); mounted.current = false; };
@@ -34,7 +34,7 @@ export function EscalationSettingsPanel({ memberId, members }: { memberId: strin
     try {
       const { activatedAt: _activated, ...body } = policy;
       void _activated;
-      const response = await workspaceFetch('/api/escalations', { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Daybook-Member-Id': memberId }, body: JSON.stringify(body) });
+      const response = await daybookFetch('/api/escalations', { method: 'PATCH', headers: { 'Content-Type': 'application/json', 'X-Daybook-Member-Id': memberId }, body: JSON.stringify(body) });
       const value = await response.json();
       if (!response.ok) throw new Error(value.error || 'No se pudo guardar el escalamiento.');
       if (mounted.current) { setPolicy(value); setPersisted(value); setNotice('Configuración de escalamiento guardada.'); }

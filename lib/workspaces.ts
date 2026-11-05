@@ -12,7 +12,7 @@ export async function readCommercialWorkspace(id:string,database=db()){return da
 export async function assertWorkspaceOperational(ownerId:string,query:Pick<PoolClient,'query'>,allowSetup=false){
   const profile=(await query.query('SELECT o.id,p.state FROM organizations o LEFT JOIN "workspaceProfiles" p ON p."workspaceId"=o.id AND p."ownerId"=o."ownerId" WHERE o."ownerId"=$1',[ownerId])).rows[0];
   if(profile?.id==='daybook')return;
-  if(!profile?.state||(profile.state!=='active'&&!allowSetup))throw new ApiError(423,'Este espacio está en incorporación o en pausa. Sus datos se conservan.');
+  if(!profile?.state||(profile.state!=='active'&&!(allowSetup&&profile.state==='draft')))throw new ApiError(423,'Este espacio está en incorporación o en pausa. Sus datos se conservan.');
 }
 /** Separate from quota row locks: readers must not upgrade a shared profile row
  * to FOR UPDATE when a quota trigger runs later in the same transaction. */

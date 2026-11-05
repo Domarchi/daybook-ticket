@@ -1,5 +1,5 @@
 'use client';
-import { workspaceFetch } from '@/lib/workspace-client';
+import {daybookFetch} from '@/lib/browser-request';
 
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -35,7 +35,7 @@ export function EmailInboundPanel({ memberId, administrator = false }: { memberI
   const refresh = useCallback(() => setRevision(value => value + 1), []);
   useEffect(() => {
     const controller = new AbortController();
-    void workspaceFetch('/api/email-inbound', { cache: 'no-store', signal: controller.signal, headers: { 'X-Daybook-Member-Id': memberId } })
+    void daybookFetch('/api/email-inbound', { cache: 'no-store', signal: controller.signal, headers: { 'X-Daybook-Member-Id': memberId } })
       .then(async response => { const result = await response.json(); if (!response.ok) throw new Error(result.error || 'No se pudo consultar el correo entrante.'); return result as State; })
       .then(result => { if (!controller.signal.aborted) { setState(result); setError(''); setLoading(false); } })
       .catch(failure => { if (!controller.signal.aborted) { setError(failure instanceof Error ? failure.message : 'No se pudo consultar el correo entrante.'); setLoading(false); } });
@@ -52,7 +52,7 @@ export function EmailInboundPanel({ memberId, administrator = false }: { memberI
     const operationId = retryKeys.current.get(providerId) || crypto.randomUUID();
     retryKeys.current.set(providerId, operationId); setRetrying(providerId); setError('');
     try {
-      const response = await workspaceFetch(`/api/email-inbound/${providerId}/retry`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Daybook-Member-Id': memberId }, body: JSON.stringify({ operationId }) });
+      const response = await daybookFetch(`/api/email-inbound/${providerId}/retry`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Daybook-Member-Id': memberId }, body: JSON.stringify({ operationId }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'No se pudo reintentar el ingreso.');
       retryKeys.current.delete(providerId); refresh();

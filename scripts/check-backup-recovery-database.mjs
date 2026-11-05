@@ -3,6 +3,7 @@ import {seedQaWorkspaceProfiles} from './qa-workspace-profile.mjs';
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import pg from 'pg';
+import {symmetricEncrypt} from 'better-auth/crypto';
 import { Database } from '../db/database.ts';
 import { BACKUP_TABLES, RELIABILITY_BACKUP_TABLES, ADDED_BACKUP_COLUMNS, canonicalBackupRows, decryptBackup, encryptBackup, sha256 } from '../lib/backup-format.ts';
 import { createWorkspaceBackup, restoreWorkspaceBackup, backupRestoreStorage } from '../lib/workspace-backup.ts';
@@ -162,10 +163,33 @@ try {
   assert.equal(archive.tables.find(table => table.name === 'invitations').rows.length, 0, 'Temporary invitation credentials never enter a new archive.');
   assert.equal((await readInvitation(database, invitationToken))?.id, invited, 'Export never revokes the source invitation.');
   await assert.rejects(createWorkspaceBackup({ ...access, role: 'admin' }, database, sourceStorage), error => error.status === 403);
+  // MFA lives only in this in-memory manifest and isolated recovery schemas. No public audit/factor rows are inserted.
+  const fixtureAuthSecret='fictitious-original-authentication-secret-for-recovery-only';
+  if(BACKUP_TABLES.includes('twoFactor')){
+    const auth=archive.tables.find(table=>table.name==='authUser').rows.find(row=>row.id===authIds[0]);assert.ok(auth);auth.twoFactorEnabled=true;
+    const factor={id:randomUUID(),userId:authIds[0],secret:await symmetricEncrypt({key:fixtureAuthSecret,data:'fictitious-random-totp-secret-32'}),backupCodes:await symmetricEncrypt({key:fixtureAuthSecret,data:JSON.stringify(['qa-recovery-code-one','qa-recovery-code-two'])}),verified:true,failedVerificationCount:0,lockedUntil:null};
+    const seeds={twoFactor:factor,securityProfiles:{userId:authIds[0],recoveryAcknowledgedAt:now,updatedAt:now},securityPolicies:{ownerId,requireStaffMfa:true,activatedAt:now,version:1,updatedAt:now},securityAudit:{id:randomUUID(),ownerId,actorMemberId:owner,actorUserId:authIds[0],actorName:'Propietario ficticio',action:'policy_enabled',targetId:null,createdAt:now}};
+    for(const [name,row] of Object.entries(seeds)){const table=archive.tables.find(table=>table.name===name);assert.ok(table);table.rows=[Object.fromEntries(table.columns.map(column=>[column,row[column]??null]))];}
+    const features=archive.tables.find(table=>table.name==='evolutionFeatures');if(features?.rows[0])features.rows[0].featuresJson=JSON.stringify({...JSON.parse(features.rows[0].featuresJson),security:true});
+    for(const table of archive.tables)table.sha256=sha256(canonicalBackupRows(table.rows));
+  }
   const encrypted = encryptBackup(archive, 'qa-only-recovery-password'), recovered = decryptBackup(encrypted, 'qa-only-recovery-password');
   assert.deepEqual(recovered, archive);
   await cloneEmpty(schema); await cloneEmpty(failedSchema);
-  const result = await restoreWorkspaceBackup(recovered, database, targetStorage, { environment: 'qa', schema });
+  if(BACKUP_TABLES.includes('twoFactor')){
+    const unavailable={async transaction(){assert.fail('An invalid original key must fail before SQL.');}},noFiles={...fakeStorage(new Map()),async write(){assert.fail('An invalid original key must fail before file writes.');}};
+    await assert.rejects(restoreWorkspaceBackup(recovered,unavailable,noFiles,{environment:'qa',schema,authSecret:''}),/original authentication secret is required/);
+    await assert.rejects(restoreWorkspaceBackup(recovered,unavailable,noFiles,{environment:'qa',schema,authSecret:'wrong-fictitious-key'}),/cannot verify/);
+  }
+  const result = await restoreWorkspaceBackup(recovered, database, targetStorage, { environment: 'qa', schema,authSecret:fixtureAuthSecret });
+  if(BACKUP_TABLES.includes('twoFactor')){
+    assert.equal((await pool.query(`SELECT "twoFactorEnabled" FROM "${schema}"."authUser" WHERE id=$1`,[authIds[0]])).rows[0].twoFactorEnabled,true);
+    assert.equal((await pool.query(`SELECT "requireStaffMfa" FROM "${schema}"."securityPolicies" WHERE "ownerId"=$1`,[ownerId])).rows[0].requireStaffMfa,true);
+    assert.equal((await pool.query(`SELECT "recoveryAcknowledgedAt" FROM "${schema}"."securityProfiles" WHERE "userId"=$1`,[authIds[0]])).rows[0].recoveryAcknowledgedAt,now);
+    assert.equal((await pool.query(`SELECT verified FROM "${schema}"."twoFactor" WHERE "userId"=$1`,[authIds[0]])).rows[0].verified,true);
+    assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${schema}"."securityAudit" WHERE action='policy_enabled'`)).rows[0].n,1);
+    assert.equal(JSON.parse((await pool.query(`SELECT "featuresJson" FROM "${schema}"."evolutionFeatures"`)).rows[0].featuresJson).security,true);
+  }
   assert.equal(result.restored, true); assert.equal(result.fingerprints.length, BACKUP_TABLES.length); assert.equal(result.files, expectedFiles);
   assert.equal(result.temporaryCredentialsRestored, false);
   if(BACKUP_TABLES.includes('serviceContextNotificationSettings')){
@@ -198,11 +222,11 @@ try {
   if (!realStorage) { assert.equal(restoredFiles.size, expectedFiles); assert.deepEqual([...restoredFiles.values()].map(sha256).sort(), [...fileMap.values()].map(sha256).sort()); }
   else assert.equal(realPaths.length, expectedFiles, 'Two private QA objects were written and verified by the recovery operator.');
   const countBefore = restoredFiles.size;
-  await assert.rejects(restoreWorkspaceBackup(recovered, database, targetStorage, { environment: 'qa', schema }), /empty destination/);
+  await assert.rejects(restoreWorkspaceBackup(recovered, database, targetStorage, { environment: 'qa', schema,authSecret:fixtureAuthSecret }), /empty destination/);
   assert.equal(restoredFiles.size, countBefore, 'Refusing an occupied destination creates no new files.');
   if (realStorage) assert.equal(realPaths.length, expectedFiles);
   const brokenFiles = new Map(), broken = { ...fakeStorage(brokenFiles), async write(pathname, bytes) { brokenFiles.set(pathname, Buffer.from('corrupt')); void bytes; } };
-  await assert.rejects(restoreWorkspaceBackup(recovered, database, broken, { environment: 'qa', schema: failedSchema }), /checksum|size/i);
+  await assert.rejects(restoreWorkspaceBackup(recovered, database, broken, { environment: 'qa', schema: failedSchema,authSecret:fixtureAuthSecret }), /checksum|size/i);
   assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${failedSchema}".tickets`)).rows[0].n, 0);
   assert.equal(brokenFiles.size, 0, 'Failed pre-commit copies are cleaned after rollback.');
   // The v1 reader must also accept old archives, verify their original rows and invalidate
@@ -223,7 +247,7 @@ try {
   assert.equal(uncertainFiles.size, 2, 'An uncertain commit never deletes files that the committed rows reference.');
   assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${failedSchema}".tickets`)).rows[0].n, expectedTickets);
   await assertTemporaryCredentialsNotRestored(failedSchema);
-  console.log(JSON.stringify({ result: 'PASS', tables: BACKUP_TABLES.length, files: expectedFiles, storage: realStorage ? 'real-private-qa' : 'injected-private', checks: ['owner-only-export', 'private-note-and-file-preservation', 'credential-and-microsecond-preservation', 'temporary-credentials-excluded', 'legacy-v1-credentials-invalidated', 'invited-members-preserved', 'encrypted-exact-roundtrip', 'real-foreign-keys', 'empty-destination-only', 'all-row-checksums', 'private-file-hashes', 'restored-deliveries-paused', ...(knowledgeFixture?['knowledge-approved-history-preserved','knowledge-publication-access-paused','monthly-report-exact-private-snapshot']:[]), 'corrupt-file-rollback', 'uncertain-commit-keeps-files'], externalEmailRequests: 0 }));
+  console.log(JSON.stringify({ result: 'PASS', tables: BACKUP_TABLES.length, files: expectedFiles, storage: realStorage ? 'real-private-qa' : 'injected-private', checks: ['owner-only-export', 'private-note-and-file-preservation', 'credential-and-microsecond-preservation', 'temporary-credentials-excluded', 'legacy-v1-credentials-invalidated', 'invited-members-preserved', 'encrypted-exact-roundtrip', 'real-foreign-keys', 'empty-destination-only', 'all-row-checksums', 'private-file-hashes', 'restored-deliveries-paused', 'encrypted-mfa-preserved-with-original-key', 'missing-or-wrong-mfa-key-fails-before-SQL', ...(knowledgeFixture?['knowledge-approved-history-preserved','knowledge-publication-access-paused','monthly-report-exact-private-snapshot']:[]), 'corrupt-file-rollback', 'uncertain-commit-keeps-files'], externalEmailRequests: 0 }));
 } finally {
   const storageCleanupErrors = [];
   for (const pathname of realPaths) {
@@ -232,8 +256,9 @@ try {
   }
   // Test-owned isolated schemas only. No existing schema/table is dropped.
   for (const destination of [schema, failedSchema]) await pool.query(`DROP SCHEMA IF EXISTS "${destination}" CASCADE`);
-  for (const table of [...BACKUP_TABLES].reverse().filter(table => !['authUser', 'authAccount'].includes(table))) {
-    if(table==='userPreferences'){await pool.query('DELETE FROM \"userPreferences\" WHERE \"userId\"=ANY($1::text[])',[authIds]);continue;}
+  if(BACKUP_TABLES.includes('securityAudit'))assert.equal((await pool.query('SELECT count(*)::int AS n FROM \"securityAudit\" WHERE \"ownerId\"=$1',[ownerId])).rows[0].n,0,'MFA audit fixtures must remain only in the manifest/isolated schemas.');
+  for (const table of [...BACKUP_TABLES].reverse().filter(table => !['authUser', 'authAccount','securityAudit'].includes(table))) {
+    if(['userPreferences','securityProfiles','twoFactor'].includes(table)){await pool.query(`DELETE FROM \"${table}\" WHERE \"userId\"=ANY($1::text[])`,[authIds]);continue;}
     const where = table === 'inboundMailJobFiles' ? '"providerId" IN (SELECT "providerId" FROM "inboundMailJobs" WHERE "ownerId"=$1)' : '"ownerId"=$1';
     await pool.query(`DELETE FROM "${table}" WHERE ${where}`, [ownerId]);
   }
