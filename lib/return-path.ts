@@ -15,7 +15,7 @@ export function safeTicketReturnPath(value: unknown): string {
     if(url.origin!=='https://daybook.invalid'||url.pathname!==value.split('?')[0]||url.hash||url.pathname!=='/'&&!workspace)return '/';
     const keys=[...url.searchParams.keys()];
     if(keys.some(key=>!['ticket','serviceContext','company'].includes(key)||url.searchParams.getAll(key).length!==1))return '/';
-    if(url.searchParams.has('ticket')&&(keys.length!==1||!/^\d+$/.test(url.searchParams.get('ticket')!)))return '/';
+    if(url.searchParams.has('ticket')&&(keys.length!==1||!/^\d+$/.test(url.searchParams.get('ticket')!)||!Number.isSafeInteger(Number(url.searchParams.get('ticket')))||Number(url.searchParams.get('ticket'))<=0))return '/';
     if(!url.searchParams.has('ticket')&&keys.length&&(url.searchParams.get('serviceContext')!=='1'||url.searchParams.has('company')&&!companyId.test(url.searchParams.get('company')!)))return '/';
     return portalReturnPath(workspace?.[1]??'daybook',Object.fromEntries(url.searchParams));
   }catch{return '/';}

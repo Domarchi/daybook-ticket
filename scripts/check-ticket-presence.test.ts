@@ -25,6 +25,7 @@ function fixture(options: { fresh?: MemberRecord | null; currentTicket?: typeof 
     transactions++;
     return work({ query: async (sql: string, values: unknown[] = []) => {
       calls.push({ sql, values });
+      if(sql.includes('LEFT JOIN "workspaceProfiles"'))return {rows:[{id:access.organizationId,state:'active'}]};
       if (sql.includes('SELECT * FROM members')) return { rows: options.fresh === null ? [] : [options.fresh || member] };
       if (sql.includes('SELECT * FROM tickets')) return { rows: options.currentTicket === null ? [] : [options.currentTicket || ticket] };
       if (sql.includes('count(DISTINCT')) return { rows: [{ total: options.tabs || 0, known: false }] };

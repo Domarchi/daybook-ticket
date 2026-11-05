@@ -169,7 +169,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
       {error && <div className="client-feedback error" role="alert"><CircleHelp size={18} /><p>{error}</p><button aria-label="Cerrar aviso" onClick={() => setError('')}><X size={17} /></button></div>}
       {notice && <div className="client-feedback success" role="status"><CheckCircle2 size={18} /><p>{notice}</p><button aria-label="Cerrar confirmación" onClick={() => setNotice('')}><X size={17} /></button></div>}
 
-      {section==='security'?<><div className="client-heading"><h1 ref={headingRef} tabIndex={-1}>Seguridad de mi cuenta</h1></div><SecurityCenter key={`security:${data.viewer!.id}`} memberId={data.viewer!.id}/></>:creating ? <>
+      {section==='security'?<><div className="client-heading"><h1 ref={headingRef} tabIndex={-1}>Seguridad de mi cuenta</h1></div><SecurityCenter key={`security:${data.viewer!.id}`} memberId={data.viewer!.id} returnTo={workspaceHome(currentWorkspaceId())}/></>:creating ? <>
         <button className="client-back" onClick={() => { setCreating(false); setError(''); }} disabled={busy}><ArrowLeft size={16} />Volver</button>
         <div className="client-heading"><div><span className="eyebrow">ESTAMOS PARA AYUDARTE</span><h1 ref={headingRef} tabIndex={-1}>Cuéntanos qué necesitas</h1><p>Tu solicitud tendrá un número de seguimiento y una conversación con nuestro equipo.</p></div><span className="client-heading-icon"><MessageSquare size={27} /></span></div>
         <form className="client-new-ticket" onSubmit={createTicket}>

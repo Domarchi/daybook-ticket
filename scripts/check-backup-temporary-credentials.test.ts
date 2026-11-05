@@ -22,6 +22,8 @@ async function portableArchive() {
     queries.push(sql);
     if (sql.startsWith('SET ')) return { rows: [] };
     if (sql.includes('pg_try_advisory_xact_lock')) return { rows: [{ locked: true }] };
+      if(sql.includes('pg_advisory_xact_lock'))return {rows:[]};
+      if(sql.includes('LEFT JOIN \"workspaceProfiles\"'))return {rows:[{id:owner.organizationId,state:'active'}]};
     if (sql.startsWith('SELECT * FROM members')) return { rows: [owner] };
     if (sql.includes('FROM information_schema.columns')) return { rows: tableColumns(values?.[1] as BackupTable).map(column_name => ({ column_name, data_type: 'text' })) };
     const table = /FROM "([^"]+)" WHERE/.exec(sql)?.[1] as BackupTable;

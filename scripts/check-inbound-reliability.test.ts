@@ -177,6 +177,7 @@ test('the final ingestion fence checks the current time rather than the timestam
   let checkedAt = '';
   const database = { async transaction(work: (tx: unknown) => Promise<unknown>) {
     return work({ async query(sql: string, values?: unknown[]) {
+      if(sql.includes('LEFT JOIN "workspaceProfiles"'))return {rows:[{id:'daybook',state:null}]};
       if (sql.includes('FROM "inboundMailJobs"')) checkedAt = String(values?.[3]);
       return { rows: [] };
     } });
