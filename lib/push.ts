@@ -1,4 +1,5 @@
 import {collaborationDeliveryValid} from './ticket-collaboration';
+import {registerPushSubscriptionBatch} from './push-registration-compat';
 import webpush from 'web-push';
 import { createECDH } from 'node:crypto';
 import { getDatabase } from '../db';
@@ -47,27 +48,7 @@ export async function registerPushSubscription(access: AccessContext, input: Bro
   const subscription = pushSubscriptionSchema.parse(input);
   const database = getDatabase();
   const now = new Date().toISOString();
-  const rows = await database.batch([
-    // The member lock keeps the device limit effective under concurrent registrations.
-    database.prepare('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))').bind(`push:${access.member.id}`),
-    database.prepare(`INSERT INTO "pushSubscriptions" (id, "ownerId", "memberId", endpoint, p256dh, auth, active, "createdAt", "updatedAt")
-      SELECT $1, $2, $3, $4, $5, $6, true, $7, $7
-      WHERE (SELECT COUNT(*) FROM "pushSubscriptions" WHERE "ownerId" = $2 AND "memberId" = $3 AND active = true AND endpoint <> $4) < 10
-      ON CONFLICT(endpoint) DO UPDATE SET
-        "ownerId" = EXCLUDED."ownerId", "memberId" = EXCLUDED."memberId", p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
-        active = true, "updatedAt" = EXCLUDED."updatedAt",
-        "createdAt" = CASE WHEN "pushSubscriptions".active = true AND "pushSubscriptions"."memberId" = EXCLUDED."memberId"
-          AND "pushSubscriptions"."ownerId" = EXCLUDED."ownerId" AND "pushSubscriptions".p256dh = EXCLUDED.p256dh AND "pushSubscriptions".auth = EXCLUDED.auth
-          THEN "pushSubscriptions"."createdAt" ELSE EXCLUDED."createdAt" END
-      WHERE ("pushSubscriptions"."ownerId" = EXCLUDED."ownerId" AND "pushSubscriptions"."memberId" = EXCLUDED."memberId")
-        OR ("pushSubscriptions".p256dh = EXCLUDED.p256dh AND "pushSubscriptions".auth = EXCLUDED.auth)
-      RETURNING id`).bind(crypto.randomUUID(), access.ownerId, access.member.id, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth, now),
-    database.prepare(`UPDATE "pushDeliveries" d SET status = 'cancelled', "leaseUntil" = NULL, "updatedAt" = $1
-      FROM "pushSubscriptions" s, "mailOutbox" o
-      WHERE d."subscriptionId" = s.id AND d."eventId" = o.id AND s.endpoint = $2
-      AND s."memberId" = $3 AND s."ownerId" = $4 AND d.status IN ('queued', 'processing')
-      AND (o."recipientMemberId" <> s."memberId" OR o."createdAt" < s."createdAt")`).bind(now, subscription.endpoint, access.member.id, access.ownerId),
-  ]);
+  const rows=await registerPushSubscriptionBatch(database,{id:crypto.randomUUID(),ownerId:access.ownerId,memberId:access.member.id,endpoint:subscription.endpoint,p256dh:subscription.keys.p256dh,auth:subscription.keys.auth,now});
   const id = rows[1].results[0]?.id;
   if (typeof id !== 'string') throw new ApiError(409, 'No se pudo activar este navegador. Puedes tener hasta diez activos; desactiva uno o renueva el permiso.');
   return { subscriptionId: id };
