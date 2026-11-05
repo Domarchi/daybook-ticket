@@ -266,13 +266,123 @@
 .client-conversation,.client-ticket-summary,.client-ticket-list,.client-new-ticket,.client-article,.client-reading,.client-overview>div{background:var(--client-surface);border-color:var(--line)}
 .client-detail-grid{align-items:start}.client-section-heading{background:var(--client-soft);border-radius:10px 10px 0 0}.client-messages{padding:4px 22px 0}.client-message{padding:23px 0}.client-message>div:last-child{flex:1;min-width:0}.client-message-avatar{background:#1b1d16;color:#edcf8e;border:1px solid #34372b}.client-message.is-own .client-message-avatar{background:var(--accent-soft);color:var(--accent);border-color:var(--line)}.client-message.is-own>div:last-child{background:var(--client-soft);border:1px solid var(--line);border-radius:0 11px 11px 11px;padding:14px 16px}.client-message header{gap:12px}.client-message p{color:var(--ink);line-height:1.75}.client-message time{font-size:11px}.client-composer{background:var(--client-surface);border-color:var(--line)}.client-composer label{background:var(--client-soft);border-color:var(--line)}.client-composer textarea,.client-new-ticket input,.client-new-ticket textarea,.client-new-ticket select{background:var(--client-surface);color:var(--ink);border-color:var(--line)}.client-ticket-summary{position:sticky;top:20px}.client-shell .client-heading.detail{margin-bottom:21px}.client-shell .client-heading.detail h1{font-size:30px;max-width:850px;overflow-wrap:anywhere}.client-shell .message-markdown{color:var(--ink)}
 @media(max-width:750px){.client-ticket-summary{position:static}.client-detail-grid{gap:13px}.client-messages{padding:0 14px}.client-message{padding:17px 0;gap:9px}.client-message.is-own>div:last-child{padding:11px 12px}.client-message p{font-size:13px;line-height:1.7}.client-message-avatar{width:28px;height:28px;font-size:11px}.client-shell .client-heading.detail h1{font-size:24px;line-height:1.4}.client-shell .client-heading.detail{margin-bottom:17px}.client-composer textarea{min-height:110px}.client-ticket-summary dl{gap:10px}.client-composer .message-editor-toolbar{flex-wrap:wrap}}
-@media(prefers-color-scheme:dark){
- .client-shell{color-scheme:dark;--client-surface:#20231c;--client-soft:#292c23;--paper:#151811;--ink:#f0f0e3;--muted:#b7bfaa;--line:#454c3b;--accent:#ecc777;--accent-soft:#3d3520}
- .client-shell .secondary,.client-shell .search-box,.client-shell .client-list-filters select,.client-shell .message-attachments a,.client-shell .attachment-preview{background:var(--client-surface);color:var(--ink);border-color:var(--line)}
- .client-shell .primary{background:#edc879;border-color:#edc879;color:#1a1c13}.client-shell .primary:hover{background:#f6d99a}.client-shell .secondary:hover,.client-article:hover{background:var(--client-soft)}.client-shell .client-header{background:#0e110b;border-color:var(--line)}.client-shell .client-header .client-brand{color:#f1f0df}.client-shell .status.open{background:#24384a;color:#b9d6f8}.client-shell .status.pending{background:#42371e;color:#f0ce80}.client-shell .status.resolved{background:#233c2a;color:#b7dfbd}.client-shell .client-overview-icon{background:var(--client-soft);color:var(--muted)}.client-shell .client-overview-icon.resolved{background:#233c2a;color:#b7dfbd}.client-help-cta{background:#302b1c;border-color:#67542d}.client-reading>div{color:var(--ink)}.client-shell .message-editor,.client-shell .message-editor-toolbar,.client-shell .message-editor-preview{background:var(--client-surface);color:var(--ink);border-color:var(--line)}.client-shell .message-markdown pre,.client-shell .message-markdown code{background:#151811;color:#e9e7d3}.public-progress-timeline .is-complete .public-progress-dot{background:#e6c371;border-color:#e6c371;color:#1b1d15}
+@media (prefers-color-scheme: dark) {
+  /* Neutral black hierarchy, with Daybook gold reserved for emphasis. */
+  .client-shell {
+    color-scheme: dark;
+    --paper: #000;
+    --navy: #000;
+    --client-surface: #0a0a0a;
+    --client-soft: #171717;
+    --ink: #ededed;
+    --muted: #a1a1a1;
+    --line: #2e2e2e;
+    --control-line: #636363;
+    --accent: #edc879;
+    --accent-soft: #241f13;
+  }
+  .client-shell .client-header { background: #000; border-color: var(--line); }
+  .client-shell .client-header .client-brand { color: var(--ink); }
+  .client-shell .client-header nav button.is-active { color: #0a0a0a; }
+  .client-shell .secondary,
+  .client-shell .search-box,
+  .client-shell .client-list-filters select,
+  .client-shell .message-attachments a,
+  .client-shell .attachment-preview,
+  .client-shell .message-editor,
+  .client-shell .message-editor-toolbar,
+  .client-shell .message-editor-preview,
+  .client-shell .message-editor-render {
+    background: var(--client-surface); color: var(--ink); border-color: var(--line);
+  }
+  .client-shell .search-box,
+  .client-shell .client-list-filters select,
+  .client-shell .client-new-ticket input,
+  .client-shell .client-new-ticket textarea,
+  .client-shell .client-new-ticket select { border-color: var(--control-line); }
+  .client-shell .primary { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
+  .client-shell .primary:hover { background: #f6d99a; }
+  .client-shell .secondary:hover,
+  .client-shell .client-article:hover,
+  .client-shell .client-ticket-row:hover { background: var(--client-soft); }
+  .client-shell .client-resource-link:hover { color: #f6d99a; }
+  .client-shell .client-overview-icon,
+  .client-shell .client-row-icon,
+  .client-shell .client-message-avatar { background: var(--client-soft); color: var(--muted); border-color: var(--line); }
+  .client-shell .client-message.is-own .client-message-avatar { background: var(--accent-soft); color: var(--accent); }
+  .client-shell .client-help-cta { background: var(--client-surface); border-color: var(--line); }
+  .client-shell .client-reading > div { color: var(--ink); }
+  .client-shell .status.open { background: #10233f; color: #b9d6f8; }
+  .client-shell .status.pending { background: #2b210e; color: #f0ce80; }
+  .client-shell .status.resolved,
+  .client-shell .client-overview-icon.resolved { background: #10261a; color: #b7dfbd; }
+  .client-shell .client-feedback.error { background: #2a1414; border-color: #653333; color: #fca5a5; }
+  .client-shell .client-feedback.success { background: #10261a; border-color: #2b6040; color: #b7dfbd; }
+  .client-shell .message-markdown pre,
+  .client-shell .message-markdown code,
+  .client-shell .message-content-rich code { background: #000; color: var(--ink); }
+  .client-shell .message-content-rich a { color: var(--accent); }
+  .client-shell .public-progress-timeline .is-complete .public-progress-dot { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
+  .client-shell .conversation-sync,
+  .client-shell .ticket-alert-desktop,
+  .client-shell .ticket-alert-desktop.is-blocked,
+  .client-shell .ticket-push-feedback { color: var(--muted); }
+
+  .client-shell .conversation-sync.connecting,
+  .client-shell .conversation-sync.reconnecting { color: var(--accent); }
+  .client-shell .conversation-sync.offline { color: #f4a69a; }
+
+  .client-shell .ticket-alert-control,
+  .client-shell .ticket-alert-panel,
+  .client-shell .ticket-alert-toast { background: var(--client-surface); color: var(--ink); border-color: var(--line); }
+  .client-shell .ticket-alert-panel,
+  .client-shell .ticket-alert-toast { box-shadow: 0 16px 48px #0009; }
+  .client-shell .ticket-alert-control:hover,
+  .client-shell .ticket-alert-icon-button:hover,
+  .client-shell .ticket-alert-item:hover,
+  .client-shell .ticket-alert-read-all:hover,
+  .client-shell .ticket-alert-load-more:hover { background: var(--client-soft); color: var(--ink); }
+  .client-shell .ticket-alert-control.is-enabled,
+  .client-shell .ticket-alert-control.is-open,
+  .client-shell .ticket-alert-filters button[aria-pressed="true"],
+  .client-shell .ticket-alert-item.is-unread { background: var(--accent-soft); color: var(--accent); border-color: #6c572e; }
+  .client-shell .ticket-alert-item.is-unread:hover { background: #302817; }
+  .client-shell .ticket-alert-panel-heading,
+  .client-shell .ticket-alert-filters,
+  .client-shell .ticket-alert-read-all,
+  .client-shell .ticket-alert-load-more,
+  .client-shell .ticket-alert-persistence,
+  .client-shell .ticket-alert-list li + li { border-color: var(--line); }
+  .client-shell .ticket-alert-filters,
+  .client-shell .ticket-alert-date-group,
+  .client-shell .ticket-alert-persistence,
+  .client-shell .ticket-alert-item-icon { background: var(--client-soft); color: var(--muted); }
+  .client-shell .ticket-alert-filters button,
+  .client-shell .ticket-alert-panel-heading p,
+  .client-shell .ticket-alert-item-kind,
+  .client-shell .ticket-alert-item-copy time,
+  .client-shell .ticket-alert-history-label,
+  .client-shell .ticket-alert-empty p,
+  .client-shell .ticket-alert-chevron,
+  .client-shell .ticket-alert-icon-button { color: var(--muted); }
+  .client-shell .ticket-alert-panel-heading h2,
+  .client-shell .ticket-alert-item-copy strong,
+  .client-shell .ticket-alert-empty strong,
+  .client-shell .ticket-alert-toast-copy > strong { color: var(--ink); }
+  .client-shell .ticket-alert-filters button span,
+  .client-shell .ticket-alert-badge { background: var(--client-soft); color: var(--accent); }
+  .client-shell .ticket-alert-read-all,
+  .client-shell .ticket-alert-load-more,
+  .client-shell .ticket-alert-toast-copy > span,
+  .client-shell .ticket-alert-toast-copy > button,
+  .client-shell .ticket-alert-item.is-unread .ticket-alert-item-kind { color: var(--accent); }
+  .client-shell .ticket-alert-item.is-unread .ticket-alert-item-icon,
+  .client-shell .ticket-alert-toast-icon { background: var(--accent-soft); color: var(--accent); }
+  .client-shell .ticket-alert-audio-error,
+  .client-shell .ticket-alert-error { background: #2a1414; color: #fca5a5; border-color: #653333; }
 }
+
 .client-shell{--surface:var(--client-surface)}
-@media(prefers-color-scheme:dark){.client-shell .message-content-rich a{color:#edc879}.client-shell .message-content-rich code{background:#151811;color:#e9e7d3}.client-shell .message-editor-render{background:var(--client-surface);color:var(--ink)}}
 /* Match the summary card's surface in both OS themes. The more specific
    original help-card selector otherwise retains a white background in dark. */
 .client-overview .client-overview-help{background:var(--client-surface)}
