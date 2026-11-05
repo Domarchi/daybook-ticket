@@ -2,6 +2,7 @@ import {seedQaWorkspaceProfiles} from './qa-workspace-profile.mjs';
 /** SERIAL: fictitious QA owner -> encrypted archive -> empty FK-checked schema -> exact recovery. */
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import {symmetricEncrypt} from 'better-auth/crypto';
 import { Database } from '../db/database.ts';
@@ -48,7 +49,37 @@ const baseTarget = realStorage ? backupRestoreStorage() : fakeStorage(restoredFi
 assert.equal(baseTarget.environment, 'qa');
 const targetStorage = { ...baseTarget, async write(pathname, bytes, type) { if (realStorage) realPaths.push(pathname); await baseTarget.write(pathname, bytes, type); } };
 const access = { ownerId, organizationId, userId: authIds[0], role: 'owner', member: { id: owner, name: 'Propietario ficticio', email: `${owner}@example.test`, role: 'owner', status: 'active', hasAccount: true, customerCompanyId: null, companyAccess: 'own', createdAt: now, updatedAt: now } };
+// LIKE INCLUDING ALL does not copy triggers. Exercise the immutable migration's
+// actual quota logic, with every relation bound to our isolated destination.
+const quotaMigration = BACKUP_TABLES.includes('workspaceProfiles') ? await readFile(new URL('../drizzle-postgres/0013_workspaces.sql', import.meta.url), 'utf8') : null;
+if (quotaMigration) assert.equal(sha256(quotaMigration), '19a3cefe6a40c0d3be54acd7ad3e093b4e49ce46538b2abf0cfe0da69297dd0b');
+function isolatedQuotaStatements(destination) {
+  assert.match(destination, /^daybook_restore_qa_[a-f0-9]{16}$/);
+  if (!quotaMigration) return [];
+  const original = quotaMigration.match(/CREATE FUNCTION "daybook_workspace_quota"\(\)[\s\S]+?END; \$\$;/)?.[0];
+  assert.ok(original, 'The pinned quota function must exist.');
+  const prefix = `"${destination}".`;
+  const relation = /\b(FROM|UPDATE) ("workspaceProfiles"|"mailOutbox"|members|tickets|messages|attachments)(?=\s)/g;
+  const qualified = original
+    .replace('CREATE FUNCTION "daybook_workspace_quota"()', `CREATE FUNCTION ${prefix}"daybook_workspace_quota"()`)
+    .replace('"workspaceProfiles"%ROWTYPE', `${prefix}"workspaceProfiles"%ROWTYPE`)
+    .replace(relation, (_, operation, table) => `${operation} ${prefix}${table}`);
+  assert.equal(qualified.replaceAll(prefix, ''), original, 'Isolation changes qualification only, never quota logic.');
+  assert.ok(!relation.test(qualified), 'All quota table reads and writes must be schema-qualified.');
+  assert.ok(qualified.includes(`${prefix}"workspaceProfiles"%ROWTYPE`));
+  const triggers = [...quotaMigration.matchAll(/CREATE TRIGGER "workspace_quota_[^"]+"[^;]+;/g)].map(([statement]) => {
+    const scoped = statement
+      .replace(/\bON (members|tickets|messages|attachments|"mailOutbox")(?= FOR)/, (_, table) => `ON ${prefix}${table}`)
+      .replace('EXECUTE FUNCTION "daybook_workspace_quota"()', `EXECUTE FUNCTION ${prefix}"daybook_workspace_quota"()`);
+    assert.equal(scoped.replaceAll(prefix, ''), statement);
+    assert.ok(scoped.includes(`ON ${prefix}`) && scoped.includes(`EXECUTE FUNCTION ${prefix}`));
+    return scoped;
+  });
+  assert.equal(triggers.length, 5);
+  return [qualified, ...triggers];
+}
 async function cloneEmpty(destination) {
+  const quotaStatements = isolatedQuotaStatements(destination);
   await database.transaction(async tx => {
     await tx.query(`CREATE SCHEMA "${destination}"`);
     for (const table of BACKUP_TABLES) await tx.query(`CREATE TABLE "${destination}"."${table}" (LIKE public."${table}" INCLUDING ALL)`);
@@ -56,7 +87,19 @@ async function cloneEmpty(destination) {
     await tx.query('SET LOCAL search_path=pg_catalog');
     const constraints = (await tx.query(`SELECT r.relname AS table_name,c.conname,pg_get_constraintdef(c.oid) AS definition FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid JOIN pg_namespace n ON n.oid=r.relnamespace WHERE n.nspname='public' AND r.relname=ANY($1::text[]) AND c.contype='f'`, [BACKUP_TABLES])).rows;
     for (const constraint of constraints) await tx.query(`ALTER TABLE "${destination}"."${constraint.table_name}" ADD CONSTRAINT "${constraint.conname}" ${constraint.definition.replaceAll('REFERENCES public.', `REFERENCES "${destination}".`)}`);
+    for (const statement of quotaStatements) await tx.query(statement);
+    if (quotaStatements.length) assert.equal((await tx.query(`SELECT count(*)::int AS n FROM pg_trigger t JOIN pg_class c ON c.oid=t.tgrelid JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_proc p ON p.oid=t.tgfoid WHERE n.nspname=$1 AND p.pronamespace=n.oid AND NOT t.tgisinternal AND t.tgname LIKE 'workspace_quota_%'`, [destination])).rows[0].n, 5);
   });
+}
+async function destinationFingerprints(destination) {
+  assert.match(destination, /^daybook_restore_qa_[a-f0-9]{16}$/);
+  const fingerprints = [];
+  for (const table of BACKUP_TABLES) {
+    // PostgreSQL JSON preserves timestamp microseconds, unlike pg's Date parser.
+    const rows = (await pool.query(`SELECT to_jsonb(item) AS row FROM "${destination}"."${table}" item`)).rows.map(result => result.row);
+    fingerprints.push({ table, rows: rows.length, sha256: sha256(canonicalBackupRows(rows)) });
+  }
+  return fingerprints;
 }
 async function assertTemporaryCredentialsNotRestored(destination) {
   assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${destination}".invitations`)).rows[0].n, 0);
@@ -146,7 +189,15 @@ try {
   const queuedId = randomUUID(), processingId = randomUUID();
   for (const [id, status] of [[queuedId, 'queued'], [processingId, 'processing']]) await pool.query('INSERT INTO "mailOutbox" (id,"ownerId","eventKey",event,"recipientMemberId","ticketId",status,attempts,"payloadJson","createdAt","updatedAt") VALUES ($1,$2,$1,\'ticket_created\',$3,$4,$5,1,$6,$7,$7)', [id, ownerId, owner, ticket, status, JSON.stringify({ fixture: 'frozen-qa-payload' }), now]);
   await pool.query('INSERT INTO "notificationSettings" ("ownerId","alertsActivatedAt","remindersEnabled","remindersActivatedAt") VALUES ($1,$2,true,$2)', [ownerId, now]);
+  if (quotaMigration) {
+    assert.equal(BACKUP_TABLES.at(-1), 'workspaceProfiles', 'Recover existing rows before restoring their admission limits.');
+    assert.equal((await pool.query('SELECT count(*)::int AS n FROM tickets WHERE "ownerId"=$1', [ownerId])).rows[0].n, 2);
+    const changed = await pool.query('UPDATE "workspaceProfiles" SET "limitsJson"=jsonb_set("limitsJson"::jsonb,\'{ticketsMonthly}\',\'1\'::jsonb)::text WHERE "ownerId"=$1 RETURNING "limitsJson"', [ownerId]);
+    assert.equal(changed.rowCount, 1);
+    assert.equal(JSON.parse(changed.rows[0].limitsJson).ticketsMonthly, 1);
+  }
   const archive = await createWorkspaceBackup(access, database, sourceStorage);
+  if (quotaMigration) assert.equal(JSON.parse(archive.tables.find(table => table.name === 'workspaceProfiles').rows[0].limitsJson).ticketsMonthly, 1);
   if(BACKUP_TABLES.includes('ticketTasks'))assert.equal(archive.tables.find(table=>table.name==='ticketTasks').rows[0].title,'Tarea ficticia recuperable');
   assert.equal(archive.tables.find(table=>table.name==='userPreferences').rows[0].theme,'dark');
   assert.equal(archive.tables.find(table=>table.name==='ticketFollowers').rows.length,1);
@@ -192,6 +243,18 @@ try {
   }
   assert.equal(result.restored, true); assert.equal(result.fingerprints.length, BACKUP_TABLES.length); assert.equal(result.files, expectedFiles);
   assert.equal(result.temporaryCredentialsRestored, false);
+  if (quotaMigration) {
+    assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${schema}".tickets WHERE "ownerId"=$1`, [ownerId])).rows[0].n, 2, 'Recovery preserves both tickets despite the reduced cap.');
+    const profile = (await pool.query(`SELECT state,"limitsJson","mailEnabled","inboundEnabled" FROM "${schema}"."workspaceProfiles" WHERE "ownerId"=$1`, [ownerId])).rows[0];
+    assert.equal(profile.state, 'draft'); assert.equal(JSON.parse(profile.limitsJson).ticketsMonthly, 1);
+    assert.equal(profile.mailEnabled, false); assert.equal(profile.inboundEnabled, false);
+    for (const table of ['tickets', 'workspaceProfiles']) assert.equal(result.fingerprints.find(item => item.table === table).sha256, recovered.tables.find(item => item.name === table).sha256);
+    const before = await destinationFingerprints(schema);
+    // Explicit id avoids advancing the shared public sequence on a rejected write.
+    await assert.rejects(pool.query(`INSERT INTO "${schema}".tickets (id,"ownerId","creationKey",subject,"requesterName","requesterEmail",department,"createdAt","updatedAt","dueAt","isTest") VALUES (-2147483648,$1,$2,'QA alta rechazada','Cliente ficticio',$3,'Soporte',$4,$4,$4,true)`, [ownerId, randomUUID(), `${client}@example.test`, now]), error => error.code === 'P0001' && error.message === 'workspace_quota_exceeded');
+    assert.deepEqual(await destinationFingerprints(schema), before, 'Quota denial preserves every recovered row, profile and fingerprint.');
+    assert.equal(JSON.parse((await pool.query('SELECT "limitsJson" FROM "workspaceProfiles" WHERE "ownerId"=$1', [ownerId])).rows[0].limitsJson).ticketsMonthly, 1, 'Recovery never changes the source limit.');
+  }
   if(BACKUP_TABLES.includes('serviceContextNotificationSettings')){
     assert.equal((await pool.query(`SELECT enabled FROM "${schema}"."serviceContextNotificationSettings"`)).rows[0].enabled,false);
     assert.equal((await pool.query(`SELECT "leaseToken" FROM "${schema}"."serviceContextJobHealth"`)).rows[0].leaseToken,null);
@@ -247,7 +310,7 @@ try {
   assert.equal(uncertainFiles.size, 2, 'An uncertain commit never deletes files that the committed rows reference.');
   assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${failedSchema}".tickets`)).rows[0].n, expectedTickets);
   await assertTemporaryCredentialsNotRestored(failedSchema);
-  console.log(JSON.stringify({ result: 'PASS', tables: BACKUP_TABLES.length, files: expectedFiles, storage: realStorage ? 'real-private-qa' : 'injected-private', checks: ['owner-only-export', 'private-note-and-file-preservation', 'credential-and-microsecond-preservation', 'temporary-credentials-excluded', 'legacy-v1-credentials-invalidated', 'invited-members-preserved', 'encrypted-exact-roundtrip', 'real-foreign-keys', 'empty-destination-only', 'all-row-checksums', 'private-file-hashes', 'restored-deliveries-paused', 'encrypted-mfa-preserved-with-original-key', 'missing-or-wrong-mfa-key-fails-before-SQL', ...(knowledgeFixture?['knowledge-approved-history-preserved','knowledge-publication-access-paused','monthly-report-exact-private-snapshot']:[]), 'corrupt-file-rollback', 'uncertain-commit-keeps-files'], externalEmailRequests: 0 }));
+  console.log(JSON.stringify({ result: 'PASS', tables: BACKUP_TABLES.length, files: expectedFiles, storage: realStorage ? 'real-private-qa' : 'injected-private', checks: ['owner-only-export', 'private-note-and-file-preservation', 'credential-and-microsecond-preservation', 'temporary-credentials-excluded', 'legacy-v1-credentials-invalidated', 'invited-members-preserved', 'encrypted-exact-roundtrip', 'real-foreign-keys', 'empty-destination-only', 'all-row-checksums', 'private-file-hashes', 'restored-deliveries-paused', 'encrypted-mfa-preserved-with-original-key', 'missing-or-wrong-mfa-key-fails-before-SQL', ...(quotaMigration?['schema-scoped-real-quota-triggers','recovery-above-reduced-ticket-cap','quota-denial-preserves-all-fingerprints']:[]), ...(knowledgeFixture?['knowledge-approved-history-preserved','knowledge-publication-access-paused','monthly-report-exact-private-snapshot']:[]), 'corrupt-file-rollback', 'uncertain-commit-keeps-files'], externalEmailRequests: 0 }));
 } finally {
   const storageCleanupErrors = [];
   for (const pathname of realPaths) {
