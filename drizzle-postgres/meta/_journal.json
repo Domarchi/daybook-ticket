@@ -73,9 +73,23 @@
       "breakpoints": true
     },
     {
+      "idx": 10,
+      "version": "7",
+      "when": 1793912003000,
+      "tag": "0010_automation",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793912004000,
+      "tag": "0011_knowledge",
+      "breakpoints": true
+    },
+    {
       "idx": 12,
       "version": "7",
-      "when": 1793892925793,
+      "when": 1793912005000,
       "tag": "0012_security",
       "breakpoints": true
     }

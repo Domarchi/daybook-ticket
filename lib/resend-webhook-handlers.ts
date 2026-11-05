@@ -32,8 +32,8 @@ export function createResendWebhookHandlers(dependencies: WebhookDependencies) {
     await recordDeliveryReceipt(getDatabase(), receipt);
   });
   const dispatchNotifications = dependencies.dispatchNotifications || (async ownerId => {
-    const [{ drainOutboxBestEffort }, { processPushOutboxBestEffort }] = await Promise.all([import('./mail'), import('./push')]);
-    await Promise.allSettled([drainOutboxBestEffort(ownerId), processPushOutboxBestEffort(ownerId)]);
+    const [{ drainOutboxBestEffort }, { processPushOutboxBestEffort },{drainAutomationBestEffort}] = await Promise.all([import('./mail'), import('./push'),import('./automation')]);
+    await Promise.allSettled([drainOutboxBestEffort(ownerId), processPushOutboxBestEffort(ownerId),drainAutomationBestEffort(ownerId)]);
   });
   const drainIncoming = dependencies.drainIncoming || (async (ownerId, providerId) => (await import('./inbound-email-jobs')).drainInboundMailBestEffort(ownerId, { providerId }));
 

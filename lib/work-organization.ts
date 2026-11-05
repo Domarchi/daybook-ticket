@@ -1,3 +1,4 @@
+import {enqueueAutomationEvent} from './automation';
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { ApiError, db } from './server';
@@ -159,7 +160,9 @@ export async function patchTicketOrganization(access: AccessContext,ticketId:num
     const names=tagIds.length?(await tx.query('SELECT name FROM "workOrganizationCatalog" WHERE "ownerId"=$1 AND id=ANY($2::text[]) ORDER BY name',[access.ownerId,tagIds])).rows.map(v=>v.name):[];
     const summary=(type:string|undefined,tags:string[],reason:string)=>`${type||'Solicitud general'} · Etiquetas: ${tags.join(', ')||'ninguna'} · Espera: ${reason||'sin motivo'}`;
     await recordEvent(tx,fresh,ticketId,'organization',summary(old.requestType?.name,old.tags.map(v=>v.name),old.waitReason??''),summary(metadata.requestType?.name,names,waitReason));
-    await tx.query('UPDATE tickets SET version=version+1,"updatedAt"=$1 WHERE id=$2 AND "ownerId"=$3',[now,ticketId,access.ownerId]);
+    const updatedTicket=(await tx.query('UPDATE tickets SET version=version+1,"updatedAt"=$1 WHERE id=$2 AND "ownerId"=$3 RETURNING version',[now,ticketId,access.ownerId])).rows[0];
+    const changed=operationHash({metadata,tagIds:[...tagIds].sort(),waitReason})!==operationHash({metadata:{requestType:old.requestType,form:old.form,values:old.values},tagIds:old.tags.map(tag=>tag.id).sort(),waitReason:old.waitReason??''});
+    if(changed)await enqueueAutomationEvent(tx,fresh,ticketId,`ticket:${ticketId}:version:${updatedTicket.version}`,'ticket_updated');
     return readTicketOrganizationTx(tx,fresh,ticketId);
   });
 }

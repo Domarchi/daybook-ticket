@@ -8,6 +8,7 @@ import { lockAccess } from './ticket-mutations';
 import { attachmentStorage, attachmentStorageConfig, readAttachmentBytes, type PrivateAttachmentStorage } from './attachments-storage';
 import { BACKUP_TABLES, compatibleBackupColumns, canonicalBackupRows, MAX_BACKUP_BYTES, sha256, validateBackup, type BackupRow, type WorkspaceBackup } from './backup-format';
 import { verifyMfaBackupSecret } from './mfa-backup';
+import {pauseKnowledgeFeaturesJson} from './knowledge-model';
 import { validateAttachment } from './attachments-validation';
 
 const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;
@@ -122,6 +123,7 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
         if (!source) continue; // A verified v1 archive predates the additive reliability tables.
         const target = await columns(tx, table, schema);
         if (!compatibleBackupColumns(table,target,source.columns)) throw new Error(`Schema version mismatch: ${table}`);
+
       }
       if (schema === 'public') for (const table of ['authSession', 'authVerification', 'authRateLimit','securityAssurances']) {
         if (Number((await tx.query(`SELECT count(*)::int AS n FROM ${qualified(schema, table)}`)).rows[0].n) !== 0) throw new Error('Recovery requires empty temporary authentication tables.');
@@ -157,6 +159,10 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
         await tx.query(`UPDATE ${qualified(schema,'serviceContextNotificationSettings')} SET enabled=false,"activatedAt"=NULL`);
         await tx.query(`UPDATE ${qualified(schema,'serviceContextJobHealth')} SET "leaseToken"=NULL,"leaseUntil"=NULL,"cursorKey"='',"lastErrorCode"='restore_paused'`);
       }
+      // Keep approved revisions and their recipients intact; publication access requires explicit reactivation after recovery.
+      if(backup.tables.some(table=>table.name==='knowledgeArticlePublications'))for(const row of backup.tables.find(table=>table.name==='evolutionFeatures')?.rows||[]){
+        await tx.query(`UPDATE ${qualified(schema,'evolutionFeatures')} SET "featuresJson"=$1,version=version+1,"updatedAt"=$2 WHERE "ownerId"=$3`,[pauseKnowledgeFeaturesJson(String(row.featuresJson)),new Date().toISOString(),backup.ownerId]);
+      }
       // Older v1 archives may contain these credentials. Verify their original fingerprints first,
       // then invalidate them before COMMIT; password hashes and account/provider identities stay intact.
       await tx.query(`DELETE FROM ${qualified(schema, 'invitations')}`);
@@ -171,6 +177,16 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
       await tx.query(`UPDATE ${qualified(schema, 'pushSubscriptions')} SET active=false`);
       await tx.query(`UPDATE ${qualified(schema, 'notificationJobHealth')} SET "leaseToken"=NULL,"leaseUntil"=NULL`);
       await tx.query(`UPDATE ${qualified(schema, 'assignmentRules')} SET enabled=false`);
+      // E4 tables are registered by the stacked release. Old archives restore into
+      // that same empty current schema; never replay their pending rule events.
+      if ((BACKUP_TABLES as readonly string[]).includes('automationSettings')) {
+        const pausedAt = new Date().toISOString();
+        await tx.query(`UPDATE ${qualified(schema, 'automationSettings')} SET enabled=false,"activatedAt"=NULL,version=version+1,"updatedAt"=$1`, [pausedAt]);
+        await tx.query(`UPDATE ${qualified(schema, 'automationEvents')} SET status='cancelled',"lastErrorCode"='restore_paused',"updatedAt"=$1 WHERE status='queued'`, [pausedAt]);
+        // The worker holds a transaction rather than a portable lease. A stale
+        // start marker is cleared while keeping execution history and counts.
+        await tx.query(`UPDATE ${qualified(schema, 'automationJobHealth')} SET "lastStartedAt"=NULL,"lastErrorCode"='restore_paused',"updatedAt"=$1`, [pausedAt]);
+      }
       await tx.query(`UPDATE ${qualified(schema, 'mailOutbox')} SET status=CASE WHEN status='processing' THEN 'unknown' ELSE 'cancelled' END,"lastErrorCode"=CASE WHEN status='processing' THEN 'restore_uncertain' ELSE 'restore_paused' END,"leaseUntil"=NULL,"nextAttemptAt"=NULL WHERE status IN ('queued','awaiting_configuration','processing')`);
       await tx.query(`UPDATE ${qualified(schema, 'pushDeliveries')} SET status='cancelled',"lastErrorCode"='restore_paused',"leaseUntil"=NULL WHERE status IN ('queued','processing')`);
       if (schema === 'public') for (const table of ['tickets', 'messages', 'articles']) {

@@ -9,10 +9,13 @@ import { createWorkspaceBackup, restoreWorkspaceBackup, backupRestoreStorage } f
 import { hashInvite, readInvitation } from '../lib/invitations.ts';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
+import { companyReportSchema } from '../lib/knowledge-model.ts';
+import { knowledgeReportFixture } from './knowledge-report-fixture.ts';
 
 const url = new URL(process.env.DATABASE_URL), ci = process.env.CI === 'true' && process.env.DAYBOOK_RECOVERY_CI === '1';
 const realStorage = process.argv.slice(2).includes('--real-qa-storage');
 const expectedFiles=BACKUP_TABLES.includes('serviceContracts')?3:2;
+const expectedTickets=BACKUP_TABLES.includes('automationRules')?2:1;
 assert.ok(process.argv.slice(2).every(value => value === '--real-qa-storage'));
 assert.ok(!ci || !realStorage, 'The CI drill never uses an external file store.');
 if (ci) {
@@ -32,6 +35,7 @@ const temporaryAccountColumns = ['accessToken', 'refreshToken', 'idToken', 'acce
 const bearerCredentials = { accessToken: 'qa-not-a-real-access-token', refreshToken: 'qa-not-a-real-refresh-token', idToken: 'qa-not-a-real-id-token', accessTokenExpiresAt: '2099-01-01 00:00:00+00', refreshTokenExpiresAt: '2099-01-01 00:00:00+00' };
 const schema = `daybook_restore_qa_${randomBytes(8).toString('hex')}`, failedSchema = `daybook_restore_qa_${randomBytes(8).toString('hex')}`;
 const fileMap = new Map(), restoredFiles = new Map();
+let knowledgeFixture;
 const fakeStorage = map => ({
   environment: 'qa',
   async read(pathname) { const bytes = map.get(pathname); return bytes ? { size: bytes.length, stream: new ReadableStream({ start(controller) { controller.enqueue(bytes); controller.close(); } }) } : null; },
@@ -88,7 +92,7 @@ try {
   const requestId=quoteRows.find(row=>row.kind==='request').id,noteId=quoteRows.find(row=>row.kind==='note').id;
   await pool.query('UPDATE messages SET "replyToMessageId"=$1 WHERE id=$2 AND "ownerId"=$3',[requestId,noteId,ownerId]);
   await pool.query('INSERT INTO "ticketFollowers" ("ownerId","ticketId","memberId","createdAt") VALUES ($1,$2,$3,$4)',[ownerId,ticket,owner,now]);
-  await pool.query('INSERT INTO "evolutionFeatures" ("ownerId","featuresJson",version,"updatedAt") VALUES ($1,$2,1,$3)',[ownerId,JSON.stringify({collaboration:true}),now]);
+  await pool.query('INSERT INTO "evolutionFeatures" ("ownerId","featuresJson",version,"updatedAt") VALUES ($1,$2,1,$3)',[ownerId,JSON.stringify({collaboration:true,...(BACKUP_TABLES.includes('knowledgeArticlePublications')?{knowledge:true}:{})}),now]);
   await pool.query('INSERT INTO "userPreferences" ("userId",theme,"updatedAt") VALUES ($1,\'dark\',$2)',[authIds[0],now]);
   if(BACKUP_TABLES.includes('workOrganizationCatalog')){
     const tag=randomUUID(),definition=JSON.stringify({name:'Recuperación ficticia',color:'gold'});
@@ -112,6 +116,31 @@ try {
     const pathname=`qa-backup-fixture/${document}.txt`,bytes=Buffer.from('Documento contractual privado ficticio.');fileMap.set(pathname,bytes);
     await pool.query('INSERT INTO attachments (id,"ownerId","memberId","draftId","contractId",kind,pathname,name,"contentType",size,status,"expiresAt","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,\'contract\',$6,\'qa-contract.txt\',\'text/plain\',$7,\'attached\',$8,$8,$8)',[document,ownerId,owner,randomUUID(),contract,pathname,bytes.length,now]);
   }
+  if(BACKUP_TABLES.includes('automationRules')){
+    const template=randomUUID(),rule=randomUUID(),queued=randomUUID(),done=randomUUID(),version=randomUUID();
+    const second=(await pool.query('INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail","requesterMemberId","customerCompanyId",department,status,priority,"createdAt","updatedAt","dueAt") VALUES ($1,$2,\'QA caso principal\',\'Cliente ficticio\',$3,$4,$5,\'Soporte\',\'open\',\'normal\',$6,$6,$6) RETURNING id',[ownerId,randomUUID(),`${client}@example.test`,client,company,now])).rows[0].id;
+    const conditions={events:['ticket_created'],customerCompanyId:null,departments:[],priorities:[],statuses:['open','pending'],requestTypeIds:[],allTagIds:[]},actions={addTagIds:[],department:'Soporte',assignMemberIds:[],taskTemplateIds:[template]},snapshot={id:rule,name:'Regla ficticia recuperable',enabled:true,position:0,conditions,actions,version:0,archived:false,enabledAt:now,updatedByMemberId:owner,referencesHash:sha256('qa-references'),createdAt:now,updatedAt:now};
+    await pool.query('INSERT INTO "automationSettings" ("ownerId",enabled,"activatedAt",version,"updatedAt") VALUES ($1,true,$2,1,$2)',[ownerId,now]);
+    await pool.query('INSERT INTO "taskTemplates" (id,"ownerId",name,"itemsJson","updatedByMemberId","createdAt","updatedAt") VALUES ($1,$2,\'Plantilla ficticia recuperable\',$3,$4,$5,$5)',[template,ownerId,JSON.stringify([{title:'Paso interno recuperable',assigneeMemberId:owner,dueAfterHours:4}]),owner,now]);
+    await pool.query('INSERT INTO "automationRules" (id,"ownerId",name,"conditionsJson","actionsJson","referencesHash",enabled,"enabledAt","updatedByMemberId","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,true,$7,$8,$7,$7)',[rule,ownerId,snapshot.name,JSON.stringify(conditions),JSON.stringify(actions),snapshot.referencesHash,now,owner]);
+    await pool.query('INSERT INTO "automationRuleVersions" (id,"ownerId","ruleId",version,"snapshotJson","changedByMemberId","createdAt") VALUES ($1,$2,$3,0,$4,$5,$6)',[version,ownerId,rule,JSON.stringify(snapshot),owner,now]);
+    for(const [id,status]of[[queued,'queued'],[done,'done']])await pool.query('INSERT INTO "automationEvents" (id,"ownerId","ticketId","operationKey","eventKind","actorMemberId","requestHash","activationVersion",status,"nextAttemptAt","createdAt","updatedAt") VALUES ($1,$2,$3,$4,\'ticket_created\',$5,$6,1,$7,$8,$8,$8)',[id,ownerId,ticket,`qa-recovery:${id}`,client,sha256(id),status,now]);
+    await pool.query('INSERT INTO "automationExecutions" (id,"ownerId","eventId","ticketId","ruleId","ruleKey","ruleVersion","ruleName",status,"summaryJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$5,0,$6,\'applied\',$7,$8,$8)',[randomUUID(),ownerId,done,ticket,rule,snapshot.name,JSON.stringify({summary:['Historial ficticio conservado']}),now]);
+    await pool.query('INSERT INTO "automationJobHealth" ("ownerId","lastStartedAt","lastSucceededAt","processedEvents","updatedAt") VALUES ($1,$2,$2,1,$2)',[ownerId,now]);
+    await pool.query('INSERT INTO "ticketRelations" (id,"ownerId","sourceTicketId","targetTicketId",kind,"createdByMemberId","operationId","requestHash","createdAt","updatedAt") VALUES ($1,$2,$3,$4,\'duplicate\',$5,$6,$7,$8,$8)',[randomUUID(),ownerId,ticket,second,owner,randomUUID(),sha256('qa-relation'),now]);
+  }
+  if(BACKUP_TABLES.includes('knowledgeArticlePublications')){
+    const approvedRevision=randomUUID(),draftRevision=randomUUID(),publication=randomUUID(),review=randomUUID();
+    const article=(await pool.query('INSERT INTO articles ("ownerId",title,category,body,version,"contentRevision","reviewState",archived,"createdAt","updatedAt") VALUES ($1,\'Guía ficticia en preparación\',\'Recuperación QA\',\'Borrador privado posterior a la publicación.\',3,2,\'draft\',false,$2,$2) RETURNING id',[ownerId,now])).rows[0].id;
+    for(const [id,revision,title,body]of[[approvedRevision,1,'Guía ficticia aprobada','Versión aprobada y compartida con la empresa ficticia.'],[draftRevision,2,'Guía ficticia en preparación','Borrador privado posterior a la publicación.']])await pool.query('INSERT INTO "knowledgeArticleRevisions" (id,"ownerId","articleId",revision,title,category,body,"changeNote",origin,"createdByMemberId","createdAt") VALUES ($1,$2,$3,$4,$5,\'Recuperación QA\',$6,\'Historial ficticio recuperable\',\'edit\',$7,$8)',[id,ownerId,article,revision,title,body,owner,now]);
+    await pool.query('INSERT INTO "knowledgeArticleReviews" (id,"ownerId","articleId","revisionId",status,note,"requestedByMemberId","reviewerMemberId","requestedAt","decidedAt") VALUES ($1,$2,$3,$4,\'approved\',\'Aprobación ficticia conservada\',$5,$5,$6,$6)',[review,ownerId,article,approvedRevision,owner,now]);
+    await pool.query('INSERT INTO "knowledgeArticlePublications" (id,"ownerId","articleId","revisionId","companyId",active,"publishedByMemberId","createdAt") VALUES ($1,$2,$3,$4,$5,true,$6,$7)',[publication,ownerId,article,approvedRevision,company,owner,now]);
+    await pool.query('INSERT INTO "knowledgeEvents" (id,"ownerId","articleId","actorMemberId",action,"detailJson","createdAt") VALUES ($1,$2,$3,$4,\'published\',$5,$6)',[randomUUID(),ownerId,article,owner,JSON.stringify({revisionId:approvedRevision,companyIds:[company]}),now]);
+    const monthly=knowledgeReportFixture();monthly.id=randomUUID();monthly.companyId=company;monthly.createdByMemberId=owner;monthly.createdAt=now;monthly.report.companyId=company;monthly.report.period.companyId=company;monthly.report.generatedAt=now;
+    const payloadJson=JSON.stringify(companyReportSchema.parse(monthly.report)),payloadHash=sha256(payloadJson);
+    await pool.query('INSERT INTO "companyMonthlyReports" (id,"ownerId","companyId",month,"payloadJson","payloadHash","createdByMemberId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',[monthly.id,ownerId,company,monthly.month,payloadJson,payloadHash,owner,now]);
+    knowledgeFixture={article,approvedRevision,draftRevision,publication,review,monthlyId:monthly.id,payloadJson,payloadHash};
+  }
   const queuedId = randomUUID(), processingId = randomUUID();
   for (const [id, status] of [[queuedId, 'queued'], [processingId, 'processing']]) await pool.query('INSERT INTO "mailOutbox" (id,"ownerId","eventKey",event,"recipientMemberId","ticketId",status,attempts,"payloadJson","createdAt","updatedAt") VALUES ($1,$2,$1,\'ticket_created\',$3,$4,$5,1,$6,$7,$7)', [id, ownerId, owner, ticket, status, JSON.stringify({ fixture: 'frozen-qa-payload' }), now]);
   await pool.query('INSERT INTO "notificationSettings" ("ownerId","alertsActivatedAt","remindersEnabled","remindersActivatedAt") VALUES ($1,$2,true,$2)', [ownerId, now]);
@@ -119,6 +148,11 @@ try {
   if(BACKUP_TABLES.includes('ticketTasks'))assert.equal(archive.tables.find(table=>table.name==='ticketTasks').rows[0].title,'Tarea ficticia recuperable');
   assert.equal(archive.tables.find(table=>table.name==='userPreferences').rows[0].theme,'dark');
   assert.equal(archive.tables.find(table=>table.name==='ticketFollowers').rows.length,1);
+  if(knowledgeFixture){
+    assert.equal(archive.tables.find(table=>table.name==='knowledgeArticleRevisions').rows.length,2);
+    for(const table of['knowledgeArticleReviews','knowledgeArticlePublications','knowledgeEvents','companyMonthlyReports'])assert.equal(archive.tables.find(item=>item.name===table).rows.length,1);
+    assert.equal(archive.tables.find(table=>table.name==='companyMonthlyReports').rows[0].payloadHash,knowledgeFixture.payloadHash);
+  }
   assert.equal(archive.tables.find(table=>table.name==='messages').rows.find(row=>row.kind==='note').replyToMessageId,requestId);
   assert.equal(archive.files.length, expectedFiles); assert.equal(archive.tables.find(table => table.name === 'messages').rows.length, 2);
   assert.match(archive.tables.find(table => table.name === 'authUser').rows[0].createdAt, /123456/);
@@ -160,6 +194,25 @@ try {
     assert.equal((await pool.query(`SELECT enabled FROM "${schema}"."serviceContextNotificationSettings"`)).rows[0].enabled,false);
     assert.equal((await pool.query(`SELECT "leaseToken" FROM "${schema}"."serviceContextJobHealth"`)).rows[0].leaseToken,null);
   }
+  if(BACKUP_TABLES.includes('automationRules')){
+    const restoredSettings=(await pool.query(`SELECT enabled,"activatedAt" FROM "${schema}"."automationSettings"`)).rows[0];assert.deepEqual(restoredSettings,{enabled:false,activatedAt:null});
+    const events=(await pool.query(`SELECT status,"lastErrorCode" FROM "${schema}"."automationEvents"`)).rows;assert.equal(events.filter(row=>row.status==='cancelled'&&row.lastErrorCode==='restore_paused').length,1);assert.equal(events.filter(row=>row.status==='done').length,1);
+    const health=(await pool.query(`SELECT "lastStartedAt","processedEvents","lastErrorCode" FROM "${schema}"."automationJobHealth"`)).rows[0];assert.equal(health.lastStartedAt,null);assert.equal(health.processedEvents,1);assert.equal(health.lastErrorCode,'restore_paused');
+    for(const table of ['taskTemplates','automationRules','automationRuleVersions','automationExecutions','ticketRelations'])assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${schema}"."${table}"`)).rows[0].n,1);
+  }
+  if(knowledgeFixture){
+    const {article,approvedRevision,draftRevision,publication,review,monthlyId,payloadJson,payloadHash}=knowledgeFixture;
+    assert.deepEqual((await pool.query(`SELECT title,body,version,"contentRevision","reviewState" FROM "${schema}".articles WHERE id=$1`,[article])).rows[0],{title:'Guía ficticia en preparación',body:'Borrador privado posterior a la publicación.',version:3,contentRevision:2,reviewState:'draft'});
+    assert.deepEqual((await pool.query(`SELECT id,revision FROM "${schema}"."knowledgeArticleRevisions" ORDER BY revision`)).rows,[{id:approvedRevision,revision:1},{id:draftRevision,revision:2}]);
+    assert.deepEqual((await pool.query(`SELECT status,"revisionId" FROM "${schema}"."knowledgeArticleReviews" WHERE id=$1`,[review])).rows[0],{status:'approved',revisionId:approvedRevision});
+    assert.deepEqual((await pool.query(`SELECT p.active,p."companyId",p."revisionId",r.body FROM "${schema}"."knowledgeArticlePublications" p JOIN "${schema}"."knowledgeArticleRevisions" r ON r.id=p."revisionId" WHERE p.id=$1`,[publication])).rows[0],{active:true,companyId:company,revisionId:approvedRevision,body:'Versión aprobada y compartida con la empresa ficticia.'});
+    assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${schema}"."knowledgeEvents"`)).rows[0].n,1);
+    const monthly=(await pool.query(`SELECT "payloadJson","payloadHash","companyId","createdByMemberId" FROM "${schema}"."companyMonthlyReports" WHERE id=$1`,[monthlyId])).rows[0];
+    assert.deepEqual(monthly,{payloadJson,payloadHash,companyId:company,createdByMemberId:owner});assert.equal(sha256(monthly.payloadJson),monthly.payloadHash);companyReportSchema.parse(JSON.parse(monthly.payloadJson));
+    const restoredFeatures=JSON.parse((await pool.query(`SELECT "featuresJson" FROM "${schema}"."evolutionFeatures" WHERE "ownerId"=$1`,[ownerId])).rows[0].featuresJson);
+    assert.equal(restoredFeatures.knowledge,false,'Recovery pauses publication access without removing approved versions or company destinations.');assert.equal(restoredFeatures.collaboration,true);
+    assert.equal(JSON.parse((await pool.query('SELECT "featuresJson" FROM "evolutionFeatures" WHERE "ownerId"=$1',[ownerId])).rows[0].featuresJson).knowledge,true,'Recovery never changes the source workspace feature settings.');
+  }
   await assertTemporaryCredentialsNotRestored(schema);
   assert.equal((await pool.query(`SELECT "remindersEnabled" FROM "${schema}"."notificationSettings"`)).rows[0].remindersEnabled, false);
   assert.equal((await pool.query(`SELECT status FROM "${schema}"."mailOutbox" WHERE id=$1`, [queuedId])).rows[0].status, 'cancelled');
@@ -190,9 +243,9 @@ try {
   const uncertainFiles = new Map(), uncertainDatabase = { async transaction(work) { const value = await database.transaction(work); void value; throw new Error('qa-lost-commit-response'); } };
   await assert.rejects(restoreWorkspaceBackup(legacy, uncertainDatabase, fakeStorage(uncertainFiles), { environment: 'qa', schema: failedSchema }), /lost-commit/);
   assert.equal(uncertainFiles.size, 2, 'An uncertain commit never deletes files that the committed rows reference.');
-  assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${failedSchema}".tickets`)).rows[0].n, 1);
+  assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${failedSchema}".tickets`)).rows[0].n, expectedTickets);
   await assertTemporaryCredentialsNotRestored(failedSchema);
-  console.log(JSON.stringify({ result: 'PASS', tables: BACKUP_TABLES.length, files: expectedFiles, storage: realStorage ? 'real-private-qa' : 'injected-private', checks: ['owner-only-export', 'private-note-and-file-preservation', 'credential-and-microsecond-preservation', 'temporary-credentials-excluded', 'legacy-v1-credentials-invalidated', 'invited-members-preserved', 'encrypted-exact-roundtrip', 'real-foreign-keys', 'empty-destination-only', 'all-row-checksums', 'private-file-hashes', 'restored-deliveries-paused', 'corrupt-file-rollback', 'uncertain-commit-keeps-files'], externalEmailRequests: 0 }));
+  console.log(JSON.stringify({ result: 'PASS', tables: BACKUP_TABLES.length, files: expectedFiles, storage: realStorage ? 'real-private-qa' : 'injected-private', checks: ['owner-only-export', 'private-note-and-file-preservation', 'credential-and-microsecond-preservation', 'temporary-credentials-excluded', 'legacy-v1-credentials-invalidated', 'invited-members-preserved', 'encrypted-exact-roundtrip', 'real-foreign-keys', 'empty-destination-only', 'all-row-checksums', 'private-file-hashes', 'restored-deliveries-paused', 'encrypted-mfa-preserved-with-original-key', 'missing-or-wrong-mfa-key-fails-before-SQL', ...(knowledgeFixture?['knowledge-approved-history-preserved','knowledge-publication-access-paused','monthly-report-exact-private-snapshot']:[]), 'corrupt-file-rollback', 'uncertain-commit-keeps-files'], externalEmailRequests: 0 }));
 } finally {
   const storageCleanupErrors = [];
   for (const pathname of realPaths) {

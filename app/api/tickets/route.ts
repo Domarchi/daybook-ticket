@@ -1,3 +1,4 @@
+import {enqueueAutomationEvent,drainAutomationBestEffort} from '@/lib/automation';
 import {prepareTicketOrganization,saveTicketOrganization} from '@/lib/work-organization';
 import {getEvolutionFeatures,requireEvolutionFeature} from '@/lib/evolution-features';
 import { ApiError,db,handle,json,parseBody,createTicketSchema,checkAssignment } from '@/lib/server';
@@ -54,9 +55,10 @@ export async function POST(request:Request) {
       if(automatic) await recordAutomaticAssignmentEvent(tx,access.ownerId,ticket.id,automatic);
       const recipients=await eligibleRecipients(tx,fresh,ticket,await staffNotificationRecipients(tx,fresh,assigneeMemberId,settings));
       for(const recipientMemberId of recipients) for(const stmt of notificationStatements(db(),{ownerId:access.ownerId,event:'ticket_created',eventKey:`ticket:${data.operationId}:${recipientMemberId}`,recipientMemberId,ticketId:ticket.id})) await db().execute(stmt,tx);
+      await enqueueAutomationEvent(tx,fresh,ticket.id,`ticket:${data.operationId}`,'ticket_created');
       return {ticket};
     });
-    after(async()=>{await Promise.allSettled([processPushOutboxBestEffort(access.ownerId),drainOutboxBestEffort(access.ownerId)]);});
+    after(async()=>{await Promise.allSettled([processPushOutboxBestEffort(access.ownerId),drainOutboxBestEffort(access.ownerId),drainAutomationBestEffort(access.ownerId)]);});
     // A policy snapshot is internal configuration, not customer-facing metadata.
     const {slaPolicySnapshot: _policy,slaStartedAt: _started,...publicTicket}=result.ticket;
     void _policy; void _started;
