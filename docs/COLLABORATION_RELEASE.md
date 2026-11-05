@@ -37,3 +37,7 @@ Esta entrega no publica producción, cambia DNS, activa MFA ni habilita negocios
 ## Candidato revisable
 
 Código validado localmente en `9f7efa1`: `npm run check` final aprobado (252 pruebas), segunda pasada de lint sin advertencias, ocho grupos QA con rollback y recorrido HTTP/visual de #379. Este registro autenticado solicita únicamente la construcción del Preview protegido de la entrega 1. Producción y proveedores reales siguen sin cambios.
+
+## Ensayo de recuperación ampliado
+
+El primer CI detectó un error de limpieza del ensayo: las preferencias se identifican por `userId`, no por `ownerId`. Se corrigió el alcance de limpieza y se añadieron fixtures de cita, seguimiento y tema. La recuperación QA posterior pasó con 40 tablas, dos archivos privados, claves foráneas reales, huellas exactas y limpieza completa de cuentas/esquemas ficticios. No hubo envíos externos.

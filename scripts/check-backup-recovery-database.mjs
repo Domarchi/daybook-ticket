@@ -82,10 +82,19 @@ try {
     const id = randomUUID(), pathname = `qa-backup-fixture/${id}.txt`, bytes = Buffer.from(`Archivo ${kind} ficticio para recuperación`); fileMap.set(pathname, bytes);
     await pool.query('INSERT INTO attachments (id,"ownerId","memberId","draftId","ticketId","messageId",kind,pathname,name,"contentType",size,status,"expiresAt","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,\'qa-fixture.txt\',\'text/plain\',$9,\'attached\',$10,$10,$10)', [id, ownerId, authorId, randomUUID(), ticket, messageId, kind, pathname, bytes.length, now]);
   }
+  const quoteRows=(await pool.query('SELECT id,kind FROM messages WHERE "ownerId"=$1 AND "ticketId"=$2',[ownerId,ticket])).rows;
+  const requestId=quoteRows.find(row=>row.kind==='request').id,noteId=quoteRows.find(row=>row.kind==='note').id;
+  await pool.query('UPDATE messages SET "replyToMessageId"=$1 WHERE id=$2 AND "ownerId"=$3',[requestId,noteId,ownerId]);
+  await pool.query('INSERT INTO "ticketFollowers" ("ownerId","ticketId","memberId","createdAt") VALUES ($1,$2,$3,$4)',[ownerId,ticket,owner,now]);
+  await pool.query('INSERT INTO "evolutionFeatures" ("ownerId","featuresJson",version,"updatedAt") VALUES ($1,$2,1,$3)',[ownerId,JSON.stringify({collaboration:true}),now]);
+  await pool.query('INSERT INTO "userPreferences" ("userId",theme,"updatedAt") VALUES ($1,\'dark\',$2)',[authIds[0],now]);
   const queuedId = randomUUID(), processingId = randomUUID();
   for (const [id, status] of [[queuedId, 'queued'], [processingId, 'processing']]) await pool.query('INSERT INTO "mailOutbox" (id,"ownerId","eventKey",event,"recipientMemberId","ticketId",status,attempts,"payloadJson","createdAt","updatedAt") VALUES ($1,$2,$1,\'ticket_created\',$3,$4,$5,1,$6,$7,$7)', [id, ownerId, owner, ticket, status, JSON.stringify({ fixture: 'frozen-qa-payload' }), now]);
   await pool.query('INSERT INTO "notificationSettings" ("ownerId","alertsActivatedAt","remindersEnabled","remindersActivatedAt") VALUES ($1,$2,true,$2)', [ownerId, now]);
   const archive = await createWorkspaceBackup(access, database, sourceStorage);
+  assert.equal(archive.tables.find(table=>table.name==='userPreferences').rows[0].theme,'dark');
+  assert.equal(archive.tables.find(table=>table.name==='ticketFollowers').rows.length,1);
+  assert.equal(archive.tables.find(table=>table.name==='messages').rows.find(row=>row.kind==='note').replyToMessageId,requestId);
   assert.equal(archive.files.length, 2); assert.equal(archive.tables.find(table => table.name === 'messages').rows.length, 2);
   assert.match(archive.tables.find(table => table.name === 'authUser').rows[0].createdAt, /123456/);
   assert.ok(archive.tables.find(table => table.name === 'authAccount').rows.every(row => row.password === 'QA-NOT-A-REAL-CREDENTIAL'));
@@ -134,6 +143,7 @@ try {
   // Test-owned isolated schemas only. No existing schema/table is dropped.
   for (const destination of [schema, failedSchema]) await pool.query(`DROP SCHEMA IF EXISTS "${destination}" CASCADE`);
   for (const table of [...BACKUP_TABLES].reverse().filter(table => !['authUser', 'authAccount'].includes(table))) {
+    if(table==='userPreferences'){await pool.query('DELETE FROM \"userPreferences\" WHERE \"userId\"=ANY($1::text[])',[authIds]);continue;}
     const where = table === 'inboundMailJobFiles' ? '"providerId" IN (SELECT "providerId" FROM "inboundMailJobs" WHERE "ownerId"=$1)' : '"ownerId"=$1';
     await pool.query(`DELETE FROM "${table}" WHERE ${where}`, [ownerId]);
   }
