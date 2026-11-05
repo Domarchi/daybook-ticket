@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import {symmetricEncrypt} from 'better-auth/crypto';
 import { Database } from '../db/database.ts';
-import { BACKUP_TABLES, RELIABILITY_BACKUP_TABLES, ADDED_BACKUP_COLUMNS, canonicalBackupRows, decryptBackup, encryptBackup, sha256 } from '../lib/backup-format.ts';
+import { BACKUP_TABLES, RELIABILITY_BACKUP_TABLES, ADDED_BACKUP_COLUMNS, canonicalBackupRows, decryptBackup, encryptBackup, sha256, validateBackup } from '../lib/backup-format.ts';
 import { createWorkspaceBackup, restoreWorkspaceBackup, backupRestoreStorage } from '../lib/workspace-backup.ts';
 import { hashInvite, readInvitation } from '../lib/invitations.ts';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -303,8 +303,15 @@ try {
     table.rows=table.rows.map(row=>Object.fromEntries(table.columns.map(column=>[column,row[column]])));
   }
   for (const row of legacy.tables.find(table => table.name === 'authAccount').rows) Object.assign(row, bearerCredentials);
-  legacy.tables.find(table => table.name === 'invitations').rows = (await pool.query('SELECT * FROM invitations WHERE "ownerId"=$1', [ownerId])).rows;
+  const legacyInvitations = legacy.tables.find(table => table.name === 'invitations');
+  const sourceInvitations = (await pool.query('SELECT * FROM invitations WHERE "ownerId"=$1', [ownerId])).rows;
+  // Current rows contain additive columns that did not exist in this historical
+  // profile. Project every fixture row to its declared columns; never relax validation.
+  legacyInvitations.rows = sourceInvitations.map(row => Object.fromEntries(legacyInvitations.columns.map(column => [column, row[column]])));
+  assert.equal(legacyInvitations.rows.length, 1, 'The legacy fixture contains its original valid invitation.');
+  assert.ok(legacyInvitations.rows.every(row => Object.keys(row).length === legacyInvitations.columns.length && Object.keys(row).every(column => legacyInvitations.columns.includes(column))));
   for (const table of legacy.tables) table.sha256 = sha256(canonicalBackupRows(table.rows));
+  validateBackup(legacy);
   const uncertainFiles = new Map(), uncertainDatabase = { async transaction(work) { const value = await database.transaction(work); void value; throw new Error('qa-lost-commit-response'); } };
   await assert.rejects(restoreWorkspaceBackup(legacy, uncertainDatabase, fakeStorage(uncertainFiles), { environment: 'qa', schema: failedSchema }), /lost-commit/);
   assert.equal(uncertainFiles.size, 2, 'An uncertain commit never deletes files that the committed rows reference.');
