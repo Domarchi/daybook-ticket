@@ -67,3 +67,8 @@ QA pasó nueve grupos de política, identidad reciente, sesiones propias, audito
 La recuperación de **74 tablas y tres archivos** conservó autenticador cifrado, códigos y custodia, política y demás historial. Una clave original de autenticación ausente o incorrecta se rechazó antes de abrir SQL o copiar archivos. Conocimiento y trabajos quedaron pausados, MFA se conservó y todas las fixtures/esquemas se limpiaron. No hubo entregas externas.
 
 Revisión visual: escritorio y móvil 390×844 sin desbordamiento, negro Daybook, estado de verificación, obligación gradual, controles de sesiones y exportación. Vista previa protegida: https://daybook-ticket-evolution-06-qa-domarchi.vercel.app/ . Programadores y envíos externos apagados. La publicación productiva y el enrolamiento personal requieren la revisión posterior prevista en el plan.
+
+
+## Candidato revisado del puente push
+
+El código `bcdb43017fe9d829405c48a4344364719c0eb4d7` superó lint, 371 pruebas unitarias, tipos, compilación y ambos trabajos de CI de GitHub (código y recuperación cifrada). El cambio conserva los datos y permite registrar un navegador durante la transición al índice compuesto de 0013 sin reintentar una escritura o un COMMIT inciertos. La secuencia y el ensayo aislado están en [PUSH_INDEX_TRANSITION.md](PUSH_INDEX_TRANSITION.md). E7 conserva su registro compuesto exclusivo. Este registro documental no autoriza producción, enrolamiento de cuentas reales ni activación de pilotos.
