@@ -1,6 +1,7 @@
 'use client';
 import {OrganizationManager,RequestOrganizationFields,TicketOrganizationPanel,SavedViewPicker,type OrganizationRequestValue} from './work-organization';
 import {normalizeTeamFilters} from '@/hooks/use-team-filters';
+import {daybookFetch,UNCERTAIN_SEND_MESSAGE} from '@/lib/browser-request';
 import Brand from './brand';
 import {ThemeControl,EvolutionFeaturesPanel} from './evolution-controls';
 import { MessageEditor } from './message-content';
@@ -61,7 +62,7 @@ function Priority({ priority }: {
     priority: TicketPriority;
 }) { return <span className={`priority ${priority}`}><span className="bars"><i /><i /><i /></span>{PRIORITY[priority]}</span>; }
 async function request<T = unknown>(path: string, method = 'GET', body?: unknown): Promise<T> {
-    const response = await fetch(path, { method, headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined });
+    const response = await daybookFetch(path, { method, headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined },method==='GET'?undefined:UNCERTAIN_SEND_MESSAGE);
     const result: unknown = await response.json().catch(() => null);
     if (!response.ok) {
         const message = result && typeof result === 'object' && 'error' in result && typeof result.error === 'string' ? result.error : 'No se pudo completar la operación. Intenta nuevamente.';

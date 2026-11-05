@@ -1,5 +1,6 @@
 'use client';
 import {RequestOrganizationFields,TicketOrganizationPanel,SavedViewPicker,type OrganizationRequestValue} from './work-organization';
+import {daybookFetch,UNCERTAIN_SEND_MESSAGE} from '@/lib/browser-request';
 import { MessageEditor } from './message-content';
 import { TicketChat } from './ticket-chat';
 import { TicketSatisfactionPanel } from './satisfaction';
@@ -34,7 +35,7 @@ const date = (value: string) => new Intl.DateTimeFormat('es', { day: 'numeric', 
 const number = (id: number) => `#${String(id).padStart(4, '0')}`;
 
 async function post<T = unknown>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const response = await daybookFetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },UNCERTAIN_SEND_MESSAGE);
   const result: unknown = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = result && typeof result === 'object' && 'error' in result ? result.error : null;
