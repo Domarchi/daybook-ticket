@@ -1,4 +1,6 @@
 'use client';
+import {daybookFetch} from '@/lib/browser-request';
+
 import { useEffect, useState } from 'react';
 import { UsersRound } from 'lucide-react';
 import { PRESENCE_HEARTBEAT_MS, currentPresenceActivity, presenceShouldRun, type PresenceActivity, type PresencePage, type PresencePerson } from '@/lib/ticket-presence-model';
@@ -20,7 +22,7 @@ export function TicketPresence({ ticketId, memberId }: { ticketId: number; membe
       if (!hasLease) return;
       hasLease = false;
       // Cleanup is best effort; failed network cleanup cannot extend the 45s lease.
-      void fetch(path, { method: 'DELETE', credentials: 'same-origin', headers: requestHeaders,
+      void daybookFetch(path, { method: 'DELETE', credentials: 'same-origin', headers: requestHeaders,
         body: JSON.stringify({ tabId }), keepalive: true, signal: AbortSignal.timeout(3000) }).catch(() => undefined);
     };
     const pause = () => {
@@ -38,7 +40,7 @@ export function TicketPresence({ ticketId, memberId }: { ticketId: number; membe
       const pending = new AbortController(); controller = pending;
       if (write) hasLease = true;
       try {
-        const response = await fetch(path, { method: write ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
+        const response = await daybookFetch(path, { method: write ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store',
           headers: requestHeaders, signal: pending.signal, ...(write ? { body: JSON.stringify({ tabId, activity }) } : {}) });
         if (!response.ok) {
           blocked = [401, 403, 404].includes(response.status);

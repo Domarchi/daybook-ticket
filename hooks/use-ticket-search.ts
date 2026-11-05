@@ -1,4 +1,5 @@
 'use client';
+import {daybookFetch} from '@/lib/browser-request';
 import { useEffect, useRef, useState } from 'react';
 import type { TicketPage } from '@/lib/ticket-search';
 import type { TicketSearchQuery } from '@/lib/ticket-search-query';
@@ -11,7 +12,7 @@ export function ticketSearchParams(filters: TicketFilters, cursor: string | null
   return params;
 }
 export async function readTicketResource<T>(path: string, memberId: string, signal?: AbortSignal): Promise<T> {
-  const response = await fetch(path, { headers: { 'X-Daybook-Member-Id': memberId }, signal, cache: 'no-store' });
+  const response = await daybookFetch(path, { headers: { 'X-Daybook-Member-Id': memberId }, signal, cache: 'no-store' });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'No se pudo cargar esta página.');
   return result as T;

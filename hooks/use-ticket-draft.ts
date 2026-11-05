@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { draftMessage, TicketDraftStore, type DraftKind, type DraftScope } from '@/lib/ticket-drafts';
+import { useCallback, useState } from 'react';
+import { draftMessage, TicketDraftStore, type DraftKind, type DraftScope, type DraftReferences } from '@/lib/ticket-drafts';
+
+import { getDraftOperations } from '@/lib/draft-operations';
 
 let browserStore: TicketDraftStore | undefined;
 function getStore() {
@@ -9,7 +11,7 @@ function getStore() {
   if (!browserStore) {
     let storage: Storage | null = null;
     try { storage = window.sessionStorage; } catch { /* Keep drafts in memory for this page. */ }
-    browserStore = new TicketDraftStore(storage);
+    browserStore = new TicketDraftStore(storage,getDraftOperations());
   }
   return browserStore;
 }
@@ -18,8 +20,11 @@ function getStore() {
 export function useTicketDraft(scope: DraftScope, legacyEmail?: string) {
   const [store] = useState(getStore);
   const [draft, setDraft] = useState(() => store.read(scope, legacyEmail));
+  const {memberId,role,ticketId}=scope;
+  const setReferences=useCallback((kind:DraftKind,value:DraftReferences)=>setDraft(store.setReferences({memberId,role,ticketId},kind,value)),[store,memberId,role,ticketId]);
   return {
     draft,
+    setReferences,
     message: draftMessage(draft),
     persistent: store.persistent,
     selectKind: (kind: DraftKind) => setDraft(store.selectKind(scope, kind)),

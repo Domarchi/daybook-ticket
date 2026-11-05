@@ -30,7 +30,7 @@ test('sensitive operations require a recent password and the enabled second fact
   assert.equal(recentProof(new Date(now+1).toISOString(),now),false);
 });
 test('fresh verification protects scoped and legacy permission/configuration/export mutations',()=>{
-  for(const path of ['/api/members/a','/api/settings','/api/service-policies/default','/api/assignment-rules/a','/api/notifications/settings','/api/organization/catalog','/api/workspaces/business-a/members/a'])assert.equal(securityActionNeedsReauthentication(path,'PATCH'),true,path);
+  for(const path of ['/api/members/a','/api/settings','/api/service-policies/default','/api/assignment-rules/a','/api/notifications/settings','/api/organization/catalog','/api/evolution/features','/api/service-context/notifications','/api/automation/rules/a','/api/workspaces/business-a/members/a'])assert.equal(securityActionNeedsReauthentication(path,'PATCH'),true,path);
   assert.equal(securityActionNeedsReauthentication('/api/backups/schedule/a/download','GET'),true);
   assert.equal(securityActionNeedsReauthentication('/api/tickets/123/messages','POST'),false);
   assert.equal(securityActionNeedsReauthentication('/api/members','GET'),false);
@@ -43,7 +43,7 @@ test('session DTO labels and auth JSON do not expose bearer tokens or arbitrary 
   assert.ok(!JSON.stringify(dto).includes('sentinel'));
 });
 test('business export reads only domain allowlist and excludes credential-shaped columns',()=>{
-  for(const table of ['authUser','authAccount','authSession','authVerification','authRateLimit','twoFactor','securityAssurances','securityProfiles','mailOutbox','pushSubscriptions','invitations'])assert.ok(!(BUSINESS_EXPORT_TABLES as readonly string[]).includes(table));
+  for(const table of ['authUser','authAccount','authSession','authVerification','authRateLimit','userPreferences','twoFactor','securityAssurances','securityProfiles','mailOutbox','pushSubscriptions','invitations'])assert.ok(!(BUSINESS_EXPORT_TABLES as readonly string[]).includes(table));
   assert.deepEqual(businessExportColumns(['id','ownerId','email','userId','actorUserId','pathname','password','passwordHash','MFASecret','replyTokenHash','apiKey','backupCodes','endpoint','auth','createdAt','invalid"name']),['id','ownerId','email','createdAt']);
 });
 test('platform identity backup does not become a tenant owner/admin privilege',()=>{

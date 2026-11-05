@@ -1,0 +1,60 @@
+.theme-control{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);position:relative}.theme-control select{max-width:125px;min-height:34px;padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);font:inherit}.theme-control>span{position:absolute;right:0;top:100%;z-index:20;width:min(280px,85vw);padding:10px;background:var(--surface);border:1px solid var(--line);border-radius:8px;font-size:11px;line-height:1.6}
+.evolution-features-panel{margin-top:24px}.evolution-features-panel>p{padding:16px 22px;font-size:13px;color:var(--muted);line-height:1.7}.evolution-features-panel>div:last-child:not(.section-head){padding:0 22px 18px;display:grid;gap:10px}.evolution-features-panel label{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:10px 0;font-size:13px;border-bottom:1px solid var(--line)}.evolution-features-panel input{accent-color:#805a0e;width:18px;height:18px}
+/* The dark theme is an application palette, including the staff workspace. */
+:root[data-color-scheme="dark"]{color-scheme:dark;--paper:#000;--surface:#0a0a0a;--ink:#ededed;--muted:#a1a1a1;--line:#303030;--navy:#0a0a0a;--blue:#edc879;--lime:#edc879;--accent:#edc879;--accent-soft:#292315}
+:root[data-color-scheme="dark"] body,:root[data-color-scheme="dark"] .main,:root[data-color-scheme="dark"] .content{background:#000;color:var(--ink)}
+:root[data-color-scheme="dark"] :is(.topbar,.panel,.ticket-panel,.conversation,.detail-aside,.article-card,.contact-card,.team-card,.settings-section,.modal,.form,.stat-card,.knowledge-banner,.welcome,.requester,.modal-head,.modal-footer,.empty,.portal-hero,.portal-cta,.contact-list,.company-form,.member-company-editor,.mail-panel,.filter-row,.queue-tabs,.table-tools,.table-footer,.bulk-bar,.ticket-activity,.mail-tracking,.access-panel){background:var(--surface);border-color:var(--line);color:var(--ink)}
+:root[data-color-scheme="dark"] :is(input,select,textarea){background:#101010;color:var(--ink);border-color:#686868}
+:root[data-color-scheme="dark"] :is(input,textarea)::placeholder{color:#a1a1a1}
+:root[data-color-scheme="dark"] :is(.secondary,.icon-button,.attachment-preview-button){background:#151515;color:var(--ink);border-color:#686868}
+:root[data-color-scheme="dark"] :is(.secondary,.icon-button,.article-card,.contact-card):hover{background:#222;color:var(--ink)}
+:root[data-color-scheme="dark"] :is(.primary,button.primary){background:#edc879;border-color:#edc879;color:#19160f}
+:root[data-color-scheme="dark"] :is(.primary,button.primary):hover{background:#f5d795}
+:root[data-color-scheme="dark"] :is(h1,h2,h3,h4,.subject-cell strong,.contact-card h3,.team-card h3,.message-heading strong,.detail-fields label,.form label,.settings-section label,.article-card h3){color:var(--ink)}
+:root[data-color-scheme="dark"] :is(.page-heading p,.stat-card>small,.subject-cell small,.time-cell,.table-footer,.page-footer,.article-card p,.contact-card>a,.team-card p,.composer-footer small,.top-actions,.breadcrumbs,.ticket-meta,.message-heading>span,.client-link-note,.assignment-note,.panel-help){color:var(--muted)}
+:root[data-color-scheme="dark"] :is(table,thead,tbody,tr,th,td,.section-head,.settings-section,.contact-card,.requester,.company-list li,.saved-reply-list li,.ticket-activity li){border-color:var(--line)}
+:root[data-color-scheme="dark"] :is(thead,th){background:#141414;color:#bcbcbc}
+:root[data-color-scheme="dark"] tbody tr:hover{background:#171717}
+:root[data-color-scheme="dark"] :is(.info-note,.portal-note,.sla-card,.backup-result,.saved-reply-picker,.client-identity){background:#171717;color:#c7c7c7;border-color:var(--line)}
+:root[data-color-scheme="dark"] .sla-card.late,:root[data-color-scheme="dark"] .error-banner{background:#291716;color:#ffb4aa;border-color:#91483f}
+:root[data-color-scheme="dark"] .text-button{color:#edc879}
+:root[data-color-scheme="dark"] .text-button:hover{color:#ffe3a8}
+:root[data-color-scheme="dark"] .queue-tabs .active{color:#edc879;border-color:#edc879}
+:root[data-color-scheme="dark"] .tag{background:#292315;color:#edc879;border-color:#65532c}
+:root[data-color-scheme="dark"] .status.open{background:#172b40;color:#afcffa}:root[data-color-scheme="dark"] .status.pending{background:#302610;color:#f2d18c}:root[data-color-scheme="dark"] .status.resolved{background:#142b23;color:#a0d8b8}
+:root[data-color-scheme="dark"] .daybook-brand:not(.daybook-brand-dark){color:#ededed}
+:root[data-color-scheme="dark"] .daybook-brand-type>span{color:#edc879}
+:root[data-color-scheme="dark"] :is(.message-editor-toolbar,.message-editor-render,.message-editor textarea){background:var(--surface);color:var(--ink)}
+:root[data-color-scheme="dark"] .message-editor-toolbar button:hover{background:#222;color:var(--ink)}
+:root[data-color-scheme="dark"] .message-content-rich a{color:#edc879}
+:root[data-color-scheme="dark"] .message-content-rich code{background:#222;color:var(--ink)}
+:root[data-color-scheme="light"]{color-scheme:light}
+@media(max-width:750px){.theme-control select{max-width:105px;font-size:12px}.theme-control>svg{display:none}}
+@media (prefers-color-scheme: dark){
+:root:not([data-color-scheme="light"]){color-scheme:dark;--paper:#000;--surface:#0a0a0a;--ink:#ededed;--muted:#a1a1a1;--line:#303030;--navy:#0a0a0a;--blue:#edc879;--lime:#edc879;--accent:#edc879;--accent-soft:#292315}
+:root:not([data-color-scheme="light"]) body,:root:not([data-color-scheme="light"]) .main,:root:not([data-color-scheme="light"]) .content{background:#000;color:var(--ink)}
+:root:not([data-color-scheme="light"]) :is(.topbar,.panel,.ticket-panel,.conversation,.detail-aside,.article-card,.contact-card,.team-card,.settings-section,.modal,.form,.stat-card,.knowledge-banner,.welcome,.requester,.modal-head,.modal-footer,.empty,.portal-hero,.portal-cta,.contact-list,.company-form,.member-company-editor,.mail-panel,.filter-row,.queue-tabs,.table-tools,.table-footer,.bulk-bar,.ticket-activity,.mail-tracking,.access-panel){background:var(--surface);border-color:var(--line);color:var(--ink)}
+:root:not([data-color-scheme="light"]) :is(input,select,textarea){background:#101010;color:var(--ink);border-color:#686868}
+:root:not([data-color-scheme="light"]) :is(input,textarea)::placeholder{color:#a1a1a1}
+:root:not([data-color-scheme="light"]) :is(.secondary,.icon-button,.attachment-preview-button){background:#151515;color:var(--ink);border-color:#686868}
+:root:not([data-color-scheme="light"]) :is(.secondary,.icon-button,.article-card,.contact-card):hover{background:#222;color:var(--ink)}
+:root:not([data-color-scheme="light"]) :is(.primary,button.primary){background:#edc879;border-color:#edc879;color:#19160f}
+:root:not([data-color-scheme="light"]) :is(.primary,button.primary):hover{background:#f5d795}
+:root:not([data-color-scheme="light"]) :is(h1,h2,h3,h4,.subject-cell strong,.contact-card h3,.team-card h3,.message-heading strong,.detail-fields label,.form label,.settings-section label,.article-card h3){color:var(--ink)}
+:root:not([data-color-scheme="light"]) :is(.page-heading p,.stat-card>small,.subject-cell small,.time-cell,.table-footer,.page-footer,.article-card p,.contact-card>a,.team-card p,.composer-footer small,.top-actions,.breadcrumbs,.ticket-meta,.message-heading>span,.client-link-note,.assignment-note,.panel-help){color:var(--muted)}
+:root:not([data-color-scheme="light"]) :is(table,thead,tbody,tr,th,td,.section-head,.settings-section,.contact-card,.requester,.company-list li,.saved-reply-list li,.ticket-activity li){border-color:var(--line)}
+:root:not([data-color-scheme="light"]) :is(thead,th){background:#141414;color:#bcbcbc}
+:root:not([data-color-scheme="light"]) tbody tr:hover{background:#171717}
+:root:not([data-color-scheme="light"]) :is(.info-note,.portal-note,.sla-card,.backup-result,.saved-reply-picker,.client-identity){background:#171717;color:#c7c7c7;border-color:var(--line)}
+:root:not([data-color-scheme="light"]) .sla-card.late,:root:not([data-color-scheme="light"]) .error-banner{background:#291716;color:#ffb4aa;border-color:#91483f}
+:root:not([data-color-scheme="light"]) .text-button{color:#edc879}
+:root:not([data-color-scheme="light"]) .text-button:hover{color:#ffe3a8}
+:root:not([data-color-scheme="light"]) .queue-tabs .active{color:#edc879;border-color:#edc879}
+:root:not([data-color-scheme="light"]) .tag{background:#292315;color:#edc879;border-color:#65532c}
+:root:not([data-color-scheme="light"]) .status.open{background:#172b40;color:#afcffa}:root:not([data-color-scheme="light"]) .status.pending{background:#302610;color:#f2d18c}:root:not([data-color-scheme="light"]) .status.resolved{background:#142b23;color:#a0d8b8}
+:root:not([data-color-scheme="light"]) .daybook-brand:not(.daybook-brand-dark){color:#ededed}
+:root:not([data-color-scheme="light"]) .daybook-brand-type>span{color:#edc879}
+:root:not([data-color-scheme="light"]) :is(.message-editor-toolbar,.message-editor-render,.message-editor textarea){background:var(--surface);color:var(--ink)}
+:root:not([data-color-scheme="light"]) .message-editor-toolbar button:hover{background:#222;color:var(--ink)}
+:root:not([data-color-scheme="light"]) .message-content-rich a{color:#edc879}
+:root:not([data-color-scheme="light"]) .message-content-rich code{background:#222;color:var(--ink)}}

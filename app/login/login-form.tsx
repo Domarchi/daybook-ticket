@@ -1,4 +1,6 @@
 'use client';
+import {daybookFetch} from '@/lib/browser-request';
+
 import { useState } from 'react';
 import { ArrowRight, ShieldCheck, LoaderCircle } from 'lucide-react';
 import Brand from '../brand';
@@ -21,7 +23,7 @@ export default function LoginForm({ invite, invalidInvite, resetToken, returnTo 
     else if (resetToken) { path = 'reset-password'; body = { token: resetToken, newPassword: password }; }
     else if (mode === 'forgot') { path = 'request-password-reset'; body = { email, redirectTo: `${location.origin}/login?reset=1${destination === '/' ? '' : `&return_to=${encodeURIComponent(destination)}`}` }; }
     try {
-      const response = await fetch(`/api/auth/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(invite ? { 'x-daybook-invite': invite.token } : {}) }, body: JSON.stringify(body) });
+      const response = await daybookFetch(`/api/auth/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(invite ? { 'x-daybook-invite': invite.token } : {}) }, body: JSON.stringify(body) });
       const result = await response.json().catch(() => ({})) as { message?: string;twoFactorRedirect?:boolean };
       if (!response.ok) {
         if (response.status === 429) throw new Error('Has realizado varios intentos. Espera unos minutos y vuelve a probar.');

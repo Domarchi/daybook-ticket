@@ -1,4 +1,6 @@
 'use client';
+import {daybookFetch} from '@/lib/browser-request';
+
 
 import { useRef, useState, type FormEvent } from 'react';
 import { Check, Copy, Mail, Plus, RefreshCw, ShieldCheck, UserPlus, Users, X } from 'lucide-react';
@@ -11,7 +13,7 @@ const MEMBER_STATUS = { invited: 'Invitación pendiente', active: 'Activo', revo
 type Run = (action: () => Promise<unknown>, message: string) => Promise<boolean>;
 
 async function request<T = unknown>(path: string, method: string, body: unknown): Promise<T> {
-  const response = await fetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const response = await daybookFetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const result: unknown = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = result && typeof result === 'object' && 'error' in result ? result.error : null;

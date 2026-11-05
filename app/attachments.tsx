@@ -1,4 +1,6 @@
 'use client';
+import {daybookFetch} from '@/lib/browser-request';
+
 import { useEffect, useId, useRef, useState } from 'react';
 import { Download, Eye, FileText, Paperclip, X } from 'lucide-react';
 import { ATTACHMENT_ACCEPT, attachmentSize } from '@/lib/attachment-drafts';
@@ -29,7 +31,7 @@ function AttachmentPreview({ attachment, onClose }: { attachment: PreviewFile; o
     let objectUrl: string | undefined;
     void (async () => {
       try {
-        const response = await fetch(`/api/attachments/${attachment.id}/preview`, { cache: 'no-store', credentials: 'same-origin', signal: controller.signal });
+        const response = await daybookFetch(`/api/attachments/${attachment.id}/preview`, { cache: 'no-store', credentials: 'same-origin', signal: controller.signal });
         if (!response.ok) throw new Error('No se pudo abrir el archivo. Comprueba tu acceso o vuelve a intentarlo.');
         const type = response.headers.get('Content-Type') || '';
         if (!['image/png', 'image/jpeg', 'image/webp', 'application/pdf'].includes(type)) throw new Error('Este formato no tiene vista previa.');

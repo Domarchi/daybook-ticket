@@ -33,7 +33,11 @@
     "db:migrate:reliability:qa": "node --env-file=.env.test.local --import tsx scripts/migrate-reliability-qa.mjs",
     "test:reliability:qa": "node --env-file=.env.test.local --import tsx scripts/check-test-data-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-ticket-presence-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-inbound-reliability-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-automatic-backup-database.mjs",
     "test:reliability:http": "node --env-file=.env.test.local --import tsx scripts/check-reliability-http.mjs",
-    "test:security:qa": "node --env-file=.env.test.local --import tsx scripts/check-security-database.mjs"
+    "test:security:qa": "node --env-file=.env.test.local --import tsx scripts/check-security-database.mjs",
+    "test:collaboration:qa": "node --env-file=.env.test.local --import tsx scripts/check-collaboration-database.mjs",
+    "db:migrate:evolution:qa": "node --env-file=.env.test.local scripts/migrate-evolution-qa.mjs",
+    "test:organization:qa": "node --env-file=.env.test.local --import tsx scripts/check-work-organization-database.mjs",
+    "test:service-context:qa": "node --env-file=.env.test.local --import tsx scripts/check-service-context-database.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

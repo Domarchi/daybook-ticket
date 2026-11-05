@@ -6,7 +6,8 @@ import { db, ApiError } from './server';
 import type { Database } from '../db/database';
 import { lockAccess } from './ticket-mutations';
 import { attachmentStorage, attachmentStorageConfig, readAttachmentBytes, type PrivateAttachmentStorage } from './attachments-storage';
-import { BACKUP_TABLES, canonicalBackupRows, MAX_BACKUP_BYTES, sha256, validateBackup, type BackupRow, type WorkspaceBackup } from './backup-format';
+import { BACKUP_TABLES, compatibleBackupColumns, canonicalBackupRows, MAX_BACKUP_BYTES, sha256, validateBackup, type BackupRow, type WorkspaceBackup } from './backup-format';
+import { verifyMfaBackupSecret } from './mfa-backup';
 import { validateAttachment } from './attachments-validation';
 
 const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;
@@ -54,7 +55,7 @@ export async function createWorkspaceBackup(access: AccessContext, database = db
       if (!tableColumns.length) throw new ApiError(503, 'Aplica la migración de esta versión antes de crear respaldos.');
       let where = '"ownerId"=$1';
       if (table === 'authUser') where = 'id IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
-      else if (['authAccount','twoFactor','securityProfiles'].includes(table)) where = '"userId" IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
+      else if (['authAccount','userPreferences','twoFactor','securityProfiles'].includes(table)) where = '"userId" IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
       else if (table === 'attachments') where += " AND status='attached'";
       else if (table === 'invitations' || table === 'ticketPresence') where += ' AND FALSE';
       else if (table === 'inboundMailJobFiles') where = '"providerId" IN (SELECT "providerId" FROM "inboundMailJobs" WHERE "ownerId"=$1) AND "attachmentId" IN (SELECT id FROM attachments WHERE "ownerId"=$1 AND status=\'attached\')';
@@ -99,8 +100,9 @@ export function backupRestoreStorage(): BackupRestoreStorage {
 }
 
 /** Operator-only recovery into EMPTY, already-migrated tables. Never deletes/replaces existing data. */
-export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: Database, storage: BackupRestoreStorage, options: { environment: 'qa' | 'production'; schema?: string; allowProduction?: boolean }) {
+export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: Database, storage: BackupRestoreStorage, options: { environment: 'qa' | 'production'; schema?: string; allowProduction?: boolean; authSecret?:string }) {
   const backup = validateBackup(input), schema = options.schema || 'public';
+  await verifyMfaBackupSecret(backup,options.authSecret??process.env.BETTER_AUTH_SECRET);
   if (storage.environment !== options.environment) throw new Error('Destination storage environment mismatch.');
   if (schema !== 'public' && (!/^daybook_restore_qa_[a-f0-9]{16}$/.test(schema) || options.environment !== 'qa')) throw new Error('Invalid isolated recovery schema.');
   if (options.environment === 'production' && !options.allowProduction) throw new Error('Production recovery requires a separate operator confirmation.');
@@ -119,8 +121,7 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
         const source = backup.tables.find(item => item.name === table);
         if (!source) continue; // A verified v1 archive predates the additive reliability tables.
         const target = await columns(tx, table, schema);
-        const compatible = target.filter(column => !((column === 'isTest' && ['members','tickets'].includes(table) || column === 'twoFactorEnabled' && table==='authUser') && !source.columns.includes(column)));
-        if (JSON.stringify(compatible) !== JSON.stringify(source.columns)) throw new Error(`Schema version mismatch: ${table}`);
+        if (!compatibleBackupColumns(table,target,source.columns)) throw new Error(`Schema version mismatch: ${table}`);
       }
       if (schema === 'public') for (const table of ['authSession', 'authVerification', 'authRateLimit','securityAssurances']) {
         if (Number((await tx.query(`SELECT count(*)::int AS n FROM ${qualified(schema, table)}`)).rows[0].n) !== 0) throw new Error('Recovery requires empty temporary authentication tables.');
@@ -151,6 +152,10 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
         const fingerprint = sha256(canonicalBackupRows(restored.map(row => Object.fromEntries(source.columns.map(column => [column, row[column]])))));
         if (fingerprint !== source.sha256) throw new Error(`Recovery checksum mismatch: ${table}`);
         fingerprints.push({ table, rows: restored.length, sha256: fingerprint });
+      }
+      if(backup.tables.some(table=>table.name==='serviceContextNotificationSettings')){
+        await tx.query(`UPDATE ${qualified(schema,'serviceContextNotificationSettings')} SET enabled=false,"activatedAt"=NULL`);
+        await tx.query(`UPDATE ${qualified(schema,'serviceContextJobHealth')} SET "leaseToken"=NULL,"leaseUntil"=NULL,"cursorKey"='',"lastErrorCode"='restore_paused'`);
       }
       // Older v1 archives may contain these credentials. Verify their original fingerprints first,
       // then invalidate them before COMMIT; password hashes and account/provider identities stay intact.
