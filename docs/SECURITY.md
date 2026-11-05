@@ -72,3 +72,8 @@ Revisión visual: escritorio y móvil 390×844 sin desbordamiento, negro Daybook
 ## Candidato revisado del puente push
 
 El código `bcdb43017fe9d829405c48a4344364719c0eb4d7` superó lint, 371 pruebas unitarias, tipos, compilación y ambos trabajos de CI de GitHub (código y recuperación cifrada). El cambio conserva los datos y permite registrar un navegador durante la transición al índice compuesto de 0013 sin reintentar una escritura o un COMMIT inciertos. La secuencia y el ensayo aislado están en [PUSH_INDEX_TRANSITION.md](PUSH_INDEX_TRANSITION.md). E7 conserva su registro compuesto exclusivo. Este registro documental no autoriza producción, enrolamiento de cuentas reales ni activación de pilotos.
+
+
+## Estabilidad visual y aislamiento del candidato
+
+El código `b135569977d094f03e572973d53afb3324240152` superó lint, 371 pruebas unitarias, tipos y compilación después de integrar claves únicas para los paneles del chat. Se conserva íntegro el puente push antes de SQL0013 y las comprobaciones de MFA, sesiones y descargas. Su ensayo PostgreSQL pasó con ambos índices, tres fallbacks confirmados, idempotencia, máximo de diez dispositivos y cancelación por cuenta, y eliminó su esquema temporal. El almacenamiento de esta rama Preview está fijado explícitamente en QA, con credencial aislada y protección Vercel; no se modificó producción.

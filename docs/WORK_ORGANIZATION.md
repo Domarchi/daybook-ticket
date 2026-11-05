@@ -59,3 +59,8 @@ QA: ocho grupos de integración revertidos, alta HTTP ficticia #384 (campos obli
 ## Evidencia para revisión
 
 El código integrado `11962f2d4d038631c2e9b4ebe5622c95b4a54ffe` supera lint, tipos, 292 pruebas unitarias y compilación. Los casos HTTP de QA y la revisión visual usan únicamente datos ficticios; no se enviaron avisos externos. La vista previa de esta entrega mantiene la protección de Vercel y los trabajos automáticos apagados. La recuperación de borradores conserva el formulario y su operación original sin repetir envíos automáticamente.
+
+
+## Estabilidad del panel y almacenamiento de revisión
+
+El código `41b37de27e06fb7eb3dfc787ef9c4c22fc536d21` superó lint, 292 pruebas unitarias, tipos y compilación. El chat y la organización de la solicitud usan claves React distintas entre hermanos: actualizar la conversación ya no debe acumular paneles anteriores. La comparación del árbol sintáctico confirmó que esta corrección solo modifica claves, sin cambiar propiedades, mensajes ni operaciones. La variable de almacenamiento de esta rama Preview está fijada explícitamente en `qa`, con su clave privada de QA y sin credenciales de producción. La vista previa conserva su protección Vercel y no realiza entregas externas.
