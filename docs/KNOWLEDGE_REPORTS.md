@@ -86,3 +86,8 @@ El recorrido HTTP creó el artículo ficticio #20: solicitó revisión, aprobó 
 La recuperación de **70 tablas y tres archivos** conservó revisiones, aprobaciones, publicaciones y la captura privada exacta, dejando `knowledge` pausado y sin alterar otros controles. Se comprobó la limpieza de fixtures y esquemas aislados. La revisión visual cubrió escritorio, móvil 390×844 sin desbordamiento y temas claro/negro; el PDF conserva logo, márgenes, párrafos y continuidad de páginas. La etiqueta distingue el borrador de la versión aprobada que ya se comparte.
 
 Vista previa protegida de QA: https://daybook-ticket-evolution-05-qa-domarchi.vercel.app/ . Programadores y entregas externas permanecen apagados. No hay publicación productiva ni modificaciones de otros proyectos.
+
+
+## Cierre de estabilidad de paneles
+
+El código `845c32a42361b0b53423225d8d73cdc2972d7d9d` superó lint, 340 pruebas unitarias, tipos y compilación después de integrar las claves React únicas del chat y los paneles hermanos. La corrección no cambia mensajes, informes, SLA ni operaciones. El almacenamiento de esta rama Preview está fijado explícitamente en QA, con su credencial aislada y protección Vercel. Las evidencias previas de exportación por HTTP privado y renderizado PDF siguen correspondiendo al mismo código de exportación; no se afirma haber capturado un guardado nativo del navegador.
