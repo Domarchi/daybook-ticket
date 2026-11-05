@@ -47,6 +47,6 @@ export function readNewTicketOrganization(scope:string):NewTicketOrganizationDra
     const normalized=(record:Record<string,unknown>)=>Object.fromEntries(fields.filter(key=>typeof record[key]==='string'&&record[key]!==''&&record[key]!=='__auto__').map(key=>[key,record[key]]));
     if(typeof source.body==='string'&&source.body===base.body&&JSON.stringify(normalized(source))===JSON.stringify(normalized(base)))value=parseNewTicketOrganization({...('requestTypeId' in source?{requestTypeId:source.requestTypeId}:{}),...('fieldValues' in source?{fieldValues:source.fieldValues}:{})});
   }
-  const result=value??{};organizationMemory.set(scope,result);return structuredClone(result);
+  const result=value??{};organizationMemory.set(scope,result);if(value)try{sessionStorage.setItem(`daybook.ticket.new-organization.v1.${scope}`,JSON.stringify(result));}catch{/* Retain the recovered metadata in this page. */}return structuredClone(result);
 }
 export function writeNewTicketOrganization(scope:string,value:NewTicketOrganizationDraft){const parsed=parseNewTicketOrganization(value);if(!parsed)throw new Error('Los campos del borrador no son válidos.');organizationMemory.set(scope,parsed);try{sessionStorage.setItem(`daybook.ticket.new-organization.v1.${scope}`,JSON.stringify(parsed));}catch{/* Keep the scoped current-page draft. */}}

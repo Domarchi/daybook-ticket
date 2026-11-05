@@ -16,10 +16,12 @@ export async function POST(request:Request,context:RouteContext) {
     const data=await parseBody(request,messageSchema);
     const result=await runOperation(access,data.operationId,'message',{ticketId:id,...data},async(tx,fresh)=>{
       const settings=await getSettingsInTransaction(tx,access.ownerId);
-      const ticket=await lockTicket(tx,fresh,id);
       const client=fresh.role==='client';
       if(client && data.kind!=='reply') throw new ApiError(403,'Las notas internas están reservadas para el equipo.');
+      // Reserve mentioned members before the ticket, sharing the order used by
+      // current-membership readers and all owner-serialized ticket writers.
       const collaboration=await validateMessageCollaboration(tx,fresh,id,data);
+      const ticket=await lockTicket(tx,fresh,id);
       const now=new Date().toISOString();
       const {rows}=await tx.query('INSERT INTO messages ("ownerId","ticketId",author,"authorMemberId","authorRole",body,kind,"createdAt","bodyFormat") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,"ticketId",author,"authorMemberId","authorRole",body,"bodyFormat",kind,"createdAt"',[access.ownerId,id,fresh.member.name,fresh.member.id,fresh.role,data.body,data.kind,now,data.bodyFormat || 'plain']);
       const message={...rows[0],...collaboration};
