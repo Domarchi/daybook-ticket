@@ -24,3 +24,7 @@ El contador dentro del chat es temporal y ayuda a volver al final. El centro de 
 - Revisión visual en escritorio y 390×844, sin desbordamiento horizontal; formato plegado y retorno de foco al cerrar búsqueda comprobados.
 
 La prueba usa el mismo contrato de creación de mensajes y las mismas rutas de conversaciones. No requiere migraciones, dependencias nuevas ni cambios de configuración. Los datos productivos permanecen intactos. Para revertir, restaurar la versión anterior de la aplicación; las conversaciones y los archivos se conservan.
+
+## Comprobación de la base de evolución
+
+La entrega 0 confirmó que `origin/main` está en `dfa3839d9a066631e8afd0ee5b5648369fd03fac` y el candidato de chat en `d6b51cae6bf3f8e3a61ab7dc275f620228bd66bb`. Los dos controles CI y la recuperación ficticia están aprobados. El primer despliegue Git de ese candidato quedó bloqueado antes del build por atribución de cuenta; no fue un fallo de compilación. Esta evidencia se registra mediante el flujo autenticado de GitHub, conservando las autorías y el historial de los commits de código. La preparación de una vista previa no autoriza publicar producción ni activar pilotos.
