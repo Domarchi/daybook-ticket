@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { resolveWorkspaceAccess,ticketAccessSql,canAccessTicket } from '../lib/access.ts';
 import { acceptInvitation,hashInvite,readInvitation } from '../lib/invitations.ts';
-import { transferWorkspaceOwner,changePilot,listPlatformWorkspaces,createPilot,renewPilotOwnerInvitation,workspaceOperationalInTransaction } from '../lib/workspaces.ts';
+import { transferWorkspaceOwner,changePilot,listPlatformWorkspaces,createPilot,renewPilotOwnerInvitation,workspaceOperationalInTransaction,lockWorkspaceState,assertWorkspaceOperational } from '../lib/workspaces.ts';
 import { DEFAULT_PILOT_LIMITS,operatorGranted } from '../lib/workspace-model.ts';
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE,'1');
 assert.equal(new URL(process.env.DATABASE_URL).hostname,'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
@@ -79,7 +79,9 @@ const schema=`qa_commercial_${randomUUID().replaceAll('-','')}`,left=await pool.
 assert.ok(/^qa_commercial_[a-f0-9]{32}$/.test(schema));
 try{
  await left.query(`CREATE SCHEMA "${schema}"`);for(const connection of [left,right])await connection.query(`SET search_path TO "${schema}",public`);
- await left.query('CREATE TABLE "workspaceProfiles"("ownerId" text PRIMARY KEY,state text,"limitsJson" text,"quotaEpoch" bigint DEFAULT 0)');
+ await left.query('CREATE TABLE "workspaceProfiles"("workspaceId" text,"ownerId" text PRIMARY KEY,state text,"limitsJson" text,"quotaEpoch" bigint DEFAULT 0)');
+ await left.query('CREATE TABLE organizations(id text PRIMARY KEY,"ownerId" text UNIQUE)');
+ await left.query('CREATE TABLE articles(id text PRIMARY KEY,body text)');
  await left.query('CREATE TABLE tickets(id integer PRIMARY KEY,"ownerId" text,"createdAt" text)');
  const source=await readFile(new URL('../drizzle-postgres/0013_workspaces.sql',import.meta.url),'utf8'),functionSql=source.match(/CREATE FUNCTION "daybook_workspace_quota"\(\)[\s\S]+?END; \$\$;/)?.[0];assert.ok(functionSql);
  await left.query(functionSql);await left.query('CREATE TRIGGER "quota_fixture" BEFORE INSERT ON tickets FOR EACH ROW EXECUTE FUNCTION "daybook_workspace_quota"()');
@@ -87,5 +89,16 @@ try{
  const results=await Promise.allSettled([left.query('INSERT INTO tickets VALUES(1,\'fictitious\',$1)',[now]),right.query('INSERT INTO tickets VALUES(2,\'fictitious\',$1)',[now])]);
  assert.equal(results.filter(result=>result.status==='fulfilled').length,1);assert.equal(results.filter(result=>result.status==='rejected'&&result.reason.message==='workspace_quota_exceeded').length,1);
  assert.equal((await left.query('SELECT count(*)::int AS n FROM tickets')).rows[0].n,1);
- console.log(JSON.stringify({concurrentQuotaWinners:1,isolatedSchema:true}));
-}finally{for(const connection of [left,right])await connection.query('SET search_path TO public');await left.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);left.release();right.release();await pool.end();}
+ const pauseOwner=`qa-editorial-${run}`,pauseWorkspace=randomUUID();
+ await left.query('INSERT INTO organizations VALUES($1,$2)',[pauseWorkspace,pauseOwner]);
+ await left.query('INSERT INTO "workspaceProfiles"("workspaceId","ownerId",state,"limitsJson") VALUES($1,$2,\'active\',$3)',[pauseWorkspace,pauseOwner,JSON.stringify(DEFAULT_PILOT_LIMITS)]);
+ await left.query('BEGIN');await lockWorkspaceState(left,pauseOwner);await assertWorkspaceOperational(pauseOwner,left);
+ await left.query('INSERT INTO articles VALUES(\'editorial-fixture\',\'Content before pause\')');
+ await right.query('BEGIN');await right.query("SET LOCAL lock_timeout='100ms'");
+ await assert.rejects(()=>lockWorkspaceState(right,pauseOwner,true),error=>error.code==='55P03');await right.query('ROLLBACK');
+ await left.query('COMMIT');
+ await right.query('BEGIN');await lockWorkspaceState(right,pauseOwner,true);await right.query('UPDATE "workspaceProfiles" SET state=\'suspended\' WHERE "ownerId"=$1',[pauseOwner]);await right.query('COMMIT');
+ await left.query('BEGIN');await lockWorkspaceState(left,pauseOwner);await assert.rejects(()=>assertWorkspaceOperational(pauseOwner,left),error=>error.status===423);await left.query('ROLLBACK');
+ assert.equal((await left.query('SELECT body FROM articles WHERE id=\'editorial-fixture\'')).rows[0].body,'Content before pause');
+ console.log(JSON.stringify({concurrentQuotaWinners:1,pauseWaitedForEditorialCommit:true,pausedAccessRejected:true,editorialContentPreserved:true,isolatedSchema:true}));
+}finally{for(const connection of [left,right]){await connection.query('ROLLBACK').catch(()=>undefined);await connection.query('SET search_path TO public');}await left.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);left.release();right.release();await pool.end();}

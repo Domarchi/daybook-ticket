@@ -11,7 +11,7 @@ import { createSatisfactionForResolution } from './satisfaction';
 import { canAccessTicket, publicMember, type AccessContext, type MemberRecord } from './access';
 import type { Settings, Ticket, TicketEvent } from './types';
 import { assertSecurityAccess } from './security';
-import { assertWorkspaceOperational } from './workspaces';
+import { assertWorkspaceOperational,lockWorkspaceState } from './workspaces';
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -23,6 +23,7 @@ export function operationHash(value: unknown) { return createHash('sha256').upda
 // Hold current membership until commit; authorization cannot use a stale session.
 // NO KEY UPDATE also permits foreign-key checks from other members' submissions.
 export async function lockAccess(tx: PoolClient, access: AccessContext): Promise<AccessContext> {
+  if(access.organizationId!=='daybook')await lockWorkspaceState(tx,access.ownerId);
   // Interactive requests carry a session. Private workers use their own authenticated job context.
   if(access.sessionId) await tx.query('SELECT pg_advisory_xact_lock_shared(hashtextextended($1,0))',[`security-policy:${access.ownerId}`]);
   const { rows } = await tx.query('SELECT * FROM members WHERE id=$1 AND "ownerId"=$2 AND "organizationId"=$3 AND status=\'active\' AND "userId"=$4 FOR NO KEY UPDATE',[access.member.id,access.ownerId,access.organizationId,access.userId]);

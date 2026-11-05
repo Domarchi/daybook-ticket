@@ -1,3 +1,4 @@
+import {seedQaWorkspaceProfiles} from './qa-workspace-profile.mjs';
 /** SERIAL: fictitious QA owner -> encrypted archive -> empty FK-checked schema -> exact recovery. */
 import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
@@ -76,6 +77,7 @@ try {
     await pool.query('INSERT INTO "authAccount" (id,"accountId","providerId","userId",password,"accessToken","refreshToken","idToken","accessTokenExpiresAt","refreshTokenExpiresAt","createdAt","updatedAt") VALUES ($1,$2,\'credential\',$2,\'QA-NOT-A-REAL-CREDENTIAL\',$3,$4,$5,$6,$7,$8,$8)', [randomUUID(), authIds[i], ...temporaryAccountColumns.map(column => bearerCredentials[column]), now]);
   }
   await pool.query('INSERT INTO organizations (id,"ownerId",name,"createdAt") VALUES ($1,$1,\'Respaldo ficticio QA\',$2)', [ownerId, now]);
+ await seedQaWorkspaceProfiles(pool,[ownerId],now);
   await pool.query('INSERT INTO "customerCompanies" (id,"organizationId","ownerId",name,"createdAt","updatedAt") VALUES ($1,$2,$2,\'Empresa ficticia QA\',$3,$3)', [company, ownerId, now]);
   for (const [id, userId, role] of [[owner, authIds[0], 'owner'], [client, authIds[1], 'client']]) await pool.query('INSERT INTO members (id,"organizationId","ownerId","userId",email,name,role,status,"customerCompanyId","companyAccess","createdAt","updatedAt") VALUES ($1,$2,$2,$3,$4,\'Cuenta ficticia QA\',$5,\'active\',$6,\'own\',$7,$7)', [id, ownerId, userId, `${id}@example.test`, role, role === 'client' ? company : null, now]);
   await pool.query('INSERT INTO members (id,"organizationId","ownerId",email,name,role,status,"createdAt","updatedAt") VALUES ($1,$2,$2,$3,\'Invitación ficticia QA\',\'client\',\'invited\',$4,$4)', [invited, ownerId, `${invited}@example.test`, now]);

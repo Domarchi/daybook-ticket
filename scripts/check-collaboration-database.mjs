@@ -1,3 +1,4 @@
+import {seedQaWorkspaceProfiles} from './qa-workspace-profile.mjs';
 /** Coordinator-only, serial QA fixtures: every database write is rolled back. */
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
@@ -22,6 +23,7 @@ async function reject(promise,status){await assert.rejects(promise,error=>error.
 let assertions=0;
 try{
  await client.query('BEGIN');await client.query('INSERT INTO organizations (id,"ownerId",name,"createdAt") VALUES ($1,$2,\'QA collaboration\',$3)',[organizationId,ownerId,now]);
+ await seedQaWorkspaceProfiles(client,[ownerId],now);
  for(const [id,name]of[[a,'QA company A'],[b,'QA company B']])await client.query('INSERT INTO "customerCompanies" (id,"organizationId","ownerId",name,"createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$5)',[id,organizationId,ownerId,name,now]);
  for(const [name,id]of Object.entries(ids)){
   const role=['staff','peer'].includes(name)?(name==='staff'?'owner':'agent'):'client',company=role==='client'?(name==='bob'?b:a):null;

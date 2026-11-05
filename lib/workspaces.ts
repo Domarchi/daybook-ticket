@@ -10,8 +10,14 @@ import { notificationStatements } from './mail';
 export interface CommercialWorkspace{workspaceId:string;ownerId:string;state:'draft'|'active'|'suspended';brandName:string;mailFrom:string|null;mailEnabled:boolean;inboundEnabled:boolean;limitsJson:string;version:number;createdAt:string;updatedAt:string;lastJobAt:string|null;}
 export async function readCommercialWorkspace(id:string,database=db()){return database.prepare('SELECT * FROM "workspaceProfiles" WHERE "workspaceId"=$1').bind(id).first<CommercialWorkspace>();}
 export async function assertWorkspaceOperational(ownerId:string,query:Pick<PoolClient,'query'>,allowSetup=false){
-  const profile=(await query.query('SELECT state FROM "workspaceProfiles" WHERE "ownerId"=$1',[ownerId])).rows[0];
-  if(profile&&profile.state!=='active'&&!allowSetup)throw new ApiError(423,'Este espacio está en incorporación o en pausa. Sus datos se conservan.');
+  const profile=(await query.query('SELECT o.id,p.state FROM organizations o LEFT JOIN "workspaceProfiles" p ON p."workspaceId"=o.id AND p."ownerId"=o."ownerId" WHERE o."ownerId"=$1',[ownerId])).rows[0];
+  if(profile?.id==='daybook')return;
+  if(!profile?.state||(profile.state!=='active'&&!allowSetup))throw new ApiError(423,'Este espacio está en incorporación o en pausa. Sus datos se conservan.');
+}
+/** Separate from quota row locks: readers must not upgrade a shared profile row
+ * to FOR UPDATE when a quota trigger runs later in the same transaction. */
+export async function lockWorkspaceState(query:Pick<PoolClient,'query'>,ownerId:string,exclusive=false){
+  await query.query(`SELECT ${exclusive?'pg_advisory_xact_lock':'pg_advisory_xact_lock_shared'}(hashtextextended($1,0))`,[`commercial-workspace-state:${ownerId}`]);
 }
 /** Workers hold the same owner lock as pilot suspension. A paused pilot leaves
  * its queue intact and spends neither retries nor notification stage keys. */
@@ -71,6 +77,7 @@ async function lockPilot(tx:PoolClient,id:string){
   const identity=(await tx.query<{ownerId:string}>('SELECT "ownerId" FROM "workspaceProfiles" WHERE "workspaceId"=$1',[id])).rows[0];
   if(!identity)return null;
   await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`daybook-ticket-work:${identity.ownerId}`]);
+  await lockWorkspaceState(tx,identity.ownerId,true);
   return (await tx.query<CommercialWorkspace>('SELECT * FROM "workspaceProfiles" WHERE "workspaceId"=$1 FOR UPDATE',[id])).rows[0]??null;
 }
 export async function renewPilotOwnerInvitation(id:string,expectedVersion:number,database=db(),actor?:OperatorActor){

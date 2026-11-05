@@ -1,9 +1,9 @@
+import {seedQaWorkspaceProfiles} from './qa-workspace-profile.mjs';
 /** SERIAL coordinator-only QA integration after additive migration 0009.
  * Everything is fictitious and rolled back. Blob and delivery providers are never contacted.
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import {DEFAULT_PILOT_LIMITS} from '../lib/workspace-model.ts';
 import pg from 'pg';
 import { Database } from '../db/database.ts';
 import { publicMember } from '../lib/access.ts';
@@ -25,7 +25,7 @@ async function create(actor,resource,data,operationId=randomUUID()){return (awai
 try{
  await client.query('BEGIN');
  await client.query('INSERT INTO organizations (id,"ownerId",name,"createdAt") VALUES ($1,$2,\'QA servicios\',$5),($3,$4,\'QA otra organización\',$5)',[org,owner,foreignOrg,foreignOwner,date]);
- for(const [id,tenant]of [[org,owner],[foreignOrg,foreignOwner]])await client.query('INSERT INTO \"workspaceProfiles\"(\"workspaceId\",\"ownerId\",state,\"brandName\",\"limitsJson\",\"createdAt\",\"updatedAt\") VALUES($1,$2,\'active\',\'Fictitious QA\',$3,$4,$4)',[id,tenant,JSON.stringify(DEFAULT_PILOT_LIMITS),date]);
+ await seedQaWorkspaceProfiles(client,[owner,foreignOwner],date);
  await client.query('INSERT INTO \"evolutionFeatures\" (\"ownerId\",\"featuresJson\",version,\"updatedAt\") VALUES ($1,$2,1,$3)',[owner,JSON.stringify({serviceContext:true}),date]);
  for(const [id,tenant,organization] of [[company,owner,org],[otherCompany,owner,org],[foreignCompany,foreignOwner,foreignOrg]])await client.query('INSERT INTO "customerCompanies" (id,"ownerId","organizationId",name,"createdAt","updatedAt") VALUES ($1,$2,$3,\'QA empresa\',$4,$4)',[id,tenant,organization,date]);
  for(const [id,role,companyId,companyAccess] of [[adminId,'admin',null,'own'],[agentId,'agent',null,'own'],[contactId,'client',company,'own'],[managerId,'client',company,'manager']])await client.query('INSERT INTO members (id,"organizationId","ownerId","userId",name,email,role,status,"customerCompanyId","companyAccess","createdAt","updatedAt","isTest") VALUES ($1,$2,$3,$4,\'QA persona\',$5,$6,\'active\',$7,$8,$9,$9,true)',[id,org,owner,randomUUID(),`${id}@example.test`,role,companyId,companyAccess,date]);

@@ -1,3 +1,4 @@
+import {seedQaWorkspaceProfiles} from './qa-workspace-profile.mjs';
 /** Coordinator-only SERIAL QA integration after 0008. All fixtures roll back.
  * node --env-file=.env.test.local --import tsx scripts/check-work-organization-database.mjs
  * This script does not migrate, provision accounts, send mail or call providers.
@@ -34,6 +35,7 @@ const mutation=(kind,definition)=>catalogMutationSchema.parse({kind,definition})
 try{
   await tx.query('BEGIN');
   for(const [id,owner] of [[organizationId,ownerId],[otherOrganizationId,otherOwnerId]])await tx.query('INSERT INTO organizations (id,"ownerId",name,"createdAt") VALUES ($1,$2,$3,$4)',[id,owner,'Organización ficticia',now]);
+ await seedQaWorkspaceProfiles(tx,[ownerId,otherOwnerId],now);
   for(const id of [companyId,otherCompanyId])await tx.query('INSERT INTO "customerCompanies" (id,"organizationId","ownerId",name,"createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$5)',[id,organizationId,ownerId,`Empresa ${id}`,now]);
   const admin=await member('QA administrador','owner'),agent=await member('QA agente','agent'),client=await member('QA cliente','client',ownerId,organizationId,companyId),outsider=await member('QA ajeno','agent',otherOwnerId,otherOrganizationId);
   const ticket=(await tx.query(`INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail","requesterMemberId","customerCompanyId",department,priority,status,"createdAt","updatedAt","dueAt","isTest") VALUES ($1,$2,'Ticket ficticio','QA cliente',$3,$4,$5,'Soporte','normal','open',$6,$6,$7,true) RETURNING *`,[ownerId,randomUUID(),client.member.email,client.member.id,companyId,now,dueAt])).rows[0];

@@ -1,3 +1,4 @@
+import {seedQaWorkspaceProfiles} from './qa-workspace-profile.mjs';
 /** Coordinator-only, serial QA check. Everything is fictitious and rolled back. No external providers. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -14,6 +15,7 @@ const database={prepare(sql){return{bind(...values){return{async all(){const r=a
 try{
   await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
   await client.query('INSERT INTO organizations(id,"ownerId",name,"createdAt") VALUES($1,$2,$3,$4)',[org,ownerId,'QA security',now]);
+ await seedQaWorkspaceProfiles(client,[ownerId],now);
   for(const role of ['owner','agent','client']){
     const userId=randomUUID(),memberId=randomUUID(),sessionId=randomUUID(),token=`qa-session-${randomUUID()}`;
     users[role]={userId,memberId,sessionId,token};

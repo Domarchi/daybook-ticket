@@ -1,3 +1,4 @@
+import {seedQaWorkspaceProfiles} from './qa-workspace-profile.mjs';
 /** Coordinator-only serial QA. All fictitious data rolls back. No migrations/providers.
  * node --env-file=.env.test.local --import tsx scripts/check-collaboration-draft-locks-database.mjs
  */
@@ -17,6 +18,7 @@ const fixtureTransaction=async work=>{const name=`draft_lock_${++point}`;await t
 database.transaction=fixtureTransaction;
 try{
  await tx.query('BEGIN');await tx.query('INSERT INTO organizations (id,"ownerId",name,"createdAt") VALUES ($1,$2,\'QA draft locks\',$3)',[organizationId,ownerId,now]);
+ await seedQaWorkspaceProfiles(tx,[ownerId],now);
  const contexts={};for(const [id,role]of[[admin,'owner'],[peer,'agent'],[requester,'client']]){const userId=randomUUID();await tx.query(`INSERT INTO members (id,"organizationId","ownerId","userId",email,name,role,status,"companyAccess","createdAt","updatedAt","isTest") VALUES ($1,$2,$3,$4,$5,'QA ficticio',$6,'active','own',$7,$7,true)`,[id,organizationId,ownerId,userId,`${id}@example.test`,role,now]);const row=(await tx.query('SELECT * FROM members WHERE id=$1',[id])).rows[0];contexts[id]={organizationId,ownerId,userId,role,member:publicMember({...row,hasAccount:true})};}
  const ticket=(await tx.query(`INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail","requesterMemberId",department,priority,status,"createdAt","updatedAt","dueAt","isTest") VALUES ($1,$2,'QA draft lock','QA customer','qa@example.test',$3,'Soporte','normal','open',$4,$4,$4,true) RETURNING id`,[ownerId,randomUUID(),requester,now])).rows[0];
  await tx.query('INSERT INTO "evolutionFeatures" ("ownerId","featuresJson","updatedAt") VALUES ($1,\'{"collaboration":true}\',$2)',[ownerId,now]);

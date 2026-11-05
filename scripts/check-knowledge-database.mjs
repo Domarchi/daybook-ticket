@@ -1,3 +1,4 @@
+import {seedQaWorkspaceProfiles} from './qa-workspace-profile.mjs';
 /** Coordinator-only SERIAL QA after 0008/0009/0011. Fictitious fixtures and all writes are rolled back. */
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
@@ -20,6 +21,7 @@ const content={title:'QA conexión segura',category:'Red',body:'Solución públi
 try{
  await client.query('BEGIN');
  for(const[id,tenant]of[[org,owner],[foreignOrg,foreignOwner]])await client.query('INSERT INTO organizations (id,"ownerId",name,"createdAt") VALUES ($1,$2,\'QA conocimiento\',$3)',[id,tenant,now.toISOString()]);
+ await seedQaWorkspaceProfiles(client,[owner,foreignOwner],now);
  for(const tenant of[owner,foreignOwner])await client.query('INSERT INTO "evolutionFeatures" ("ownerId","featuresJson",version,"updatedAt") VALUES ($1,$2,0,$3)',[tenant,JSON.stringify({knowledge:true,security:true}),now.toISOString()]);
  for(const[id,tenant,organization]of[[company,owner,org],[otherCompany,owner,org],[foreignCompany,foreignOwner,foreignOrg]])await client.query('INSERT INTO "customerCompanies" (id,"ownerId","organizationId",name,"createdAt","updatedAt") VALUES ($1,$2,$3,\'QA empresa\',$4,$4)',[id,tenant,organization,now.toISOString()]);
  for(const[id,role,companyId,companyAccess,tenant,organization]of[[adminId,'admin',null,'own',owner,org],[agentId,'agent',null,'own',owner,org],[contactId,'client',company,'own',owner,org],[managerId,'client',company,'manager',owner,org],[otherContactId,'client',otherCompany,'own',owner,org],[foreignContactId,'client',foreignCompany,'own',foreignOwner,foreignOrg],[foreignAgentId,'agent',null,'own',foreignOwner,foreignOrg]])await client.query('INSERT INTO members (id,"ownerId","organizationId","userId",name,email,role,status,"customerCompanyId","companyAccess","createdAt","updatedAt","isTest") VALUES ($1,$2,$3,$4,\'QA persona\',$5,$6,\'active\',$7,$8,$9,$9,true)',[id,tenant,organization,randomUUID(),`${id}@example.test`,role,companyId,companyAccess,now.toISOString()]);

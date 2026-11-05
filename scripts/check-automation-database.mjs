@@ -1,10 +1,10 @@
+import {seedQaWorkspaceProfiles} from './qa-workspace-profile.mjs';
 /** Coordinator-only SERIAL QA integration after 0008+0010. No migrations.
  * node --env-file=.env.test.local --import tsx scripts/check-automation-database.mjs
  * Fictitious fixture transaction, including worker health/receipts, always rolls back.
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import {DEFAULT_PILOT_LIMITS} from '../lib/workspace-model.ts';
 import pg from 'pg';
 import { getDatabase,getPool } from '../db/index.ts';
 import { publicMember } from '../lib/access.ts';
@@ -35,7 +35,7 @@ const counts=async()=>{const tables=['automationSettings','automationRules','aut
 try{
   await tx.query('BEGIN');
   for(const [id,owner]of [[organizationId,ownerId],[otherOrganizationId,otherOwnerId]])await tx.query('INSERT INTO organizations (id,"ownerId",name,"createdAt") VALUES ($1,$2,$3,$4)',[id,owner,'QA automatización',now]);
-  for(const [id,owner]of [[organizationId,ownerId],[otherOrganizationId,otherOwnerId]])await tx.query('INSERT INTO \"workspaceProfiles\"(\"workspaceId\",\"ownerId\",state,\"brandName\",\"limitsJson\",\"createdAt\",\"updatedAt\") VALUES($1,$2,\'active\',\'Fictitious QA\',$3,$4,$4)',[id,owner,JSON.stringify(DEFAULT_PILOT_LIMITS),now]);
+ await seedQaWorkspaceProfiles(tx,[ownerId,otherOwnerId],now);
   for(const id of [companyId,otherCompanyId])await tx.query('INSERT INTO "customerCompanies" (id,"organizationId","ownerId",name,"createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$5)',[id,organizationId,ownerId,`QA ${id}`,now]);
   const admin=await member('QA administrador','owner'),agent=await member('QA agente A','agent'),second=await member('QA agente B','agent'),client=await member('QA cliente','client',ownerId,organizationId,companyId),otherClient=await member('QA otro cliente','client',ownerId,organizationId,companyId),outsider=await member('QA otro espacio','agent',otherOwnerId,otherOrganizationId);
   await tx.query('INSERT INTO \"evolutionFeatures\" (\"ownerId\",\"featuresJson\",\"updatedAt\") VALUES ($1,\'{"automation":true}\',$2)',[ownerId,now]);await tx.query('INSERT INTO \"evolutionFeatures\" (\"ownerId\",\"featuresJson\",\"updatedAt\") VALUES ($1,\'{"automation":true}\',$2)',[otherOwnerId,now]);

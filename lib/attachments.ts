@@ -1,3 +1,4 @@
+import {acquireTicketWorkLock} from './work-lock';
 import { workspaceApiPath } from './workspace-model';
 import { randomUUID,createHash } from 'node:crypto';
 import {parseEvolutionFeatures} from './evolution-feature-model';
@@ -53,6 +54,7 @@ async function scopeAccess(access: AccessContext, scope: Scope, database:Databas
   if (scope.ticketId !== undefined) await getTicket(access, scope.ticketId);
 }
 async function liveAccess(tx: PoolClient, access: AccessContext): Promise<AccessContext> {
+  await acquireTicketWorkLock(tx,access.ownerId);
   return lockAccess(tx,access);
 }
 async function transactionScope(tx: PoolClient, access: AccessContext, scope: Scope) {
