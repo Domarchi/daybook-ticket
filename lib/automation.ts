@@ -1,3 +1,4 @@
+import { parseEvolutionFeatures } from './evolution-feature-model';
 import type { PoolClient } from 'pg';
 import type { z } from 'zod';
 import { ApiError,db } from './server';
@@ -16,7 +17,9 @@ function publicRule(row:Record<string,unknown>):AutomationRule{return {...automa
 function publicTemplate(row:Record<string,unknown>):TaskTemplate{return {...taskTemplateSchema.parse({name:row.name,items:JSON.parse(String(row.itemsJson))}),id:String(row.id),version:Number(row.version),archived:Boolean(row.archived),createdAt:String(row.createdAt),updatedAt:String(row.updatedAt)};}
 const ruleHash=(rule:AutomationRuleDefinition)=>operationHash({name:rule.name,position:rule.position,conditions:rule.conditions,actions:rule.actions});
 function pageInput(cursor:string|null,limit:number){if(cursor&&!/^[a-fA-F0-9-]{36}$/.test(cursor)||!Number.isInteger(limit)||limit<1||limit>100)throw new ApiError(400,'La página solicitada no es válida.');}
-async function admin(tx:PoolClient,access:AccessContext){await acquireTicketWorkLock(tx,access.ownerId);return requireAdmin(await lockAccess(tx,access));}
+export async function automationEnabledInTransaction(tx:PoolClient,ownerId:string){const row=(await tx.query('SELECT \"featuresJson\" FROM \"evolutionFeatures\" WHERE \"ownerId\"=$1',[ownerId])).rows[0];return parseEvolutionFeatures(row?.featuresJson).automation;}
+export async function requireAutomationInTransaction(tx:PoolClient,ownerId:string){if(!await automationEnabledInTransaction(tx,ownerId))throw new ApiError(503,'Las automatizaciones están en pausa. Sus datos e historial se conservan.');}
+async function admin(tx:PoolClient,access:AccessContext){await acquireTicketWorkLock(tx,access.ownerId);const fresh=requireAdmin(await lockAccess(tx,access));await requireAutomationInTransaction(tx,fresh.ownerId);return fresh;}
 async function validStaff(tx:PoolClient,access:Pick<AccessContext,'ownerId'|'organizationId'>,ids:string[]){
   if(!ids.length)return;
   const {rows}=await tx.query('SELECT id FROM members WHERE "ownerId"=$1 AND "organizationId"=$2 AND id=ANY($3::text[]) AND status=\'active\' AND "userId" IS NOT NULL AND role IN (\'owner\',\'admin\',\'agent\') FOR SHARE',[access.ownerId,access.organizationId,[...new Set(ids)]]);
@@ -129,6 +132,7 @@ export async function simulateAutomation(access:AccessContext,input:z.output<typ
 
 /** Call inside the SAME transaction as the genuine external ticket change. */
 export async function enqueueAutomationEvent(tx:PoolClient,access:AccessContext,ticketId:number,operationKey:string,eventKind:AutomationEventKind){
+  if(!await automationEnabledInTransaction(tx,access.ownerId))return null;
   if(!/^[A-Za-z0-9:_-]{1,200}$/.test(operationKey)||!automationEventKinds.includes(eventKind))throw new ApiError(400,'La identidad del evento no es válida.');
   const settings=(await tx.query('SELECT enabled,"activatedAt",version FROM "automationSettings" WHERE "ownerId"=$1 FOR SHARE',[access.ownerId])).rows[0];if(!settings?.enabled)return null;
   const now=new Date().toISOString(),hash=operationHash({ticketId,operationKey,eventKind,memberId:access.member.id});
@@ -159,7 +163,7 @@ async function applyPlan(tx:PoolClient,ownerId:string,ticket:AutomationTicket,ru
   }
   if(plan.department){await tx.query('UPDATE tickets SET department=$1 WHERE id=$2 AND "ownerId"=$3',[plan.department,ticket.id,ownerId]);summary.push(`Departamento: ${plan.department}`);changed=true;}
   if(plan.assignee){
-    const assigned=await tx.query('UPDATE tickets SET "assigneeMemberId"=$1,assignee=$2 WHERE id=$3 AND "ownerId"=$4 AND "assigneeMemberId" IS NULL',[plan.assignee.id,plan.assignee.name,ticket.id,ownerId]);
+    const assigned=await tx.query('UPDATE tickets SET "assigneeMemberId"=$1,assignee=$2 WHERE id=$3 AND "ownerId"=$4 AND "assigneeMemberId" IS NULL AND COALESCE(btrim(assignee),\'\')=\'\'',[plan.assignee.id,plan.assignee.name,ticket.id,ownerId]);
     if(assigned.rowCount){changed=true;await tx.query(`INSERT INTO "agentAvailability" ("memberId","ownerId",available,capacity,version,"lastAssignedAt","updatedAt") VALUES ($1,$2,true,20,0,$3,$3) ON CONFLICT ("memberId") DO UPDATE SET "lastAssignedAt"=EXCLUDED."lastAssignedAt" WHERE "agentAvailability"."ownerId"=EXCLUDED."ownerId"`,[plan.assignee.id,ownerId,now]);summary.push(`Responsable: ${plan.assignee.name}`);}
   }
   const created=await insertPlannedTasks(tx,{ownerId,member:publicMember({...author,hasAccount:true})},ticket.id,plan.tasks,`automation:${eventId}:${rule.id}:${rule.version}`);
@@ -170,10 +174,10 @@ async function applyPlan(tx:PoolClient,ownerId:string,ticket:AutomationTicket,ru
 async function execution(tx:PoolClient,event:{id:string;ownerId:string;ticketId:number},rule:AutomationRule|null,status:'applied'|'skipped'|'failed',summary:unknown){const now=new Date().toISOString();await tx.query(`INSERT INTO "automationExecutions" (id,"ownerId","eventId","ticketId","ruleId","ruleKey","ruleVersion","ruleName",status,"summaryJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11) ON CONFLICT ("eventId","ruleKey","ruleVersion") DO UPDATE SET status=EXCLUDED.status,"summaryJson"=EXCLUDED."summaryJson",attempts="automationExecutions".attempts+1,"updatedAt"=EXCLUDED."updatedAt"`,[crypto.randomUUID(),event.ownerId,event.id,event.ticketId,rule?.id??null,rule?.id??'none',rule?.version??0,rule?.name??'Sin regla coincidente',status,JSON.stringify(summary),now]);}
 export async function drainAutomationEvents(ownerId:string,options:{maxEvents?:number;maxDurationMs?:number}={}){
   const maxEvents=Math.min(5,Math.max(1,options.maxEvents??2)),maxDuration=Math.min(45_000,Math.max(1000,options.maxDurationMs??15_000)),start=Date.now();let processed=0,failed=0;
-  const now=new Date().toISOString();await db().prepare(`INSERT INTO "automationJobHealth" ("ownerId","lastStartedAt","updatedAt") VALUES ($1,$2,$2) ON CONFLICT ("ownerId") DO UPDATE SET "lastStartedAt"=EXCLUDED."lastStartedAt","updatedAt"=EXCLUDED."updatedAt"`).bind(ownerId,now).run();
+  const running=await db().transaction(async tx=>{await acquireTicketWorkLock(tx,ownerId);if(!await automationEnabledInTransaction(tx,ownerId))return false;const now=new Date().toISOString();await tx.query(`INSERT INTO "automationJobHealth" ("ownerId","lastStartedAt","updatedAt") VALUES ($1,$2,$2) ON CONFLICT ("ownerId") DO UPDATE SET "lastStartedAt"=EXCLUDED."lastStartedAt","updatedAt"=EXCLUDED."updatedAt"`,[ownerId,now]);return true;});if(!running)return {processed:0,failed:0,paused:true};
   try{for(let index=0;index<maxEvents&&Date.now()-start<maxDuration;index++){
     const result=await db().transaction(async tx=>{
-      await acquireTicketWorkLock(tx,ownerId);const settings=(await tx.query('SELECT enabled,"activatedAt",version FROM "automationSettings" WHERE "ownerId"=$1 FOR SHARE',[ownerId])).rows[0];if(!settings?.enabled)return 'empty';
+      await acquireTicketWorkLock(tx,ownerId);if(!await automationEnabledInTransaction(tx,ownerId))return 'empty';const settings=(await tx.query('SELECT enabled,"activatedAt",version FROM "automationSettings" WHERE "ownerId"=$1 FOR SHARE',[ownerId])).rows[0];if(!settings?.enabled)return 'empty';
       const event=(await tx.query('SELECT * FROM "automationEvents" WHERE "ownerId"=$1 AND status=\'queued\' AND "nextAttemptAt"<=$2 ORDER BY "createdAt",id LIMIT 1 FOR UPDATE SKIP LOCKED',[ownerId,new Date().toISOString()])).rows[0];if(!event)return 'empty';
       if(!automationActivationMatches(settings,event)){await tx.query('UPDATE "automationEvents" SET status=\'cancelled\',"lastErrorCode"=\'activation_changed\',"updatedAt"=$1 WHERE id=$2',[new Date().toISOString(),event.id]);await execution(tx,event,null,'skipped',{reason:'La activación cambió; no se ejecutan eventos anteriores.'});return 'done';}
       const rules=await allRules(tx,ownerId);await lockAutomationMembers(tx,ownerId,rules,event.actorMemberId?[event.actorMemberId]:[]);
@@ -202,7 +206,7 @@ export async function listAutomationExecutions(access:AccessContext,cursor:strin
   const fresh=requireAdmin(await lockAccess(tx,access));const {rows}=await tx.query(`SELECT id,"ticketId","ruleName",status,"summaryJson",attempts,"createdAt","updatedAt" FROM "automationExecutions" WHERE "ownerId"=$1 AND ($2::text IS NULL OR ("createdAt",id)<(SELECT "createdAt",id FROM "automationExecutions" WHERE id=$2 AND "ownerId"=$1)) ORDER BY "createdAt" DESC,id DESC LIMIT $3`,[fresh.ownerId,cursor,limit+1]);return {items:rows.slice(0,limit).map(row=>({...row,summary:JSON.parse(row.summaryJson),summaryJson:undefined})),nextCursor:rows.length>limit?rows[limit-1].id:null};
 });}
 export async function applyTaskTemplate(access:AccessContext,ticketId:number,input:z.output<typeof templateApplySchema>){return db().transaction(async tx=>{
-  await acquireTicketWorkLock(tx,access.ownerId);const fresh=requireStaff(await lockAccess(tx,access));
+  await acquireTicketWorkLock(tx,access.ownerId);const fresh=requireStaff(await lockAccess(tx,access));await requireAutomationInTransaction(tx,fresh.ownerId);
   const row=(await tx.query(`SELECT ${TEMPLATE_COLUMNS} FROM "taskTemplates" WHERE id=$1 AND "ownerId"=$2 AND NOT archived FOR SHARE`,[input.templateId,fresh.ownerId])).rows[0];
   const memberIds=row?publicTemplate(row).items.flatMap(item=>item.assigneeMemberId?[item.assigneeMemberId]:[]):[];
   if(memberIds.length)await tx.query('SELECT id FROM members WHERE "ownerId"=$1 AND id=ANY($2::text[]) ORDER BY id FOR SHARE',[fresh.ownerId,[...new Set(memberIds)]]);

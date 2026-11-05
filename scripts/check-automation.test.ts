@@ -38,6 +38,7 @@ test('plan removes no tags, adds only missing tags and leaves same department un
 test('automatic assignment preserves any existing owner and resolved tickets',()=>{
   const r=definition({actions:{assignMemberIds:[id,other]}});
   assert.equal(planAutomation(r,ticket({assigneeMemberId:other}),'ticket_created',[candidate()],[]).assignee,null);
+  assert.equal(planAutomation(r,ticket({assigneeMemberId:null,assignee:'Responsable histórico'}),'ticket_created',[candidate()],[]).assignee,null);
   const resolved=definition({conditions:{statuses:[]},actions:{assignMemberIds:[id]}});
   assert.equal(planAutomation(resolved,ticket({status:'resolved'}),'ticket_created',[candidate()],[]).assignee,null);
 });

@@ -39,6 +39,8 @@ export function buildMailPayload(input: {
 }): MailPayload {
   const ticket = input.ticketId ? `Ticket #${input.ticketId}` : 'Daybook Ticket';
   const copy: Record<NotificationEvent, { heading: string; body: string; action: string }> = {
+    member_mentioned: { heading: 'Te mencionaron en una nota interna', body: `${ticket} tiene una mención para ti. Entra al portal para consultar la nota del equipo.`, action: 'Ver mención' },
+    ticket_followed_update: { heading: 'Un ticket que sigues tiene novedades', body: `${ticket} tiene una actualización pública. Entra al portal para continuar la atención.`, action: 'Ver actualización' },
     ticket_created: { heading: 'Un nuevo ticket te espera', body: `${ticket} fue creado. Consulta su estado y continúa la atención desde el portal.`, action: 'Ver ticket' },
     agent_replied: { heading: 'Tienes una nueva respuesta', body: `El equipo de soporte respondió en ${ticket.toLowerCase()}. Entra al portal para leer y continuar la conversación.`, action: 'Ver respuesta' },
     client_replied: { heading: 'El cliente respondió', body: `${ticket} tiene una nueva respuesta del cliente. Entra al portal para continuar la atención.`, action: 'Ver ticket' },
@@ -46,6 +48,7 @@ export function buildMailPayload(input: {
     password_reset: { heading: 'Elige una nueva contraseña', body: 'Solicitaste restablecer tu contraseña. Usa este enlace para elegir una nueva. Si no lo solicitaste, puedes ignorar este correo.', action: 'Restablecer contraseña' },
     reminder: { heading: 'Este ticket requiere atención', body: `${ticket} tiene atención pendiente. Revisa la conversación y sus plazos en el portal.`, action: 'Revisar ticket' },
     escalation: { heading: 'Este ticket necesita apoyo', body: `${ticket} fue escalado al equipo. Revisa su atención y su plazo para continuar la conversación a tiempo.`, action: 'Revisar ticket' },
+    service_due: { heading: 'Un vencimiento requiere revisión', body: 'Un equipo o contrato requiere atención. Consulta la fecha y los detalles en la ficha privada del servicio.', action: 'Revisar servicio' },
     satisfaction_requested: { heading: '¿Cómo fue la atención?', body: `${ticket} fue resuelto. Tu opinión nos ayuda a mejorar: califica la atención desde tu portal.`, action: 'Calificar atención' },
   };
   const message = copy[input.event];
@@ -53,10 +56,10 @@ export function buildMailPayload(input: {
   const footer = replyTo ? 'Puedes responder a este correo desde tu dirección registrada con hasta 5 archivos de 10 MiB cada uno. También puedes enviarlos desde el portal.' : FOOTER;
   const metadata: [string, string][] = [];
   if (input.ticketId) metadata.push(['Ticket', `#${input.ticketId}`]);
-  if (input.metadata?.subject) metadata.push(['Asunto', input.metadata.subject.replace(/[\r\n\t]+/g, ' ').slice(0, 160)]);
-  if (input.metadata?.status && STATUS_LABELS[input.metadata.status]) metadata.push(['Estado', STATUS_LABELS[input.metadata.status]]);
-  if (input.metadata?.priority && PRIORITY_LABELS[input.metadata.priority]) metadata.push(['Prioridad', PRIORITY_LABELS[input.metadata.priority]]);
-  if (input.metadata?.dueAt && Number.isFinite(Date.parse(input.metadata.dueAt))) {
+  if (input.event !== 'service_due' && input.metadata?.subject) metadata.push(['Asunto', input.metadata.subject.replace(/[\r\n\t]+/g, ' ').slice(0, 160)]);
+  if (input.event !== 'service_due' && input.metadata?.status && STATUS_LABELS[input.metadata.status]) metadata.push(['Estado', STATUS_LABELS[input.metadata.status]]);
+  if (input.event !== 'service_due' && input.metadata?.priority && PRIORITY_LABELS[input.metadata.priority]) metadata.push(['Prioridad', PRIORITY_LABELS[input.metadata.priority]]);
+  if (input.event !== 'service_due' && input.metadata?.dueAt && Number.isFinite(Date.parse(input.metadata.dueAt))) {
     metadata.push(['Vencimiento', new Intl.DateTimeFormat('es-CL', { timeZone: 'America/Santiago', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(input.metadata.dueAt))]);
   }
   if ((input.event === 'reminder' || input.event === 'escalation') && input.metadata?.reasons) {

@@ -20,7 +20,7 @@ export const ruleCreateSchema=z.object({rule:automationRuleSchema,simulationProo
 export const rulePatchSchema=z.object({id:z.string().uuid(),expectedVersion:z.number().int().nonnegative(),rule:automationRuleSchema.optional(),archived:z.boolean().optional(),simulationProof:z.string().max(2048).optional()}).strict().refine(v=>v.rule!==undefined||v.archived!==undefined,'No hay cambios.');
 export const templatePatchSchema=z.object({id:z.string().uuid(),expectedVersion:z.number().int().nonnegative(),template:taskTemplateSchema.optional(),archived:z.boolean().optional()}).strict().refine(v=>v.template!==undefined||v.archived!==undefined,'No hay cambios.');
 export const automationSettingsSchema=z.object({enabled:z.boolean(),expectedVersion:z.number().int().nonnegative()}).strict();
-export interface AutomationTicket {id:number;ownerId:string;customerCompanyId:string|null;requesterMemberId:string|null;department:string;priority:TicketPriority;status:TicketStatus;assigneeMemberId:string|null;requestTypeId:string|null;tagIds:string[];taskCount:number;version:number}
+export interface AutomationTicket {id:number;ownerId:string;customerCompanyId:string|null;requesterMemberId:string|null;department:string;priority:TicketPriority;status:TicketStatus;assigneeMemberId:string|null;assignee?:string;requestTypeId:string|null;tagIds:string[];taskCount:number;version:number}
 export interface AutomationPlan {matches:boolean;addTagIds:string[];department:string|null;assignee:{id:string;name:string}|null;assignmentReason:string|null;tasks:{templateId:string;templateVersion:number;title:string;assigneeMemberId:string|null;dueAfterHours:number|null}[]}
 export function ruleMatches(rule:AutomationRuleDefinition,ticket:AutomationTicket,event:AutomationEventKind):boolean{
   const c=rule.conditions;
@@ -38,7 +38,7 @@ export function planAutomation(rule:AutomationRuleDefinition,ticket:AutomationTi
   if(ticket.taskCount+tasks.length>1000)throw new Error('El ticket alcanzó su límite de tareas.');
   let assignee:AutomationPlan['assignee']=null,assignmentReason:string|null=null;
   if(actions.assignMemberIds.length){
-    if(ticket.assigneeMemberId)assignmentReason='El ticket ya tiene responsable; se conserva.';
+    if(ticket.assigneeMemberId||ticket.assignee?.trim())assignmentReason='El ticket ya tiene responsable; se conserva.';
     else if(ticket.status==='resolved')assignmentReason='El ticket está resuelto; no se asignará.';
     else{
       const chosen=selectAutomaticAssignee([{id:'automation',name:rule.name,customerCompanyId:null,department:null,enabled:true,position:0,agentMemberIds:actions.assignMemberIds,version:0,createdAt:'',updatedAt:''}],candidates,{customerCompanyId:ticket.customerCompanyId,department:ticket.department});

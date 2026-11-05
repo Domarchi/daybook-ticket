@@ -1,3 +1,4 @@
+import {drainAutomationBestEffort} from '@/lib/automation';
 import { after } from 'next/server';
 import { z } from 'zod';
 import { requireAccess, requireAdmin } from '@/lib/access';
@@ -25,7 +26,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (job.status === 'pending') after(async () => {
       await drainInboundMailBestEffort(access.ownerId, { providerId });
       const [{ drainOutboxBestEffort }, { processPushOutboxBestEffort }] = await Promise.all([import('@/lib/mail'), import('@/lib/push')]);
-      await Promise.allSettled([drainOutboxBestEffort(access.ownerId), processPushOutboxBestEffort(access.ownerId)]);
+      await Promise.allSettled([drainOutboxBestEffort(access.ownerId), processPushOutboxBestEffort(access.ownerId),drainAutomationBestEffort(access.ownerId)]);
     });
     return json({ job });
   });

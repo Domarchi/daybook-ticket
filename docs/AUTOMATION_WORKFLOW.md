@@ -31,26 +31,43 @@ Los listados aceptan `cursor`, `limit` (máximo 100); reglas/plantillas también
 
 Componentes: `AutomationPanel({memberId,companies,members,departments})` para administración y `TicketRelationsPanel({memberId,ticketId,refreshKey?,onChanged?})` para el panel interno del ticket. Reutilizan el miembro explícito en cada petición, estados de error/carga, controles de teclado y estilos claro/oscuro y móvil. Se exportaron `orgRequest` y `useOrgResource` del componente E2 para compartir la protección contra respuestas de otra cuenta.
 
-## Integración que realizará el coordinador
+## Integración acumulada E1–E4
 
-1. Apilar E1–E4 y normalizar journal: `0010_automation`, índice 10, `1793912003000`. No se ha ejecutado esta migración desde esta entrega.
-2. Aplicar `requireEvolutionFeature(access, 'automation')` de E1 en **todas** las rutas públicas nuevas. El gate es además obligatorio dentro de `enqueueAutomationEvent` y en cada transacción de `drainAutomationEvents`; un interruptor desactivado debe impedir reservar/ejecutar trabajo aunque el motor local permanezca habilitado. La base E2 de este worktree no tiene aún ese módulo; no se ha inventado un gate paralelo.
-3. En los puntos genuinos de creación y cambio, ya bajo `acquireTicketWorkLock` y con acceso vigente: `await enqueueAutomationEvent(tx, fresh, ticket.id, stableOperationKey, eventKind)`. La recepción debe formar parte de la transacción original. Eventos: `ticket_created`, `ticket_updated`, `client_replied`, `agent_replied`; solo respuestas públicas. No reservar eventos para notas internas ni desde las propias acciones del worker.
-4. Usar la clave persistente de la operación/mensaje/correo recibido, no una nueva UUID al reintentar. Tras commit, llamar `drainAutomationBestEffort(ownerId)`, manteniendo el procesamiento de notificaciones actual. El worker no envía correo ni altera claves o eventos de correo existentes.
-5. El job selecciona hasta dos espacios habilitados por última ejecución más antigua y drena hasta dos eventos por espacio. Añadir el gate E1 al bucle de espacios. No activar infraestructura automáticamente: revisar cuota y configurar `DAYBOOK_AUTOMATION_JOB_ENABLED` / `DAYBOOK_AUTOMATION_JOB_SECRET` solo después de QA y aprobación de publicación.
-6. Montar los componentes únicamente para roles correspondientes y feature habilitada. Revisar enlace `/?ticket=:id` si la navegación del padre utiliza otro formato; habrá compatibilidad con rutas de espacio en E7.
-7. Añadir etiquetas de actividad: `automation_applied`, `task_template_applied`, `ticket_linked`, `ticket_unlinked`.
-8. Ampliar respaldo y compatibilidad con **ocho** tablas, todas con `ownerId`: `automationSettings`, `taskTemplates`, `automationRules`, `automationRuleVersions`, `automationEvents`, `automationExecutions`, `automationJobHealth`, `ticketRelations`. Orden de restauración: reglas antes de versiones/eventos/ejecuciones; eventos antes de ejecuciones; tickets y miembros antes de todas sus referencias. Sin secretos nuevos almacenados en estos registros.
+La rama incorpora `codex/daybook-evolution-03` en `451062f`, incluido el arreglo de borradores de E1 y los formularios durables E2. El diario contiene el prefijo contiguo 0–10: `0010_automation`, índice 10 y fecha `1793912003000`. No se ha ejecutado la migración aquí. La lista productiva de migraciones revisadas conserva 0–9: incorporar el pin 0010 requiere primero el ensayo QA y la revisión del coordinador.
+
+- Todas las rutas públicas E4 pasan por `requireAutomationAccess` y el gate E1. Los mutadores administrativos vuelven a comprobar el gate dentro de la transacción. `enqueueAutomationEvent` y cada transacción del worker lo comprueban con su conexión; un gate apagado conserva la cola e historial, sin reservar ni ejecutar trabajo. El cambio administrativo de flags toma el owner work lock antes de la pertenencia para serializarlo con los eventos y acciones.
+- Portal: creación usa `ticket:<operationId>`; mensajes públicos usan `message:<operationId>` y distinguen cliente/equipo. `patchTicket` usa `ticket:<id>:version:<version>` solo cuando realmente hay cambios; la organización usa esa misma clave de versión al cambiar metadatos, etiquetas o motivo de espera. Todas las reservas se realizan dentro de la transacción original. No hay eventos para notas, importaciones, tareas, vínculos ni acciones del worker.
+- Correo: `ingestInboundEmail` reserva con `inbound:<environment>:<providerId>` en la misma transacción del recibo, mensaje, archivos y avisos. Un recibo ya procesado vuelve antes de reservar; no reconstruye eventos antiguos. Los drains ocurren después del commit en las rutas de portal, cambios/organización, webhook de recepción, reintento administrativo y ejecutor de recepción. El worker E4 solo hace acciones internas y no envía correo o push.
+- El ejecutor privado filtra espacios con gate y motor habilitados, elige hasta dos por última ejecución más antigua y drena dos eventos por espacio. Sigue desactivado por defecto. Revisar cuota y configurar `DAYBOOK_AUTOMATION_JOB_ENABLED` / `DAYBOOK_AUTOMATION_JOB_SECRET` solo después de QA y autorización productiva.
+- `AutomationPanel` está montado para administradores en «Atención y reparto». `TicketRelationsPanel` y aplicación de plantillas están en el detalle interno del ticket. Ambos requieren el gate; las etiquetas de actividad E4 están registradas. Los enlaces `/?ticket=:id` conservan el formato actual. El control de flags actualiza el espacio después de guardar, y los estilos respetan el tema claro/oscuro/automático.
+- Respaldo: se añaden ocho tablas a las 57 de E3, **65 en total**, preservando cada perfil anterior exacto. Tablas E4: `automationSettings`, `taskTemplates`, `automationRules`, `automationRuleVersions`, `automationEvents`, `automationExecutions`, `automationJobHealth`, `ticketRelations`. Se restauran reglas antes de versiones/eventos/ejecuciones y eventos antes de ejecuciones. Todas tienen `ownerId`; no contienen secretos.
+
+## Programación con la Function existente
+
+`functions/notification-pinger` amplía el fanout existente sin crear nuevas Functions ni disparadores. Conserva recordatorios primero, luego recepción, vencimientos de equipos/contratos, automatizaciones y finalmente respaldos. Los límites por solicitud son 25 s, 55 s, 45 s, 45 s y 280 s respectivamente. Cada destino habilitado recibe una sola solicitud: una respuesta fallida, redirección o interrupción no provoca reintentos del pinger ni impide los siguientes trabajos.
+
+Los dos destinos nuevos están apagados por defecto y tienen credenciales independientes:
+
+| Configuración privada en Vercel y en la Function del mismo entorno | Destino |
+| --- | --- |
+| `DAYBOOK_SERVICE_CONTEXT_JOB_ENABLED=true` + `DAYBOOK_SERVICE_CONTEXT_JOB_SECRET` | `/api/internal/service-context-tick` |
+| `DAYBOOK_AUTOMATION_JOB_ENABLED=true` + `DAYBOOK_AUTOMATION_JOB_SECRET` | `/api/internal/automation-tick` |
+
+El pinger valida antes de cualquier llamada los secretos de todos los trabajos habilitados. Los dos destinos nuevos desactivados no necesitan su secreto. El bypass de protección se conserva únicamente en QA y solo se envía al origen Vercel fijado en `DAYBOOK_NOTIFICATION_TARGET_ORIGIN`; producción lo rechaza y ninguna redirección se sigue.
+
+Después de revisar QA, el operador actualizará **la Function ya existente** con el artefacto generado por `npm run build:notification-pinger`, guardará los secretos correspondientes como privados y comprobará una invocación del disparador existente. QA y producción usan configuración y secretos diferentes; no se han creado claves ni cambiado entornos remotos en esta entrega. Para detener cada destino basta con apagar su flag conservando datos e historial; el gate y motor del espacio siguen siendo controles independientes de los eventos inmediatos.
 
 ## Comprobaciones
 
-- `node --import tsx --test scripts/check-automation.test.ts`: 13 pruebas de condiciones, orden/no retroactividad, acciones permitidas, límites, conservación de responsable/capacidad, plantillas versionadas, compatibilidad de duplicados, firma ligada al contexto/tamper/expiración y autenticación antes del worker.
+- `node --import tsx --test scripts/check-automation.test.ts`: 13 pruebas de condiciones, orden/no retroactividad, acciones permitidas, límites, conservación de responsable/capacidad, incluidos responsables históricos sin cuenta enlazada, plantillas versionadas, compatibilidad de duplicados, firma ligada al contexto/tamper/expiración y autenticación antes del worker.
 - `scripts/check-automation-database.mjs`: preparado para ejecución **en serie por el coordinador**, solo `.env.test.local` QA permitida. Guarda fixtures ficticias, worker, salud y recibos dentro de una transacción, fuerza fetch externo a fallar y hace rollback más comprobación de limpieza. Prueba simulación sin filas, habilitación con firma, snapshots, recibos, acciones/rollback/reintentos, capacidad, revocación, duplicados, SLA intacto y exclusión de una segunda transacción mediante bloqueo. No se ha ejecutado aquí.
+- `scripts/check-evolution-pinger.test.ts`: orden de destinos, credenciales por destino, fallo independiente, ausencia de reintentos y secretos en respuestas, bypass solo QA y configuración apagada.
+- `scripts/check-automation-integration.test.ts`: gate apagado/malformado, ausencia de escrituras al pausar y compatibilidad de todos los perfiles históricos exactos.
 - Lint, tipos, compilación y pruebas de la rama se registran al cerrar la entrega. Revisión visual y QA integrada sobre el mismo commit quedan al coordinador, sin publicación productiva.
 
 ## Desactivación y reversión
 
-La restauración pausa explícitamente el motor, borra `activatedAt`, cancela los eventos pendientes con `restore_paused` y limpia el marcador de inicio del ejecutor después de verificar las huellas originales. No depende del interruptor restaurado ni vuelve a ejecutar eventos históricos. Esta pausa se activa al incorporar las ocho tablas a `BACKUP_TABLES` de la entrega integrada.
+La restauración pausa explícitamente el motor, borra `activatedAt`, cancela los eventos pendientes con `restore_paused` y limpia el marcador de inicio del ejecutor después de verificar las huellas originales. No depende del interruptor restaurado ni vuelve a ejecutar eventos históricos. Las ocho tablas ya están registradas en `BACKUP_TABLES`; la pausa también se aplica al recuperar archivos históricos en el esquema actual.
 
 Apagar primero el programador y luego el motor/gate del espacio detiene trabajo nuevo y existente. Los tickets, tareas, relaciones, snapshots y ejecuciones se conservan. Volver al despliegue anterior mantiene tablas aditivas y datos actuales; no revertir borrando tablas. Antes de producción, comparar inventario/huellas y comprobar descarga de archivos según el proceso de conservación del repositorio.
 
@@ -61,4 +78,16 @@ Apagar primero el programador y luego el motor/gate del espacio detiene trabajo 
 - `npm run test:unit`: 271/271 PASS antes de añadir el borde de activación simultánea; la ejecución final específica de E4: 13/13 PASS. Subconjunto de automatización y compatibilidad de respaldos: 16/16 PASS antes de ese test adicional.
 - `npm run build`: PASS sobre las fuentes finales, con rutas nuevas registradas.
 - `node --check scripts/check-automation-database.mjs` y `git diff --check`: PASS.
-- QA de base, gates E1, conservación/restauración con las ocho tablas registradas y revisión visual integrada: pendientes del coordinador. No se leyeron secretos ni se ejecutaron migraciones, QA mutante o infraestructura desde este worktree.
+- Registro original del bloque aislado. La integración posterior añade gates E1 y respaldo; QA de base, conservación/restauración y revisión visual integrada siguen pendientes del coordinador. No se leyeron secretos ni se ejecutaron migraciones, QA mutante o infraestructura desde este worktree.
+
+## Recuperación acumulada de 65 tablas
+
+El ensayo de recuperación conserva las fixtures E3 de sede, equipo, contrato y documento privado (tres archivos). Añade filas ficticias a las ocho tablas E4, versiones y ejecución histórica, un evento terminado y otro pendiente, y una relación de duplicado con un segundo caso. Verifica huellas originales antes de pausar el motor, cancelar solo el pendiente y limpiar el marcador del ejecutor; conserva versiones, plantillas, ejecución y vínculo. Este ensayo queda preparado para el coordinador: no se ha ejecutado en este worktree.
+
+## Cierre de integración acumulada (2026-11-05)
+
+- Base E3 `451062f`, con feedback de red y recuperación contractual conservados. Diario 0–10 contiguo y declaraciones de esquema sin duplicados.
+- `npm run lint`, `npm run typecheck` y `npm run build`: PASS sobre la integración final. `npm run test:unit`: **323/323 PASS**. El último ajuste del transporte compartido y del ensayo de recuperación superó lint y las comprobaciones pertinentes.
+- Pinger: nueve comprobaciones conjuntas con recordatorios/fiabilidad, y seis casos finales de fanout y secretos, todos aprobados con fetch simulado. `npm run build:notification-pinger`: PASS. Artefacto local `outputs/notification-pinger/function.zip`, 1.789 bytes, SHA-256 `28869f062d5728436ca1ba7ed4030c4d615d9b4fb50a28a05a722dc216d752ab`. Sin claves dentro del artefacto.
+- Migración 0010 sin cambios: SHA-256 `520cb6ef34cee5ad428c4843388b2b712c3e4825a4591ebbb7fb1dd3e4ad435c`.
+- Los scripts QA de automatización, bloqueos y recuperación de 65 tablas están preparados y revisados sintácticamente, **sin ejecutarlos**. Pendientes del coordinador: ensayo/pin/aplicación QA 0010, recorridos HTTP/visuales, recuperación con datos reales ficticios de las 65 tablas y publicación revisable. No se publicaron producción/Preview ni se actualizaron Functions, secretos, DNS o planes desde esta entrega.

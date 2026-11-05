@@ -13,7 +13,10 @@ export async function POST(request: Request) {
       const { drainInboundMailJobs } = await import('@/lib/inbound-email-jobs');
       const organization = await db().prepare('SELECT "ownerId" FROM organizations WHERE id=$1').bind('daybook').first<{ ownerId: string }>();
       if (!organization) return { skipped: true };
-      return drainInboundMailJobs(organization.ownerId, { maxJobs: 2, maxDurationMs: 45_000 });
+      const result=await drainInboundMailJobs(organization.ownerId, { maxJobs: 2, maxDurationMs: 40_000 });
+      const {drainAutomationBestEffort}=await import('@/lib/automation');
+      await drainAutomationBestEffort(organization.ownerId);
+      return result;
     },
   })(request);
 }
