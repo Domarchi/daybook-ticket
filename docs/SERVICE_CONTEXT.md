@@ -44,7 +44,7 @@ Desactivar el interruptor o el endpoint conserva registros, lectura e historial 
 
 La migración aditiva `0009_service_context.sql` añade doce tablas, un destino privado de adjuntos y una referencia nullable de correo. No reconstruye historial ni recalcula SLA. Debe apilarse después de las entregas 1 y 2 y probarse en QA antes de producción. La biblioteca de respaldo incorpora las nuevas tablas respetando sus dependencias y acepta conjuntos exactos de los formatos anteriores.
 
-Validación local: 256 pruebas unitarias, compilación Next, tipos y lint. La prueba `scripts/check-service-context-database.mjs` se prepara para la coordinación de QA en serie: cuenta y empresas ficticias, datos dentro de una transacción revertida, almacenamiento simulado y cero solicitudes a proveedores. Ejecutar después de migrar QA, únicamente con `.env.test.local` y `DAYBOOK_QA_ALLOW_TEST_DATABASE=1`, mediante `node --env-file=.env.test.local --import tsx scripts/check-service-context-database.mjs`. No se ha ejecutado desde esta rama de implementación.
+Validación local integrada: 301 pruebas unitarias, compilación Next, tipos y lint. La prueba `scripts/check-service-context-database.mjs` se prepara para la coordinación de QA en serie: cuenta y empresas ficticias, datos dentro de una transacción revertida, almacenamiento simulado y cero solicitudes a proveedores. Ejecutar después de migrar QA, únicamente con `.env.test.local` y `DAYBOOK_QA_ALLOW_TEST_DATABASE=1`, mediante `node --env-file=.env.test.local --import tsx scripts/check-service-context-database.mjs`. No se ha ejecutado desde esta rama de implementación.
 
 Antes de publicar: integrar paneles, comprobar escenarios de QA y revisar escritorio/móvil en el mismo commit, probar restauración con los perfiles acumulados y comparar inventario/huellas de datos existentes. Para revertir, desactivar el nuevo programador, pausar los avisos de contexto y volver al despliegue anterior sin eliminar tablas, documentos ni columnas. Mantener la migración aditiva permite recuperar esta versión sin perder datos nuevos.
 
@@ -59,3 +59,7 @@ La recuperación ampliada pasó con 57 tablas y 3 archivos, incluido documento c
 ## Recorrido de revisión
 
 El recorrido HTTP sobre datos ficticios comprobó sedes, equipos, servicios y contratos; denegó el acceso de cliente a recursos y vínculos internos y conservó estado, responsable y vencimiento del ticket #384. La ficha del equipo muestra ese ticket en su historial. La revisión visual en escritorio 1440×1000 y móvil 390×844 confirmó navegación, documentos privados y temas claro y negro. Las capturas quedan en `outputs/evolution-03/`. No hubo envíos ni cargas externas. Los errores de red se presentan en español y preservan la operación para reintentar manualmente.
+
+## Candidato revisable
+
+Código `8ce2f01`: lint, tipos y compilación aprobados después de la revisión visual; 301 pruebas unitarias de la integración aprobadas. La vista previa protegida de esta entrega usará la base aislada de QA y los mismos controles de acceso comprobados por HTTP. Los programadores, correo y push permanecen apagados; activar garantías y renovaciones requiere revisar la configuración del pinger existente, según las instrucciones de publicación.
