@@ -1,4 +1,5 @@
 'use client';
+import {KnowledgePanel,KnowledgeSuggestions} from './knowledge';
 import {RequestOrganizationFields,TicketOrganizationPanel,SavedViewPicker,type OrganizationRequestValue} from './work-organization';
 import {daybookFetch,UNCERTAIN_SEND_MESSAGE} from '@/lib/browser-request';
 import { MessageEditor } from './message-content';
@@ -10,7 +11,7 @@ import { PublicTicketProgress } from './public-ticket-progress';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, ArrowRight, BookOpen, CheckCircle2, ChevronRight, CircleHelp, Clock3, Headphones, LoaderCircle, LogOut, MessageSquare, Plus, RefreshCw, Search, Send, ShieldCheck, Ticket as TicketIcon, X } from 'lucide-react';
-import type { Article, Message, Ticket, TicketPriority, TicketStatus, Workspace } from '../lib/types';
+import type { Message, Ticket, TicketPriority, TicketStatus, Workspace } from '../lib/types';
 import Brand from './brand';
 import {ThemeControl} from './evolution-controls';
 import { LiveStatus } from './live-status';
@@ -61,7 +62,6 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
   const [section, setSection] = useState<'tickets' | 'help'>('tickets');
   const [selectedId, setSelectedId] = useState<number | null>(() => { const id = Number(searchParams.get('ticket')); return Number.isSafeInteger(id) && id > 0 ? id : null; });
   const [creating, setCreating] = useState(false);
-  const [article, setArticle] = useState<Article | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [busy, setBusy] = useState(false);
@@ -83,9 +83,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
   const conversation = useTicketConversation(data.viewer?.id, accessKey, selectedId, feedKey);
   const current = conversation.ticket;
   const searchResults = useTicketSearch(data.viewer?.id, { q: search, queue: filter as TicketFilters['queue'], priority: 'all', department: 'all', company: 'all', agent: 'all' }, feedKey, section === 'tickets' && !creating && selectedId === null);
-  const published = data.articles.filter(item => item.published);
   const visibleTickets = searchResults.items;
-  const visibleArticles = published.filter(item => `${item.title} ${item.body} ${item.category}`.toLowerCase().includes(search.toLowerCase()));
   const counts = data.ticketCounts ?? { all: data.tickets.length, open: 0, pending: 0, resolved: 0 };
   const openCount = counts.open + counts.pending;
 
@@ -95,11 +93,11 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
     return () => clearTimeout(timer);
   }, [notice]);
 
-  useEffect(() => { headingRef.current?.focus(); }, [selectedId, creating, article, section]);
+  useEffect(() => { headingRef.current?.focus(); }, [selectedId, creating, section]);
 
   const navigate = (next: 'tickets' | 'help') => {
     if (busy) return;
-    setSection(next); setSelectedId(null); setCreating(false); setArticle(null); setSearch(''); setError('');
+    setSection(next); setSelectedId(null); setCreating(false); setSearch(''); setError('');
   };
 
   const openTicket = (ticket: Ticket) => {
@@ -146,7 +144,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
     finally { operation.current = false; setBusy(false); }
   };
 
-  const newTicket = () => { if (!busy) { setCreating(true); setSelectedId(null); setArticle(null); setError(''); } };
+  const newTicket = () => { if (!busy) { setCreating(true); setSelectedId(null); setError(''); } };
   const signOut = async () => {
     if (operation.current) return;
     operation.current = true; setBusy(true); setError('');
@@ -179,6 +177,7 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
             <div className="client-fields"><label>Departamento<select value={draft.department} onChange={event => updateDraft({ ...draft, department: event.target.value })}>{data.settings.departments.map(department => <option key={department}>{department}</option>)}</select></label><label>Prioridad<select value={draft.priority} onChange={event => updateDraft({ ...draft, priority: event.target.value })}>{Object.entries(PRIORITY).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
             <div className="client-description"><label htmlFor="new-ticket-description">Descripción</label><MessageEditor id="new-ticket-description" label="Descripción" value={draft.body} onChange={value => updateDraft({ ...draft, body: value })} disabled={busy} rows={7} placeholder="Incluye qué sucede, desde cuándo y cómo podemos ayudarte."/></div>
           </fieldset>
+          {data.evolution?.features.knowledge&&<KnowledgeSuggestions key={`${accessKey}:suggestions`} memberId={data.viewer!.id} query={draft.subject}/>}
           {data.evolution?.features.organization&&<RequestOrganizationFields key={accessKey} memberId={data.viewer!.id} companyId={data.viewer!.customerCompanyId} value={organizationRequest} onChange={changeOrganizationRequest} disabled={busy}/>}
           <AttachmentComposer controls={createAttachments} disabled={busy}/>
           <div className="client-form-footer"><span>Podrás consultar las respuestas en Mis tickets.</span><button className="primary" disabled={busy || !draft.subject.trim() || !draft.body.trim() || !createAttachments.canSubmit}>{busy ? <LoaderCircle size={16} className="spin" /> : <Send size={16} />}Crear ticket</button></div>
@@ -193,16 +192,9 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
           </TicketChat>
         {data.evolution?.features.organization&&<TicketOrganizationPanel key={`org:${accessKey}:${current.id}`} ticketId={current.id} memberId={data.viewer!.id} staff={false} members={[]} refreshKey={current.version}/>}<TicketSatisfactionPanel key={`satisfaction:${data.viewer!.id}:${current.id}`} ticketId={current.id} memberId={data.viewer!.id} version={current.version} status={current.status}/></section><aside className="client-ticket-summary"><Headphones size={25} /><h2>Seguimos tu caso</h2><p>Consulta aquí el estado y las respuestas de nuestro equipo.</p><dl><div><dt>Estado</dt><dd><Badge status={current.status} /></dd></div><div><dt>Prioridad</dt><dd>{PRIORITY[current.priority]}</dd></div><div><dt>Última actividad</dt><dd>{date(current.updatedAt)}</dd></div></dl><div className="client-private-note"><ShieldCheck size={16} /><span>{isCompanyManager ? 'Visible para los contactos autorizados de tu empresa y el equipo de Daybook.' : 'Visible para ti, el equipo de Daybook y los contactos autorizados de tu empresa, si corresponde.'}</span></div></aside></div>
       </> : section === 'help' ? <>
-        {article ? <>
-          <button className="client-back" disabled={busy} onClick={() => setArticle(null)}><ArrowLeft size={16} />Centro de ayuda</button>
-          <article className="client-reading"><span className="tag">{article.category}</span><h1 ref={headingRef} tabIndex={-1}>{article.title}</h1><div>{article.body}</div><small>Actualizado el {date(article.updatedAt)}</small></article>
-        </> : <>
-          <div className="client-heading"><div><span className="eyebrow">RESPUESTAS A TU ALCANCE</span><h1 ref={headingRef} tabIndex={-1}>¿Cómo podemos ayudarte?</h1><p>Consulta nuestras guías o abre un ticket para recibir ayuda.</p></div><span className="client-heading-icon"><BookOpen size={27} /></span></div>
-          <label className="search-box client-search"><Search size={18} /><input aria-label="Buscar una guía" value={search} onChange={event => setSearch(event.target.value)} placeholder="Busca una respuesta…" /></label>
-          <div className="client-article-grid">{visibleArticles.map(item => <button className="client-article" key={item.id} onClick={() => setArticle(item)}><BookOpen size={24} /><small>{item.category}</small><h2>{item.title}</h2><p>{item.body.slice(0, 150)}{item.body.length > 150 ? '…' : ''}</p><span>Leer guía <ArrowRight size={15} /></span></button>)}</div>
-          {visibleArticles.length === 0 && <div className="client-empty"><BookOpen size={30} /><h2>{search ? 'No encontramos esa guía' : 'Las guías están en camino'}</h2><p>Puedes crear un ticket y nuestro equipo te ayudará.</p></div>}
-          <div className="client-help-cta"><div><h2>Estamos al otro lado.</h2><p>Cuéntanos qué necesitas y seguimos la conversación.</p></div><button className="primary" onClick={newTicket}><Plus size={17} />Crear ticket</button></div>
-        </>}
+        <div className="client-heading"><div><span className="eyebrow">RESPUESTAS A TU ALCANCE</span><h1 ref={headingRef} tabIndex={-1}>Centro de ayuda</h1><p>Guías aprobadas para tu empresa y acceso directo a nuestro equipo.</p></div></div>
+        {data.evolution?.features.knowledge?<KnowledgePanel key={`${accessKey}:help`} memberId={data.viewer!.id}/>:<p className="info-note">Las guías están en pausa. Puedes crear una solicitud y continuar recibiendo atención.</p>}
+        <div className="client-help-cta"><p>¿Necesitas más ayuda?</p><button className="primary" type="button" disabled={busy} onClick={newTicket}><Plus size={16}/>Crear ticket</button></div>
       </> : <>
         <div className="client-heading"><div><span className="eyebrow">TU ESPACIO DE SOPORTE</span><h1 ref={headingRef} tabIndex={-1}>Hola, {displayName.split(' ')[0]}.</h1><p>{isCompanyManager ? `Consulta y responde los tickets de ${companyName || 'tu empresa'}.` : 'Tus solicitudes y nuestras respuestas, siempre a mano.'}</p></div><button className="primary" onClick={newTicket} disabled={busy}><Plus size={17} />Nuevo ticket</button></div>
         <div className="client-overview"><div><span className="client-overview-icon"><MessageSquare size={21} /></span><span><strong>{openCount}</strong><small>Solicitudes en curso</small></span></div><div><span className="client-overview-icon resolved"><CheckCircle2 size={21} /></span><span><strong>{counts.resolved}</strong><small>Solicitudes resueltas</small></span></div><div className="client-overview-help"><ShieldCheck size={22} /><p>{isCompanyManager ? 'Un espacio para tu empresa.' : 'Un espacio personal.'}<span>{isCompanyManager ? 'Aquí ves tus tickets y los vinculados a tu empresa.' : 'Aquí ves únicamente tus tickets.'}</span></p></div></div>

@@ -1,12 +1,13 @@
 import {getEvolutionFeatures} from '@/lib/evolution-features';
 import {getUserPreferences} from '@/lib/user-preferences';
-import { db, handle, json, getSettings, articleColumns, asArticle } from '@/lib/server';
+import {knowledgeWorkspaceArticles} from '@/lib/knowledge';
+import { db, handle, json, getSettings } from '@/lib/server';
 import { requireAccess, memberColumns, publicMember, getCustomerCompanies } from '@/lib/access';
 import { getSavedReplies } from '@/lib/saved-replies';
 import { getMailStatus, drainOutboxBestEffort } from '@/lib/mail';
 import { after } from 'next/server';
 import { getTicketFeed } from '@/lib/ticket-feed';
-import type { Article, Member } from '@/lib/types';
+import type { Member } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   return handle(async () => {
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
     const client = access.role === 'client';
     const [feed, articles, settings, demo, members, companies, savedReplies, evolution, preferences] = await Promise.all([
       getTicketFeed(access),
-      database.prepare(`SELECT ${articleColumns} FROM articles WHERE "ownerId" = $1${client ? ' AND published = true' : ''} ORDER BY "updatedAt" DESC`).bind(access.ownerId).all<Article>(),
+      knowledgeWorkspaceArticles(access,database),
       getSettings(access.ownerId),
       client ? null : database.prepare("SELECT \"ownerId\" FROM \"demoImports\" WHERE \"ownerId\" = $1").bind(access.ownerId).first(),
       client ? { results: [] as Member[] } : database.prepare(`SELECT ${memberColumns} FROM members WHERE "ownerId" = $1 ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'agent' THEN 2 ELSE 3 END, name`).bind(access.ownerId).all<Member>(),
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
       savedReplies,
       mailStatus,
       ...feed,
-      articles: articles.results.map(asArticle),
+      articles: client && !evolution.features.knowledge ? [] : articles,
       settings: client ? { ...settings, agents: [], notificationMemberIds: [] } : settings,
       demoLoaded: !client && Boolean(demo),
     });
