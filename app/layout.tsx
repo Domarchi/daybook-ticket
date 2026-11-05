@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./service-plus.css";
 import "./ticket-chat.css";
+import "./collaboration.css";
+import "./evolution-theme.css";
+import {ThemeBootstrap} from "./evolution-controls";
 
 export const metadata: Metadata = {
   title: "Daybook Ticket — Servicios Daybook",
@@ -22,7 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className="antialiased">{children}</body>
+      <body className="antialiased"><ThemeBootstrap/>{children}</body>
     </html>
   );
 }

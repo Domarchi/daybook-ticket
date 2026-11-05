@@ -54,7 +54,7 @@ export async function createWorkspaceBackup(access: AccessContext, database = db
       if (!tableColumns.length) throw new ApiError(503, 'Aplica la migración de esta versión antes de crear respaldos.');
       let where = '"ownerId"=$1';
       if (table === 'authUser') where = 'id IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
-      else if (table === 'authAccount') where = '"userId" IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
+      else if (table === 'authAccount' || table === 'userPreferences') where = '"userId" IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
       else if (table === 'attachments') where += " AND status='attached'";
       else if (table === 'invitations' || table === 'ticketPresence') where += ' AND FALSE';
       else if (table === 'inboundMailJobFiles') where = '"providerId" IN (SELECT "providerId" FROM "inboundMailJobs" WHERE "ownerId"=$1) AND "attachmentId" IN (SELECT id FROM attachments WHERE "ownerId"=$1 AND status=\'attached\')';
