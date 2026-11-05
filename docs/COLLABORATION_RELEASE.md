@@ -6,7 +6,7 @@ El equipo y los clientes pueden citar mensajes autorizados y volver al original,
 
 La búsqueda consulta todo el historial autorizado. La galería pagina archivos y filtra por nombre, tipo y fechas de Santiago; conserva las rutas privadas de vista previa y descarga. Listado, contexto, búsqueda y entrega de avisos vuelven a comprobar pertenencia y permisos.
 
-Se añaden selector claro/oscuro/automático por cuenta, negro neutro y dorado, y detalles del ticket plegables en móvil. El texto de los borradores continúa separado por cuenta, rol y ticket. Las referencias de cita y selección de menciones se conservan mientras está abierto el editor; al recargar se recupera el texto y debe elegirse de nuevo la referencia.
+Se añaden selector claro/oscuro/automático por cuenta, negro neutro y dorado, y detalles del ticket plegables en móvil. El texto de los borradores continúa separado por cuenta, rol y ticket. Las citas y menciones se guardan por audiencia como identificadores. Al recargar, la cita vuelve a comprobarse con los permisos actuales; si no está disponible, se conserva su referencia y se puede reintentar o retirar explícitamente. Los reintentos mantienen el mismo identificador de operación.
 
 ## Preparación y conservación
 
@@ -16,7 +16,7 @@ Todas las funciones nuevas nacen desactivadas. Un administrador habilita «Conve
 
 ## Evidencias de QA
 
-- 252 pruebas unitarias; lint, tipos y compilación de producción.
+- 280 pruebas unitarias; lint, tipos y compilación de producción. Incluye recuperación e idempotencia de borradores, compatibilidad histórica y operador de migraciones con inyección de fallos.
 - Ocho grupos de pruebas de base, con rollback y sin correo/push real: citas y audiencia, menciones, reintentos, revocación, búsqueda, archivos, seguidores y preferencias aisladas.
 - Ensayo y aplicación serial de la migración en QA: 39 tablas y 506 filas preexistentes con huellas idénticas de todas sus columnas originales.
 - Ticket ficticio #379: nota privada no consultable por cliente; reenvío de respuesta con el mismo `operationId` devuelve el mensaje original; búsqueda completa y contexto anterior a los 50 mensajes recientes comprobados por HTTP y navegador.
@@ -57,3 +57,9 @@ El seguimiento toma el bloqueo de trabajo del espacio antes de bloquear al miemb
 Validación local de esta corrección: pruebas de almacenamiento, recarga, pérdida de respuesta, audiencias, revocación y compatibilidad de recibos. `scripts/check-collaboration-draft-locks-database.mjs` queda preparado para QA serial con dos conexiones y rollback total; **no se ejecutó en este worktree**. La revisión visual anterior no cubre los estados nuevos de recuperación: el coordinador revisará esos estados junto con la integración E2 antes de publicar.
 
 Cierre local de la corrección (2026-11-05): lint pertinente sin errores ni advertencias; `npm run typecheck` y `npm run build` aprobados; 30/30 pruebas de borradores, colaboración y UI existentes aprobadas, más 10/10 de recuperación después del ajuste final del helper de metadatos. Sintaxis del QA de bloqueos y `git diff --check` aprobados. Sin ejecución de QA mutante, migraciones ni cambios en proveedores o producción.
+
+## Revisión final de recuperación
+
+El ensayo QA de bloqueos comprobó seguimiento reservado antes de tocar miembros, menciones antes del ticket y autorización antes de buscar una cita; fixtures revertidos. El operador real de publicación también verificó el catálogo QA aplicado hasta0009 en auditoría y simulación, sin confirmar cambios.
+
+En navegador, cliente y agente recuperaron texto, cita y mención tras recargar. Cambiar de nota a respuesta no mostró la cita ni mención internas. Un corte real del servidor local dejó el envío sin confirmar y conservó el borrador; al recuperar la conexión se guardó un único mensaje. Después se guardó una sola nota con cita y mención recuperadas. Se mejoró el aviso de transporte al español, sin reintentar mutaciones automáticamente. Capturas de estos recorridos en `outputs/evolution-01/`.
