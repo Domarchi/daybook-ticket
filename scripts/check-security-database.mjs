@@ -54,6 +54,6 @@ try{
   assert.ok(exported.tables.find(table=>table.name==='members').rows.every(row=>!('userId'in row)));
   await assert.rejects(()=>createBusinessExport(access.client,database),error=>error.status===403);
   await client.query('DELETE FROM "authSession" WHERE id=$1',[users.agent.sessionId]);
-  await assert.rejects(()=>assertSecurityAccess(access.agent,client),error=>error.status===428);
+  await assert.rejects(()=>assertSecurityAccess(access.agent,client),error=>error.status===401);
   console.log(JSON.stringify({passed:true,groups:9,mfaPolicy:'fictitious fixtures only',businessExportCredentials:false,externalDeliveries:0}));
 }finally{await client.query('ROLLBACK');client.release();await pool.end();}

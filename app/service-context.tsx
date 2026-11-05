@@ -1,5 +1,4 @@
 'use client';
-import {daybookFetch} from '@/lib/browser-request';
 
 import { useEffect, useRef, useState } from 'react';
 import { Archive, ArrowLeft, ArrowRight, Building2, CalendarClock, Check, FileText, History, LoaderCircle, Monitor, Plus, RefreshCw, Save, Search, ShieldCheck, X } from 'lucide-react';

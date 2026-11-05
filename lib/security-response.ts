@@ -16,6 +16,6 @@ export function securityResponseValid(path:string,method:string,value:unknown):b
  if(route==='/api/auth/two-factor/disable')return value.status===true;
  if(route==='/api/auth/two-factor/verify-totp'||route==='/api/auth/two-factor/verify-backup-code')return isJsonObject(value.user)&&typeof value.user.id==='string';
  if(route==='/api/security/audit')return Array.isArray(value.items)&&value.items.every(item=>isJsonObject(item)&&typeof item.id==='string'&&typeof item.actorName==='string'&&typeof item.action==='string'&&date(item.createdAt))&&(value.nextCursor===null||typeof value.nextCursor==='string');
- if(route==='/api/security/health')return Array.isArray(value.mail)&&Array.isArray(value.inbound)&&Array.isArray(value.backups)&&date(value.checkedAt)&&(value.scheduler===null||isJsonObject(value.scheduler));
+ if(route==='/api/security/health')return Array.isArray(value.mail)&&Array.isArray(value.inbound)&&Array.isArray(value.backups)&&Array.isArray(value.jobs)&&value.jobs.every(job=>isJsonObject(job)&&typeof job.id==='string'&&typeof job.name==='string'&&['lastStartedAt','lastSucceededAt','lastFailedAt'].every(key=>job[key]===null||date(job[key]))&&(job.lastErrorCode===null||typeof job.lastErrorCode==='string'))&&date(value.checkedAt)&&(value.scheduler===null||isJsonObject(value.scheduler));
  return true;
 }

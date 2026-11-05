@@ -1,5 +1,4 @@
 'use client';
-import {daybookFetch} from '@/lib/browser-request';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Archive, Check, ClipboardList, Filter, LoaderCircle, Plus, RefreshCw, Save, Tag, X } from 'lucide-react';
