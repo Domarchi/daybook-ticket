@@ -322,6 +322,7 @@
   .client-shell .message-markdown code,
   .client-shell .message-content-rich code { background: #000; color: var(--ink); }
   .client-shell .message-content-rich a { color: var(--accent); }
+  .client-shell .message-editor-toolbar button:hover:not(:disabled) { background: var(--client-soft); color: var(--ink); }
   .client-shell .public-progress-timeline .is-complete .public-progress-dot { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
   .client-shell .conversation-sync,
   .client-shell .ticket-alert-desktop,
