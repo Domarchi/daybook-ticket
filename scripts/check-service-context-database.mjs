@@ -64,7 +64,7 @@ try{
  await attachContractDocuments(admin,contract.id,documents,database);await attachContractDocuments(admin,contract.id,documents,database);
  assert.equal((await listContractDocuments(agent,contract.id,database)).attachments.length,1);
  const download=await downloadAttachment(agent,reserved.attachment.id,database,storage);assert.match(download.headers.get('Cache-Control'),/no-store/);assert.equal(await download.text(),bytes.toString());
- await assert.rejects(downloadAttachment(manager,reserved.attachment.id,database,storage),e=>e.status===404);
+ await assert.rejects(downloadAttachment(manager,reserved.attachment.id,database,storage),e=>e.status===403,'An active company manager retains the client role and is denied private contract documents by requireStaff.');
  const publicMessage=(await client.query('INSERT INTO messages ("ownerId","ticketId",author,"authorMemberId","authorRole",body,kind,"createdAt") VALUES ($1,$2,\'QA\',$3,\'agent\',\'QA público\',\'reply\',$4) RETURNING id',[owner,ticket.id,agentId,date])).rows[0];
  await assert.rejects(database.transaction(tx=>linkReadyAttachments(tx,agent,{ids:[reserved.attachment.id],draftId,kind:'reply',ticketId:ticket.id,messageId:publicMessage.id})),e=>e.status===409);
  await updateServiceContext(admin,'contracts',contract.id,{expectedVersion:0,archived:true},database);
