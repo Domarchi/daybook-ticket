@@ -37,3 +37,21 @@ export const ESCALATION_LABELS: Record<EscalationReason, string> = {
   unanswered: 'El cliente sigue esperando una respuesta y necesita apoyo de otro encargado',
   overdue: 'El ticket superó el plazo de resolución y necesita apoyo de otro encargado',
 };
+export interface EscalationSelectionOption {
+  id: string; name: string; email: string; eligible: boolean;
+}
+/** Keep obsolete selections visible so administrators can remove them or pause the rule. */
+export function escalationSelectionOptions(members: { id: string; name: string; email: string; role: string; status: string; hasAccount: boolean }[], selectedIds: string[]): EscalationSelectionOption[] {
+  const selected = new Set(selectedIds), known = new Set(members.map(member => member.id));
+  const options: EscalationSelectionOption[] = [];
+  for (const member of members) {
+    const eligible = member.status === 'active' && member.hasAccount && ['owner', 'admin', 'agent'].includes(member.role);
+    if (eligible || selected.has(member.id)) options.push({ id: member.id, name: member.name, email: member.email, eligible });
+  }
+  for (const id of selected) if (!known.has(id)) options.push({ id, name: 'Cuenta no disponible', email: '', eligible: false });
+  return options;
+}
+export function toggleEscalationRecipient(currentIds: string[], option: EscalationSelectionOption, checked: boolean): string[] {
+  if (!checked) return currentIds.filter(id => id !== option.id);
+  return option.eligible ? [...new Set([...currentIds, option.id])] : currentIds;
+}

@@ -59,8 +59,13 @@ let client;
 try {
   assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
   const url = new URL(process.env.DATABASE_URL);
+  assert.ok(['postgres:', 'postgresql:'].includes(url.protocol));
   assert.equal(url.hostname, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+  assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, url.hostname);
   assert.equal(url.pathname, '/daybook_ticket');
+  assert.ok((!url.port || url.port === '5432') && url.username && url.password && !url.hash);
+  const keys = [...url.searchParams.keys()];
+  assert.ok(keys.every(key => ['sslmode', 'channel_binding'].includes(key)) && new Set(keys).size === keys.length);
   assert.ok(!process.env.RESEND_API_KEY && !process.env.RESEND_INBOUND_API_KEY && !process.env.VAPID_PRIVATE_KEY);
   url.hostname = 'ep-falling-water-bbfa4ijl.c-15.us-east-1.aws.neon.tech';
   url.searchParams.set('sslmode', 'verify-full');
@@ -94,9 +99,11 @@ Preview debe mantener Vercel Authentication y la autenticación de Daybook. Sus 
 
 ## Respaldo y restauración
 
-El propietario puede descargar un archivo `.daybook` cifrado con una clave propia de 16–256 caracteres. Incluye cuentas, hashes de contraseña, conversaciones, notas, configuración e historial, junto con los archivos enviados. La clave no se almacena y no debe compartirse en el chat. Mantener el archivo y su clave en ubicaciones privadas separadas. El límite de esta vía es 128 MiB; para volúmenes mayores se necesita un respaldo operativo de PostgreSQL y almacenamiento.
+El propietario puede descargar un archivo `.daybook` cifrado con una clave propia de 16–256 caracteres. Incluye cuentas, hashes de contraseña, conversaciones, notas, configuración e historial, junto con los archivos enviados. Las credenciales de invitación y los tokens OAuth no se exportan como accesos portables: se conserva el integrante invitado, la tabla de invitaciones queda vacía y los campos de tokens de cuenta se proyectan como NULL antes de leerlos. La clave no se almacena y no debe compartirse en el chat. Mantener el archivo y su clave en ubicaciones privadas separadas. El límite de esta vía es 128 MiB; para volúmenes mayores se necesita un respaldo operativo de PostgreSQL y almacenamiento.
 
 El operador `scripts/daybook-backup.mjs` admite `create`, `verify` y `restore`. Recibe `DAYBOOK_BACKUP_PASSWORD` exclusivamente por entorno privado. `verify` comprueba autenticidad, descifrado y huellas sin consultar una base. `restore` exige un destino vacío, ambiente explícito y confirmación privada de la identidad del espacio; no sobrescribe una instalación existente.
+
+Para `restore`, el entorno privado debe incluir `DAYBOOK_BACKUP_RESTORE_CONFIRM` con el `ownerId` exacto del respaldo, `DATABASE_URL` del destino vacío y `DAYBOOK_BLOB_ENV=qa` o `production`, junto con el token privado de ese almacén. Deben faltar `RESEND_API_KEY`, `RESEND_INBOUND_API_KEY` y `VAPID_PRIVATE_KEY`; el worker y el correo entrante deben estar desactivados y `DAYBOOK_SATISFACTION_ENABLED=false`. Una recuperación productiva deliberada requiere además `DAYBOOK_BACKUP_ALLOW_PRODUCTION_RESTORE=I_HAVE_AN_EMPTY_RECOVERY_DATABASE`; esa guarda no permite sobrescribir un destino con datos.
 
 ```sh
 # Entorno privado de origen y clave cargados previamente, sin imprimirlos:
@@ -107,7 +114,7 @@ node --import tsx scripts/daybook-backup.mjs verify /ruta/privada/daybook.dayboo
 node --import tsx scripts/daybook-backup.mjs restore /ruta/privada/daybook.daybook
 ```
 
-Antes de restaurar, desactivar todos los envíos, el worker y las integraciones automáticas, incluida `DAYBOOK_SATISFACTION_ENABLED=false`. La recuperación conserva cuentas y contenido, fuerza un nuevo inicio de sesión y deja reglas/trabajos automáticos pausados; comprobar sus ajustes antes de reactivarlos. Nunca restaurar un respaldo de QA sobre producción ni usar este operador para deshacer una migración sobre datos actuales.
+Antes de restaurar, desactivar todos los envíos, el worker y las integraciones automáticas, incluida `DAYBOOK_SATISFACTION_ENABLED=false`. La recuperación conserva cuentas y contenido, fuerza un nuevo inicio de sesión y deja reglas/trabajos automáticos pausados; comprobar sus ajustes antes de reactivarlos. Después de verificar todas las huellas, también invalida invitaciones y tokens OAuth de archivos v1 anteriores que todavía los incluyan. Los hashes de contraseña y las identidades de cuenta se conservan. Emitir invitaciones nuevas para los integrantes que aún no habían activado su cuenta y reconectar cualquier proveedor OAuth. El historial de correo congelado permanece íntegro; sus enlaces de invitación anteriores no activan cuentas recuperadas. Nunca restaurar un respaldo de QA sobre producción ni usar este operador para deshacer una migración sobre datos actuales.
 
 El workflow `recovery-drill.yml` realiza un ensayo periódico con PostgreSQL desechable, datos y archivos ficticios y transporte privado simulado. No lleva credenciales productivas. Ese ensayo valida el mecanismo de recuperación; no constituye una copia periódica de los datos reales. La copia real debe conservarse según la política operativa elegida por el propietario.
 
@@ -120,3 +127,7 @@ La opción preferida es mantener un build compatible y corregir hacia delante: p
 Si una emergencia exige cambiar a un build antiguo, preparar primero una ventana controlada sin escrituras: pausar recepción/programación, detener nuevas automatizaciones, esperar a que terminen o expiren los leases y revisar los eventos pendientes. Cancelar únicamente los avisos de automatización que no puedan entregarse de forma compatible, conservando sus filas y motivo. Los envíos estándar v3 todavía sin payload congelado deben resolverse con el sender compatible antes del cambio; no modificar un payload congelado ni reiniciar un envío aceptado o incierto para adaptarlo al sender antiguo. Si esto no puede garantizarse, conservar el sender/build nuevo y realizar una corrección acotada.
 
 Registrar la referencia anterior y la candidata, momento del cambio y sus limitaciones. Los mensajes Markdown podrán verse como texto sin formato en una versión antigua; nunca reinterpretar ni reescribir las conversaciones históricas para ocultar esa diferencia. Comprobar usuarios, tickets, empresas y archivos antes y después del incidente. No restaurar toda la base para resolver únicamente un problema de código.
+
+## Vista previa de documentos
+
+Las imágenes y PDF se obtienen mediante una ruta autenticada que vuelve a comprobar los permisos actuales y devuelve bytes privados sin caché compartida. El cliente comprueba MIME y tamaño antes de crear una URL Blob temporal; nunca muestra enlaces públicos del almacén. El visor PDF utiliza el visor nativo del navegador, sin `sandbox` en su iframe porque impediría cargar el plugin PDF ([MDN](https://developer.mozilla.org/en-US/docs/Learn_web_development/Core/Structuring_content/General_embedding_technologies#embedding_pdfs)). No se incrustan páginas HTML, imágenes remotas ni URLs proporcionadas por el cliente. El visor tiene política de referencia `no-referrer`, permisos de dispositivos restringidos y descarga autenticada alternativa. Las URLs temporales se liberan al cerrar.

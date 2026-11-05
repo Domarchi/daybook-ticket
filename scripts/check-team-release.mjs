@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { withQaCleanup } from './qa-cleanup-transaction.mjs';
 import {randomUUID} from 'node:crypto';
 import {writeFile,mkdir} from 'node:fs/promises';
 import pg from 'pg';
@@ -7,12 +8,13 @@ const host='ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech';
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE,'1');
 assert.equal(new URL(process.env.DATABASE_URL).hostname,host);
 assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST,host);
-assert.equal(process.env.DAYBOOK_SITE_URL,'http://127.0.0.1:5173');
+assert.ok(['http://127.0.0.1:5173','http://127.0.0.1:5175'].includes(process.env.DAYBOOK_SITE_URL));
 assert.ok(!process.env.RESEND_API_KEY && !process.env.VAPID_PRIVATE_KEY);
 const origin=process.env.DAYBOOK_SITE_URL;
 let ip=180;
 const actor=(email,password)=>({email,password,cookies:{},ip:`192.0.2.${ip++}`});
 async function api(person,path,method='GET',body) {
+ if(method==='POST'&&(path==='/api/tickets'||/^\/api\/tickets\/\d+\/messages$/.test(path))&&body?.operationId)operationIds.push(body.operationId);
  const response=await fetch(origin+path,{method,headers:{origin,'x-vercel-forwarded-for':person.ip,cookie:Object.entries(person.cookies).map(([k,v])=>`${k}=${v}`).join('; '),...(body===undefined?{}:{'content-type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body),redirect:'manual'});
  for(const line of response.headers.getSetCookie()){const [kv]=line.split(';');const i=kv.indexOf('=');person.cookies[kv.slice(0,i)]=kv.slice(i+1);}
  const value=await response.json().catch(()=>({}));return {status:response.status,value};
@@ -24,7 +26,8 @@ ok(await api(owner,'/api/auth/sign-in/email','POST',{email:owner.email,password:
 const initial=ok(await api(owner,'/api/workspace'));
 assert.equal(initial.mailStatus.configured,false);
 const pool=new pg.Pool({connectionString:process.env.DATABASE_URL,max:1});
-const run=randomUUID().slice(0,8),createdMembers=[],createdCompanies=[],createdTickets=[],savedIds=[];
+const run=randomUUID(),createdMembers=[],createdCompanies=[],createdTickets=[],savedIds=[],createdUsers=[],operationIds=[];
+const spaceOwnerId=(await pool.query('SELECT "ownerId" FROM members WHERE id=$1',[initial.viewer.id])).rows[0].ownerId;
 const keep=process.argv.includes('--keep');
 async function createActor(label,role='client',company=null,companyAccess='own'){
  const person=actor(`release-${label}-${run}@example.test`,`Qa-${randomUUID()}!`);
@@ -35,6 +38,7 @@ async function createActor(label,role='client',company=null,companyAccess='own')
  const response=await fetch(origin+'/api/auth/sign-up/email',{method:'POST',headers:{origin,'content-type':'application/json','x-vercel-forwarded-for':person.ip,'x-daybook-invite':token},body:JSON.stringify({email:person.email,password:person.password,name:`QA ${label}`})});
  assert.equal(response.status,200);
  for(const line of response.headers.getSetCookie()){const [kv]=line.split(';');const i=kv.indexOf('=');person.cookies[kv.slice(0,i)]=kv.slice(i+1);}
+ const registered=await response.json();if(registered.user?.id)createdUsers.push(registered.user.id);
  return person;
 }
 try{
@@ -84,10 +88,37 @@ try{
  if(keep){await mkdir('work',{recursive:true});await writeFile('work/team-release-qa.json',JSON.stringify({origin,owner,client,peer,manager,outsider,agent,ticketId:ticket.id,companyA:a.id,companyB:b.id},null,2),{mode:0o600});}
  console.log(JSON.stringify({result:'PASS',groups:['company-isolation','manager-comment','private-notes','admin-boundaries','concurrent-claim','stale-reassignment','saved-replies','concurrent-operation-idempotency','recipient-alerts','history','membership-revocation'],fixtureRetained:keep}));
 }finally{
- if(!keep){
-  for(const id of createdTickets){await pool.query('DELETE FROM "mailDeliveryEvents" WHERE "outboxId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=$1)',[id]);await pool.query('DELETE FROM "pushDeliveries" WHERE "eventId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=$1)',[id]);await pool.query('DELETE FROM "mailOutbox" WHERE "ticketId"=$1',[id]);for(const table of ['inboundMailReceipts','ticketSatisfaction','escalationOccurrences','reminderOccurrences','ticketSlaOutcomes'])await pool.query(`DELETE FROM "${table}" WHERE "ticketId"=$1`,[id]);await pool.query('DELETE FROM attachments WHERE "ticketId"=$1',[id]);await pool.query('DELETE FROM "ticketEvents" WHERE "ticketId"=$1',[id]);await pool.query('DELETE FROM messages WHERE "ticketId"=$1',[id]);await pool.query('DELETE FROM tickets WHERE id=$1',[id]);}
-  for(const id of savedIds)await pool.query('DELETE FROM "savedReplies" WHERE id=$1',[id]);
-  for(const id of createdMembers)await pool.query('UPDATE members SET status=\'revoked\' WHERE id=$1',[id]);
- }
- await pool.end();
+ try{
+  if(!keep){
+   await withQaCleanup(pool, spaceOwnerId, async cleanup => {
+   const recovered=(await cleanup.query('SELECT id,"userId" FROM members WHERE "ownerId"=$1 AND email LIKE $2',[spaceOwnerId,`release-%-${run}@example.test`])).rows;
+   for(const row of recovered){if(!createdMembers.includes(row.id))createdMembers.push(row.id);if(row.userId&&!createdUsers.includes(row.userId))createdUsers.push(row.userId);}
+   const recoveredTickets=(await cleanup.query('SELECT id FROM tickets WHERE "ownerId"=$1 AND subject=$2',[spaceOwnerId,`QA soporte con empresas ${run}`])).rows;
+   for(const row of recoveredTickets)if(!createdTickets.includes(row.id))createdTickets.push(row.id);
+   const recoveredCompanies=(await cleanup.query('SELECT id FROM "customerCompanies" WHERE "ownerId"=$1 AND name=ANY($2::text[])',[spaceOwnerId,[`QA Empresa A ${run}`,`QA Empresa B ${run}`]])).rows;
+   for(const row of recoveredCompanies)if(!createdCompanies.includes(row.id))createdCompanies.push(row.id);
+   const mailScope='SELECT id FROM "mailOutbox" WHERE "ownerId"=$1 AND ("ticketId"=ANY($2::int[]) OR "recipientMemberId"=ANY($3::text[]))';
+   const values=[spaceOwnerId,createdTickets,createdMembers];
+   await cleanup.query(`DELETE FROM "mailDeliveryEvents" WHERE "outboxId" IN (${mailScope})`,values);
+   await cleanup.query(`DELETE FROM "pushDeliveries" WHERE "eventId" IN (${mailScope})`,values);
+   await cleanup.query('DELETE FROM "mailOutbox" WHERE "ownerId"=$1 AND ("ticketId"=ANY($2::int[]) OR "recipientMemberId"=ANY($3::text[]))',values);
+   for(const table of ['inboundMailReceipts','ticketSatisfaction','escalationOccurrences','reminderOccurrences','ticketSlaOutcomes','attachments','ticketEvents','messages'])await cleanup.query(`DELETE FROM "${table}" WHERE "ownerId"=$1 AND "ticketId"=ANY($2::int[])`,[spaceOwnerId,createdTickets]);
+   await cleanup.query('DELETE FROM operations WHERE "ownerId"=$1 AND ("operationId"=ANY($2::text[]) OR "memberId"=ANY($3::text[]))',[spaceOwnerId,operationIds,createdMembers]);
+   await cleanup.query('DELETE FROM tickets WHERE "ownerId"=$1 AND id=ANY($2::int[])',[spaceOwnerId,createdTickets]);
+   for(const id of savedIds)await cleanup.query('DELETE FROM "savedReplies" WHERE id=$1 AND "ownerId"=$2',[id,spaceOwnerId]);
+   await cleanup.query('DELETE FROM "pushSubscriptions" WHERE "ownerId"=$1 AND "memberId"=ANY($2::text[])',[spaceOwnerId,createdMembers]);
+   await cleanup.query('DELETE FROM "agentAvailability" WHERE "ownerId"=$1 AND "memberId"=ANY($2::text[])',[spaceOwnerId,createdMembers]);
+   await cleanup.query('DELETE FROM invitations WHERE "ownerId"=$1 AND "memberId"=ANY($2::text[])',[spaceOwnerId,createdMembers]);
+   await cleanup.query('DELETE FROM members WHERE "ownerId"=$1 AND id=ANY($2::text[])',[spaceOwnerId,createdMembers]);
+   await cleanup.query('DELETE FROM "servicePolicies" WHERE "ownerId"=$1 AND "customerCompanyId"=ANY($2::text[])',[spaceOwnerId,createdCompanies]);
+   await cleanup.query('DELETE FROM "assignmentRules" WHERE "ownerId"=$1 AND "customerCompanyId"=ANY($2::text[])',[spaceOwnerId,createdCompanies]);
+   await cleanup.query('DELETE FROM "customerCompanies" WHERE "ownerId"=$1 AND id=ANY($2::text[])',[spaceOwnerId,createdCompanies]);
+   await cleanup.query('DELETE FROM "authUser" WHERE id=ANY($1::text[]) OR email LIKE $2',[createdUsers,`release-%-${run}@example.test`]);
+   const remaining=(await cleanup.query('SELECT (SELECT count(*)::int FROM members WHERE id=ANY($1::text[])) AS members,(SELECT count(*)::int FROM "authUser" WHERE id=ANY($2::text[]) OR email LIKE $3) AS users,(SELECT count(*)::int FROM tickets WHERE id=ANY($4::int[])) AS tickets,(SELECT count(*)::int FROM "customerCompanies" WHERE id=ANY($5::text[])) AS companies',[createdMembers,createdUsers,`release-%-${run}@example.test`,createdTickets,createdCompanies])).rows[0];
+   assert.ok(Object.values(remaining).every(value=>value===0),'All team release fixture records must be removed.');
+   });
+   ok(await api(owner,'/api/auth/sign-out','POST',{}));
+   console.log('QA team release cleanup PASS: all generated accounts, memberships, tickets, companies, saved replies, operations and own test session removed.');
+  }
+ }finally{await pool.end();}
 }

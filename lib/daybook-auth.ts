@@ -8,6 +8,7 @@ import type { Database } from '../db/database';
 import * as schema from '../db/auth-schema';
 import { readInvitation } from './invitations';
 import { enqueueAuthEmail, getMailStatus } from './mail';
+import { safeAuthLogger } from './auth-logging';
 
 export function daybookAuth() {
   const config = process.env;
@@ -15,6 +16,7 @@ export function daybookAuth() {
   const database = getDatabase();
   return betterAuth({
     appName: 'Daybook Ticket', baseURL: config.DAYBOOK_SITE_URL, secret: config.BETTER_AUTH_SECRET,
+    logger: safeAuthLogger,
     database: drizzleAdapter(drizzle(getPool(), { schema }), { provider: 'pg', schema, transaction: true }),
     trustedOrigins: [new URL(config.DAYBOOK_SITE_URL).origin],
     emailAndPassword: {

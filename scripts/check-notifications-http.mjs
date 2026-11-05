@@ -1,5 +1,6 @@
 /** Real Daybook sessions -> notification routes -> isolated QA DB; no provider sends. */
 import assert from 'node:assert/strict';
+import { withQaCleanup } from './qa-cleanup-transaction.mjs';
 import { createHmac, randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { provisionOwner } from './provision-owner.mjs';
@@ -14,7 +15,7 @@ const origin = process.env.DAYBOOK_SITE_URL, runId = randomUUID(), pool = new pg
 const memberIds = [], userIds = [], ticketIds = [], operationIds = [];
 const owner = { cookies: new Map(), ip: '192.0.2.151' }, anonymous = { cookies: new Map(), ip: '192.0.2.152' };
 const password = process.env.DAYBOOK_QA_OWNER_PASSWORD || 'Local-QA-only!Daybook-2026';
-let oldSettings, oldNotificationConfig, spaceOwnerId;
+let oldSettings, oldNotificationConfig, spaceOwnerId, capturedConfig = false;
 async function api(actor, path, method = 'GET', body, headers = {}) {
   const cookie = [...actor.cookies].map(([k, v]) => `${k}=${v}`).join('; ');
   const response = await fetch(`${origin}${path}`, { method, redirect: 'manual', headers: {
@@ -56,6 +57,7 @@ try {
   spaceOwnerId = (await pool.query('SELECT "ownerId" FROM organizations WHERE id=\'daybook\'')).rows[0].ownerId;
   oldSettings = (await pool.query('SELECT data FROM settings WHERE "ownerId"=$1', [spaceOwnerId])).rows[0]?.data;
   oldNotificationConfig = (await pool.query('SELECT * FROM "notificationSettings" WHERE "ownerId"=$1', [spaceOwnerId])).rows[0];
+  capturedConfig = true;
   const agent = await invite('agent'), client = await invite('client');
   ok(await api(agent, '/api/notifications/settings'), 403);
   ok(await api(client, '/api/notifications/settings', 'PATCH', { enabled: true }), 403);
@@ -106,18 +108,37 @@ try {
   ok(await api(agent, '/api/alerts'), 403);
   console.log('PASS HTTP: real invite-only sessions, client ticket/team reply, private notes, persistent reads/member-intent guard, staff-only delivery tracking, signed replay-safe webhook and authenticated worker health. No real deliveries.');
 } finally {
+  await withQaCleanup(pool, spaceOwnerId, async cleanup => {
   // Remove only this run's events/users; restore shared QA configuration exactly.
-  await pool.query(`DELETE FROM "mailDeliveryEvents" WHERE "outboxId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[]))`, [ticketIds, memberIds]);
-  await pool.query(`DELETE FROM "pushDeliveries" WHERE "eventId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[]))`, [ticketIds, memberIds]);
-  await pool.query('DELETE FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[])', [ticketIds, memberIds]);
-  for (const table of ['inboundMailReceipts', 'ticketSatisfaction', 'escalationOccurrences', 'reminderOccurrences', 'ticketSlaOutcomes', 'ticketEvents', 'attachments', 'messages']) await pool.query(`DELETE FROM "${table}" WHERE "ticketId"=ANY($1::int[])`, [ticketIds]);
-  await pool.query('DELETE FROM tickets WHERE id=ANY($1::int[])', [ticketIds]);
-  await pool.query('DELETE FROM operations WHERE "operationId"=ANY($1::text[])', [operationIds]);
-  await pool.query('DELETE FROM invitations WHERE "memberId"=ANY($1::text[])', [memberIds]);
-  await pool.query('DELETE FROM members WHERE id=ANY($1::text[])', [memberIds]);
-  await pool.query('DELETE FROM "authUser" WHERE id=ANY($1::text[]) OR email LIKE $2', [userIds, `qa-notify-%-${runId}@example.test`]);
-  if (oldSettings !== undefined) await pool.query('UPDATE settings SET data=$1 WHERE "ownerId"=$2', [oldSettings, spaceOwnerId]);
-  if (oldNotificationConfig) await pool.query('UPDATE "notificationSettings" SET "remindersEnabled"=$1,"remindersActivatedAt"=$2 WHERE "ownerId"=$3', [oldNotificationConfig.remindersEnabled, oldNotificationConfig.remindersActivatedAt, spaceOwnerId]);
-  assert.equal((await pool.query('SELECT count(*)::int AS n FROM members WHERE id=ANY($1::text[])', [memberIds])).rows[0].n, 0);
+  if (spaceOwnerId) {
+    for (const row of (await cleanup.query('SELECT id,"userId" FROM members WHERE "ownerId"=$1 AND email LIKE $2', [spaceOwnerId, `qa-notify-%-${runId}@example.test`])).rows) {
+      if (!memberIds.includes(row.id)) memberIds.push(row.id); if (row.userId && !userIds.includes(row.userId)) userIds.push(row.userId);
+    }
+    for (const row of (await cleanup.query('SELECT id FROM tickets WHERE "ownerId"=$1 AND "creationKey"=ANY($2::text[])', [spaceOwnerId, operationIds])).rows) if (!ticketIds.includes(row.id)) ticketIds.push(row.id);
+  }
+
+  await cleanup.query(`DELETE FROM "mailDeliveryEvents" WHERE "outboxId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[]))`, [ticketIds, memberIds]);
+  await cleanup.query(`DELETE FROM "pushDeliveries" WHERE "eventId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[]))`, [ticketIds, memberIds]);
+  await cleanup.query('DELETE FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[])', [ticketIds, memberIds]);
+  for (const table of ['inboundMailReceipts', 'ticketSatisfaction', 'escalationOccurrences', 'reminderOccurrences', 'ticketSlaOutcomes', 'ticketEvents', 'attachments', 'messages']) await cleanup.query(`DELETE FROM "${table}" WHERE "ticketId"=ANY($1::int[])`, [ticketIds]);
+  await cleanup.query('DELETE FROM tickets WHERE id=ANY($1::int[])', [ticketIds]);
+  await cleanup.query('DELETE FROM operations WHERE "operationId"=ANY($1::text[])', [operationIds]);
+  await cleanup.query('DELETE FROM invitations WHERE "memberId"=ANY($1::text[])', [memberIds]);
+  await cleanup.query('DELETE FROM members WHERE id=ANY($1::text[])', [memberIds]);
+  await cleanup.query('DELETE FROM "authUser" WHERE id=ANY($1::text[]) OR email LIKE $2', [userIds, `qa-notify-%-${runId}@example.test`]);
+  if (capturedConfig) {
+    if (oldSettings !== undefined) await cleanup.query('INSERT INTO settings ("ownerId",data) VALUES ($1,$2) ON CONFLICT ("ownerId") DO UPDATE SET data=excluded.data', [spaceOwnerId, oldSettings]);
+    else await cleanup.query('DELETE FROM settings WHERE "ownerId"=$1', [spaceOwnerId]);
+    if (oldNotificationConfig) await cleanup.query('INSERT INTO "notificationSettings" ("ownerId","alertsActivatedAt","remindersEnabled","remindersActivatedAt") VALUES ($1,$2,$3,$4) ON CONFLICT ("ownerId") DO UPDATE SET "alertsActivatedAt"=excluded."alertsActivatedAt","remindersEnabled"=excluded."remindersEnabled","remindersActivatedAt"=excluded."remindersActivatedAt"', [spaceOwnerId, oldNotificationConfig.alertsActivatedAt, oldNotificationConfig.remindersEnabled, oldNotificationConfig.remindersActivatedAt]);
+    else await cleanup.query('DELETE FROM "notificationSettings" WHERE "ownerId"=$1', [spaceOwnerId]);
+    assert.deepEqual((await cleanup.query('SELECT data FROM settings WHERE "ownerId"=$1', [spaceOwnerId])).rows[0]?.data, oldSettings);
+    assert.deepEqual((await cleanup.query('SELECT * FROM "notificationSettings" WHERE "ownerId"=$1', [spaceOwnerId])).rows[0], oldNotificationConfig);
+  }
+  assert.equal((await cleanup.query('SELECT count(*)::int AS n FROM members WHERE id=ANY($1::text[])', [memberIds])).rows[0].n, 0);
+  assert.equal((await cleanup.query('SELECT count(*)::int AS n FROM tickets WHERE id=ANY($1::int[])', [ticketIds])).rows[0].n, 0);
+  assert.equal((await cleanup.query('SELECT count(*)::int AS n FROM "authUser" WHERE id=ANY($1::text[]) OR email LIKE $2', [userIds, `qa-notify-%-${runId}@example.test`])).rows[0].n, 0);
+  });
+  if (owner.cookies.size) ok(await api(owner, '/api/auth/sign-out', 'POST', {}));
   await pool.end();
+  console.log('QA HTTP notifications cleanup PASS: generated accounts/tickets and own test session removed; shared settings restored exactly.');
 }

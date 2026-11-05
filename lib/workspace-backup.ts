@@ -11,13 +11,16 @@ import { validateAttachment } from './attachments-validation';
 
 const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;
 const qualified = (schema: string, table: string) => `${quote(schema)}.${quote(table)}`;
+const temporaryAccountColumns = ['accessToken', 'refreshToken', 'idToken', 'accessTokenExpiresAt', 'refreshTokenExpiresAt'];
 async function columns(tx: PoolClient, table: string, schema = 'public'): Promise<string[]> {
   return (await tx.query('SELECT column_name FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 ORDER BY ordinal_position', [schema, table])).rows.map(row => row.column_name);
 }
-async function selectColumns(tx: PoolClient, table: string, schema = 'public') {
+async function selectColumns(tx: PoolClient, table: string, schema = 'public', excludeTemporaryCredentials = false) {
   const metadata = (await tx.query('SELECT column_name,data_type FROM information_schema.columns WHERE table_schema=$1 AND table_name=$2 ORDER BY ordinal_position', [schema, table])).rows;
   // Avoid pg's Date parser truncating timestamp microseconds during an exact recovery.
-  return metadata.map(row => /^timestamp/.test(row.data_type) ? `${quote(row.column_name)}::text AS ${quote(row.column_name)}` : quote(row.column_name)).join(',');
+  return metadata.map(row => excludeTemporaryCredentials && table === 'authAccount' && temporaryAccountColumns.includes(row.column_name)
+    ? `NULL AS ${quote(row.column_name)}`
+    : /^timestamp/.test(row.data_type) ? `${quote(row.column_name)}::text AS ${quote(row.column_name)}` : quote(row.column_name)).join(',');
 }
 
 /** One consistent DB snapshot. Uploaded drafts, sessions and reset/device credentials are not portable logins. */
@@ -32,7 +35,7 @@ export async function createWorkspaceBackup(access: AccessContext, database = db
     const fresh = await lockAccess(tx, access);
     if (fresh.role !== 'owner') throw new ApiError(403, 'Solo el propietario puede exportar el respaldo completo.');
     await tx.query("SET LOCAL statement_timeout='90s'");
-    const backup: WorkspaceBackup = { format: 'daybook.workspace.v1', createdAt: new Date().toISOString(), ownerId: access.ownerId, organizationId: access.organizationId, tables: [], files: [], omissions: ['Active sessions, password reset tokens and rate limits require a fresh sign-in after recovery.', 'Unsent draft attachments are temporary and are excluded. Environment variables and provider keys are never included.'] };
+    const backup: WorkspaceBackup = { format: 'daybook.workspace.v1', createdAt: new Date().toISOString(), ownerId: access.ownerId, organizationId: access.organizationId, tables: [], files: [], omissions: ['Active sessions, password reset tokens and rate limits require a fresh sign-in after recovery.', 'Invitation tokens and OAuth bearer tokens are excluded. Invited members remain; issue new invitations after recovery.', 'Unsent draft attachments are temporary and are excluded. Environment variables and provider keys are never included.'] };
     let bytes = 0, rowsCount = 0;
     const deadline = Date.now() + 210000;
     for (const table of BACKUP_TABLES) {
@@ -42,7 +45,16 @@ export async function createWorkspaceBackup(access: AccessContext, database = db
       if (table === 'authUser') where = 'id IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
       else if (table === 'authAccount') where = '"userId" IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
       else if (table === 'attachments') where += " AND status='attached'";
-      const result = await tx.query(`SELECT ${await selectColumns(tx, table)} FROM ${quote(table)} WHERE ${where} LIMIT 100001`, [access.ownerId]);
+      else if (table === 'invitations') where += ' AND FALSE';
+      // Omit temporary credentials in SQL, before they can enter the Function or its byte totals.
+      const selection = `SELECT ${await selectColumns(tx, table, 'public', true)} FROM ${quote(table)} WHERE ${where} LIMIT 100001`;
+      // Count bytes inside the same snapshot before pg materializes private rows.
+      // LIMIT bounds this aggregate too; only two totals leave PostgreSQL.
+      const total = (await tx.query(`SELECT count(*)::text AS rows, COALESCE(sum(octet_length(row_to_json(source)::text)),0)::text AS bytes FROM (${selection}) source`, [access.ownerId])).rows[0];
+      const tableRows = Number(total?.rows), tableBytes = Number(total?.bytes);
+      if (!Number.isSafeInteger(tableRows) || tableRows < 0 || !Number.isSafeInteger(tableBytes) || tableBytes < 0
+        || rowsCount + tableRows > 100000 || bytes + tableBytes > 24 * 1024 * 1024) throw new ApiError(413, 'El espacio supera el límite de esta exportación. Usa el procedimiento operativo de respaldo de base y archivos.');
+      const result = await tx.query(selection, [access.ownerId]);
       const rows = JSON.parse(JSON.stringify(result.rows)) as BackupRow[]; // pg timestamps become portable ISO strings.
       rowsCount += rows.length;
       const encoded = canonicalBackupRows(rows); bytes += Buffer.byteLength(encoded);
@@ -125,6 +137,10 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
         if (fingerprint !== source.sha256) throw new Error(`Recovery checksum mismatch: ${table}`);
         fingerprints.push({ table, rows: restored.length, sha256: fingerprint });
       }
+      // Older v1 archives may contain these credentials. Verify their original fingerprints first,
+      // then invalidate them before COMMIT; password hashes and account/provider identities stay intact.
+      await tx.query(`DELETE FROM ${qualified(schema, 'invitations')}`);
+      await tx.query(`UPDATE ${qualified(schema, 'authAccount')} SET ${temporaryAccountColumns.map(column => `${quote(column)}=NULL`).join(',')}`);
       // Recovered work stays paused until the owner checks accounts/files and explicitly enables integrations.
       await tx.query(`UPDATE ${qualified(schema, 'notificationSettings')} SET "remindersEnabled"=false`);
       await tx.query(`UPDATE ${qualified(schema, 'escalationSettings')} SET enabled=false`);
@@ -138,7 +154,7 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
         await tx.query(`SELECT setval(pg_get_serial_sequence($1,'id'),GREATEST(COALESCE((SELECT max(id) FROM ${qualified(schema, table)}),0),1),(SELECT count(*)>0 FROM ${qualified(schema, table)}))`, [relation]);
       }
       readyToCommit = true;
-      return { restored: true, fingerprints, files: backup.files.length, sessionsRestored: false, integrationsPaused: true, attachmentPathsChanged: true };
+      return { restored: true, fingerprints, files: backup.files.length, sessionsRestored: false, temporaryCredentialsRestored: false, integrationsPaused: true, attachmentPathsChanged: true };
     });
   } catch (error) {
     // A lost COMMIT response is uncertain: keep private objects for operator review.

@@ -30,7 +30,7 @@ Validación inicial del 5 de noviembre:
 | Comprobación | Resultado |
 |---|---|
 | Migración QA 0005 | PASS: 29 tablas y 448 filas originales conservadas por huellas de sus columnas previas; sin historia ni formatos reinterpretados. |
-| `npm run check` | PASS: lint, 167 unitarias, tipos y compilación con Node 24; proveedores y base ficticios en las comprobaciones sin integración. |
+| `npm run check` | PASS: lint, 180 unitarias, tipos y compilación con Node 24; proveedores y base ficticios en las comprobaciones sin integración. |
 | Correo entrante | PASS: 7 grupos PostgreSQL, reintentos concurrentes, conflicto de contenido, autenticación y revocación, aislamiento empresarial, SLA/reapertura/reparto. Limpieza completa. |
 | Escalamiento y satisfacción | PASS: 14 grupos PostgreSQL y cuatro bloques HTTP con sesiones ficticias; etapas, permisos, ciclos, calificación única, reportes y pausa independiente. |
 | Búsqueda y paginación | PASS: 7 grupos PostgreSQL, 63 tickets y conversación paginada; notas internas excluidas, aislamiento y revocación; limpieza completa. |
@@ -39,4 +39,17 @@ Validación inicial del 5 de noviembre:
 | Revalidación y carreras | PASS: 7 grupos; contextos obsoletos de rol, cuenta, empresa o permiso no reciben avisos ni metadatos. Carrera de dos conexiones entre comentario y entrega CSAT termina sin deadlock. |
 | Operador de publicación 0005 | PASS: 16 unitarias del operador, hashes fijados, snapshot propio, guardas de destino, rollback y conservación. No ejecutado en producción. |
 
-Las pruebas no enviaron correos ni push reales. La revisión visual, regresiones completas, CI remoto y Preview se registrarán al cerrar el candidato.
+Comprobaciones adicionales del candidato:
+
+- Diez regresiones PostgreSQL anteriores: SLA, reparto, métricas, avisos, seguimiento, recordatorios, empresas, drenaje, entrega dirigida y adjuntos: PASS, limpieza completa y proveedores simulados.
+- Vista previa de archivos: ocho comprobaciones de bytes PNG/PDF, cabeceras privadas y aislamiento con permisos actuales: PASS, limpieza completa.
+- Recuperación con Vercel Blob privado de QA: PASS, dos objetos escritos, recuperados y verificados; objetos, cuentas y esquemas aislados eliminados.
+- Auditoría de biblioteca del operador productivo contra QA en READ ONLY: PASS, 33 tablas y 459 filas, sin DDL ni backfill. No ejecutado en producción.
+- GitHub Actions en `8911f9f`: checks y simulacro de recuperación en Postgres 17: PASS.
+- Preview protegida de QA: https://daybook-ticket-service-plus-qa-domarchi.vercel.app. Login de la aplicación verificado mediante la cuenta Vercel; se conserva la protección del despliegue y la autenticación de Daybook.
+
+Revisión visual en QA: PASS en escritorio y móvil. Cliente → solicitud con PNG/PDF privados → respuesta con formato del equipo → resolución → evaluación de cinco estrellas → informe por empresa/agente. Se comprobó la descarga PDF contra los bytes del archivo original y su renderizado nativo en Chrome. Se revisaron la configuración de escalamiento, los estados de correo sin activar, el formulario de respaldo y las ocho plantillas HTML/texto. Se corrigieron contraste, selecciones revocadas, etiquetas de eventos y compatibilidad del visor; se conservaron la autorización y la descarga privada. Limpieza visual: un ticket, una cuenta y dos objetos QA eliminados; producción intacta.
+
+Endurecimiento final: el respaldo limita filas y bytes en PostgreSQL antes de materializarlos; excluye invitaciones y credenciales OAuth portables y también las invalida al recuperar archivos v1 anteriores. Conserva identidades y hashes de contraseña. El logger de autenticación conserva la gravedad de fallos sin registrar SQL ni tokens. Unitarias de estos casos, lint y tipos: PASS; compilación final: PASS.
+
+Las pruebas no enviaron correos ni push reales. Las regresiones HTTP y las comprobaciones sobre el SHA final se registrarán al congelar el candidato.
