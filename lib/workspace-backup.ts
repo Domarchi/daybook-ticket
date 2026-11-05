@@ -98,6 +98,12 @@ export function backupRestoreStorage(): BackupRestoreStorage {
   } };
 }
 
+/** Exact column order is preserved; only named additive columns may be absent in older archives. */
+export function compatibleBackupColumns(table:string,target:string[],source:string[]) {
+  const additive:Record<string,readonly string[]>={members:['isTest'],tickets:['isTest'],articles:['version','contentRevision','reviewState','archived'],attachments:['contractId'],mailOutbox:['serviceReminderId']};
+  return target.filter(column=>!(additive[table]?.includes(column)&&!source.includes(column)));
+}
+
 /** Operator-only recovery into EMPTY, already-migrated tables. Never deletes/replaces existing data. */
 export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: Database, storage: BackupRestoreStorage, options: { environment: 'qa' | 'production'; schema?: string; allowProduction?: boolean }) {
   const backup = validateBackup(input), schema = options.schema || 'public';
@@ -119,7 +125,7 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
         const source = backup.tables.find(item => item.name === table);
         if (!source) continue; // A verified v1 archive predates the additive reliability tables.
         const target = await columns(tx, table, schema);
-        const compatible = target.filter(column => !(column === 'isTest' && ['members','tickets'].includes(table) && !source.columns.includes(column)));
+        const compatible = compatibleBackupColumns(table,target,source.columns);
         if (JSON.stringify(compatible) !== JSON.stringify(source.columns)) throw new Error(`Schema version mismatch: ${table}`);
       }
       if (schema === 'public') for (const table of ['authSession', 'authVerification', 'authRateLimit']) {

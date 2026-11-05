@@ -14,8 +14,10 @@ for(const table of RELIABILITY_BACKUP_TABLES) {
   if(table==='mailOutbox') orderedBackupTables.push(...SERVICE_CONTEXT_BACKUP_TABLES.slice(9));
   orderedBackupTables.push(table);
 }
-export const BACKUP_TABLES:readonly BackupTableName[]=orderedBackupTables;
-export const BACKUP_TABLE_PROFILES=[LEGACY_BACKUP_TABLES,RELIABILITY_BACKUP_TABLES,BACKUP_TABLES] as const;
+export const SERVICE_CONTEXT_BACKUP_PROFILE:readonly BackupTableName[]=orderedBackupTables;
+export const KNOWLEDGE_BACKUP_TABLES=['knowledgeArticleRevisions','knowledgeArticleReviews','knowledgeArticlePublications','knowledgeEvents','companyMonthlyReports'] as const;
+export const BACKUP_TABLES=[...SERVICE_CONTEXT_BACKUP_PROFILE,...KNOWLEDGE_BACKUP_TABLES] as const;
+export const BACKUP_TABLE_PROFILES=[LEGACY_BACKUP_TABLES,RELIABILITY_BACKUP_TABLES,SERVICE_CONTEXT_BACKUP_PROFILE,BACKUP_TABLES] as const;
 export type BackupTable = typeof BACKUP_TABLES[number];
 export type BackupRow = Record<string, string | number | boolean | null>;
 export interface WorkspaceBackup {
