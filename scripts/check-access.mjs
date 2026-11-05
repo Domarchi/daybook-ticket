@@ -4,9 +4,11 @@
  * Run: node --env-file=.env.test.local --import tsx scripts/check-access.mjs http://127.0.0.1:5173
  */
 import assert from 'node:assert/strict';
+import { withQaCleanup } from './qa-cleanup-transaction.mjs';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { provisionOwner } from './provision-owner.mjs';
+import { readAllTicketPages, readAllConversationPages } from './qa-paged-read.mjs';
 import { safeTicketReturnPath, ticketReturnPath, ticketLoginPath } from '../lib/return-path.ts';
 assert.equal(ticketReturnPath('42'), '/?ticket=42');
 assert.equal(ticketLoginPath('/?ticket=42'), '/login?return_to=%2F%3Fticket%3D42');
@@ -28,7 +30,7 @@ const ownerPassword = process.env.DAYBOOK_QA_OWNER_PASSWORD || 'Local-QA-only!Da
 const owner = { cookies: new Map() };
 const anonymous = { cookies: new Map() };
 const operationIds = new Set(), ticketIds = new Set(), memberIds = new Set(), articleIds = new Set();
-let nextTestAddress = 1;
+let nextTestAddress = 1, spaceOwnerId;
 function updateCookies(actor, response) {
   for (const line of response.headers.getSetCookie()) {
     const [entry] = line.split(';');
@@ -69,7 +71,13 @@ function expectStatus(result, status, label) {
   assert.equal(result.status, status, `${label}: ${JSON.stringify(result)}`);
   return result;
 }
-const workspace = actor => api(actor, '/api/workspace');
+const workspace = async actor => {
+  const result = await api(actor, '/api/workspace');
+  if (result.status !== 200) return result;
+  assert.ok(result.tickets.length <= 50); assert.deepEqual(result.messages, []);
+  return { ...result, tickets: await readAllTicketPages(async path => expectStatus(await api(actor, path), 200, 'Página autorizada de tickets')) };
+};
+const conversation = (actor, ticketId) => readAllConversationPages(async path => expectStatus(await api(actor, path), 200, 'Página autorizada de conversación'), ticketId);
 const post = (actor, path, body, headers) => api(actor, path, 'POST', body, headers);
 const patch = (actor, path, body, headers) => api(actor, path, 'PATCH', body, headers);
 function inviteToken(url) { return new URL(url).searchParams.get('invite'); }
@@ -116,6 +124,7 @@ if (signIn.status !== 200) {
 }
 let ownerSpace = expectStatus(await workspace(owner), 200, 'Sesión propietaria');
 assert.equal(ownerSpace.viewer.role, 'owner');
+spaceOwnerId = (await database.query('SELECT "ownerId" FROM organizations WHERE id=\'daybook\'')).rows[0].ownerId;
 assert.equal(ownerSpace.mailStatus.configured, false, 'Desactiva el proveedor de correo antes de ejecutar esta prueba.');
 const ownerId = ownerSpace.viewer.id;
 const department = ownerSpace.settings.departments[0];
@@ -168,7 +177,10 @@ expectStatus(await patch(a, `/api/tickets/${ticketA.id}`, { status: 'resolved' }
 let aSpace = expectStatus(await workspace(a), 200, 'Recargar cliente A');
 assert.ok(aSpace.tickets.some(t => t.id === ticketA.id));
 assert.ok(!aSpace.tickets.some(t => t.id === ticketB.id));
-assert.ok(!aSpace.messages.some(m => m.kind === 'note' || m.body === secret || m.ticketId === ticketB.id));
+const aMessages = await conversation(a, ticketA.id);
+assert.ok(aMessages.some(m => m.body === 'Respuesta pública del equipo'));
+assert.ok(!aMessages.some(m => m.kind === 'note' || m.body === secret || m.ticketId === ticketB.id));
+expectStatus(await api(a, `/api/tickets/${ticketB.id}/conversation`), 404, 'Cliente no abre conversación ajena');
 assert.deepEqual(aSpace.members, []);
 assert.deepEqual(aSpace.settings.agents, []);
 assert.equal(aSpace.mailStatus, null);
@@ -176,8 +188,8 @@ assert.ok(!aSpace.articles.some(article => article.id === draft.article.id));
 assert.ok(aSpace.articles.some(article => article.id === published.article.id));
 const bSpace = expectStatus(await workspace(b), 200, 'Recargar cliente B');
 assert.ok(!bSpace.tickets.some(t => t.id === ticketA.id));
-assert.ok(!bSpace.messages.some(m => m.ticketId === ticketA.id));
-assert.ok((await workspace(agent)).messages.some(m => m.body === secret));
+expectStatus(await api(b, `/api/tickets/${ticketA.id}/conversation`), 404, 'Cliente B no abre conversación A');
+assert.ok((await conversation(agent, ticketA.id)).some(m => m.body === secret));
 expectStatus(await patch(owner, `/api/tickets/${ticketA.id}`, { assigneeMemberId: a.member.id }), 400, 'Cliente no es agente asignable');
 const assigned = expectStatus(await patch(owner, `/api/tickets/${ticketA.id}`, { assigneeMemberId: agent.member.id }), 200, 'Asignar agente activo').ticket;
 assert.equal(assigned.assignee, agent.member.name);
@@ -239,20 +251,30 @@ assert.equal(badSignIns[5].status, 429, 'El sexto intento activa el límite pers
 console.log('Daybook acceso verificado: propietario sin ChatGPT, invitaciones, sesiones, roles, aislamiento, notas internas, artículos, asignación, reapertura/SLA, revocación, expiración y concurrencia, rate limit y correo desactivado.');
 } finally {
   try {
+    await withQaCleanup(database, spaceOwnerId, async cleanup => {
+    if (spaceOwnerId) {
+      for (const row of (await cleanup.query('SELECT id FROM members WHERE "ownerId"=$1 AND email LIKE $2', [spaceOwnerId, `%${runId}@example.test`])).rows) memberIds.add(row.id);
+      for (const row of (await cleanup.query('SELECT id FROM tickets WHERE "ownerId"=$1 AND "creationKey"=ANY($2::text[])', [spaceOwnerId, [...operationIds]])).rows) ticketIds.add(row.id);
+      for (const row of (await cleanup.query('SELECT id FROM articles WHERE "ownerId"=$1 AND title LIKE $2', [spaceOwnerId, `%${runId}`])).rows) articleIds.add(row.id);
+    }
     const tickets = [...ticketIds], members = [...memberIds];
-    await database.query('DELETE FROM "pushDeliveries" WHERE "eventId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[]))', [tickets, members]);
-    await database.query('DELETE FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[])', [tickets, members]);
-    await database.query('DELETE FROM operations WHERE "operationId"=ANY($1::text[])', [[...operationIds]]);
-    await database.query('DELETE FROM "ticketEvents" WHERE "ticketId"=ANY($1::int[])', [tickets]);
-    await database.query('DELETE FROM "ticketSlaOutcomes" WHERE "ticketId"=ANY($1::int[])', [tickets]);
-    await database.query('DELETE FROM messages WHERE "ticketId"=ANY($1::int[])', [tickets]);
-    await database.query('DELETE FROM tickets WHERE id=ANY($1::int[])', [tickets]);
-    await database.query('DELETE FROM articles WHERE id=ANY($1::int[])', [[...articleIds]]);
-    await database.query('DELETE FROM invitations WHERE "memberId"=ANY($1::text[])', [members]);
-    await database.query('DELETE FROM members WHERE id=ANY($1::text[])', [members]);
-    await database.query('DELETE FROM "authUser" WHERE email LIKE $1', [`%${runId}@example.test`]);
-    assert.equal((await database.query('SELECT count(*)::int AS n FROM members WHERE id=ANY($1::text[])', [members])).rows[0].n, 0);
-    assert.equal((await database.query('SELECT count(*)::int AS n FROM tickets WHERE id=ANY($1::int[])', [tickets])).rows[0].n, 0);
-    console.log('QA acceso: fixtures de esta ejecución eliminados.');
+    await cleanup.query('DELETE FROM "mailDeliveryEvents" WHERE "outboxId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[]))', [tickets, members]);
+    await cleanup.query('DELETE FROM "pushDeliveries" WHERE "eventId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[]))', [tickets, members]);
+    await cleanup.query('DELETE FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]) OR "recipientMemberId"=ANY($2::text[])', [tickets, members]);
+    await cleanup.query('DELETE FROM operations WHERE "operationId"=ANY($1::text[])', [[...operationIds]]);
+    for (const table of ['inboundMailReceipts', 'ticketSatisfaction', 'escalationOccurrences', 'reminderOccurrences']) await cleanup.query(`DELETE FROM "${table}" WHERE "ticketId"=ANY($1::int[])`, [tickets]);
+    await cleanup.query('DELETE FROM "ticketEvents" WHERE "ticketId"=ANY($1::int[])', [tickets]);
+    await cleanup.query('DELETE FROM "ticketSlaOutcomes" WHERE "ticketId"=ANY($1::int[])', [tickets]);
+    await cleanup.query('DELETE FROM messages WHERE "ticketId"=ANY($1::int[])', [tickets]);
+    await cleanup.query('DELETE FROM tickets WHERE id=ANY($1::int[])', [tickets]);
+    await cleanup.query('DELETE FROM articles WHERE id=ANY($1::int[])', [[...articleIds]]);
+    await cleanup.query('DELETE FROM invitations WHERE "memberId"=ANY($1::text[])', [members]);
+    await cleanup.query('DELETE FROM members WHERE id=ANY($1::text[])', [members]);
+    await cleanup.query('DELETE FROM "authUser" WHERE email LIKE $1', [`%${runId}@example.test`]);
+    assert.equal((await cleanup.query('SELECT count(*)::int AS n FROM members WHERE id=ANY($1::text[])', [members])).rows[0].n, 0);
+    assert.equal((await cleanup.query('SELECT count(*)::int AS n FROM tickets WHERE id=ANY($1::int[])', [tickets])).rows[0].n, 0);
+    });
+    if (owner.cookies.size) expectStatus(await post(owner, '/api/auth/sign-out', {}), 200, 'Cerrar sesión propietaria de esta prueba');
+    console.log('QA acceso: fixtures de esta ejecución eliminados y sesión propietaria de prueba cerrada.');
   } finally { await database.end(); }
 }

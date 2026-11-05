@@ -6,8 +6,9 @@ import type { CompanyAccess, MemberRole, MemberStatus } from './types';
 import { buildMailPayload, notificationEnvironment, readFrozenMailPayload, type MailPayload, type MailMetadata } from './mail-templates';
 import { acceptMailWithDelivery } from './mail-delivery';
 import type { DeliveryStatus } from './mail-delivery-validation';
+import { makeInboundAddress } from './inbound-email-validation';
 
-export type NotificationEvent = 'ticket_created' | 'agent_replied' | 'client_replied' | 'invitation' | 'password_reset' | 'reminder';
+export type NotificationEvent = 'ticket_created' | 'agent_replied' | 'client_replied' | 'invitation' | 'password_reset' | 'reminder' | 'escalation' | 'satisfaction_requested';
 export type NotificationStatus = 'awaiting_configuration' | 'queued' | 'processing' | 'accepted' | 'failed' | 'unknown' | 'cancelled';
 export interface MailStatus {
   configured: boolean;
@@ -24,13 +25,14 @@ type OutboxRow = {
   attempts: number; firstAttemptAt: string | null; leaseUntil: string | null;
   claimedFrom: NotificationStatus;
   templateVersion: number; environment: string | null; reminderId: string | null;
+  escalationId: string | null; satisfactionId: string | null;
 };
 type Recipient = { id: string; userId: string | null; email: string; role: MemberRole; status: MemberStatus; customerCompanyId: string | null; companyAccess: CompanyAccess };
 const MAX_ATTEMPTS = 6;
 const IDEMPOTENCY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RETRY_DELAYS = [60, 300, 1800, 7200, 28800];
 const STATUSES: NotificationStatus[] = ['awaiting_configuration', 'queued', 'processing', 'accepted', 'failed', 'unknown', 'cancelled'];
-const EVENTS: NotificationEvent[] = ['ticket_created', 'agent_replied', 'client_replied', 'invitation', 'password_reset', 'reminder'];
+const EVENTS: NotificationEvent[] = ['ticket_created', 'agent_replied', 'client_replied', 'invitation', 'password_reset', 'reminder', 'escalation', 'satisfaction_requested'];
 const DELIVERY_STATUSES: DeliveryStatus[] = ['untracked', 'sent', 'delayed', 'delivered', 'bounced', 'complained', 'failed', 'suppressed'];
 
 function database(): Database {
@@ -53,6 +55,7 @@ function configuration() {
 export function notificationStatements(db: Database, input: {
   ownerId: string; event: NotificationEvent; eventKey: string; recipientMemberId: string;
   ticketId?: number; ticketCreationKey?: string; invitationId?: string; actionUrl?: string; expiresAt?: string; reminderId?: string;
+  escalationId?: string; satisfactionId?: string;
 }): PreparedStatement[] {
   if (!EVENTS.includes(input.event)) throw new Error('Unsupported notification event');
   const now = new Date().toISOString();
@@ -68,10 +71,10 @@ export function notificationStatements(db: Database, input: {
     ? `(SELECT id FROM tickets WHERE "creationKey" = ${param(input.ticketCreationKey)} AND "ownerId" = ${param(input.ownerId)})`
     : param(input.ticketId ?? null);
   return [db.prepare(`INSERT INTO "mailOutbox"
-    (id, "ownerId", "eventKey", event, "recipientMemberId", "ticketId", "invitationId", "actionUrl", "expiresAt", "payloadJson", status, attempts, "createdAt", "updatedAt", "templateVersion", environment, "reminderId")
+    (id, "ownerId", "eventKey", event, "recipientMemberId", "ticketId", "invitationId", "actionUrl", "expiresAt", "payloadJson", status, attempts, "createdAt", "updatedAt", "templateVersion", environment, "reminderId", "escalationId", "satisfactionId")
     VALUES (${id}, ${owner}, ${eventKey}, ${event}, ${recipient}, ${ticketExpression},
       ${param(input.invitationId ?? null)}, ${param(input.actionUrl ?? null)}, ${param(input.expiresAt ?? null)},
-      NULL, ${param(configuration().configured ? 'queued' : 'awaiting_configuration')}, 0, ${param(now)}, ${param(now)}, 2, ${param(notificationEnvironment())}, ${param(input.reminderId ?? null)})
+      NULL, ${param(configuration().configured ? 'queued' : 'awaiting_configuration')}, 0, ${param(now)}, ${param(now)}, 3, ${param(notificationEnvironment())}, ${param(input.reminderId ?? null)}, ${param(input.escalationId ?? null)}, ${param(input.satisfactionId ?? null)})
     ON CONFLICT("eventKey") DO NOTHING`).bind(...values),
     ...pushDeliveryStatements(db, { eventId, ownerId: input.ownerId, event: input.event, recipientMemberId: input.recipientMemberId, createdAt: now }),
   ];
@@ -92,6 +95,8 @@ function errorMessage(code: string): string {
     provider_rejected: 'El proveedor rechazó el correo. Revisa el remitente y los destinatarios.',
     action_expired: 'El enlace de acceso expiró antes de enviarse. Genera uno nuevo.',
     reminder_obsolete: 'El recordatorio dejó de ser necesario y no se envió.',
+    escalation_obsolete: 'El escalamiento dejó de estar vigente y no se envió.',
+    satisfaction_obsolete: 'La encuesta dejó de estar disponible y no se envió.',
   };
   return messages[code] || 'No se pudo procesar una notificación de correo.';
 }
@@ -142,6 +147,8 @@ function makePayload(row: OutboxRow, recipient: Recipient, from: string, siteUrl
     invitation: 'Te han dado acceso a Daybook Ticket, un servicio Daybook. Inicia sesión con este mismo correo para entrar.',
     password_reset: 'Solicitaste restablecer tu contraseña de Daybook Ticket. Usa el enlace para elegir una nueva. Si no lo solicitaste, puedes ignorar este correo.',
     reminder: `${label} requiere atención. Revisa la conversación y sus plazos en Daybook Ticket.`,
+    escalation: `${label} necesita apoyo del equipo. Revisa la atención y el plazo en Daybook Ticket.`,
+    satisfaction_requested: `${label} fue resuelto. Cuéntanos cómo fue la atención desde Daybook Ticket.`,
   };
   let url = new URL('/', siteUrl);
   if (row.ticketId) url.searchParams.set('ticket', String(row.ticketId));
@@ -163,7 +170,7 @@ async function newPayload(db: Database, row: OutboxRow, recipient: Recipient, fr
   // frozen payloads bypass this function entirely, including HTML/attachments.
   const legacy = makePayload(row, recipient, from, siteUrl);
   if (!legacy || row.templateVersion === 1) return legacy;
-  if (row.templateVersion !== 2 || !['production', 'qa'].includes(row.environment || '')) return null;
+  if (![2, 3].includes(row.templateVersion) || !['production', 'qa'].includes(row.environment || '')) return null;
   const url = row.event === 'invitation' || row.event === 'password_reset' ? row.actionUrl! : new URL('/', siteUrl).toString();
   const target = new URL(url);
   if (row.ticketId) target.searchParams.set('ticket', String(row.ticketId));
@@ -171,10 +178,14 @@ async function newPayload(db: Database, row: OutboxRow, recipient: Recipient, fr
     row.ticketId ? db.prepare('SELECT subject, status, priority, "dueAt" FROM tickets WHERE id = $1 AND "ownerId" = $2')
       .bind(row.ticketId, row.ownerId).first<MailMetadata>() : null,
     row.event === 'reminder' && row.reminderId
-      ? import('./reminders').then(({ getReminderDeliveryReasons }) => getReminderDeliveryReasons(db, row.reminderId!, row.ownerId)) : [],
+      ? import('./reminders').then(({ getReminderDeliveryReasons }) => getReminderDeliveryReasons(db, row.reminderId!, row.ownerId))
+      : row.event === 'escalation' && row.escalationId
+        ? import('./escalations').then(({ getEscalationDeliveryReasons }) => getEscalationDeliveryReasons(db, row.escalationId!, row.ownerId)) : [],
   ]);
+  const replyTo = row.templateVersion === 3 && row.environment === notificationEnvironment() && row.event === 'agent_replied' && recipient.role === 'client'
+    ? makeInboundAddress({ kind: 'reply', id: row.id, ownerId: row.ownerId, memberId: recipient.id, email: recipient.email }) : null;
   return buildMailPayload({ id: row.id, environment: row.environment as 'production' | 'qa', event: row.event,
-    ticketId: row.ticketId, from, to: recipient.email, url: target.toString(), metadata: { ...metadata, reasons } });
+    ticketId: row.ticketId, from, to: recipient.email, url: target.toString(), metadata: { ...metadata, reasons }, ...(replyTo ? { replyTo } : {}) });
 }
 
 async function finish(db: Database, row: OutboxRow, status: NotificationStatus, code: string | null, nextAttemptAt: string | null = null, providerId: string | null = null) {
@@ -235,6 +246,14 @@ async function processOutboxBatch(ownerId: string, limit: number, eventId?: stri
     if (row.event === 'reminder') {
       const { isReminderEligibleForDelivery } = await import('./reminders');
       if (!(await isReminderEligibleForDelivery(db, row))) { await finish(db, row, 'cancelled', 'reminder_obsolete'); continue; }
+    }
+    if (row.event === 'escalation') {
+      const { isEscalationEligibleForDelivery } = await import('./escalations');
+      if (!(await isEscalationEligibleForDelivery(db, row))) { await finish(db, row, 'cancelled', 'escalation_obsolete'); continue; }
+    }
+    if (row.event === 'satisfaction_requested') {
+      const { isSatisfactionEligibleForDelivery } = await import('./satisfaction');
+      if (!(await isSatisfactionEligibleForDelivery(db, row))) { await finish(db, row, 'cancelled', 'satisfaction_obsolete'); continue; }
     }
     const payload = row.payloadJson ? readFrozenMailPayload(row.payloadJson) : await newPayload(db, row, recipient, config.sender, config.siteUrl);
     if (!payload) { await finish(db, row, 'failed', 'invalid_payload'); continue; }

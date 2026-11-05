@@ -4,27 +4,27 @@
  * Run: node --env-file=.env.test.local --import tsx scripts/check-notification-responsibles.mjs
  */
 import assert from 'node:assert/strict';
+import { withQaCleanup } from './qa-cleanup-transaction.mjs';
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 
 const expectedHost = 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech';
-const origin = 'http://127.0.0.1:5173';
+const origin = new URL(process.env.DAYBOOK_SITE_URL).origin;
+assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:5175'].includes(origin), 'Use only an approved local QA origin.');
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
 assert.equal(new URL(process.env.DATABASE_URL).hostname, expectedHost);
 assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, expectedHost);
 assert.equal(new URL(process.env.DAYBOOK_SITE_URL).origin, origin);
 assert.ok(!process.env.RESEND_API_KEY && !process.env.DAYBOOK_EMAIL_FROM, 'Email must stay disabled in QA.');
-const fixture = JSON.parse(await readFile(new URL('../work/ticket-updates-qa.json', import.meta.url), 'utf8'));
-assert.equal(fixture.databaseHost, expectedHost);
-assert.equal(fixture.origin, origin);
-const { owner, client } = fixture;
-for (const person of [owner, client]) assert.ok(person.email.endsWith('@example.test'));
+const ownerEmail = process.env.DAYBOOK_QA_OWNER_EMAIL || process.env.DAYBOOK_OWNER_EMAIL;
+assert.ok(ownerEmail?.endsWith('@example.test'));
+const owner = { email: ownerEmail, password: process.env.DAYBOOK_QA_OWNER_PASSWORD || 'Local-QA-only!Daybook-2026', cookies: {}, testIp: '192.0.2.231' };
+let client;
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 3 });
 const runId = randomUUID();
 const otherOrganization = `qa-notification-${runId}`;
 const otherOwner = randomUUID();
-const memberIds = [];
+const memberIds = [], authUserIds = [];
 const operationIds = new Set();
 let ownerId, organizationId, originalSettings, capturedSettings = false, appPool;
 
@@ -57,11 +57,16 @@ function status(result, expected, label) {
 }
 const patch = (body, person = owner) => api(person, '/api/settings', 'PATCH', body);
 const sameIds = (actual, expected, label) => assert.deepEqual([...actual].sort(), [...expected].sort(), label);
+async function authUser(id = randomUUID()) {
+  const now = new Date().toISOString();
+  await pool.query('INSERT INTO "authUser" (id,name,email,"emailVerified","createdAt","updatedAt") VALUES ($1,\'QA notification account\',$2,true,$3,$3)', [id, `qa-${runId}-${id}@example.test`, now]);
+  authUserIds.push(id); return id;
+}
 async function addMember(role, state, scope = {}) {
   const id = randomUUID(), now = new Date().toISOString();
   await pool.query(`INSERT INTO members (id, "organizationId", "ownerId", "userId", email, name, role, status, "createdAt", "updatedAt")
     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)`,
-  [id, scope.organizationId || organizationId, scope.ownerId || ownerId, state === 'active' ? randomUUID() : null,
+  [id, scope.organizationId || organizationId, scope.ownerId || ownerId, state === 'active' ? await authUser() : null,
     `qa-${runId}-${id}@example.test`, 'QA notification member', role, state, now]);
   memberIds.push(id); return id;
 }
@@ -73,16 +78,23 @@ async function eventRecipients(ticketId, event) {
 try {
   assert.equal((await pool.query('SELECT COUNT(*)::int AS n FROM "pushSubscriptions" WHERE active = true')).rows[0].n, 0,
     'QA requires no active push devices, preventing external delivery.');
-  for (const person of [owner, client]) status(await api(person, '/api/auth/sign-in/email', 'POST', { email: person.email, password: person.password }), 200, 'QA sign-in');
+  status(await api(owner, '/api/auth/sign-in/email', 'POST', { email: owner.email, password: owner.password }), 200, 'QA owner sign-in');
   const workspace = status(await api(owner, '/api/workspace'), 200, 'Owner workspace');
-  const clientWorkspace = status(await api(client, '/api/workspace'), 200, 'Client workspace');
-  assert.equal(workspace.viewer.role, 'owner'); assert.equal(clientWorkspace.viewer.role, 'client');
+  assert.equal(workspace.viewer.role, 'owner');
   assert.equal(workspace.mailStatus.configured, false, 'The local app must also have email disabled.');
   const ownerMember = (await pool.query('SELECT * FROM members WHERE id = $1 AND email = $2', [workspace.viewer.id, owner.email])).rows[0];
   assert.ok(ownerMember, 'The local app must use the same isolated database.');
   ({ ownerId, organizationId } = ownerMember);
   originalSettings = (await pool.query('SELECT data FROM settings WHERE "ownerId" = $1', [ownerId])).rows[0]?.data;
   capturedSettings = true;
+  client = { email: `qa-notification-client-${runId}@example.test`, password: `Qa-${randomUUID()}!`, cookies: {}, testIp: '192.0.2.232' };
+  const invitation = status(await api(owner, '/api/members', 'POST', { name: 'QA notification client', email: client.email, role: 'client' }), 201, 'Invite fictitious client');
+  memberIds.push(invitation.member.id);
+  const registered = status(await api(client, '/api/auth/sign-up/email', 'POST', { email: client.email, password: client.password, name: 'QA notification client' }, { 'x-daybook-invite': new URL(invitation.invitationUrl).searchParams.get('invite') }), 200, 'Activate fictitious client');
+  if (registered.user?.id) authUserIds.push(registered.user.id);
+  const clientWorkspace = status(await api(client, '/api/workspace'), 200, 'Client workspace');
+  assert.equal(clientWorkspace.viewer.role, 'client');
+
   const access = { organizationId, ownerId, userId: ownerMember.userId, member: workspace.viewer, role: 'owner' };
   const { notificationRecipients } = await import('../lib/access.ts');
   const { getSettings } = await import('../lib/server.ts');
@@ -112,7 +124,7 @@ try {
   assert.deepEqual(status(await api(client, '/api/workspace'), 200, 'Sanitized client settings').settings.notificationMemberIds, []);
   sameIds(await notificationRecipients(access, null), [workspace.viewer.id], 'Invited staff do not receive notifications before activation.');
   sameIds(await notificationRecipients(access, assigned), [workspace.viewer.id, assigned], 'Active assignee is added to shared responsibles.');
-  await pool.query('UPDATE members SET status = $1, "userId" = $2 WHERE id = $3', ['active', randomUUID(), invited]);
+  await pool.query('UPDATE members SET status = $1, "userId" = $2 WHERE id = $3', ['active', await authUser(), invited]);
   sameIds(await notificationRecipients(access, workspace.viewer.id), selected, 'Both responsible members receive an assigned ticket without duplicates.');
   sameIds(await notificationRecipients(access, assigned), [...selected, assigned], 'Another active assignee is included.');
   for (const id of [clientWorkspace.viewer.id, revoked, foreignOwner, foreignOrganization]) {
@@ -151,22 +163,44 @@ try {
   console.log(JSON.stringify({ result: 'passed', checks: ['QA-only', 'legacy-default', 'admin-only', 'same-origin', 'UUID-and-limit', 'same-workspace-staff-only', 'deduplication', 'partial-update-preservation', 'client-settings-privacy', 'invited-activation', 'shared-assignee-union', 'role-and-revocation-filtering', 'new-ticket-and-reply-routing', 'staff-reply-client-only', 'private-internal-notes', 'sender-exclusion', 'empty-list-fallback'], externalEmailRequests: 0, externalPushRequests: 0 }));
 } finally {
   try {
+    await withQaCleanup(pool, ownerId, async cleanup => {
+    // Recover successful inserts whose HTTP/SQL response was interrupted.
     if (ownerId) {
-      const tickets = (await pool.query('SELECT id FROM tickets WHERE "ownerId" = $1 AND subject LIKE $2', [ownerId, `QA notification ${runId}%`])).rows.map(row => row.id);
+      const recovered = (await cleanup.query('SELECT id,"userId" FROM members WHERE "ownerId"=ANY($1::text[]) AND (email LIKE $2 OR email=$3)', [[ownerId, otherOwner], `qa-${runId}-%@example.test`, client?.email || `qa-notification-client-${runId}@example.test`])).rows;
+      for (const row of recovered) { if (!memberIds.includes(row.id)) memberIds.push(row.id); if (row.userId && !authUserIds.includes(row.userId)) authUserIds.push(row.userId); }
+      for (const row of (await cleanup.query('SELECT id FROM "authUser" WHERE email LIKE $1 OR email=$2', [`qa-${runId}-%@example.test`, client?.email || `qa-notification-client-${runId}@example.test`])).rows) if (!authUserIds.includes(row.id)) authUserIds.push(row.id);
+    }
+    if (ownerId) {
+      const tickets = (await cleanup.query('SELECT id FROM tickets WHERE "ownerId" = $1 AND subject LIKE $2', [ownerId, `QA notification ${runId}%`])).rows.map(row => row.id);
       if (tickets.length) {
-        await pool.query('DELETE FROM "pushDeliveries" WHERE "eventId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId" = ANY($1))', [tickets]);
-        await pool.query('DELETE FROM "mailOutbox" WHERE "ticketId" = ANY($1)', [tickets]);
-        await pool.query('DELETE FROM "ticketEvents" WHERE "ticketId" = ANY($1)', [tickets]);
-        await pool.query('DELETE FROM messages WHERE "ticketId" = ANY($1)', [tickets]);
-        await pool.query('DELETE FROM tickets WHERE id = ANY($1)', [tickets]);
+        await cleanup.query('DELETE FROM "mailDeliveryEvents" WHERE "outboxId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId"=ANY($1::int[]))', [tickets]);
+        await cleanup.query('DELETE FROM "pushDeliveries" WHERE "eventId" IN (SELECT id FROM "mailOutbox" WHERE "ticketId" = ANY($1))', [tickets]);
+        await cleanup.query('DELETE FROM "mailOutbox" WHERE "ticketId" = ANY($1)', [tickets]);
+        for (const table of ['inboundMailReceipts', 'ticketSatisfaction', 'escalationOccurrences', 'reminderOccurrences', 'ticketSlaOutcomes']) await cleanup.query(`DELETE FROM "${table}" WHERE "ticketId"=ANY($1::int[])`, [tickets]);
+        await cleanup.query('DELETE FROM "ticketEvents" WHERE "ticketId" = ANY($1)', [tickets]);
+        await cleanup.query('DELETE FROM messages WHERE "ticketId" = ANY($1)', [tickets]);
+        await cleanup.query('DELETE FROM tickets WHERE id = ANY($1)', [tickets]);
       }
     }
-    if (operationIds.size) await pool.query('DELETE FROM operations WHERE "operationId"=ANY($1::text[])', [[...operationIds]]);
+    if (operationIds.size) await cleanup.query('DELETE FROM operations WHERE "operationId"=ANY($1::text[])', [[...operationIds]]);
     if (capturedSettings) {
-      if (originalSettings === undefined) await pool.query('DELETE FROM settings WHERE "ownerId" = $1', [ownerId]);
-      else await pool.query('UPDATE settings SET data = $1 WHERE "ownerId" = $2', [originalSettings, ownerId]);
+      if (originalSettings === undefined) await cleanup.query('DELETE FROM settings WHERE "ownerId" = $1', [ownerId]);
+      else await cleanup.query('UPDATE settings SET data = $1 WHERE "ownerId" = $2', [originalSettings, ownerId]);
     }
-    if (memberIds.length) await pool.query('DELETE FROM members WHERE id = ANY($1)', [memberIds]);
-    await pool.query('DELETE FROM organizations WHERE id = $1 AND "ownerId" = $2', [otherOrganization, otherOwner]);
+    if (memberIds.length) {
+      const values = [memberIds];
+      await cleanup.query('DELETE FROM "mailDeliveryEvents" WHERE "outboxId" IN (SELECT id FROM "mailOutbox" WHERE "recipientMemberId"=ANY($1::text[]))', values);
+      await cleanup.query('DELETE FROM "pushDeliveries" WHERE "eventId" IN (SELECT id FROM "mailOutbox" WHERE "recipientMemberId"=ANY($1::text[]))', values);
+      await cleanup.query('DELETE FROM "mailOutbox" WHERE "recipientMemberId"=ANY($1::text[])', values);
+      await cleanup.query('DELETE FROM invitations WHERE "memberId"=ANY($1::text[])', values);
+      await cleanup.query('DELETE FROM members WHERE id=ANY($1::text[])', values);
+    }
+    await cleanup.query('DELETE FROM "authUser" WHERE id=ANY($1::text[]) OR email=$2', [authUserIds, client?.email || `qa-notification-client-${runId}@example.test`]);
+    await cleanup.query('DELETE FROM organizations WHERE id = $1 AND "ownerId" = $2', [otherOrganization, otherOwner]);
+    assert.equal((await cleanup.query('SELECT count(*)::int AS n FROM members WHERE id=ANY($1::text[])', [memberIds])).rows[0].n, 0);
+    assert.equal((await cleanup.query('SELECT count(*)::int AS n FROM "authUser" WHERE id=ANY($1::text[]) OR email=$2', [authUserIds, client?.email || `qa-notification-client-${runId}@example.test`])).rows[0].n, 0);
+    });
+    if (owner.cookies && Object.keys(owner.cookies).length) status(await api(owner, '/api/auth/sign-out', 'POST', {}), 200, 'Close test owner session');
+    console.log('QA notification responsibles cleanup PASS: fictitious accounts, memberships, tickets, operations and test sessions removed; shared settings restored.');
   } finally { await Promise.all([pool.end(), appPool?.end()]); }
 }

@@ -20,7 +20,7 @@ export interface SlaOutcomeInput {
  * The deadline is frozen here; a later priority, company or calendar edit cannot
  * rewrite a completed measurement. Historical resolutions are never backfilled.
  */
-export async function recordSlaOutcome(tx: PoolClient, input: SlaOutcomeInput): Promise<void> {
+export async function recordSlaOutcome(tx: PoolClient, input: SlaOutcomeInput): Promise<string> {
   const resolved = Date.parse(input.resolvedAt), due = Date.parse(input.dueAt);
   const start = input.startedAt ? Date.parse(input.startedAt) : null;
   if (!Number.isFinite(resolved) || !Number.isFinite(due) || (start !== null && (!Number.isFinite(start) || start > resolved))) throw new ApiError(400, 'La medición del plazo no es válida.');
@@ -31,6 +31,7 @@ export async function recordSlaOutcome(tx: PoolClient, input: SlaOutcomeInput): 
       AND ($8::text IS NULL OR EXISTS (SELECT 1 FROM "customerCompanies" c WHERE c.id=$8 AND c."ownerId"=$2))
     RETURNING id`, [randomUUID(), input.ownerId, input.ticketId, input.actorMemberId, input.startedAt, input.dueAt, input.resolvedAt, input.customerCompanyId, input.policySnapshot]);
   if (saved.rowCount !== 1) throw new ApiError(400, 'No se pudo vincular la medición al ticket y al equipo correctos.');
+  return saved.rows[0].id as string;
 }
 
 /** Only aggregates leave PostgreSQL. Current workload is deliberately independent

@@ -16,7 +16,12 @@ const members = new Map(), ticketIds = [], eventIds = [], subscriptionIds = [];
 const originalFetch = globalThis.fetch;
 const envKeys = ['DAYBOOK_SITE_URL', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'];
 const originalEnv = Object.fromEntries(envKeys.map(key => [key, process.env[key]]));
-let pool, database, acl, server, getTicketFeed, notificationStatements, processOutbox, push, mailCalls = 0, pushCalls = 0;
+let pool, database, acl, server, getTicketFeed, getConversationPage, notificationStatements, processOutbox, push, mailCalls = 0, pushCalls = 0;
+async function conversation(context, id) {
+  const result = []; let cursor = null;
+  do { const page = await getConversationPage(context, id, 100, cursor); result.unshift(...page.messages); cursor = page.nextCursor; } while (cursor);
+  return result;
+}
 
 async function member(name, role = 'client', company = null, companyAccess = 'own', status = 'active') {
   const id = randomUUID(), now = new Date().toISOString();
@@ -73,6 +78,7 @@ try {
   pool = dbModule.getPool(); database = dbModule.getDatabase();
   acl = await import('../lib/access.ts'); server = await import('../lib/server.ts');
   ({ getTicketFeed } = await import('../lib/ticket-feed.ts'));
+  ({ getConversationPage } = await import('../lib/ticket-search.ts'));
   ({ notificationStatements, processOutbox } = await import('../lib/mail.ts'));
   push = await import('../lib/push.ts');
   const now = new Date().toISOString();
@@ -101,14 +107,19 @@ try {
     }
     const feed = await getTicketFeed(context);
     assert.deepEqual(feed.tickets.map(row => row.id).sort((a, b) => a - b), [...allowed].sort((a, b) => a - b));
-    if (context.role === 'client') assert.ok(feed.messages.every(row => row.kind !== 'note'));
+    assert.deepEqual(feed.messages, []); assert.equal(feed.ticketCounts.all, allowed.length);
+    for (const ticketId of allowed) {
+      const messages = await conversation(context, ticketId);
+      if (context.role === 'client') assert.ok(messages.every(row => row.kind !== 'note'));
+      assert.ok(!JSON.stringify(messages).includes('qa-private/'));
+    }
     assert.ok(!JSON.stringify(feed).includes('qa-private/'), 'Private object paths never reach the workspace.');
   }
   const managerAccess = await access(manager), staffAccess = await access(staff);
-  const managerFeed = await getTicketFeed(managerAccess);
-  assert.deepEqual(managerFeed.messages.find(row => row.id === publicMessage).attachments.map(row => row.id), [publicAttachment]);
-  assert.equal(managerFeed.messages.some(row => row.id === privateMessage), false);
-  assert.equal((await getTicketFeed(staffAccess)).messages.find(row => row.id === privateMessage).attachments.length, 1);
+  const managerMessages = await conversation(managerAccess, ta2.id);
+  assert.deepEqual(managerMessages.find(row => row.id === publicMessage).attachments.map(row => row.id), [publicAttachment]);
+  assert.equal(managerMessages.some(row => row.id === privateMessage), false);
+  assert.equal((await conversation(staffAccess, ta2.id)).find(row => row.id === privateMessage).attachments.length, 1);
   assert.deepEqual((await acl.getCustomerCompanies(managerAccess)).map(row => row.id), [companyA]);
   assert.equal((await acl.getCustomerCompanies(staffAccess)).length, 2);
   assert.throws(() => acl.requireStaff(managerAccess), error => error.status === 403);
@@ -153,7 +164,7 @@ try {
   delete process.env.RESEND_API_KEY; delete process.env.DAYBOOK_EMAIL_FROM;
   if (pool) {
     try {
-      for (const table of ['pushDeliveries', 'pushSubscriptions', 'mailOutbox', 'attachments', 'ticketEvents', 'operations', 'messages', 'tickets', 'members', 'customerCompanies']) {
+      for (const table of ['mailDeliveryEvents', 'pushDeliveries', 'pushSubscriptions', 'mailOutbox', 'inboundMailReceipts', 'ticketSatisfaction', 'escalationOccurrences', 'reminderOccurrences', 'attachments', 'ticketEvents', 'operations', 'messages', 'ticketSlaOutcomes', 'tickets', 'escalationSettings', 'notificationJobHealth', 'notificationSettings', 'settings', 'members', 'customerCompanies']) {
         await pool.query(`DELETE FROM "${table}" WHERE "ownerId"=$1`, [ownerId]);
       }
       await pool.query('DELETE FROM organizations WHERE id=$1 AND "ownerId"=$2', [organizationId, ownerId]);

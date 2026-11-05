@@ -59,7 +59,7 @@ export const tickets = pgTable('tickets', {
   dueAt: text('dueAt').notNull(),
   slaPolicySnapshot: text('slaPolicySnapshot'),
   slaStartedAt: text('slaStartedAt'),
-}, (t) => [index('tickets_owner_updated').on(t.ownerId, t.updatedAt), index('tickets_requester').on(t.ownerId, t.requesterMemberId), index('tickets_company').on(t.ownerId, t.customerCompanyId), uniqueIndex('tickets_creation_key').on(t.creationKey)]);
+}, (t) => [index('tickets_owner_updated').on(t.ownerId, t.updatedAt), index('tickets_owner_page').on(t.ownerId, t.updatedAt.desc(), t.id.desc()), index('tickets_requester').on(t.ownerId, t.requesterMemberId), index('tickets_company').on(t.ownerId, t.customerCompanyId), uniqueIndex('tickets_creation_key').on(t.creationKey)]);
 
 export const servicePolicies = pgTable('servicePolicies', {
   id: text('id').primaryKey(), ownerId: text('ownerId').notNull().references(() => organizations.ownerId),
@@ -103,9 +103,10 @@ export const messages = pgTable('messages', {
   authorMemberId: text('authorMemberId').references(() => members.id),
   authorRole: text('authorRole'),
   body: text('body').notNull(),
+  bodyFormat: text('bodyFormat').notNull().default('plain'),
   kind: text('kind').notNull(),
   createdAt: text('createdAt').notNull(),
-}, (t) => [index('messages_owner_ticket').on(t.ownerId, t.ticketId)]);
+}, (t) => [index('messages_owner_ticket').on(t.ownerId, t.ticketId), index('messages_owner_page').on(t.ownerId, t.ticketId, t.createdAt.desc(), t.id.desc()), check('messages_body_format', sql`${t.bodyFormat} IN ('plain', 'markdown')`)]);
 
 export const savedReplies = pgTable('savedReplies', {
   id: text('id').primaryKey(), ownerId: text('ownerId').notNull(),
@@ -191,6 +192,33 @@ export const notificationJobHealth = pgTable('notificationJobHealth', {
   leaseToken: text('leaseToken'), leaseUntil: text('leaseUntil'),
 });
 
+export const escalationSettings = pgTable('escalationSettings', {
+  ownerId: text('ownerId').primaryKey().references(() => organizations.ownerId),
+  enabled: boolean('enabled').notNull().default(false), unansweredMinutes: integer('unansweredMinutes').notNull().default(240),
+  overdueMinutes: integer('overdueMinutes').notNull().default(60), recipientMemberIdsJson: text('recipientMemberIdsJson').notNull().default('[]'),
+  activatedAt: text('activatedAt'), version: integer('version').notNull().default(0), updatedAt: text('updatedAt').notNull(),
+}, t => [check('escalation_unanswered_minutes', sql`${t.unansweredMinutes} BETWEEN 120 AND 43200`), check('escalation_overdue_minutes', sql`${t.overdueMinutes} BETWEEN 0 AND 43200`)]);
+export const escalationOccurrences = pgTable('escalationOccurrences', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull().references(() => organizations.ownerId),
+  ticketId: integer('ticketId').notNull().references(() => tickets.id), activationAt: text('activationAt').notNull(),
+  cycleMessageId: integer('cycleMessageId').notNull().references(() => messages.id), unansweredMessageId: integer('unansweredMessageId').references(() => messages.id),
+  reason: text('reason').notNull(), recipientMemberId: text('recipientMemberId').notNull().references(() => members.id),
+  assigneeMemberId: text('assigneeMemberId').references(() => members.id), stageKey: text('stageKey').notNull(), dueAtSnapshot: text('dueAtSnapshot').notNull(),
+  createdAt: text('createdAt').notNull(), expiresAt: text('expiresAt').notNull(),
+}, t => [uniqueIndex('escalation_occurrence_stage').on(t.ownerId, t.ticketId, t.stageKey), index('escalation_occurrence_ticket').on(t.ownerId, t.ticketId), check('escalation_reason', sql`${t.reason} IN ('unanswered','overdue')`)]);
+export const ticketSatisfaction = pgTable('ticketSatisfaction', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull().references(() => organizations.ownerId), ticketId: integer('ticketId').notNull().references(() => tickets.id),
+  resolutionKey: text('resolutionKey').notNull().references(() => ticketSlaOutcomes.id), resolvedAt: text('resolvedAt').notNull(),
+  requesterMemberId: text('requesterMemberId').notNull().references(() => members.id), resolverMemberId: text('resolverMemberId').references(() => members.id),
+  customerCompanyId: text('customerCompanyId').references(() => customerCompanies.id), score: integer('score'), comment: text('comment'), submittedAt: text('submittedAt'), createdAt: text('createdAt').notNull(),
+}, t => [uniqueIndex('ticket_satisfaction_resolution').on(t.ownerId, t.resolutionKey), index('ticket_satisfaction_period').on(t.ownerId, t.resolvedAt), index('ticket_satisfaction_ticket').on(t.ownerId, t.ticketId), check('satisfaction_score', sql`${t.score} BETWEEN 1 AND 5`), check('satisfaction_comment', sql`length(${t.comment}) <= 2000`), check('satisfaction_submission', sql`(${t.score} IS NULL) = (${t.submittedAt} IS NULL)`)]);
+export const inboundMailReceipts = pgTable('inboundMailReceipts', {
+  providerId: text('providerId').primaryKey(), environment: text('environment').notNull(), payloadHash: text('payloadHash').notNull(),
+  ownerId: text('ownerId').references(() => organizations.ownerId), memberId: text('memberId').references(() => members.id),
+  ticketId: integer('ticketId').references(() => tickets.id), messageId: integer('messageId').references(() => messages.id), status: text('status').notNull(),
+  reasonCode: text('reasonCode'), createdAt: text('createdAt').notNull(), updatedAt: text('updatedAt').notNull(),
+}, t => [index('inbound_receipt_owner').on(t.ownerId, t.createdAt), index('inbound_receipt_member').on(t.ownerId, t.memberId, t.createdAt), check('inbound_environment', sql`${t.environment} IN ('qa','production')`), check('inbound_receipt_status', sql`${t.status} IN ('processed','ignored')`)]);
+
 export const mailOutbox = pgTable('mailOutbox', {
   id: text('id').primaryKey(),
   ownerId: text('ownerId').notNull(),
@@ -211,6 +239,8 @@ export const mailOutbox = pgTable('mailOutbox', {
   lastErrorCode: text('lastErrorCode'),
   readAt: text('readAt'),
   reminderId: text('reminderId').references(() => reminderOccurrences.id),
+  escalationId: text('escalationId').references(() => escalationOccurrences.id),
+  satisfactionId: text('satisfactionId').references(() => ticketSatisfaction.id),
   templateVersion: integer('templateVersion').notNull().default(1),
   environment: text('environment'),
   deliveryStatus: text('deliveryStatus').notNull().default('untracked'),

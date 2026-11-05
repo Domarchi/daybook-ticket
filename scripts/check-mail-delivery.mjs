@@ -70,12 +70,18 @@ try {
   ]);
 
   const v2 = await enqueue('early-v2');
-  assert.equal(v2.templateVersion, 2); assert.equal(v2.environment, 'qa');
+  assert.equal(v2.templateVersion, 3); assert.equal(v2.environment, 'qa');
   assert.equal((await processOutbox(ownerId, 1, v2.id)).accepted, 1);
   assert.equal((await row(v2.id)).deliveryStatus, 'delivered');
   const frozen = JSON.parse((await row(v2.id)).payloadJson);
   assert.ok(frozen.html); assert.equal(frozen.attachments.length, 1); assert.ok(frozen.tags.some(tag => tag.name === 'outbox_id' && tag.value === v2.id));
   assert.equal((await processOutbox(ownerId, 1, v2.id)).processed, 0);
+
+  const frozenV2 = await enqueue('normal');
+  const v2Body = JSON.stringify({ ...frozen, subject: 'Previously frozen V2', tags: frozen.tags.map(tag => tag.name === 'outbox_id' ? { ...tag, value: frozenV2.id } : tag) });
+  await pool.query('UPDATE "mailOutbox" SET "templateVersion"=2,"payloadJson"=$1 WHERE id=$2 AND "ownerId"=$3', [v2Body, frozenV2.id, ownerId]);
+  assert.equal((await processOutbox(ownerId, 1, frozenV2.id)).accepted, 1);
+  assert.equal(bodies.get(frozenV2.id)[0], v2Body, 'A previously frozen V2 payload remains byte-for-byte, with no new Reply-To');
 
   const v1 = await enqueue('early-v1');
   const legacyBody = `{ "from":"Daybook QA <notifications@example.test>", "to":["${email}"],"subject":"Original legacy title","text":"Original body\\n exact" }`;
@@ -90,7 +96,7 @@ try {
   assert.equal((await processOutbox(ownerId, 1, retry.id)).accepted, 0);
   await pool.query('UPDATE "mailOutbox" SET "nextAttemptAt" = $1 WHERE id = $2 AND "ownerId" = $3', [new Date(Date.now() - 1000).toISOString(), retry.id, ownerId]);
   assert.equal((await processOutbox(ownerId, 1, retry.id)).accepted, 1);
-  assert.equal(bodies.get(retry.id)[0], bodies.get(retry.id)[1], 'V2 body + attachments + tags remain identical on retry');
+  assert.equal(bodies.get(retry.id)[0], bodies.get(retry.id)[1], 'Current body + attachments + tags remain identical on retry');
   assert.equal((await row(retry.id)).deliveryStatus, 'untracked', 'API acceptance alone never fabricates delivery');
   const providerId = `qa-provider-${retry.id}`;
   const base = Date.now() - 60_000;

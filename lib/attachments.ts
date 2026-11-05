@@ -161,7 +161,11 @@ export async function linkReadyAttachments(tx: PoolClient, access: AccessContext
 }
 
 export async function downloadAttachment(access: AccessContext, id: string, database = db(), storage?: PrivateAttachmentStorage) {
-  const row = await database.prepare(`SELECT a.* FROM attachments a INNER JOIN messages m ON m.id=a."messageId" AND m."ownerId"=a."ownerId" AND m."ticketId"=a."ticketId" AND m.kind=a.kind WHERE a.id=$1 AND a."ownerId"=$2 AND a.status='attached'`).bind(id, access.ownerId).first<AttachmentRow>();
+  const row = await database.prepare(`SELECT a.* FROM attachments a INNER JOIN messages m ON m.id=a."messageId" AND m."ownerId"=a."ownerId" AND m."ticketId"=a."ticketId" AND m.kind=a.kind
+    WHERE a.id=$1 AND a."ownerId"=$2 AND a.status='attached' AND EXISTS (SELECT 1 FROM members viewer
+      WHERE viewer.id=$3 AND viewer."ownerId"=$2 AND viewer."organizationId"=$4 AND viewer."userId"=$5 AND viewer.status='active'
+        AND viewer.role=$6 AND viewer."customerCompanyId" IS NOT DISTINCT FROM $7::text AND viewer."companyAccess"=$8)`)
+    .bind(id, access.ownerId, access.member.id, access.organizationId, access.userId, access.role, access.member.customerCompanyId, access.member.companyAccess).first<AttachmentRow>();
   if (!row || !row.ticketId || (row.kind === 'note' && access.role === 'client')) throw new ApiError(404, 'El adjunto no existe o no tienes acceso.');
   await getTicket(access, row.ticketId);
   const store = storage ?? requireStorage();
@@ -176,6 +180,19 @@ export async function downloadAttachment(access: AccessContext, id: string, data
     'Cache-Control': 'private, no-store, max-age=0', 'X-Content-Type-Options': 'nosniff',
     'Content-Security-Policy': "sandbox; default-src 'none'", 'Referrer-Policy': 'no-referrer',
   } });
+}
+
+/** Same account/ticket/note authorization as downloads; never publishes a Blob URL. */
+export async function previewAttachment(access: AccessContext, id: string, database = db(), storage?: PrivateAttachmentStorage) {
+  const response = await downloadAttachment(access, id, database, storage);
+  if (!['image/png', 'image/jpeg', 'image/webp', 'application/pdf'].includes(response.headers.get('Content-Type') || '')) {
+    await response.body?.cancel();
+    throw new ApiError(415, 'Este archivo se puede descargar, pero no tiene vista previa.');
+  }
+  const headers = new Headers(response.headers);
+  headers.set('Content-Disposition', (headers.get('Content-Disposition') || 'attachment').replace(/^attachment/, 'inline'));
+  headers.set('Content-Security-Policy', "sandbox; default-src 'none'; frame-ancestors 'self'");
+  return new Response(response.body, { headers });
 }
 
 /** Bounded, retryable cleanup. Sent files are never eligible. No cron or store-wide listing. */

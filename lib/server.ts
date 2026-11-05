@@ -27,6 +27,7 @@ export const createTicketSchema = z.object({
   assigneeMemberId: memberId.optional(),
   priority: ticketPriority.default('normal'),
   body: messageBody,
+  bodyFormat: z.enum(['plain', 'markdown']).optional(),
 }).strict();
 export const patchTicketSchema = z.object({
   expectedVersion: z.number().int().nonnegative().optional(),
@@ -39,7 +40,7 @@ export const patchTicketSchema = z.object({
   priority: ticketPriority.optional(),
   status: ticketStatus.optional(),
 }).strict().refine(v => Object.keys(v).length > 0, 'No hay cambios para guardar.');
-export const messageSchema = z.object({ operationId: z.string().uuid(), draftId: z.string().uuid().optional(), attachmentIds: z.array(z.string().uuid()).max(5).default([]), body: messageBody, kind: z.enum(['reply', 'note']) }).strict();
+export const messageSchema = z.object({ operationId: z.string().uuid(), draftId: z.string().uuid().optional(), attachmentIds: z.array(z.string().uuid()).max(5).default([]), body: messageBody, bodyFormat: z.enum(['plain', 'markdown']).optional(), kind: z.enum(['reply', 'note']) }).strict();
 export const inviteMemberSchema = z.object({
   name: shortText, email: emailAddress, role: z.enum(['admin', 'agent', 'client']),
   customerCompanyId: memberId.optional(), companyAccess: z.enum(['own', 'manager']).optional(),
@@ -130,7 +131,13 @@ export async function getSettings(ownerId: string): Promise<Settings> {
 }
 export async function getTicket(access: AccessContext, id: number): Promise<Ticket> {
   const scope = ticketAccessSql(access, 't', 2);
-  const ticket = await db().prepare(`SELECT ${ticketColumns} FROM tickets t WHERE t.id = $1 AND ${scope.sql}`).bind(id, ...scope.values).first<Ticket>();
+  const values = [id, ...scope.values];
+  const bind = (value: string | null) => { values.push(value); return `$${values.length}`; };
+  const member = bind(access.member.id), role = bind(access.role), company = bind(access.member.customerCompanyId ?? null), permission = bind(access.member.companyAccess), user = bind(access.userId), organization = bind(access.organizationId);
+  const ticket = await db().prepare(`SELECT ${ticketColumns} FROM tickets t WHERE t.id = $1 AND ${scope.sql}
+    AND EXISTS (SELECT 1 FROM members live WHERE live.id=${member} AND live."ownerId"=t."ownerId" AND live."organizationId"=${organization}
+      AND live."userId"=${user} AND live.status='active' AND live.role=${role} AND live."customerCompanyId" IS NOT DISTINCT FROM ${company}::text AND live."companyAccess"=${permission})`)
+    .bind(...values).first<Ticket>();
   if (!ticket) throw new ApiError(404, 'El ticket no existe o no tienes acceso.');
   return ticket;
 }
@@ -142,7 +149,7 @@ export function checkAssignment(data: { department?: string; assignee?: string }
   if (data.department !== undefined && !settings.departments.includes(data.department)) throw new ApiError(400, 'Selecciona un departamento válido.');
 }
 export const ticketColumns = 'id, subject, "requesterName", "requesterEmail", "requesterMemberId", "customerCompanyId", version, department, assignee, "assigneeMemberId", status, priority, "createdAt", "updatedAt", "dueAt"';
-export const messageColumns = 'id, "ticketId", author, "authorMemberId", "authorRole", body, kind, "createdAt", \'[]\'::jsonb AS attachments';
+export const messageColumns = 'id, "ticketId", author, "authorMemberId", "authorRole", body, "bodyFormat", kind, "createdAt", \'[]\'::jsonb AS attachments';
 export const articleColumns = 'id, title, category, body, published, "createdAt", "updatedAt"';
 export const asArticle = (row: Article) => ({ ...row, published: Boolean(row.published) });
 export type RouteContext = { params: Promise<{ id: string }> };

@@ -1,5 +1,11 @@
 # Daybook Ticket
 
+## Seis mejoras de servicio
+
+La rama `codex/daybook-ticket-service-plus` prepara correo entrante para clientes invitados, escalamiento, encuestas de satisfacción, editor con formato y vista previa privada de archivos, búsqueda en conversaciones con paginación y respaldo cifrado del espacio. El estado y las pruebas están en [SERVICE_PLUS_PLAN.md](docs/SERVICE_PLUS_PLAN.md); la publicación conservando datos y las activaciones están en [SERVICE_PLUS_RELEASE.md](docs/SERVICE_PLUS_RELEASE.md).
+
+El correo entrante es opt-in y usa direcciones privadas vinculadas a cuentas activas; los adjuntos se envían desde el portal. Escalamiento comienza desactivado y satisfacción se solicita solo tras cierres reales nuevos. El propietario dispone de exportación cifrada; el ensayo periódico de recuperación usa datos ficticios y no constituye una copia automática de producción. Ver [INBOUND_EMAIL.md](docs/INBOUND_EMAIL.md), [ESCALATIONS_SATISFACTION.md](docs/ESCALATIONS_SATISFACTION.md) y [TICKET_SEARCH.md](docs/TICKET_SEARCH.md).
+
 Centro de soporte de Servicios Daybook: acceso por correo y contraseña, invitaciones, roles y portal de clientes. Esta versión usa Next.js en Vercel y PostgreSQL en un proyecto Neon exclusivo. No comparte datos ni despliegues con Consorcio C17 u otros Daybook.
 
 ## Desarrollo
@@ -100,6 +106,6 @@ El símbolo y favicon de Daybook se copiaron sin cambios desde `Domarchi/daybook
 
 El envío requiere un remitente de dominio verificado y Resend configurado. Los nuevos correos incluyen HTML adaptable, logo CID y texto; conservan asunto, estado, plazo y enlace al portal sin copiar conversaciones ni archivos. El seguimiento firmado distingue aceptación de entrega y no usa píxeles de lectura. Los reintentos preservan el payload congelado, incluidos los mensajes antiguos.
 
-Los recordatorios del equipo y los reintentos periódicos se ejecutan mediante un pinger Neon cada 30 minutos. Requieren activación separada; la migración los deja en pausa. No hay correo entrante ni respuesta a tickets por email. Los adjuntos privados se consultan desde el portal. La recuperación de contraseña depende del correo configurado.
+Los recordatorios del equipo y los reintentos periódicos se ejecutan mediante un pinger Neon cada 30 minutos. Requieren activación separada; la migración los deja en pausa. El correo entrante de esta rama se activa por separado con direcciones privadas para clientes invitados; las respuestas conservan la autorización actual del ticket. Los adjuntos privados se consultan desde el portal. La recuperación de contraseña depende del correo configurado.
 
 Ver [reglas y programador](docs/NOTIFICATIONS_SCHEDULER.md) y [validación y publicación](docs/NOTIFICATIONS_RELEASE.md). `npm run preview:mail` genera seis plantillas con datos ficticios para revisar localmente. `npm run test:notifications:qa` ejecuta las integraciones de base en serie; `npm run test:notifications:http` requiere el servidor QA local. Ninguno admite producción.

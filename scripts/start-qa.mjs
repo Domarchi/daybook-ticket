@@ -9,6 +9,7 @@ assert.equal(new URL(process.env.DATABASE_URL).hostname,'ep-falling-water-bbfa4i
 assert.ok(['http://127.0.0.1:5173', 'http://127.0.0.1:5175'].includes(process.env.DAYBOOK_SITE_URL));
 const port = new URL(process.env.DAYBOOK_SITE_URL).port;
 assert.ok(!process.env.RESEND_API_KEY,'QA cannot send real mail.');
+assert.ok(!process.env.RESEND_INBOUND_API_KEY,'QA cannot read real received mail.');
 assert.ok(!process.env.DAYBOOK_EMAIL_FROM,'QA cannot configure a real sender.');
 if (pushApiFixtures) {
   // Explicit local test window only. Read these keys from the guarded QA file,

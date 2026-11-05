@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import pg from 'pg';
 import { provisionOwner } from './provision-owner.mjs';
+import { readAllTicketPages, readAllConversationPages } from './qa-paged-read.mjs';
 import { addSlaHours } from '../lib/sla-policy.ts';
 
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1', 'QA opt-in required.');
@@ -191,12 +192,17 @@ try {
   await message(agentA, journey.id, note, 'note');
   await message(agentB, journey.id, publicReply, 'reply', true);
   const clientFeed = ok(await api(clientA, '/api/tickets/updates'));
+  assert.ok(clientFeed.tickets.length <= 50); assert.deepEqual(clientFeed.messages, []);
+  clientFeed.tickets = await readAllTicketPages(async path => ok(await api(clientA, path)));
+  const clientMessages = await readAllConversationPages(async path => ok(await api(clientA, path)), journey.id);
   assert.ok(clientFeed.tickets.some(ticket => ticket.id === journey.id));
   assert.ok(!clientFeed.tickets.some(ticket => ticket.id === control.id));
-  assert.ok(clientFeed.messages.some(item => item.body === publicReply));
-  assert.ok(clientFeed.messages.every(item => item.kind !== 'note' && item.body !== note));
+  assert.ok(clientMessages.some(item => item.body === publicReply));
+  assert.ok(clientMessages.every(item => item.kind !== 'note' && item.body !== note));
   assert.ok(clientFeed.tickets.every(ticket => !('slaPolicySnapshot' in ticket) && !('slaStartedAt' in ticket)));
   const otherFeed = ok(await api(clientB, '/api/tickets/updates'));
+  otherFeed.tickets = await readAllTicketPages(async path => ok(await api(clientB, path)));
+  ok(await api(clientB, `/api/tickets/${journey.id}/conversation`), 404);
   assert.ok(!otherFeed.tickets.some(ticket => ticket.id === journey.id));
   ok(await api(clientB, `/api/tickets/${journey.id}/messages`, 'POST', { operationId: randomUUID(), body: 'Forbidden cross-company comment.', kind: 'reply' }), 404);
   await patchTicket(journey.id, { status: 'resolved' });
@@ -327,7 +333,7 @@ try {
       await tx.query(`DELETE FROM "pushDeliveries" WHERE "eventId" IN (${mailScope})`, values);
       await tx.query('DELETE FROM "mailOutbox" WHERE "ownerId"=$1 AND ("ticketId"=ANY($2::int[]) OR "recipientMemberId"=ANY($3::text[]))', values);
       await tx.query('DELETE FROM "pushSubscriptions" WHERE "ownerId"=$1 AND "memberId"=ANY($2::text[])', [spaceOwnerId, memberIds]);
-      for (const table of ['reminderOccurrences', 'ticketSlaOutcomes', 'attachments', 'ticketEvents', 'messages']) {
+      for (const table of ['inboundMailReceipts', 'ticketSatisfaction', 'escalationOccurrences', 'reminderOccurrences', 'ticketSlaOutcomes', 'attachments', 'ticketEvents', 'messages']) {
         await tx.query(`DELETE FROM "${table}" WHERE "ownerId"=$1 AND "ticketId"=ANY($2::int[])`, [spaceOwnerId, ticketIds]);
       }
       await tx.query('DELETE FROM attachments WHERE "ownerId"=$1 AND "memberId"=ANY($2::text[])', [spaceOwnerId, memberIds]);

@@ -1,5 +1,7 @@
 # Daybook Ticket: plan aceptado y estado
 
+> Registro histórico de la primera entrega. Las entregas 1–3 ya se publicaron posteriormente. Para las seis mejoras nuevas y el estado revisable actual, consultar [SERVICE_PLUS_PLAN.md](SERVICE_PLUS_PLAN.md). Los límites y estados productivos fechados aquí describen aquel candidato, no la versión actual.
+
 Inicio: 3 de noviembre de 2026. Actualización: 4 de noviembre de 2026, America/Santiago. Rama: `codex/daybook-ticket-improvements`, creada desde `5fc1d9828e1ff78b12aadec379502fb39f6a067f`.
 
 ## Alcance aceptado

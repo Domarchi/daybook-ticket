@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { readAllTicketPages, readAllConversationPages } from './qa-paged-read.mjs';
 
 const expectedQaHost = 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech';
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1', 'QA requires explicit isolated-database opt-in.');
@@ -66,8 +67,11 @@ async function feed(person, status = 200) {
   const result = await api(person, '/api/tickets/updates');
   const body = expectStatus(result, status, 'Ticket feed');
   assert.ok(result.cacheControl?.includes('no-store'), 'Ticket feed responses must not be cached.');
-  return body;
+  if (status !== 200) return body;
+  assert.ok(body.tickets.length <= 50); assert.deepEqual(body.messages, []);
+  return { ...body, tickets: await readAllTicketPages(async path => expectStatus(await api(person, path), 200, 'Authorized ticket page')) };
 }
+const conversation = (person, ticketId) => readAllConversationPages(async path => expectStatus(await api(person, path), 200, 'Authorized conversation page'), ticketId);
 
 async function saveFixture(fixture) {
   await mkdir(fixtureDirectory, { recursive: true, mode: 0o700 });
@@ -143,7 +147,7 @@ if (mode) {
   expectStatus(await api(client, `/api/tickets/${ticket.id}/messages`, 'POST', { body: clientMessage, kind: 'reply' }), 201, 'Client follow-up');
   const ownerFeed = await feed(owner);
   assert.ok(ownerFeed.tickets.some(item => item.id === ticket.id));
-  assert.ok(ownerFeed.messages.some(item => item.ticketId === ticket.id && item.body === clientMessage));
+  assert.ok((await conversation(owner, ticket.id)).some(item => item.ticketId === ticket.id && item.body === clientMessage));
   const ownerTicketAlerts = ownerFeed.alerts.filter(item => item.ticketId === ticket.id);
   assert.equal(ownerTicketAlerts.filter(item => item.event === 'ticket_created').length, 1, 'The team receives the new-ticket alert even without email configured.');
   assert.equal(ownerTicketAlerts.filter(item => item.event === 'client_replied').length, 1, 'The team receives the client-message alert.');
@@ -153,21 +157,22 @@ if (mode) {
   const clientFeed = await feed(client);
   assert.equal(clientFeed.viewer.id, client.memberId);
   assert.ok(clientFeed.tickets.some(item => item.id === ticket.id));
-  assert.ok(clientFeed.messages.some(item => item.ticketId === ticket.id && item.body === ownerMessage));
+  const clientMessages = await conversation(client, ticket.id);
+  assert.ok(clientMessages.some(item => item.ticketId === ticket.id && item.body === ownerMessage));
   assert.equal(clientFeed.alerts.length, 1, 'Only the public team reply generates a client alert.');
   assert.equal(clientFeed.alerts[0].ticketId, ticket.id);
   assert.equal(clientFeed.alerts[0].event, 'agent_replied');
   assert.equal(clientFeed.alerts[0].subject, ticket.subject);
-  assert.deepEqual(Object.keys(clientFeed.alerts[0]).sort(), ['createdAt', 'event', 'id', 'subject', 'ticketId'], 'Alerts never expose mail payloads, recipients, or action URLs.');
+  assert.deepEqual(Object.keys(clientFeed.alerts[0]).sort(), ['createdAt', 'event', 'historical', 'id', 'readAt', 'subject', 'ticketId'], 'Alerts never expose mail payloads, recipients, or action URLs.');
   assert.ok(!clientFeed.tickets.some(item => item.id === otherTicket.id), 'A client cannot see another client ticket.');
-  assert.ok(!clientFeed.messages.some(item => item.ticketId === otherTicket.id || item.kind === 'note' || item.body === internalNote), 'A client cannot see another client messages or internal notes.');
-  assert.deepEqual(Object.keys(clientFeed).sort(), ['alerts', 'messages', 'tickets', 'viewer'], 'Polling must not load unrelated workspace data.');
+  assert.ok(!clientMessages.some(item => item.ticketId === otherTicket.id || item.kind === 'note' || item.body === internalNote), 'A client cannot see another client messages or internal notes.');
+  assert.deepEqual(Object.keys(clientFeed).sort(), ['alerts', 'alertsPage', 'messages', 'ticketCounts', 'ticketDepartments', 'ticketPage', 'tickets', 'viewer'], 'Polling must not load unrelated workspace data.');
   const otherFeed = await feed(otherClient);
   assert.ok(!otherFeed.tickets.some(item => item.id === ticket.id));
-  assert.ok(!otherFeed.messages.some(item => item.ticketId === ticket.id));
+  expectStatus(await api(otherClient, `/api/tickets/${ticket.id}/conversation`), 404, 'Other client cannot open conversation');
   assert.ok(!otherFeed.alerts.some(item => item.ticketId === ticket.id), 'Alerts are private to their intended recipient.');
   const ownerAfterReply = await feed(owner);
-  assert.ok(ownerAfterReply.messages.some(item => item.body === internalNote), 'Staff retains internal-note access.');
+  assert.ok((await conversation(owner, ticket.id)).some(item => item.body === internalNote), 'Staff retains internal-note access.');
   assert.deepEqual(ownerAfterReply.alerts.filter(item => item.ticketId === ticket.id), ownerTicketAlerts, 'Own replies and internal notes must not create team alerts.');
   expectStatus(await api(owner, `/api/tickets/${ticket.id}`, 'PATCH', { requesterMemberId: otherClient.memberId }), 200, 'Temporarily relink QA ticket');
   assert.ok(!(await feed(client)).alerts.some(item => item.ticketId === ticket.id), 'A previous recipient cannot see alerts for a ticket they no longer own.');

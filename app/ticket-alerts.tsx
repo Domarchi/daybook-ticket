@@ -4,9 +4,10 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { AlarmClock, Bell, Check, CheckCheck, ChevronRight, LoaderCircle, MessageSquare, Monitor, Ticket, Volume2, VolumeX, X } from 'lucide-react';
 import type { AlertControls } from '@/hooks/use-ticket-alerts';
 import type { TicketAlert } from '@/lib/types';
+import { SUPPORT_EVENT_LABELS } from '@/lib/notification-event-labels';
 import './ticket-alerts.css';
 
-const alertTitle = (item: TicketAlert) => item.event === 'ticket_created' ? 'Nuevo ticket' : item.event === 'reminder' ? 'Recordatorio' : 'Nuevo mensaje';
+const alertTitle = (item: TicketAlert) => item.event === 'ticket_created' ? 'Nuevo ticket' : item.event === 'reminder' ? 'Recordatorio' : item.event === 'escalation' || item.event === 'satisfaction_requested' ? SUPPORT_EVENT_LABELS[item.event] : 'Nuevo mensaje';
 const ticketNumber = (id: number) => `#${String(id).padStart(4, '0')}`;
 const alertDate = (value: string) => new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 const dateGroup = (value: string) => {

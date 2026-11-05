@@ -39,7 +39,7 @@ export async function POST(request:Request) {
       const dueAt=resolutionDeadline(now,data.priority,policy);
       const {rows}=await tx.query('INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail","requesterMemberId","customerCompanyId",department,assignee,"assigneeMemberId",status,priority,"createdAt","updatedAt","dueAt","slaPolicySnapshot","slaStartedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,\'open\',$11,$12,$12,$13,$14,$12) RETURNING *',[access.ownerId,data.operationId,data.subject,requester.requesterName,requester.requesterEmail,requester.requesterMemberId,requester.customerCompanyId,data.department,assignee,assigneeMemberId,data.priority,now,dueAt,JSON.stringify(policy)]);
       const ticket=rows[0];
-      const message=await tx.query('INSERT INTO messages ("ownerId","ticketId",author,"authorMemberId","authorRole",body,kind,"createdAt") VALUES ($1,$2,$3,$4,$5,$6,\'request\',$7) RETURNING id',[access.ownerId,ticket.id,fresh.member.name,fresh.member.id,fresh.role,data.body,now]);
+      const message=await tx.query('INSERT INTO messages ("ownerId","ticketId",author,"authorMemberId","authorRole",body,kind,"createdAt","bodyFormat") VALUES ($1,$2,$3,$4,$5,$6,\'request\',$7,$8) RETURNING id',[access.ownerId,ticket.id,fresh.member.name,fresh.member.id,fresh.role,data.body,now,data.bodyFormat || 'plain']);
       await linkReadyAttachments(tx,fresh,{ids:data.attachmentIds,draftId:data.draftId||data.operationId,kind:'request',ticketId:ticket.id,messageId:message.rows[0].id});
       await recordEvent(tx,fresh,ticket.id,'created',null,'open');
       if(automatic) await recordAutomaticAssignmentEvent(tx,access.ownerId,ticket.id,automatic);

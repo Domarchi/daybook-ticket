@@ -156,6 +156,7 @@ try {
   console.log('PASS safe pending deletion, deferred retryable cleanup and preservation of sent files');
 } finally {
   try {
+    for (const table of ['mailDeliveryEvents', 'pushDeliveries', 'mailOutbox', 'inboundMailReceipts', 'ticketSatisfaction', 'escalationOccurrences', 'reminderOccurrences']) await pool.query(`DELETE FROM "${table}" WHERE "ownerId"=$1`, [ownerId]);
     await pool.query('DELETE FROM attachments WHERE "ownerId"=$1', [ownerId]);
     await pool.query('DELETE FROM messages WHERE "ownerId"=$1', [ownerId]);
     await pool.query('DELETE FROM "ticketSlaOutcomes" WHERE "ownerId"=$1', [ownerId]);

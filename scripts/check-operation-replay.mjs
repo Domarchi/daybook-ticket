@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {randomUUID} from 'node:crypto';
+import {readAllConversationPages} from './qa-paged-read.mjs';
 assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE,'1');
 assert.equal(process.env.DAYBOOK_SITE_URL,'http://127.0.0.1:5173');
 assert.equal(new URL(process.env.DATABASE_URL).hostname,'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
@@ -18,7 +19,8 @@ await api(agent,`/api/tickets/${fixture.ticketId}/messages`,'POST',note,201);
 try {
  await api(owner,`/api/members/${agent.id}`,'PATCH',{role:'client',customerCompanyId:fixture.companyA,companyAccess:'manager'});
  await api(agent,`/api/tickets/${fixture.ticketId}/messages`,'POST',note,403);
- const feed=await api(agent,'/api/tickets/updates');assert.ok(feed.messages.every(m=>m.kind!=='note'));
+ const feed=await api(agent,'/api/tickets/updates');assert.deepEqual(feed.messages,[]);
+ const messages=await readAllConversationPages(path=>api(agent,path),fixture.ticketId);assert.ok(messages.every(m=>m.kind!=='note'&&m.body!==note.body));
 } finally {
  await api(owner,`/api/members/${agent.id}`,'PATCH',{role:'agent',customerCompanyId:null,companyAccess:'own'});
 }
