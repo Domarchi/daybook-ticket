@@ -1,3 +1,4 @@
+import {collaborationDeliveryValid} from './ticket-collaboration';
 import webpush from 'web-push';
 import { createECDH } from 'node:crypto';
 import { getDatabase } from '../db';
@@ -93,7 +94,7 @@ export async function unregisterPushSubscription(access: AccessContext, endpoint
 }
 
 async function eligibleEvent(subscription: Subscription, eventId: string): Promise<Event | null> {
-  const row = await getDatabase().prepare(`SELECT o.id, o.event, o."ticketId", o."createdAt",
+  const row = await getDatabase().prepare(`SELECT o.id, o.event, o."sourceMessageId", o."ticketId", o."createdAt",
       t."requesterMemberId", t."customerCompanyId" AS "ticketCompanyId",
       m.role, m.status AS "memberStatus", m."customerCompanyId", m."companyAccess"
     FROM "mailOutbox" o
@@ -102,15 +103,16 @@ async function eligibleEvent(subscription: Subscription, eventId: string): Promi
     JOIN "pushDeliveries" d ON d."eventId" = o.id AND d."subscriptionId" = $1 AND d."ownerId" = o."ownerId"
     WHERE o.id = $2 AND o."ownerId" = $3 AND o."recipientMemberId" = $4 AND m.status = 'active'
       AND m.role IN ('client', 'owner', 'admin', 'agent')
-      AND o.event IN ('ticket_created', 'agent_replied', 'client_replied') AND o."createdAt" >= $5
+      AND o.event IN ('ticket_created', 'agent_replied', 'client_replied', 'member_mentioned', 'ticket_followed_update') AND o."createdAt" >= $5
       AND d.status <> 'cancelled'`)
     .bind(subscription.id, eventId, subscription.ownerId, subscription.memberId, subscription.createdAt).first<Event & {
-      requesterMemberId: string | null; ticketCompanyId: string | null; role: MemberRole;
+      sourceMessageId:number|null;requesterMemberId: string | null; ticketCompanyId: string | null; role: MemberRole;
       memberStatus: MemberStatus; customerCompanyId: string | null; companyAccess: CompanyAccess;
     }>();
   if (!row || !canAccessTicket({ ownerId: subscription.ownerId, role: row.role, member: {
     id: subscription.memberId, status: row.memberStatus, customerCompanyId: row.customerCompanyId, companyAccess: row.companyAccess,
   } }, { ownerId: subscription.ownerId, requesterMemberId: row.requesterMemberId, customerCompanyId: row.ticketCompanyId })) return null;
+  if(!(await collaborationDeliveryValid(getDatabase(),{...row,ownerId:subscription.ownerId,recipientMemberId:subscription.memberId})))return null;
   return { id: row.id, event: row.event, ticketId: row.ticketId, createdAt: row.createdAt };
 }
 
@@ -127,7 +129,7 @@ export async function pushReceipt(access: AccessContext, input: { subscriptionId
   if (!event) throw new ApiError(404, 'El aviso ya no está disponible para tu cuenta.');
   return {
     title: 'Daybook Ticket',
-    body: event.event === 'ticket_created' ? `Llegó el ticket #${event.ticketId}.` : `Nuevo mensaje en el ticket #${event.ticketId}.`,
+    body: event.event === 'member_mentioned' ? `Te mencionaron en una nota del ticket #${event.ticketId}.` : event.event === 'ticket_created' ? `Llegó el ticket #${event.ticketId}.` : `Nuevo mensaje en el ticket #${event.ticketId}.`,
     url: `/?ticket=${event.ticketId}`,
     tag: `daybook-${subscription.id}-${event.id}`,
   };

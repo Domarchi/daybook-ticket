@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { Database } from '../db/database.ts';
-import { BACKUP_TABLES, canonicalBackupRows, decryptBackup, encryptBackup, sha256 } from '../lib/backup-format.ts';
+import { BACKUP_TABLES, RELIABILITY_BACKUP_TABLES, ADDED_BACKUP_COLUMNS, canonicalBackupRows, decryptBackup, encryptBackup, sha256 } from '../lib/backup-format.ts';
 import { createWorkspaceBackup, restoreWorkspaceBackup, backupRestoreStorage } from '../lib/workspace-backup.ts';
 import { hashInvite, readInvitation } from '../lib/invitations.ts';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -82,10 +82,28 @@ try {
     const id = randomUUID(), pathname = `qa-backup-fixture/${id}.txt`, bytes = Buffer.from(`Archivo ${kind} ficticio para recuperación`); fileMap.set(pathname, bytes);
     await pool.query('INSERT INTO attachments (id,"ownerId","memberId","draftId","ticketId","messageId",kind,pathname,name,"contentType",size,status,"expiresAt","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,\'qa-fixture.txt\',\'text/plain\',$9,\'attached\',$10,$10,$10)', [id, ownerId, authorId, randomUUID(), ticket, messageId, kind, pathname, bytes.length, now]);
   }
+  const quoteRows=(await pool.query('SELECT id,kind FROM messages WHERE "ownerId"=$1 AND "ticketId"=$2',[ownerId,ticket])).rows;
+  const requestId=quoteRows.find(row=>row.kind==='request').id,noteId=quoteRows.find(row=>row.kind==='note').id;
+  await pool.query('UPDATE messages SET "replyToMessageId"=$1 WHERE id=$2 AND "ownerId"=$3',[requestId,noteId,ownerId]);
+  await pool.query('INSERT INTO "ticketFollowers" ("ownerId","ticketId","memberId","createdAt") VALUES ($1,$2,$3,$4)',[ownerId,ticket,owner,now]);
+  await pool.query('INSERT INTO "evolutionFeatures" ("ownerId","featuresJson",version,"updatedAt") VALUES ($1,$2,1,$3)',[ownerId,JSON.stringify({collaboration:true}),now]);
+  await pool.query('INSERT INTO "userPreferences" ("userId",theme,"updatedAt") VALUES ($1,\'dark\',$2)',[authIds[0],now]);
+  if(BACKUP_TABLES.includes('workOrganizationCatalog')){
+    const tag=randomUUID(),definition=JSON.stringify({name:'Recuperación ficticia',color:'gold'});
+    await pool.query('INSERT INTO "workOrganizationCatalog" (id,"ownerId",kind,name,"definitionJson",version,archived,"createdAt","updatedAt") VALUES ($1,$2,\'tag\',\'Recuperación ficticia\',$3,0,false,$4,$4)',[tag,ownerId,definition,now]);
+    await pool.query('INSERT INTO "workOrganizationRevisions" ("catalogId",version,"ownerId","definitionJson","createdAt") VALUES ($1,0,$2,$3,$4)',[tag,ownerId,definition,now]);
+    await pool.query('INSERT INTO "ticketOrganization" ("ticketId","ownerId","metadataJson","tagIdsJson","waitReason",version,"updatedAt") VALUES ($1,$2,$3,$4,\'Esperando revisión ficticia\',0,$5)',[ticket,ownerId,JSON.stringify({requestType:null,form:null,values:{}}),JSON.stringify([tag]),now]);
+    await pool.query('INSERT INTO "ticketTasks" (id,"ownerId","ticketId","createdByMemberId","operationId","requestHash",title,status,"createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,\'Tarea ficticia recuperable\',\'open\',$7,$7)',[randomUUID(),ownerId,ticket,owner,randomUUID(),sha256('qa-task'),now]);
+    await pool.query('INSERT INTO "savedTicketViews" (id,"ownerId","memberId",name,"filtersJson",version,"createdAt","updatedAt") VALUES ($1,$2,$3,\'Vista ficticia\',$4,0,$5,$5)',[randomUUID(),ownerId,owner,JSON.stringify({queue:'mine',q:'recuperación'}),now]);
+  }
   const queuedId = randomUUID(), processingId = randomUUID();
   for (const [id, status] of [[queuedId, 'queued'], [processingId, 'processing']]) await pool.query('INSERT INTO "mailOutbox" (id,"ownerId","eventKey",event,"recipientMemberId","ticketId",status,attempts,"payloadJson","createdAt","updatedAt") VALUES ($1,$2,$1,\'ticket_created\',$3,$4,$5,1,$6,$7,$7)', [id, ownerId, owner, ticket, status, JSON.stringify({ fixture: 'frozen-qa-payload' }), now]);
   await pool.query('INSERT INTO "notificationSettings" ("ownerId","alertsActivatedAt","remindersEnabled","remindersActivatedAt") VALUES ($1,$2,true,$2)', [ownerId, now]);
   const archive = await createWorkspaceBackup(access, database, sourceStorage);
+  if(BACKUP_TABLES.includes('ticketTasks'))assert.equal(archive.tables.find(table=>table.name==='ticketTasks').rows[0].title,'Tarea ficticia recuperable');
+  assert.equal(archive.tables.find(table=>table.name==='userPreferences').rows[0].theme,'dark');
+  assert.equal(archive.tables.find(table=>table.name==='ticketFollowers').rows.length,1);
+  assert.equal(archive.tables.find(table=>table.name==='messages').rows.find(row=>row.kind==='note').replyToMessageId,requestId);
   assert.equal(archive.files.length, 2); assert.equal(archive.tables.find(table => table.name === 'messages').rows.length, 2);
   assert.match(archive.tables.find(table => table.name === 'authUser').rows[0].createdAt, /123456/);
   assert.ok(archive.tables.find(table => table.name === 'authAccount').rows.every(row => row.password === 'QA-NOT-A-REAL-CREDENTIAL'));
@@ -116,6 +134,12 @@ try {
   // The v1 reader must also accept old archives, verify their original rows and invalidate
   // temporary credentials inside the recovery transaction before they become usable.
   const legacy = structuredClone(recovered);
+  legacy.tables=legacy.tables.filter(table=>RELIABILITY_BACKUP_TABLES.includes(table.name));
+  for(const table of legacy.tables){
+    const omitted=ADDED_BACKUP_COLUMNS[table.name]??[];
+    table.columns=table.columns.filter(column=>!omitted.includes(column));
+    table.rows=table.rows.map(row=>Object.fromEntries(table.columns.map(column=>[column,row[column]])));
+  }
   for (const row of legacy.tables.find(table => table.name === 'authAccount').rows) Object.assign(row, bearerCredentials);
   legacy.tables.find(table => table.name === 'invitations').rows = (await pool.query('SELECT * FROM invitations WHERE "ownerId"=$1', [ownerId])).rows;
   for (const table of legacy.tables) table.sha256 = sha256(canonicalBackupRows(table.rows));
@@ -134,6 +158,7 @@ try {
   // Test-owned isolated schemas only. No existing schema/table is dropped.
   for (const destination of [schema, failedSchema]) await pool.query(`DROP SCHEMA IF EXISTS "${destination}" CASCADE`);
   for (const table of [...BACKUP_TABLES].reverse().filter(table => !['authUser', 'authAccount'].includes(table))) {
+    if(table==='userPreferences'){await pool.query('DELETE FROM \"userPreferences\" WHERE \"userId\"=ANY($1::text[])',[authIds]);continue;}
     const where = table === 'inboundMailJobFiles' ? '"providerId" IN (SELECT "providerId" FROM "inboundMailJobs" WHERE "ownerId"=$1)' : '"ownerId"=$1';
     await pool.query(`DELETE FROM "${table}" WHERE ${where}`, [ownerId]);
   }

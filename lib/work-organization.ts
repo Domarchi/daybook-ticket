@@ -68,6 +68,7 @@ async function resolvedDefinition(tx: PoolClient, access: AccessContext, input: 
 }
 export async function createOrganizationCatalog(access: AccessContext, input: z.output<typeof catalogMutationSchema>) {
   return db().transaction(async tx=>{
+    await acquireTicketWorkLock(tx,access.ownerId);
     const fresh=requireAdmin(await lockAccess(tx,access));
     await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`organization-catalog:${fresh.ownerId}`]);
     const count=await tx.query('SELECT count(*)::integer AS count FROM "workOrganizationCatalog" WHERE "ownerId"=$1 AND kind=$2',[fresh.ownerId,input.kind]);
@@ -84,6 +85,7 @@ export async function createOrganizationCatalog(access: AccessContext, input: z.
 }
 export async function patchOrganizationCatalog(access: AccessContext, input: z.output<typeof catalogPatchSchema>) {
   return db().transaction(async tx=>{
+    await acquireTicketWorkLock(tx,access.ownerId);
     const fresh=requireAdmin(await lockAccess(tx,access));
     await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`organization-catalog:${fresh.ownerId}`]);
     const {rows}=await tx.query(`SELECT ${CATALOG_COLUMNS} FROM "workOrganizationCatalog" WHERE id=$1 AND "ownerId"=$2 FOR UPDATE`,[input.id,fresh.ownerId]);
@@ -132,7 +134,7 @@ async function readTicketOrganizationTx(tx: PoolClient, access: AccessContext, t
   const tags=staffRole(access)&&ids.length?(await tx.query(`SELECT ${CATALOG_COLUMNS} FROM "workOrganizationCatalog" WHERE "ownerId"=$1 AND kind='tag' AND id=ANY($2::text[]) ORDER BY name,id`,[access.ownerId,ids])).rows.map(v=>item(v)) : [];
   return {...metadata,customerCompanyId:ticket.customerCompanyId,version:row?.version??0,tags:tags as TicketOrganization['tags'],...(staffRole(access)?{waitReason:row?.waitReason??''}:{})};
 }
-export async function readTicketOrganization(access: AccessContext, ticketId: number) {return db().transaction(async tx=>readTicketOrganizationTx(tx,await lockAccess(tx,access),ticketId));}
+export async function readTicketOrganization(access: AccessContext, ticketId: number) {return db().transaction(async tx=>{await acquireTicketWorkLock(tx,access.ownerId);return readTicketOrganizationTx(tx,await lockAccess(tx,access),ticketId);});}
 export async function patchTicketOrganization(access: AccessContext,ticketId:number,input:z.output<typeof ticketOrganizationPatchSchema>) {
   return db().transaction(async tx=>{
     await acquireTicketWorkLock(tx,access.ownerId);
@@ -170,6 +172,7 @@ async function assignee(tx:PoolClient,access:AccessContext,id:string|null) {
 export async function listTicketTasks(access:AccessContext,ticketId:number,cursor:string|null=null,limit=50) {
   if(cursor&&!z.string().uuid().safeParse(cursor).success||!Number.isInteger(limit)||limit<1||limit>100) fail('La página de tareas no es válida.');
   return db().transaction(async tx=>{
+    await acquireTicketWorkLock(tx,access.ownerId);
     const fresh=requireStaff(await lockAccess(tx,access));await lockTicket(tx,fresh,ticketId);
     const {rows}=await tx.query(`SELECT ${TASK_COLUMNS} FROM "ticketTasks" t LEFT JOIN members m ON m.id=t."assigneeMemberId" AND m."ownerId"=t."ownerId" WHERE t."ownerId"=$1 AND t."ticketId"=$2 AND ($3::text IS NULL OR (t."createdAt",t.id)<(SELECT "createdAt",id FROM "ticketTasks" WHERE id=$3 AND "ownerId"=$1 AND "ticketId"=$2)) ORDER BY t."createdAt" DESC,t.id DESC LIMIT $4`,[access.ownerId,ticketId,cursor,limit+1]);
     return {items:rows.slice(0,limit) as TicketTask[],nextCursor:rows.length>limit?rows[limit-1].id:null};
@@ -178,7 +181,7 @@ export async function listTicketTasks(access:AccessContext,ticketId:number,curso
 export async function createTicketTask(access:AccessContext,ticketId:number,input:z.output<typeof taskCreateSchema>) {
   return db().transaction(async tx=>{
     await acquireTicketWorkLock(tx,access.ownerId);
-    const fresh=requireStaff(await lockAccess(tx,access));await lockTicket(tx,fresh,ticketId);
+    const fresh=requireStaff(await lockAccess(tx,access));await assignee(tx,fresh,input.assigneeMemberId);await lockTicket(tx,fresh,ticketId);
     const hash=operationHash({ticketId,...input}),old=await tx.query('SELECT id,"requestHash","createdByMemberId","ticketId" FROM "ticketTasks" WHERE "ownerId"=$1 AND "operationId"=$2 FOR UPDATE',[access.ownerId,input.operationId]);
     if(old.rows[0]) {
       if(old.rows[0].requestHash!==hash||old.rows[0].createdByMemberId!==fresh.member.id||old.rows[0].ticketId!==ticketId) throw new ApiError(409,'Esta operación ya se utilizó con otros datos.');
@@ -186,7 +189,6 @@ export async function createTicketTask(access:AccessContext,ticketId:number,inpu
     }
     const count=await tx.query('SELECT count(*)::integer AS count FROM "ticketTasks" WHERE "ownerId"=$1 AND "ticketId"=$2',[access.ownerId,ticketId]);
     if(count.rows[0].count>=1000) throw new ApiError(409,'El ticket alcanzó su límite de tareas.');
-    await assignee(tx,fresh,input.assigneeMemberId);
     const now=new Date().toISOString(),id=crypto.randomUUID();
     await tx.query('INSERT INTO "ticketTasks" (id,"ownerId","ticketId","createdByMemberId","operationId","requestHash",title,"assigneeMemberId","dueAt","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10)',[id,access.ownerId,ticketId,fresh.member.id,input.operationId,hash,input.title,input.assigneeMemberId,input.dueAt,now]);
     await recordEvent(tx,fresh,ticketId,'task_created',null,input.title);
@@ -198,9 +200,10 @@ export async function patchTicketTask(access:AccessContext,id:string,input:z.out
   return db().transaction(async tx=>{
     await acquireTicketWorkLock(tx,access.ownerId);const fresh=requireStaff(await lockAccess(tx,access));
     const {rows}=await tx.query('SELECT * FROM "ticketTasks" WHERE id=$1 AND "ownerId"=$2 FOR UPDATE',[id,access.ownerId]);const old=rows[0];
-    if(!old) throw new ApiError(404,'La tarea no existe.');await lockTicket(tx,fresh,old.ticketId);
-    if(old.version!==input.expectedVersion) throw new ApiError(409,'La tarea cambió. Actualiza antes de guardar.');
+    if(!old) throw new ApiError(404,'La tarea no existe.');
     if(input.assigneeMemberId!==undefined&&input.assigneeMemberId!==old.assigneeMemberId) await assignee(tx,fresh,input.assigneeMemberId);
+    await lockTicket(tx,fresh,old.ticketId);
+    if(old.version!==input.expectedVersion) throw new ApiError(409,'La tarea cambió. Actualiza antes de guardar.');
     const next={title:input.title??old.title,assigneeMemberId:input.assigneeMemberId===undefined?old.assigneeMemberId:input.assigneeMemberId,dueAt:input.dueAt===undefined?old.dueAt:input.dueAt,status:input.status??old.status},now=new Date().toISOString();
     await tx.query('UPDATE "ticketTasks" SET title=$1,"assigneeMemberId"=$2,"dueAt"=$3,status=$4,version=version+1,"updatedAt"=$5 WHERE id=$6',[next.title,next.assigneeMemberId,next.dueAt,next.status,now,id]);
     const labels:Record<string,string>={open:'Pendiente',done:'Completada',cancelled:'Cancelada'};

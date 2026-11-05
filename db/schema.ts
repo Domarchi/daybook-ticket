@@ -1,4 +1,5 @@
-import { pgTable, integer, serial, boolean, text, index, uniqueIndex, check, primaryKey, bigint } from 'drizzle-orm/pg-core';
+import {user as preferenceUser} from './auth-schema';
+import { pgTable, integer, serial, boolean, text, index, uniqueIndex, check, primaryKey, bigint, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const organizations = pgTable('organizations', {
@@ -98,6 +99,7 @@ export const ticketSlaOutcomes = pgTable('ticketSlaOutcomes', {
 }, t => [index('ticket_sla_outcomes_period').on(t.ownerId, t.resolvedAt), index('ticket_sla_outcomes_ticket').on(t.ownerId, t.ticketId)]);
 
 export const messages = pgTable('messages', {
+  replyToMessageId: integer('replyToMessageId').references((): AnyPgColumn => messages.id),
   id: serial('id').primaryKey(),
   ownerId: text('ownerId').notNull(),
   ticketId: integer('ticketId').notNull().references(() => tickets.id),
@@ -222,6 +224,7 @@ export const inboundMailReceipts = pgTable('inboundMailReceipts', {
 }, t => [index('inbound_receipt_owner').on(t.ownerId, t.createdAt), index('inbound_receipt_member').on(t.ownerId, t.memberId, t.createdAt), check('inbound_environment', sql`${t.environment} IN ('qa','production')`), check('inbound_receipt_status', sql`${t.status} IN ('processed','ignored')`)]);
 
 export const mailOutbox = pgTable('mailOutbox', {
+  sourceMessageId: integer('sourceMessageId').references(() => messages.id),
   id: text('id').primaryKey(),
   ownerId: text('ownerId').notNull(),
   eventKey: text('eventKey').notNull(),
@@ -345,3 +348,16 @@ export const savedTicketViews = pgTable('savedTicketViews', {
   id: text('id').primaryKey(), ownerId: text('ownerId').notNull(), memberId: text('memberId').notNull().references(() => members.id), name: text('name').notNull(), filtersJson: text('filtersJson').notNull(),
   version: integer('version').notNull().default(0), createdAt: text('createdAt').notNull(), updatedAt: text('updatedAt').notNull(),
 }, t => [uniqueIndex('saved_ticket_views_name').on(t.memberId,t.name),index('saved_ticket_views_member').on(t.ownerId,t.memberId,t.name,t.id)]);
+export const messageMentions = pgTable('messageMentions', {
+  ownerId: text('ownerId').notNull(), messageId: integer('messageId').notNull().references(() => messages.id),
+  memberId: text('memberId').notNull().references(() => members.id), createdAt: text('createdAt').notNull(),
+},t => [primaryKey({columns:[t.messageId,t.memberId]}),index('message_mentions_recipient').on(t.ownerId,t.memberId,t.messageId)]);
+export const ticketFollowers = pgTable('ticketFollowers', {
+  ownerId: text('ownerId').notNull(), ticketId: integer('ticketId').notNull().references(() => tickets.id),
+  memberId: text('memberId').notNull().references(() => members.id),createdAt: text('createdAt').notNull(),
+},t => [primaryKey({columns:[t.ticketId,t.memberId]}),index('ticket_followers_owner').on(t.ownerId,t.memberId)]);
+export const evolutionFeatures = pgTable('evolutionFeatures', {
+  ownerId: text('ownerId').primaryKey().references(() => organizations.ownerId), featuresJson: text('featuresJson').notNull().default('{}'),
+  version:integer('version').notNull().default(0),updatedAt:text('updatedAt').notNull(),
+});
+export const userPreferences = pgTable('userPreferences', {userId:text('userId').primaryKey().references(()=>preferenceUser.id),theme:text('theme').notNull().default('system'),updatedAt:text('updatedAt').notNull()},t=>[check('user_preferences_theme',sql`${t.theme} IN ('system','light','dark')`)]);

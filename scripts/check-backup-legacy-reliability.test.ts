@@ -71,3 +71,12 @@ test('legacy restoration still requires every new target table empty, and malfor
   const substituted = archive(); substituted.tables[substituted.tables.length - 1] = { name: 'automaticBackupRuns', columns: [], rows: [], sha256: sha256('') };
   assert.throws(() => validateBackup(substituted), /missing required tables/);
 });
+
+import {compatibleBackupColumns} from '../lib/backup-format';
+test('only reviewed additive columns can be absent from historical recovery schemas',()=>{
+ assert.equal(compatibleBackupColumns('messages',['id','body','replyToMessageId'],['id','body']),true);
+ assert.equal(compatibleBackupColumns('mailOutbox',['id','status','sourceMessageId'],['id','status']),true);
+ assert.equal(compatibleBackupColumns('authAccount',['id','password'],['id']),false);
+ assert.equal(compatibleBackupColumns('messages',['id','body','replyToMessageId'],['body','id']),false);
+ assert.equal(compatibleBackupColumns('messages',['id','body'],['id','body','unknown']),false);
+});

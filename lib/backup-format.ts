@@ -4,7 +4,15 @@ import { gzipSync, gunzipSync } from 'node:zlib';
 export const BACKUP_MAGIC = Buffer.from('DAYBOOK1\n');
 export const MAX_BACKUP_BYTES = 128 * 1024 * 1024;
 export const LEGACY_BACKUP_TABLES = ['authUser', 'authAccount', 'organizations', 'customerCompanies', 'members', 'tickets', 'messages', 'articles', 'settings', 'demoImports', 'savedReplies', 'operations', 'attachments', 'ticketEvents', 'servicePolicies', 'assignmentRules', 'agentAvailability', 'ticketSlaOutcomes', 'notificationSettings', 'reminderOccurrences', 'escalationSettings', 'escalationOccurrences', 'ticketSatisfaction', 'inboundMailReceipts', 'mailOutbox', 'mailDeliveryEvents', 'pushSubscriptions', 'pushDeliveries', 'invitations', 'notificationJobHealth'] as const;
-export const BACKUP_TABLES = [...LEGACY_BACKUP_TABLES, 'inboundMailJobs', 'inboundMailJobFiles', 'ticketPresence', 'automaticBackupSettings', 'automaticBackupRuns', 'automaticBackupUsage'] as const;
+export const RELIABILITY_BACKUP_TABLES = [...LEGACY_BACKUP_TABLES, 'inboundMailJobs', 'inboundMailJobFiles', 'ticketPresence', 'automaticBackupSettings', 'automaticBackupRuns', 'automaticBackupUsage'] as const;
+export const COLLABORATION_BACKUP_TABLES = [...RELIABILITY_BACKUP_TABLES,'messageMentions','ticketFollowers','evolutionFeatures','userPreferences'] as const;
+export const BACKUP_TABLES = [...COLLABORATION_BACKUP_TABLES, 'workOrganizationCatalog', 'workOrganizationRevisions', 'ticketOrganization', 'ticketTasks', 'savedTicketViews'] as const;
+export const BACKUP_TABLE_PROFILES: readonly (readonly string[])[] = [LEGACY_BACKUP_TABLES, RELIABILITY_BACKUP_TABLES, COLLABORATION_BACKUP_TABLES, BACKUP_TABLES];
+export const ADDED_BACKUP_COLUMNS: Readonly<Record<string,readonly string[]>> = {members:['isTest'],tickets:['isTest'],messages:['replyToMessageId'],mailOutbox:['sourceMessageId']};
+export function compatibleBackupColumns(table:string,target:readonly string[],source:readonly string[]){
+ const optional=ADDED_BACKUP_COLUMNS[table]??[];
+ return JSON.stringify(target.filter(column=>source.includes(column)||!optional.includes(column)))===JSON.stringify(source);
+}
 export type BackupTable = typeof BACKUP_TABLES[number];
 export type BackupRow = Record<string, string | number | boolean | null>;
 export interface WorkspaceBackup {
@@ -54,7 +62,7 @@ export function decryptBackup(bytes: Buffer, password: string): WorkspaceBackup 
 export function validateBackup(input: unknown): WorkspaceBackup {
   if (!input || typeof input !== 'object') throw new Error('Invalid backup');
   const data = input as WorkspaceBackup;
-  if (data.format !== 'daybook.workspace.v1' || typeof data.ownerId !== 'string' || !data.ownerId || data.ownerId.length > 256 || typeof data.organizationId !== 'string' || !data.organizationId || data.organizationId.length > 256 || !Array.isArray(data.tables) || !Array.isArray(data.files) || !Array.isArray(data.omissions) || data.omissions.some(value => typeof value !== 'string') || !([LEGACY_BACKUP_TABLES.length, BACKUP_TABLES.length] as number[]).includes(data.tables.length) || typeof data.createdAt !== 'string' || !Number.isFinite(Date.parse(data.createdAt))) throw new Error('Invalid backup manifest');
+  if (data.format !== 'daybook.workspace.v1' || typeof data.ownerId !== 'string' || !data.ownerId || data.ownerId.length > 256 || typeof data.organizationId !== 'string' || !data.organizationId || data.organizationId.length > 256 || !Array.isArray(data.tables) || !Array.isArray(data.files) || !Array.isArray(data.omissions) || data.omissions.some(value => typeof value !== 'string') || !BACKUP_TABLE_PROFILES.some(profile=>profile.length===data.tables.length) || typeof data.createdAt !== 'string' || !Number.isFinite(Date.parse(data.createdAt))) throw new Error('Invalid backup manifest');
   const names = new Set<string>();
   let rows = 0, bytes = 0;
   for (const table of data.tables) {
@@ -70,8 +78,8 @@ export function validateBackup(input: unknown): WorkspaceBackup {
     if (bytes > 24 * 1024 * 1024) throw new Error('Backup data limit exceeded');
     if (sha256(canonical) !== table.sha256) throw new Error('Backup table checksum mismatch');
   }
-  const required = data.tables.length === LEGACY_BACKUP_TABLES.length ? LEGACY_BACKUP_TABLES : BACKUP_TABLES;
-  if (required.some(name => !names.has(name))) throw new Error('Backup is missing required tables');
+  const required = BACKUP_TABLE_PROFILES.find(profile=>profile.length===names.size&&profile.every(name=>names.has(name)));
+  if (!required) throw new Error('Backup is missing required tables');
   const attachments = new Map(data.tables.find(table => table.name === 'attachments')!.rows.map(row => [row.id, row]));
   const files = new Set<string>();
   for (const file of data.files) {

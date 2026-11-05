@@ -1,3 +1,4 @@
+import {collaborationDeliveryValid} from './ticket-collaboration';
 import { getDatabase } from '../db';
 import type { Database, DatabaseValue, PreparedStatement } from '../db/database';
 import { pushDeliveryStatements } from './push-queue';
@@ -8,7 +9,7 @@ import { acceptMailWithDelivery } from './mail-delivery';
 import type { DeliveryStatus } from './mail-delivery-validation';
 import { makeInboundAddress } from './inbound-email-validation';
 
-export type NotificationEvent = 'ticket_created' | 'agent_replied' | 'client_replied' | 'invitation' | 'password_reset' | 'reminder' | 'escalation' | 'satisfaction_requested';
+export type NotificationEvent = 'ticket_created' | 'agent_replied' | 'client_replied' | 'invitation' | 'password_reset' | 'reminder' | 'escalation' | 'satisfaction_requested' | 'member_mentioned' | 'ticket_followed_update';
 export type NotificationStatus = 'awaiting_configuration' | 'queued' | 'processing' | 'accepted' | 'failed' | 'unknown' | 'cancelled';
 export interface MailStatus {
   configured: boolean;
@@ -25,14 +26,14 @@ type OutboxRow = {
   attempts: number; firstAttemptAt: string | null; leaseUntil: string | null;
   claimedFrom: NotificationStatus;
   templateVersion: number; environment: string | null; reminderId: string | null;
-  escalationId: string | null; satisfactionId: string | null;
+  escalationId: string | null; satisfactionId: string | null; sourceMessageId: number | null;
 };
 type Recipient = { id: string; userId: string | null; email: string; role: MemberRole; status: MemberStatus; customerCompanyId: string | null; companyAccess: CompanyAccess };
 const MAX_ATTEMPTS = 6;
 const IDEMPOTENCY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RETRY_DELAYS = [60, 300, 1800, 7200, 28800];
 const STATUSES: NotificationStatus[] = ['awaiting_configuration', 'queued', 'processing', 'accepted', 'failed', 'unknown', 'cancelled'];
-const EVENTS: NotificationEvent[] = ['ticket_created', 'agent_replied', 'client_replied', 'invitation', 'password_reset', 'reminder', 'escalation', 'satisfaction_requested'];
+const EVENTS: NotificationEvent[] = ['ticket_created', 'agent_replied', 'client_replied', 'invitation', 'password_reset', 'reminder', 'escalation', 'satisfaction_requested', 'member_mentioned', 'ticket_followed_update'];
 const DELIVERY_STATUSES: DeliveryStatus[] = ['untracked', 'sent', 'delayed', 'delivered', 'bounced', 'complained', 'failed', 'suppressed'];
 
 function database(): Database {
@@ -55,7 +56,7 @@ function configuration() {
 export function notificationStatements(db: Database, input: {
   ownerId: string; event: NotificationEvent; eventKey: string; recipientMemberId: string;
   ticketId?: number; ticketCreationKey?: string; invitationId?: string; actionUrl?: string; expiresAt?: string; reminderId?: string;
-  escalationId?: string; satisfactionId?: string;
+  escalationId?: string; satisfactionId?: string; sourceMessageId?: number;
 }): PreparedStatement[] {
   if (!EVENTS.includes(input.event)) throw new Error('Unsupported notification event');
   const now = new Date().toISOString();
@@ -71,10 +72,10 @@ export function notificationStatements(db: Database, input: {
     ? `(SELECT id FROM tickets WHERE "creationKey" = ${param(input.ticketCreationKey)} AND "ownerId" = ${param(input.ownerId)})`
     : param(input.ticketId ?? null);
   return [db.prepare(`INSERT INTO "mailOutbox"
-    (id, "ownerId", "eventKey", event, "recipientMemberId", "ticketId", "invitationId", "actionUrl", "expiresAt", "payloadJson", status, attempts, "createdAt", "updatedAt", "templateVersion", environment, "reminderId", "escalationId", "satisfactionId")
+    (id, "ownerId", "eventKey", event, "recipientMemberId", "ticketId", "invitationId", "actionUrl", "expiresAt", "payloadJson", status, attempts, "createdAt", "updatedAt", "templateVersion", environment, "reminderId", "escalationId", "satisfactionId", "sourceMessageId")
     VALUES (${id}, ${owner}, ${eventKey}, ${event}, ${recipient}, ${ticketExpression},
       ${param(input.invitationId ?? null)}, ${param(input.actionUrl ?? null)}, ${param(input.expiresAt ?? null)},
-      NULL, ${param(configuration().configured ? 'queued' : 'awaiting_configuration')}, 0, ${param(now)}, ${param(now)}, 3, ${param(notificationEnvironment())}, ${param(input.reminderId ?? null)}, ${param(input.escalationId ?? null)}, ${param(input.satisfactionId ?? null)})
+      NULL, ${param(configuration().configured ? 'queued' : 'awaiting_configuration')}, 0, ${param(now)}, ${param(now)}, 3, ${param(notificationEnvironment())}, ${param(input.reminderId ?? null)}, ${param(input.escalationId ?? null)}, ${param(input.satisfactionId ?? null)}, ${param(input.sourceMessageId ?? null)})
     ON CONFLICT("eventKey") DO NOTHING`).bind(...values),
     ...pushDeliveryStatements(db, { eventId, ownerId: input.ownerId, event: input.event, recipientMemberId: input.recipientMemberId, createdAt: now }),
   ];
@@ -135,12 +136,15 @@ async function recipientFor(db: Database, row: OutboxRow): Promise<Recipient | n
     .bind(row.ticketId, row.ownerId).first<{ ownerId: string; requesterMemberId: string | null; customerCompanyId: string | null }>();
   if (!ticket) return null;
   if (!canAccessTicket({ ownerId: row.ownerId, role: member.role, member }, ticket)) return null;
+  if (!(await collaborationDeliveryValid(db,row))) return null;
   return member;
 }
 
 function makePayload(row: OutboxRow, recipient: Recipient, from: string, siteUrl: string): MailPayload | null {
   const label = row.ticketId ? `Ticket #${row.ticketId}` : 'Daybook Ticket';
   const messages: Record<NotificationEvent, string> = {
+    member_mentioned: `Te mencionaron en una nota interna de ${label.toLowerCase()}. Consulta el portal para verla.`,
+    ticket_followed_update: `${label} tiene una actualización pública. Consulta el portal para continuar.`,
     ticket_created: `${label} fue creado. Puedes consultar su estado y responder desde Daybook Ticket.`,
     agent_replied: `${label} tiene una nueva respuesta del equipo de soporte.`,
     client_replied: `${label} tiene una nueva respuesta del cliente.`,
