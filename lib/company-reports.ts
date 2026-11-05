@@ -20,9 +20,9 @@ async function company(tx:PoolClient,access:AccessContext,companyId:string|null)
 async function aggregate(tx:PoolClient,access:AccessContext,period:MetricsQuery,now:Date):Promise<CompanyOperationalReport> {
  const current=await company(tx,access,period.companyId);
  const query=`WITH scoped AS (
-  SELECT t.id,t.status,t."createdAt",t."dueAt" FROM tickets t WHERE t."ownerId"=$1 AND t."customerCompanyId"=$2 AND ($5::boolean OR ${productionTicketSql('t')})
- ), created AS (SELECT * FROM scoped WHERE "createdAt">=$3 AND "createdAt"<$4), outcomes AS (
-  SELECT o.* FROM "ticketSlaOutcomes" o JOIN tickets t ON t.id=o."ticketId" AND t."ownerId"=o."ownerId" WHERE o."ownerId"=$1 AND o."customerCompanyId"=$2 AND o."resolvedAt">=$3 AND o."resolvedAt"<$4 AND ($5::boolean OR ${productionTicketSql('t')})
+  SELECT t.id,t.status,t."createdAt"::timestamptz AS "createdAt",t."dueAt"::timestamptz AS "dueAt" FROM tickets t WHERE t."ownerId"=$1 AND t."customerCompanyId"=$2 AND ($5::boolean OR ${productionTicketSql('t')})
+ ), created AS (SELECT * FROM scoped WHERE "createdAt">=$3::timestamptz AND "createdAt"<$4::timestamptz), outcomes AS (
+  SELECT o.* FROM "ticketSlaOutcomes" o JOIN tickets t ON t.id=o."ticketId" AND t."ownerId"=o."ownerId" WHERE o."ownerId"=$1 AND o."customerCompanyId"=$2 AND o."resolvedAt"::timestamptz>=$3::timestamptz AND o."resolvedAt"::timestamptz<$4::timestamptz AND ($5::boolean OR ${productionTicketSql('t')})
  ), typed AS (
   SELECT COALESCE(CASE WHEN o."updatedAt"::timestamptz<$4::timestamptz AND o."updatedAt"::timestamptz<=$6::timestamptz THEN NULLIF(o."metadataJson"::jsonb->'requestType'->>'name','') END,'Sin clasificación histórica') AS label,count(*)::int AS count FROM created t LEFT JOIN "ticketOrganization" o ON o."ticketId"=t.id AND o."ownerId"=$1 GROUP BY 1
  ), ranked_types AS (SELECT *,row_number() OVER(ORDER BY count DESC,label) AS n FROM typed), type_rows AS (
@@ -42,12 +42,12 @@ async function aggregate(tx:PoolClient,access:AccessContext,period:MetricsQuery,
   'created',(SELECT count(*)::int FROM created),
   'currentOpen',(SELECT count(*)::int FROM scoped WHERE status='open'),
   'currentPending',(SELECT count(*)::int FROM scoped WHERE status='pending'),
-  'currentOverdue',(SELECT count(*)::int FROM scoped WHERE status IN ('open','pending') AND "dueAt"<$6),
+  'currentOverdue',(SELECT count(*)::int FROM scoped WHERE status IN ('open','pending') AND "dueAt"<$6::timestamptz),
   'resolutions',(SELECT count(*)::int FROM outcomes),
-  'slaMet',(SELECT count(*)::int FROM outcomes WHERE "resolvedAt"<="dueAt"),
-  'slaBreached',(SELECT count(*)::int FROM outcomes WHERE "resolvedAt">"dueAt"),
-  'slaCompliancePercent',(SELECT CASE WHEN count(*)>0 THEN 100.0*count(*) FILTER(WHERE "resolvedAt"<="dueAt")/count(*) ELSE NULL END FROM outcomes),
-  'publicReplies',(SELECT count(*)::int FROM messages m JOIN scoped t ON t.id=m."ticketId" WHERE m."ownerId"=$1 AND m.kind='reply' AND m."authorRole" IN ('owner','admin','agent') AND m."createdAt">=$3 AND m."createdAt"<$4),
+  'slaMet',(SELECT count(*)::int FROM outcomes WHERE "resolvedAt"::timestamptz<="dueAt"::timestamptz),
+  'slaBreached',(SELECT count(*)::int FROM outcomes WHERE "resolvedAt"::timestamptz>"dueAt"::timestamptz),
+  'slaCompliancePercent',(SELECT CASE WHEN count(*)>0 THEN 100.0*count(*) FILTER(WHERE "resolvedAt"::timestamptz<="dueAt"::timestamptz)/count(*) ELSE NULL END FROM outcomes),
+  'publicReplies',(SELECT count(*)::int FROM messages m JOIN scoped t ON t.id=m."ticketId" WHERE m."ownerId"=$1 AND m.kind='reply' AND m."authorRole" IN ('owner','admin','agent') AND m."createdAt"::timestamptz>=$3::timestamptz AND m."createdAt"::timestamptz<$4::timestamptz),
   'unknownResolved',(SELECT count(*)::int FROM scoped t WHERE status='resolved' AND NOT EXISTS(SELECT 1 FROM "ticketSlaOutcomes" o WHERE o."ownerId"=$1 AND o."ticketId"=t.id)),
   'untyped',(SELECT count(*)::int FROM created t LEFT JOIN "ticketOrganization" o ON o."ticketId"=t.id AND o."ownerId"=$1 WHERE NULLIF(o."metadataJson"::jsonb->'requestType'->>'name','') IS NULL OR o."updatedAt"::timestamptz>=$4::timestamptz OR o."updatedAt"::timestamptz>$6::timestamptz),
   'withoutAsset',(SELECT count(*)::int FROM created t WHERE NOT EXISTS(SELECT 1 FROM historical_assets a WHERE a.ticket_id=t.id))
