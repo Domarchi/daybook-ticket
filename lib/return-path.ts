@@ -7,6 +7,9 @@ export function ticketReturnPath(value: unknown): string {
 
 export function safeTicketReturnPath(value: unknown): string {
   if (typeof value !== 'string') return '/';
+  if(value==='/workspaces')return value;
+  const workspace=/^\/w\/([A-Za-z0-9][A-Za-z0-9_-]{0,79})(?:\?ticket=([1-9]\d*))?$/.exec(value);
+  if(workspace&&(!workspace[2]||Number.isSafeInteger(Number(workspace[2]))))return value;
   const match = /^\/\?ticket=(\d+)$/.exec(value);
   return match ? ticketReturnPath(match[1]) : '/';
 }

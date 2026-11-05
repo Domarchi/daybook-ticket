@@ -1,4 +1,6 @@
 'use client';
+import { workspaceFetch } from '@/lib/workspace-client';
+
 
 import { useEffect, useState } from 'react';
 import type { MailDeliveryItem } from '../lib/mail-delivery';
@@ -21,7 +23,7 @@ export function MailTracking({ ticketId, refreshKey = 0 }: { ticketId: number; r
       inFlight = true;
       setLoading(true);
       try {
-        const response = await fetch(`/api/tickets/${ticketId}/mail-delivery`, { cache: 'no-store', signal: controller.signal });
+        const response = await workspaceFetch(`/api/tickets/${ticketId}/mail-delivery`, { cache: 'no-store', signal: controller.signal });
         const value = await response.json();
         if (!response.ok) throw new Error(typeof value?.error === 'string' ? value.error : 'No se pudo consultar la entrega.');
         if (current) setSnapshot({ ticketId, messages: value.messages, error: null });

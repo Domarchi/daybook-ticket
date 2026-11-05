@@ -58,7 +58,7 @@ function safeTicketUrl(value) {
   if (typeof value !== 'string') return null;
   try {
     const url = new URL(value, self.location.origin);
-    if (url.origin !== self.location.origin || url.pathname !== '/' || url.hash) return null;
+    if (url.origin !== self.location.origin || !(url.pathname==='/'||/^\/w\/[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(url.pathname)) || url.hash) return null;
     if (url.search && !/^\?ticket=[1-9]\d*$/.test(url.search)) return null;
     return url.href;
   } catch { return null; }
@@ -73,11 +73,13 @@ function displayFailureReason(error) {
   }
 }
 
+function pushApi(payload,path){return payload.workspaceId?`/api/workspaces/${payload.workspaceId}/push/${path}`:`/api/push/${path}`;}
+
 async function reportDisplay(payload, stage, reason) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5_000);
   try {
-    await fetch('/api/push/diagnostics', {
+    await fetch(pushApi(payload,'diagnostics'), {
       method: 'POST', credentials: 'include', cache: 'no-store', signal: controller.signal,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -95,14 +97,15 @@ async function deliver(event) {
   try { payload = event.data?.json(); } catch { return; }
   if (!payload || typeof payload.subscriptionId !== 'string' || payload.subscriptionId.length > 100) return;
   if (payload.test !== true && (typeof payload.eventId !== 'string' || payload.eventId.length > 100)) return;
-  const eventKey = payload.test === true ? null : `${payload.subscriptionId}:${payload.eventId}`;
+  if(payload.workspaceId!==undefined&&(typeof payload.workspaceId!=='string'||!/^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(payload.workspaceId)))return;
+  const eventKey = payload.test === true ? null : `${payload.workspaceId||'daybook'}:${payload.subscriptionId}:${payload.eventId}`;
   if (eventKey && await alreadySeen(eventKey)) return;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   let notification;
   try {
     // Recheck the live login and ticket access before showing anything on a shared computer.
-    const response = await fetch('/api/push/receipt', {
+    const response = await fetch(pushApi(payload,'receipt'), {
       method: 'POST', credentials: 'include', cache: 'no-store', signal: controller.signal,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subscriptionId: payload.subscriptionId, ...(payload.test === true ? { test: true } : { eventId: payload.eventId }) }),
@@ -118,7 +121,7 @@ async function deliver(event) {
 
   const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
   const deskVisible = windows.some(client => {
-    try { return client.visibilityState === 'visible' && new URL(client.url).pathname === '/'; }
+    try { return client.visibilityState === 'visible' && new URL(client.url).pathname === new URL(url).pathname; }
     catch { return false; }
   });
   try {

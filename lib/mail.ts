@@ -1,3 +1,4 @@
+import { workspaceDeliveryContext } from './workspace-delivery';
 import { getDatabase } from '../db';
 import type { Database, DatabaseValue, PreparedStatement } from '../db/database';
 import { pushDeliveryStatements } from './push-queue';
@@ -104,6 +105,7 @@ function errorMessage(code: string): string {
 export async function getMailStatus(ownerId: string): Promise<MailStatus> {
   const db = database();
   const config = configuration();
+  const workspace=await workspaceDeliveryContext(db,ownerId);
   const [totals, lastError, deliveryTotals] = await Promise.all([
     db.prepare("SELECT status, COUNT(*)::integer AS total FROM \"mailOutbox\" WHERE \"ownerId\" = $1 GROUP BY status").bind(ownerId).all<{ status: NotificationStatus; total: number }>(),
     db.prepare("SELECT \"lastErrorCode\" FROM \"mailOutbox\" WHERE \"ownerId\" = $1 AND \"lastErrorCode\" IS NOT NULL AND status != 'cancelled' ORDER BY \"updatedAt\" DESC LIMIT 1").bind(ownerId).first<{ lastErrorCode: string }>(),
@@ -113,7 +115,7 @@ export async function getMailStatus(ownerId: string): Promise<MailStatus> {
   for (const row of totals.results) if (STATUSES.includes(row.status)) counts[row.status] = row.total;
   const deliveryCounts = Object.fromEntries(DELIVERY_STATUSES.map(status => [status, 0])) as Record<DeliveryStatus, number>;
   for (const row of deliveryTotals.results) if (DELIVERY_STATUSES.includes(row.deliveryStatus)) deliveryCounts[row.deliveryStatus] = row.total;
-  return { configured: config.configured, sender: config.sender, counts, deliveryCounts, webhookConfigured: Boolean(process.env.RESEND_WEBHOOK_SECRET?.trim()), ...(lastError ? { lastError: errorMessage(lastError.lastErrorCode) } : {}) };
+  return { configured: config.configured&&workspace.enabled, sender:workspace.workspaceId==='daybook'?config.sender:workspace.sender, counts, deliveryCounts, webhookConfigured: Boolean(process.env.RESEND_WEBHOOK_SECRET?.trim()), ...(lastError ? { lastError: errorMessage(lastError.lastErrorCode) } : {}) };
 }
 
 export async function listNotifications(ownerId: string) {
@@ -129,7 +131,7 @@ async function recipientFor(db: Database, row: OutboxRow): Promise<Recipient | n
     .bind(row.recipientMemberId, row.ownerId).first<Recipient>();
   if (!member || !/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(member.email)) return null;
   if (row.event === 'invitation') return member.status === 'invited' ? member : null;
-  if (row.event === 'password_reset') return member.status === 'active' ? member : null;
+  if (row.event === 'password_reset') return member.userId && await db.prepare('SELECT id FROM \"authUser\" WHERE id=$1 AND email=$2 AND \"emailVerified\"=true').bind(member.userId,member.email).first() ? member : null;
   if (member.status !== 'active' || !row.ticketId) return null;
   const ticket = await db.prepare("SELECT \"ownerId\", \"requesterMemberId\", \"customerCompanyId\" FROM tickets WHERE id = $1 AND \"ownerId\" = $2")
     .bind(row.ticketId, row.ownerId).first<{ ownerId: string; requesterMemberId: string | null; customerCompanyId: string | null }>();
@@ -165,13 +167,13 @@ function makePayload(row: OutboxRow, recipient: Recipient, from: string, siteUrl
   };
 }
 
-async function newPayload(db: Database, row: OutboxRow, recipient: Recipient, from: string, siteUrl: string): Promise<MailPayload | null> {
+async function newPayload(db: Database, row: OutboxRow, recipient: Recipient, from: string, siteUrl: string,workspace:Awaited<ReturnType<typeof workspaceDeliveryContext>>): Promise<MailPayload | null> {
   // Pending legacy notifications retain their old text template too. Previously
   // frozen payloads bypass this function entirely, including HTML/attachments.
   const legacy = makePayload(row, recipient, from, siteUrl);
   if (!legacy || row.templateVersion === 1) return legacy;
   if (![2, 3].includes(row.templateVersion) || !['production', 'qa'].includes(row.environment || '')) return null;
-  const url = row.event === 'invitation' || row.event === 'password_reset' ? row.actionUrl! : new URL('/', siteUrl).toString();
+  const url = row.event === 'invitation' || row.event === 'password_reset' ? row.actionUrl! : new URL(workspace.home, siteUrl).toString();
   const target = new URL(url);
   if (row.ticketId) target.searchParams.set('ticket', String(row.ticketId));
   const [metadata, reasons] = await Promise.all([
@@ -185,7 +187,7 @@ async function newPayload(db: Database, row: OutboxRow, recipient: Recipient, fr
   const replyTo = row.templateVersion === 3 && row.environment === notificationEnvironment() && row.event === 'agent_replied' && recipient.role === 'client'
     ? makeInboundAddress({ kind: 'reply', id: row.id, ownerId: row.ownerId, memberId: recipient.id, email: recipient.email }) : null;
   return buildMailPayload({ id: row.id, environment: row.environment as 'production' | 'qa', event: row.event,
-    ticketId: row.ticketId, from, to: recipient.email, url: target.toString(), metadata: { ...metadata, reasons }, ...(replyTo ? { replyTo } : {}) });
+    ticketId: row.ticketId, from, brandName:row.event==='password_reset'?'Daybook Ticket':workspace.brandName, to: recipient.email, url: target.toString(), metadata: { ...metadata, reasons }, ...(replyTo ? { replyTo } : {}) });
 }
 
 async function finish(db: Database, row: OutboxRow, status: NotificationStatus, code: string | null, nextAttemptAt: string | null = null, providerId: string | null = null) {
@@ -214,6 +216,7 @@ async function processOutboxBatch(ownerId: string, limit: number, eventId?: stri
   const summary = { configured: config.configured, processed: 0, accepted: 0, stopped: false };
   if (!config.configured || !config.sender || !config.siteUrl) return summary;
   const db = database();
+  const workspace=await workspaceDeliveryContext(db,ownerId);
   for (let index = 0; index < limit && Date.now() < deadline; index++) {
     const claimTime = new Date().toISOString();
     const leaseUntil = new Date(Date.now() + 90000).toISOString();
@@ -221,7 +224,7 @@ async function processOutboxBatch(ownerId: string, limit: number, eventId?: stri
     // rows instead of competing over the same fixed snapshot of candidates.
     const row = await db.prepare(`WITH candidate AS (
       SELECT id, status FROM "mailOutbox" WHERE "ownerId" = $1
-        AND ($4::text IS NULL OR id = $4)
+        AND ($4::text IS NULL OR id = $4) AND ($5::boolean OR event='password_reset')
         AND NOT EXISTS (SELECT 1 FROM "mailOutbox" throttled WHERE throttled."ownerId" = $1
           AND throttled.status = 'queued' AND throttled."lastErrorCode" = 'rate_limit_exceeded' AND throttled."nextAttemptAt" > $2)
         AND ("nextAttemptAt" IS NULL OR "nextAttemptAt" <= $2)
@@ -230,7 +233,7 @@ async function processOutboxBatch(ownerId: string, limit: number, eventId?: stri
     ) UPDATE "mailOutbox" o SET status = 'processing', "leaseUntil" = $3, "updatedAt" = $2
       FROM candidate c WHERE o.id = c.id AND o."ownerId" = $1
       RETURNING o.*, c.status AS "claimedFrom"`)
-      .bind(ownerId, claimTime, leaseUntil, eventId ?? null).first<OutboxRow>();
+      .bind(ownerId, claimTime, leaseUntil, eventId ?? null,workspace.enabled).first<OutboxRow>();
     if (!row) break;
     summary.processed++;
     if (!EVENTS.includes(row.event)) { await finish(db, row, 'failed', 'invalid_payload'); continue; }
@@ -255,7 +258,14 @@ async function processOutboxBatch(ownerId: string, limit: number, eventId?: stri
       const { isSatisfactionEligibleForDelivery } = await import('./satisfaction');
       if (!(await isSatisfactionEligibleForDelivery(db, row))) { await finish(db, row, 'cancelled', 'satisfaction_obsolete'); continue; }
     }
-    const payload = row.payloadJson ? readFrozenMailPayload(row.payloadJson) : await newPayload(db, row, recipient, config.sender, config.siteUrl);
+    const globalIdentityMail=row.event==='password_reset';
+    const sender=globalIdentityMail||workspace.workspaceId==='daybook'?config.sender:workspace.sender;
+    if(!globalIdentityMail&&(!workspace.enabled||!sender)){
+      await db.prepare('UPDATE "mailOutbox" SET status=\'awaiting_configuration\',"leaseUntil"=NULL WHERE id=$1 AND "ownerId"=$2 AND status=\'processing\' AND "leaseUntil"=$3').bind(row.id,ownerId,leaseUntil).run();
+      summary.stopped=true;break;
+    }
+    const payload = row.payloadJson ? readFrozenMailPayload(row.payloadJson) : await newPayload(db, row, recipient, sender!, config.siteUrl,workspace);
+    if(payload&&!globalIdentityMail&&workspace.workspaceId!=='daybook'&&payload.from!==sender){await finish(db,row,'cancelled','sender_changed');continue;}
     if (!payload) { await finish(db, row, 'failed', 'invalid_payload'); continue; }
     if (payload.to[0] !== recipient.email) { await finish(db, row, 'cancelled', 'invalid_recipient'); continue; }
     if (Date.now() >= deadline) {
@@ -266,6 +276,12 @@ async function processOutboxBatch(ownerId: string, limit: number, eventId?: stri
         .bind(row.claimedFrom === 'awaiting_configuration' ? 'awaiting_configuration' : 'queued', new Date().toISOString(), row.id, ownerId, row.leaseUntil).run();
       summary.processed--;
       break;
+    }
+    if(!globalIdentityMail){
+      const live=await workspaceDeliveryContext(db,ownerId);
+      if(!live.enabled){await db.prepare('UPDATE "mailOutbox" SET status=\'awaiting_configuration\',"leaseUntil"=NULL WHERE id=$1 AND "ownerId"=$2 AND "leaseUntil"=$3').bind(row.id,ownerId,leaseUntil).run();summary.stopped=true;break;}
+      if(live.workspaceId!=='daybook'&&live.sender!==payload.from){await finish(db,row,'cancelled','sender_changed');continue;}
+      if(!await recipientFor(db,row)){await finish(db,row,'cancelled','invalid_recipient');continue;}
     }
     const attemptAt = new Date().toISOString();
     const frozenBody = row.payloadJson ?? JSON.stringify(payload);

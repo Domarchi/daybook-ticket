@@ -11,9 +11,14 @@ export async function POST(request: Request) {
       // Authenticate before importing any database dependency.
       const { db } = await import('@/lib/server');
       const { drainInboundMailJobs } = await import('@/lib/inbound-email-jobs');
-      const organization = await db().prepare('SELECT "ownerId" FROM organizations WHERE id=$1').bind('daybook').first<{ ownerId: string }>();
-      if (!organization) return { skipped: true };
-      return drainInboundMailJobs(organization.ownerId, { maxJobs: 2, maxDurationMs: 45_000 });
+      const { activeWorkspaceOwners }=await import('@/lib/workspaces');
+      const owners=await activeWorkspaceOwners(db()),deadline=Date.now()+45000;
+      let attempted=0;
+      for(const [index,owner] of owners.entries()){
+        if(Date.now()>deadline-1000)break;
+        try{const result=await drainInboundMailJobs(owner.ownerId,{maxJobs:1,maxDurationMs:Math.max(1000,Math.floor((deadline-Date.now())/(owners.length-index)))});attempted+=result.attempted;}catch{/* Durable per-space job health records the failure. */}
+      }
+      return {attempted,skipped:!owners.length};
     },
   })(request);
 }

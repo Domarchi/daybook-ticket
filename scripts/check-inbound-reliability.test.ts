@@ -128,7 +128,7 @@ test('worker persists a bounded retry reason rather than provider exceptions or 
     status: 'processing', attempts: 1, nextAttemptAt: null, lastAttemptAt: null, lastErrorCode: null, leaseToken: 'ignored', leaseUntil: null,
     ticketId: null, messageId: null, manualRetries: 0, lastRetryKey: null, lastRetriedAt: null, updatedAt: envelope.createdAt };
   const database = { prepare(sql: string) { return { bind(...values: unknown[]) { return {
-    async first() { if (!sql.includes('WITH candidate') || claimed) return null; claimed = true; return { ...job, leaseToken: values[3] }; },
+    async first() { if(sql.includes('LEFT JOIN \"workspaceProfiles\"'))return {id:'daybook'}; if (!sql.includes('WITH candidate') || claimed) return null; claimed = true; return { ...job, leaseToken: values[3] }; },
     async run() { updates.push(values); return { meta: { changes: 1 }, results: [] }; }, async all() { return { results: [] }; },
   }; } }; } } as unknown as Database;
   const summary = await drainInboundMailJobs('fictional-owner', { database, config, maxJobs: 1,
@@ -142,7 +142,7 @@ test('worker persists a bounded retry reason rather than provider exceptions or 
 test('a crashed final attempt is failed and its unlinked reservations enter the guarded orphan cleanup path', async () => {
   let orphanMarked = false, repaired = false;
   const database = { prepare(sql: string) { return { bind() { return {
-    async first() { return null; }, async run() { return { meta: { changes: 1 }, results: [] }; },
+    async first() { return sql.includes('LEFT JOIN \"workspaceProfiles\"')?{id:'daybook'}:null; }, async run() { return { meta: { changes: 1 }, results: [] }; },
     async all() {
       if (sql.includes('WITH expired') && !repaired) { repaired = true; return { results: [{ providerId: id, memberId }] }; }
       return { results: [] };

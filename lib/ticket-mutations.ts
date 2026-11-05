@@ -10,6 +10,7 @@ import { createSatisfactionForResolution } from './satisfaction';
 import { canAccessTicket, publicMember, type AccessContext, type MemberRecord } from './access';
 import type { Settings, Ticket, TicketEvent } from './types';
 import { assertSecurityAccess } from './security';
+import { assertWorkspaceOperational } from './workspaces';
 
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
@@ -27,6 +28,7 @@ export async function lockAccess(tx: PoolClient, access: AccessContext): Promise
   const row=rows[0] as MemberRecord|undefined;
   if(!row) throw new ApiError(403,'Tu acceso cambió. Inicia sesión nuevamente.');
   const fresh={...access,role:row.role,member:publicMember({...row,hasAccount:true})};
+  if(access.organizationId!=='daybook')await assertWorkspaceOperational(access.ownerId,tx,access.workspaceSetup);
   if(access.sessionId) await assertSecurityAccess(fresh,tx);
   return fresh;
 }

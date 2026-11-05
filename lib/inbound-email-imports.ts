@@ -84,7 +84,7 @@ export async function prepareInboundAttachments(database: Database, email: Recei
           || row.name !== file.name || row.contentType !== file.contentType || row.ticketId !== ticketId) throw new InboundRejectError('attachment_changed');
         await tx.query('UPDATE attachments SET "expiresAt"=$1,"updatedAt"=$2 WHERE id=$3', [expiry, now, row.id]);
       } else {
-        const id = randomUUID(), pathname = `daybook/${attachmentStorageConfig()?.environment || config.environment}/${randomUUID()}/${id}.bin`;
+        const id = randomUUID(), pathname = `daybook/${attachmentStorageConfig()?.environment || config.environment}/${source.organizationId==='daybook'?'':`workspaces/${createHash('sha256').update(source.ownerId).digest('hex')}/`}${randomUUID()}/${id}.bin`;
         row = (await tx.query<AttachmentRow & { providerAttachmentId: string; sha256: string }>(`INSERT INTO attachments
           (id,"ownerId","memberId","draftId","ticketId",kind,pathname,name,"contentType",size,status,"expiresAt","createdAt","updatedAt")
           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'reserved',$11,$12,$12) RETURNING *`,

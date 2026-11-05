@@ -1,3 +1,4 @@
+import { z } from 'zod';
 export const SECURITY_FRESH_MS = 5 * 60_000;
 export type SecurityAction = 'password_verified' | 'mfa_verified' | 'mfa_enabled' | 'mfa_disabled' | 'recovery_acknowledged' | 'recovery_regenerated' | 'policy_enabled' | 'policy_disabled' | 'session_revoked' | 'other_sessions_revoked' | 'platform_backup_created' | 'business_export_created' | 'member_permissions_changed' | 'configuration_changed';
 export const SECURITY_ACTIONS: readonly SecurityAction[] = ['password_verified','mfa_verified','mfa_enabled','mfa_disabled','recovery_acknowledged','recovery_regenerated','policy_enabled','policy_disabled','session_revoked','other_sessions_revoked','platform_backup_created','business_export_created','member_permissions_changed','configuration_changed'];
@@ -20,7 +21,7 @@ export function safeOperationalCode(value: unknown): string | null { return type
 export function securityActionNeedsReauthentication(pathname: string, method: string): boolean {
   const path=pathname.replace(/^\/api\/workspaces\/[^/]+(?=\/)/,'/api');
   if (/^\/api\/backups(?:\/|$)/.test(path)) return method !== 'GET' || /\/download$/.test(path);
-  return !['GET','HEAD','OPTIONS'].includes(method) && /^\/api\/(?:members|settings|service-policies|assignment-rules|escalations|notifications\/settings|organization\/catalog)(?:\/|$)/.test(path);
+  return !['GET','HEAD','OPTIONS'].includes(method) && /^\/api\/(?:members|settings|service-policies|assignment-rules|escalations|notifications\/settings|organization\/catalog|administration|evolution\/features)(?:\/|$)/.test(path);
 }
 export function publicSessionLabel(userAgent: string | null): string {
   const agent = userAgent || '';
@@ -33,3 +34,6 @@ export function publicAuthResponse(value: unknown): unknown {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   return Object.fromEntries(Object.entries(value).filter(([key]) => !['token','sessionToken','accessToken','refreshToken','idToken'].includes(key)).map(([key,item]) => [key, key === 'session' && item && typeof item === 'object' ? publicAuthResponse(item) : item]));
 }
+
+/** Better Auth IDs are opaque strings, not necessarily UUIDs. Ownership is checked in SQL. */
+export const sessionRevocationSchema=z.union([z.object({id:z.string().min(1).max(256)}).strict(),z.object({others:z.literal(true)}).strict()]);

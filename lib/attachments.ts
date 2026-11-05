@@ -1,8 +1,10 @@
-import { randomUUID } from 'node:crypto';
+import { workspaceApiPath } from './workspace-model';
+import { randomUUID,createHash } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import type { Database } from '../db/database';
 import { ApiError, db, getTicket } from './server';
+import { lockAccess } from './ticket-mutations';
 import { canAccessTicket, type AccessContext } from './access';
 import { attachmentFileInfo, AttachmentValidationError, MAX_ATTACHMENT_BYTES, validateAttachment } from './attachments-validation';
 import { AttachmentSizeError, attachmentStorage, attachmentStorageConfig, readAttachmentBytes, type PrivateAttachmentStorage } from './attachments-storage';
@@ -42,9 +44,7 @@ async function scopeAccess(access: AccessContext, scope: Scope) {
   if (scope.ticketId !== undefined) await getTicket(access, scope.ticketId);
 }
 async function liveAccess(tx: PoolClient, access: AccessContext): Promise<AccessContext> {
-  const member = (await tx.query('SELECT * FROM members WHERE id=$1 AND "ownerId"=$2 AND "organizationId"=$3 FOR NO KEY UPDATE', [access.member.id, access.ownerId, access.organizationId])).rows[0];
-  if (!member || member.status !== 'active' || member.userId !== access.userId) throw new ApiError(403, 'Tu acceso cambió. Vuelve a iniciar sesión.');
-  return { ...access, member, role: member.role };
+  return lockAccess(tx,access);
 }
 async function transactionScope(tx: PoolClient, access: AccessContext, scope: Scope) {
   if (scope.kind === 'note' && access.role === 'client') throw new ApiError(403, 'Las notas internas están reservadas para el equipo.');
@@ -75,10 +75,10 @@ export async function reserveAttachment(access: AccessContext, input: z.infer<ty
     if (rows.length >= 10 || rows.reduce((sum, row) => sum + row.size, 0) + input.size > 100 * 1024 * 1024) throw new ApiError(409, 'Tienes 10 archivos o 100 MiB pendientes. Quita archivos o espera a que termine su limpieza.');
     if (rows.filter(row => row.draftId === input.draftId && row.kind === input.kind && !['deleting','deleted'].includes(row.status)).length >= 5) throw new ApiError(409, 'Puedes adjuntar hasta 5 archivos por mensaje.');
     const id = randomUUID(), now = new Date().toISOString(), expiresAt = new Date(Date.now() + 86400_000).toISOString();
-    const pathname = `daybook/${attachmentStorageConfig()?.environment || 'qa'}/${randomUUID()}/${id}.bin`;
+    const pathname = `daybook/${attachmentStorageConfig()?.environment || 'qa'}/${access.organizationId==='daybook'?'':`workspaces/${createHash('sha256').update(access.ownerId).digest('hex')}/`}${randomUUID()}/${id}.bin`;
     return (await tx.query<AttachmentRow>(`INSERT INTO attachments (id,"ownerId","memberId","draftId","ticketId",kind,pathname,name,"contentType",size,status,"expiresAt","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'reserved',$11,$12,$12) RETURNING *`, [id, access.ownerId, access.member.id, input.draftId, input.ticketId ?? null, input.kind, pathname, file.name, file.contentType, input.size, expiresAt, now])).rows[0];
   });
-  return { attachment: publicAttachment(row), pathname: row.pathname, uploadUrl: '/api/attachments/upload' };
+  return { attachment: publicAttachment(row), pathname: row.pathname, uploadUrl: workspaceApiPath('/api/attachments/upload',access.organizationId) };
 }
 
 export async function ownPendingAttachment(access: AccessContext, id: string, database = db()) {

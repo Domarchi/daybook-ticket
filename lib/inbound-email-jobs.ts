@@ -1,3 +1,4 @@
+import { workspaceDeliveryContext } from './workspace-delivery';
 import { createHash, randomUUID } from 'node:crypto';
 import type { Database } from '../db/database';
 import type { PoolClient } from 'pg';
@@ -80,6 +81,7 @@ export async function drainInboundMailJobs(ownerId: string, options: {
   const summary = { paused: !config.enabled, attempted: 0, processed: 0, rejected: 0, retried: 0, failed: 0 };
   if (!config.enabled) return summary;
   const database = options.database || (await import('../db')).getDatabase();
+  if(!(await workspaceDeliveryContext(database,ownerId)).inbound)return {...summary,paused:true};
   const deadline = Date.now() + Math.min(45000, Math.max(1000, options.maxDurationMs || 45000));
   const maxJobs = Math.min(5, Math.max(1, options.maxJobs || 2));
   const touchedMembers = new Set<string>();

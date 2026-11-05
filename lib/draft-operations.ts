@@ -1,9 +1,10 @@
+import { workspaceStorageKey } from './workspace-client';
 type StoragePort = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 export class DraftOperations {
   private readonly values = new Map<string, { payload: string; id: string }>();
   constructor(private readonly storage: StoragePort | null, private readonly uuid = () => crypto.randomUUID()) {}
   previous(scope: string): { id: string; payload: unknown } | null {
-    const key = `daybook.ticket.operation.v1.${scope}`;
+    const key = workspaceStorageKey(`daybook.ticket.operation.v1.${scope}`);
     try {
       const stored = this.values.get(key) || JSON.parse(this.storage?.getItem(key) || 'null');
       if (stored && typeof stored.id === 'string' && typeof stored.payload === 'string') return { id: stored.id, payload: JSON.parse(stored.payload) };
@@ -11,7 +12,7 @@ export class DraftOperations {
     return null;
   }
   forPayload(scope: string, payload: unknown): string {
-    const key = `daybook.ticket.operation.v1.${scope}`;
+    const key = workspaceStorageKey(`daybook.ticket.operation.v1.${scope}`);
     const serialized = JSON.stringify(payload);
     let previous = this.values.get(key);
     if (!previous) {
@@ -27,7 +28,7 @@ export class DraftOperations {
     return next.id;
   }
   clear(scope: string) {
-    const key = `daybook.ticket.operation.v1.${scope}`;
+    const key = workspaceStorageKey(`daybook.ticket.operation.v1.${scope}`);
     this.values.delete(key);
     try { this.storage?.removeItem(key); } catch { /* A changed payload receives a new ID. */ }
   }

@@ -1,3 +1,4 @@
+import { workspaceStorageKey } from './workspace-client';
 export const ATTACHMENT_ACCEPT = '.png,.jpg,.jpeg,.webp,.pdf,.txt,.csv,.docx,.xlsx';
 export const ATTACHMENT_LIMIT = 5;
 export const ATTACHMENT_MAX_BYTES = 10 * 1024 * 1024;
@@ -10,7 +11,7 @@ export function attachmentValidation(file: { name: string; size: number }, count
 }
 const memory = new Map<string, string>();
 export function attachmentDraftId(scope: string, renew = false) {
-  const key = `daybook.ticket.attachments.v1.${scope}`;
+  const key = workspaceStorageKey(`daybook.ticket.attachments.v1.${scope}`);
   if (!renew) {
     const cached = memory.get(key);
     if (cached) return cached;

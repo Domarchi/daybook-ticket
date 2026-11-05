@@ -5,6 +5,7 @@ import { getMailStatus, drainOutboxBestEffort } from '@/lib/mail';
 import { after } from 'next/server';
 import { getTicketFeed } from '@/lib/ticket-feed';
 import type { Article, Member } from '@/lib/types';
+import { readCommercialWorkspace } from '@/lib/workspaces';
 export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   return handle(async () => {
@@ -22,7 +23,10 @@ export async function GET(request: Request) {
     ]);
     if (!client) after(async () => { await drainOutboxBestEffort(access.ownerId); });
     const mailStatus = ['owner', 'admin'].includes(access.role) ? await getMailStatus(access.ownerId) : null;
+    const profile=access.organizationId==='daybook'?null:await readCommercialWorkspace(access.organizationId);
+    if(profile)settings.brandName=profile.brandName;
     return json({
+      workspaceId:access.organizationId,
       viewer: access.member,
       members: members.results.map(publicMember),
       companies,

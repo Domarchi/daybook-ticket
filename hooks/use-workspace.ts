@@ -1,7 +1,10 @@
 'use client';
+import { currentWorkspaceId } from '@/lib/workspace-client';
+import { workspaceHome } from '@/lib/workspace-model';
+import { workspaceFetch } from '@/lib/workspace-client';
+
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ticketReturnPath } from '@/lib/return-path';
 import { DEFAULT_SETTINGS, type Workspace } from '@/lib/types';
 
 const EMPTY: Workspace = { viewer: null, members: [], companies: [], savedReplies: [], mailStatus: null, tickets: [], messages: [], alerts: [], articles: [], settings: DEFAULT_SETTINGS, demoLoaded: false };
@@ -14,7 +17,7 @@ class ReadError extends Error {
 }
 
 async function read<T>(path: string, signal: AbortSignal): Promise<T> {
-  const response = await fetch(path, { signal, cache: 'no-store' });
+  const response = await workspaceFetch(path, { signal, cache: 'no-store' });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
     throw new ReadError(typeof result.error === 'string' ? result.error : 'No se pudo actualizar la conversación.', response.status);
@@ -84,8 +87,8 @@ export function useWorkspace(onSnapshot: (workspace: Workspace) => void) {
     } catch (failure) {
       if (mounted.current && active.current === controller && !(failure instanceof Error && failure.name === 'AbortError')) {
         if (failure instanceof ReadError && failure.status===428) {
-          denied.current=true; commit(EMPTY); window.location.replace(`/security?return_to=${encodeURIComponent(ticketReturnPath(new URLSearchParams(window.location.search).get('ticket')))}`);
-        } else if (failure instanceof ReadError && (failure.status === 401 || failure.status === 403)) {
+          denied.current=true; commit(EMPTY); const id=currentWorkspaceId();window.location.replace(`${id==='daybook'?'/security':`/w/${id}/security`}?return_to=${encodeURIComponent(workspaceHome(id,Number(new URLSearchParams(window.location.search).get('ticket'))))}`);
+        } else if (failure instanceof ReadError && (failure.status === 401 || failure.status === 403 || failure.status===423)) {
           denied.current = true;
           commit(EMPTY);
           setLoadError('Tu sesión terminó o tu acceso cambió. Vuelve a iniciar sesión.');

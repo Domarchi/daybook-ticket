@@ -119,7 +119,7 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
         const source = backup.tables.find(item => item.name === table);
         if (!source) continue; // A verified v1 archive predates the additive reliability tables.
         const target = await columns(tx, table, schema);
-        const compatible = target.filter(column => !((column === 'isTest' && ['members','tickets'].includes(table) || column === 'twoFactorEnabled' && table==='authUser') && !source.columns.includes(column)));
+        const compatible = target.filter(column => !((column === 'isTest' && ['members','tickets'].includes(table) || column === 'twoFactorEnabled' && table==='authUser' || ['acceptedAt','acceptedUserId'].includes(column)&&table==='invitations') && !source.columns.includes(column)));
         if (JSON.stringify(compatible) !== JSON.stringify(source.columns)) throw new Error(`Schema version mismatch: ${table}`);
       }
       if (schema === 'public') for (const table of ['authSession', 'authVerification', 'authRateLimit','securityAssurances']) {
@@ -155,6 +155,8 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
       // Older v1 archives may contain these credentials. Verify their original fingerprints first,
       // then invalidate them before COMMIT; password hashes and account/provider identities stay intact.
       await tx.query(`DELETE FROM ${qualified(schema, 'invitations')}`);
+      // Verify archived fingerprints first; commercial delivery and admission must be re-approved after recovery.
+      await tx.query(`UPDATE ${qualified(schema,'workspaceProfiles')} SET state='draft',\"mailEnabled\"=false,\"inboundEnabled\"=false,\"lastJobAt\"=NULL`);
       await tx.query(`UPDATE ${qualified(schema, 'authAccount')} SET ${temporaryAccountColumns.map(column => `${quote(column)}=NULL`).join(',')}`);
       await tx.query(`UPDATE ${qualified(schema, 'automaticBackupSettings')} SET enabled=false,"leaseToken"=NULL,"leaseUntil"=NULL,"lastErrorCode"='restore_paused'`);
       await tx.query(`UPDATE ${qualified(schema, 'automaticBackupRuns')} SET status='deleted',"deletedAt"=COALESCE("deletedAt",$1),"reservedBytes"=0,"errorCode"='restore_nonportable'`,[new Date().toISOString()]);

@@ -5,6 +5,7 @@ import type { Database } from '../db/database';
 import type { AccessContext } from './access';
 import { ApiError } from './server';
 import { hasFreshProof, publicSessionLabel, requiresMfaChallenge, safeOperationalCode, type SecurityAction, type SecurityPolicy, type SecurityProof } from './security-model';
+import { operatorGranted } from './workspace-model';
 
 export type SecurityReader = Pick<PoolClient, 'query'>;
 function reader(database = getDatabase()): SecurityReader {
@@ -15,9 +16,10 @@ function reader(database = getDatabase()): SecurityReader {
 }
 export const securityRedirect = '/security';
 /** Legacy platform operator boundary; the multi-workspace delivery replaces this with its explicit operator grant. */
-export function assertPlatformBackupAccess(access:Pick<AccessContext,'role'|'organizationId'>) {
-  if(access.role!=='owner'||access.organizationId!=='daybook')throw new ApiError(403,'El respaldo completo está reservado al propietario de la plataforma. Usa la exportación privada del negocio.');
+export function assertPlatformBackupAccess(access:Pick<AccessContext,'role'|'organizationId'>&Partial<Pick<AccessContext,'userId'|'member'>>) {
+  if(access.organizationId!=='daybook'||!operatorGranted({userId:access.userId||'',email:access.member?.email||''}))throw new ApiError(403,'El respaldo completo requiere una concesión explícita de operador de plataforma. Usa la exportación privada del negocio.');
 }
+function securityPath(access:AccessContext){return !access.organizationId?'/account/security':access.organizationId==='daybook'?securityRedirect:`/w/${access.organizationId}/security`;}
 export async function consumeSecurityAttempt(access:Pick<AccessContext,'userId'>,database=getDatabase(),now=Date.now()) {
   const key=`daybook-security-reauth:${access.userId}`;
   const row=await database.prepare(`INSERT INTO "authRateLimit" (id,key,count,"lastRequest") VALUES ($1,$1,1,$2)
@@ -39,13 +41,14 @@ export async function readIdentitySecurity(access: Pick<AccessContext, 'ownerId'
 }
 export async function assertSecurityAccess(access: AccessContext, query = reader()) {
   const state = await readIdentitySecurity(access, query);
-  if (requiresMfaChallenge(access.role, state.policy, state.enabled, state.proof)) throw new ApiError(428, state.enabled ? 'Verifica tu segundo factor para continuar con el equipo.' : 'Activa el doble factor para continuar con el equipo.', securityRedirect);
+  if (requiresMfaChallenge(access.role, state.policy, state.enabled, state.proof)) throw new ApiError(428, state.enabled ? 'Verifica tu segundo factor para continuar con el equipo.' : 'Activa el doble factor para continuar con el equipo.', securityPath(access));
 }
 export async function requireFreshSecurity(access: AccessContext, query = reader()) {
   const state = await readIdentitySecurity(access, query);
-  if (!access.sessionId || !hasFreshProof(state.proof, state.enabled)) throw new ApiError(428, 'Verifica tu identidad para esta acción sensible.', securityRedirect);
+  if (!access.sessionId || !hasFreshProof(state.proof, state.enabled)) throw new ApiError(428, 'Verifica tu identidad para esta acción sensible.', securityPath(access));
 }
 export async function recordSecurityEvent(query: SecurityReader, access: Pick<AccessContext, 'ownerId' | 'userId' | 'member'>, action: SecurityAction, targetId: string | null = null) {
+  if(!access.ownerId)return;
   await query.query(`INSERT INTO "securityAudit" (id,"ownerId","actorMemberId","actorUserId","actorName",action,"targetId","createdAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [randomUUID(), access.ownerId, access.member.id, access.userId, access.member.name, action, targetId, new Date().toISOString()]);
 }
 /** Called only from a successful Better Auth endpoint; token stays server-side. */
@@ -94,6 +97,7 @@ export async function saveSecurityPolicy(access: AccessContext, input:{requireSt
     if(member?.role!=='owner')throw new ApiError(403,'Tu acceso cambió.');
     await requireFreshSecurity(access,tx);
     const state=await readIdentitySecurity(access,tx);
+    if(!input.requireStaffMfa&&access.organizationId!=='daybook'&&(await tx.query('SELECT "workspaceId" FROM "workspaceProfiles" WHERE "ownerId"=$1 AND state=\'active\'',[access.ownerId])).rows[0])throw new ApiError(409,'Pausa el piloto antes de retirar la obligación de MFA del equipo.');
     if(state.policy.version!==input.version)throw new ApiError(409,'La política cambió. Actualiza antes de guardar.');
     if(input.requireStaffMfa && (!state.enabled || !state.recoveryAcknowledgedAt))throw new ApiError(409,'El propietario debe verificar su segundo factor y confirmar la custodia de los códigos de recuperación.');
     const now=new Date().toISOString(),activatedAt=input.requireStaffMfa ? state.policy.requireStaffMfa ? state.policy.activatedAt : now : null;

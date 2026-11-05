@@ -31,7 +31,7 @@ export const rateLimit = pgTable('authRateLimit', {
 });
 export const invitations = pgTable('invitations', {
   memberId: text('memberId').primaryKey(), ownerId: text('ownerId').notNull(), tokenHash: text('tokenHash').notNull().unique(),
-  expiresAt: text('expiresAt').notNull(), createdAt: text('createdAt').notNull(),
+  expiresAt: text('expiresAt').notNull(), createdAt: text('createdAt').notNull(), acceptedAt:text('acceptedAt'),acceptedUserId:text('acceptedUserId'),
 });
 
 export const twoFactor = pgTable('twoFactor', {

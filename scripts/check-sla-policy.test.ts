@@ -143,6 +143,7 @@ test('a deleted or recreated same-version policy rejects stale saves and deletes
     const tx = { query: async (sql: string) => {
       queries.push(sql);
       if (sql.includes('pg_advisory_xact_lock')) return { rows: [] };
+      if (sql.startsWith('SELECT state FROM \"workspaceProfiles\"')) return {rows:[]};
       if (sql.startsWith('SELECT * FROM members')) return { rows: [{ ...member, ownerId: access.ownerId, organizationId: access.organizationId, userId: access.userId }] };
       if (sql.includes('FROM "servicePolicies"') && sql.endsWith('FOR UPDATE')) return { rows: currentId ? [{ id: currentId, version: 1 }] : [] };
       throw new Error('A stale policy must fail before any data mutation');

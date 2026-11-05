@@ -273,7 +273,7 @@ export const pushSubscriptions = pgTable('pushSubscriptions', {
   createdAt: text('createdAt').notNull(),
   updatedAt: text('updatedAt').notNull(),
   lastTestAt: text('lastTestAt'),
-}, (t) => [uniqueIndex('push_subscription_endpoint').on(t.endpoint), index('push_subscription_member').on(t.ownerId, t.memberId, t.active)]);
+}, (t) => [uniqueIndex('push_subscription_endpoint').on(t.ownerId,t.memberId,t.endpoint), index('push_subscription_member').on(t.ownerId, t.memberId, t.active)]);
 
 export const pushDeliveries = pgTable('pushDeliveries', {
   id: text('id').primaryKey(),
@@ -325,3 +325,5 @@ export const securityPolicies=pgTable('securityPolicies',{
 export const securityAudit=pgTable('securityAudit',{
   id:text('id').primaryKey(),ownerId:text('ownerId').notNull().references(()=>organizations.ownerId),actorMemberId:text('actorMemberId'),actorUserId:text('actorUserId').notNull(),actorName:text('actorName').notNull(),action:text('action').notNull(),targetId:text('targetId'),createdAt:text('createdAt').notNull(),
 },t=>[index('security_audit_page').on(t.ownerId,t.createdAt.desc(),t.id.desc())]);
+
+export const workspaceProfiles=pgTable('workspaceProfiles',{workspaceId:text('workspaceId').primaryKey().references(()=>organizations.id),ownerId:text('ownerId').notNull().unique().references(()=>organizations.ownerId),state:text('state').notNull().default('draft'),brandName:text('brandName').notNull(),mailFrom:text('mailFrom'),mailEnabled:boolean('mailEnabled').notNull().default(false),inboundEnabled:boolean('inboundEnabled').notNull().default(false),limitsJson:text('limitsJson').notNull(),version:integer('version').notNull().default(0),quotaEpoch:bigint('quotaEpoch',{mode:'number'}).notNull().default(0),createdAt:text('createdAt').notNull(),updatedAt:text('updatedAt').notNull(),lastJobAt:text('lastJobAt')});

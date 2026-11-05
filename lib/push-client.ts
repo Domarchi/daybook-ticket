@@ -1,3 +1,4 @@
+import { workspaceFetch } from '@/lib/workspace-client';
 export const PUSH_CHANGED_EVENT = 'daybook-ticket-push-changed';
 export const PUSH_STORAGE_KEY = 'daybook.ticket.push.changed.v1';
 
@@ -10,7 +11,7 @@ export async function pushRequest<T>(path: string, method = 'GET', body?: unknow
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
-    const response = await fetch(path, {
+    const response = await workspaceFetch(path, {
       method, credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -58,7 +59,7 @@ export async function disconnectPushOnSignOut() {
     if (subscription) {
       // Start both operations while the current authenticated session still exists.
       await Promise.allSettled([
-        pushRequest('/api/push', 'DELETE', { endpoint: subscription.endpoint }),
+        pushRequest('/api/account/push', 'DELETE', { endpoint: subscription.endpoint }),
         subscription.unsubscribe(),
       ]);
     }

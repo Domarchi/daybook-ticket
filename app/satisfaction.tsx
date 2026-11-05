@@ -1,4 +1,6 @@
 'use client';
+import { workspaceFetch } from '@/lib/workspace-client';
+
 
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, LoaderCircle, Star } from 'lucide-react';
@@ -18,7 +20,7 @@ export function TicketSatisfactionPanel({ ticketId, memberId, version, status }:
     mounted.current = true;
     if (status !== 'resolved') return () => { mounted.current = false; };
     const controller = new AbortController();
-    void fetch(`/api/tickets/${ticketId}/satisfaction`, { cache: 'no-store', signal: controller.signal, headers: { 'X-Daybook-Member-Id': memberId } })
+    void workspaceFetch(`/api/tickets/${ticketId}/satisfaction`, { cache: 'no-store', signal: controller.signal, headers: { 'X-Daybook-Member-Id': memberId } })
       .then(async response => { const value = await response.json(); if (!response.ok) throw new Error(value.error || 'No se pudo consultar la evaluación.'); if (!controller.signal.aborted) setResult({ key, satisfaction: value.satisfaction, error: '' }); })
       .catch(failure => { if (!controller.signal.aborted) setResult({ key, satisfaction: null, error: failure instanceof Error ? failure.message : 'No se pudo consultar la evaluación.' }); });
     return () => { controller.abort(); mounted.current = false; };
@@ -38,7 +40,7 @@ export function TicketSatisfactionPanel({ ticketId, memberId, version, status }:
     const encoded = JSON.stringify(payload);
     if (operation.current?.payload !== encoded) operation.current = { payload: encoded, id: crypto.randomUUID() };
     try {
-      const response = await fetch(`/api/tickets/${ticketId}/satisfaction`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Daybook-Member-Id': memberId }, body: JSON.stringify({ ...payload, operationId: operation.current.id }) });
+      const response = await workspaceFetch(`/api/tickets/${ticketId}/satisfaction`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Daybook-Member-Id': memberId }, body: JSON.stringify({ ...payload, operationId: operation.current.id }) });
       const value = await response.json();
       if (!response.ok) throw new Error(value.error || 'No se pudo enviar tu evaluación.');
       if (mounted.current) setResult({ key, satisfaction: value.satisfaction, error: '' });

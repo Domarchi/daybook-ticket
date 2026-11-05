@@ -1,4 +1,6 @@
 'use client';
+import { workspaceFetch } from '@/lib/workspace-client';
+
 
 import { useEffect, useState } from 'react';
 import { ArrowDownToLine, BarChart3, Clock3, RefreshCw, ShieldCheck, Users } from 'lucide-react';
@@ -24,7 +26,7 @@ export function AgentMetricsPanel({ companies, memberId }: { companies: Customer
   useEffect(() => {
     if (incomplete) return;
     const controller = new AbortController();
-    void fetch(`/api/metrics/agents?${query}`, { cache: 'no-store', signal: controller.signal,
+    void workspaceFetch(`/api/metrics/agents?${query}`, { cache: 'no-store', signal: controller.signal,
       ...(memberId ? { headers: { 'X-Daybook-Member-Id': memberId } } : {}),
     })
       .then(async response => {

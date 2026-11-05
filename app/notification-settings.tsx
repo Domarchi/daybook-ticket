@@ -1,4 +1,6 @@
 'use client';
+import { workspaceFetch } from '@/lib/workspace-client';
+
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BellRing, CheckCircle2, Clock3, LoaderCircle, RefreshCw } from 'lucide-react';
@@ -15,7 +17,7 @@ const date = (value?: string | null) => value ? new Intl.DateTimeFormat('es-CL',
 }).format(new Date(value)) : 'Aún no registrada';
 
 async function readSettings(enabled?: boolean): Promise<State> {
-  const response = await fetch('/api/notifications/settings', {
+  const response = await workspaceFetch('/api/notifications/settings', {
     method: enabled === undefined ? 'GET' : 'PATCH', cache: 'no-store',
     ...(enabled === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) }),
   });

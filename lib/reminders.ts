@@ -1,3 +1,4 @@
+import { activeWorkspaceOwners } from './workspaces';
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { getDatabase } from '../db';
@@ -160,16 +161,14 @@ export async function getReminderHealth(ownerId: string, database = getDatabase(
 
 export interface ReminderTickResult { processed: number; queued: number; skipped: boolean; incomplete: boolean }
 
-/** Bounded, leased and resumable. The application currently has exactly one Daybook organization. */
-export async function runNotificationTick(invocationId: string, options: { database?: Database; maxTickets?: number; maxDurationMs?: number; now?: () => Date } = {}): Promise<ReminderTickResult> {
+/** Bounded, leased and resumable. Each workspace owns its cursor, lease and recipients. */
+async function runWorkspaceNotificationTick(invocationId: string, options: { ownerId:string;database?: Database; maxTickets?: number; maxDurationMs?: number; now?: () => Date }): Promise<ReminderTickResult> {
   const database = options.database || getDatabase();
   const clock = options.now || (() => new Date());
   const started = clock();
   const deadline = started.getTime() + Math.min(45_000, Math.max(100, options.maxDurationMs ?? 20_000));
   const maxTickets = Math.min(500, Math.max(1, Math.floor(options.maxTickets || 100)));
-  const organization = await database.prepare('SELECT "ownerId" FROM organizations WHERE id=$1').bind('daybook').first<{ ownerId: string }>();
-  if (!organization) return { processed: 0, queued: 0, skipped: true, incomplete: false };
-  const { ownerId } = organization;
+  const ownerId=options.ownerId;
   const token = randomUUID();
   const claimed = await database.transaction(async tx => {
     await tx.query('INSERT INTO "notificationJobHealth" ("ownerId") VALUES ($1) ON CONFLICT ("ownerId") DO NOTHING', [ownerId]);
@@ -208,4 +207,17 @@ export async function runNotificationTick(invocationId: string, options: { datab
       .bind(ownerId, token, clock().toISOString()).run().catch(() => undefined);
     throw error;
   }
+}
+
+/** Bounded fair multiplexing; every space retains independent transactional leases and health. */
+export async function runNotificationTick(invocationId:string,options:{database?:Database;maxTickets?:number;maxDurationMs?:number;now?:()=>Date}={}):Promise<ReminderTickResult>{
+ const database=options.database||getDatabase(),deadline=Date.now()+Math.min(45000,options.maxDurationMs??40000),owners=await activeWorkspaceOwners(database);
+ const summary={processed:0,queued:0,skipped:owners.length===0,incomplete:false};
+ for(const [index,owner] of owners.entries()){
+  if(Date.now()>deadline-1000){summary.incomplete=true;break;}
+  try{const result=await runWorkspaceNotificationTick(invocationId,{...options,database,ownerId:owner.ownerId,maxTickets:Math.max(1,Math.floor((options.maxTickets??100)/owners.length)),maxDurationMs:Math.max(1000,Math.floor((deadline-Date.now())/(owners.length-index)))});summary.processed+=result.processed;summary.queued+=result.queued;summary.incomplete||=result.incomplete;}
+  catch{summary.incomplete=true;}
+  await database.prepare('UPDATE "workspaceProfiles" SET "lastJobAt"=$1 WHERE "ownerId"=$2').bind(new Date().toISOString(),owner.ownerId).run();
+ }
+ return summary;
 }

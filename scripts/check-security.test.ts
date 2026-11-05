@@ -47,8 +47,8 @@ test('business export reads only domain allowlist and excludes credential-shaped
   assert.deepEqual(businessExportColumns(['id','ownerId','email','userId','actorUserId','pathname','password','passwordHash','MFASecret','replyTokenHash','apiKey','backupCodes','endpoint','auth','createdAt','invalid"name']),['id','ownerId','email','createdAt']);
 });
 test('platform identity backup does not become a tenant owner/admin privilege',()=>{
-  assert.doesNotThrow(()=>assertPlatformBackupAccess({role:'owner',organizationId:'daybook'}));
-  for(const scope of [{role:'owner' as const,organizationId:'another-business'},{role:'admin' as const,organizationId:'daybook'},{role:'agent' as const,organizationId:'daybook'}])assert.throws(()=>assertPlatformBackupAccess(scope),/reservado/);
+  assert.throws(()=>assertPlatformBackupAccess({role:'owner',organizationId:'daybook'}));
+  for(const scope of [{role:'owner' as const,organizationId:'another-business'},{role:'admin' as const,organizationId:'daybook'},{role:'agent' as const,organizationId:'daybook'}])assert.throws(()=>assertPlatformBackupAccess(scope),/concesión/);
 });
 test('operational health exposes only classified errors',()=>{
   assert.equal(safeOperationalCode('lease_lost'),'lease_lost');

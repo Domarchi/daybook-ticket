@@ -1,3 +1,5 @@
+import { workspaceHome } from './workspace-model';
+import { workspaceDeliveryContext } from './workspace-delivery';
 import webpush from 'web-push';
 import { createECDH } from 'node:crypto';
 import { getDatabase } from '../db';
@@ -52,7 +54,7 @@ export async function registerPushSubscription(access: AccessContext, input: Bro
     database.prepare(`INSERT INTO "pushSubscriptions" (id, "ownerId", "memberId", endpoint, p256dh, auth, active, "createdAt", "updatedAt")
       SELECT $1, $2, $3, $4, $5, $6, true, $7, $7
       WHERE (SELECT COUNT(*) FROM "pushSubscriptions" WHERE "ownerId" = $2 AND "memberId" = $3 AND active = true AND endpoint <> $4) < 10
-      ON CONFLICT(endpoint) DO UPDATE SET
+      ON CONFLICT("ownerId","memberId",endpoint) DO UPDATE SET
         "ownerId" = EXCLUDED."ownerId", "memberId" = EXCLUDED."memberId", p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth,
         active = true, "updatedAt" = EXCLUDED."updatedAt",
         "createdAt" = CASE WHEN "pushSubscriptions".active = true AND "pushSubscriptions"."memberId" = EXCLUDED."memberId"
@@ -121,14 +123,14 @@ export async function pushReceipt(access: AccessContext, input: { subscriptionId
   if (!subscription) throw new ApiError(404, 'Este navegador no tiene avisos activos para tu cuenta.');
   if (input.test) {
     if (!subscription.lastTestAt || Date.now() - Date.parse(subscription.lastTestAt) > 5 * 60_000) throw new ApiError(404, 'La prueba ya no está disponible.');
-    return { title: 'Daybook Ticket', body: 'Los avisos están activos en este computador.', url: '/', tag: `daybook-test-${subscription.id}` };
+    return { title: 'Daybook Ticket', body: 'Los avisos están activos en este computador.', url: workspaceHome(access.organizationId), tag: `daybook-test-${subscription.id}` };
   }
   const event = input.eventId ? await eligibleEvent(subscription, input.eventId) : null;
   if (!event) throw new ApiError(404, 'El aviso ya no está disponible para tu cuenta.');
   return {
     title: 'Daybook Ticket',
     body: event.event === 'ticket_created' ? `Llegó el ticket #${event.ticketId}.` : `Nuevo mensaje en el ticket #${event.ticketId}.`,
-    url: `/?ticket=${event.ticketId}`,
+    url: workspaceHome(access.organizationId,event.ticketId),
     tag: `daybook-${subscription.id}-${event.id}`,
   };
 }
@@ -154,7 +156,7 @@ export async function sendPushTest(access: AccessContext, subscriptionId: string
       AND ("lastTestAt" IS NULL OR "lastTestAt" <= $5) RETURNING *`)
     .bind(now, subscriptionId, access.ownerId, access.member.id, new Date(Date.now() - 60_000).toISOString()).first<Subscription>();
   if (!subscription) throw new ApiError(429, 'Activa los avisos y espera un minuto entre pruebas.');
-  try { await send(subscription, { subscriptionId: subscription.id, test: true }, sender); }
+  try { await send(subscription, { subscriptionId: subscription.id, test: true,...(access.organizationId==='daybook'?{}:{workspaceId:access.organizationId}) }, sender); }
   catch (error) {
     const code = classifyPushFailure(error);
     if (code === 'expired_subscription') await disableExpired(subscription);
@@ -203,7 +205,9 @@ export async function processPushOutbox(ownerId: string, options: { send?: PushS
         await finish(delivery, 'cancelled', 'recipient_unavailable'); return;
       }
       try {
-        await send(subscription, { subscriptionId: subscription.id, eventId: delivery.eventId }, sender);
+        const workspace=await workspaceDeliveryContext(database,ownerId);
+        if(workspace.workspaceId!=='daybook'&&!workspace.operational){await finish(delivery,'cancelled','workspace_paused');return;}
+        await send(subscription, { subscriptionId: subscription.id, eventId: delivery.eventId,...(workspace.workspaceId==='daybook'?{}:{workspaceId:workspace.workspaceId}) }, sender);
         await finish(delivery, 'accepted', null);
         summary.accepted++;
         return;

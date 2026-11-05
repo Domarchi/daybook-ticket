@@ -33,7 +33,8 @@
     "db:migrate:reliability:qa": "node --env-file=.env.test.local --import tsx scripts/migrate-reliability-qa.mjs",
     "test:reliability:qa": "node --env-file=.env.test.local --import tsx scripts/check-test-data-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-ticket-presence-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-inbound-reliability-database.mjs && node --env-file=.env.test.local --import tsx scripts/check-automatic-backup-database.mjs",
     "test:reliability:http": "node --env-file=.env.test.local --import tsx scripts/check-reliability-http.mjs",
-    "test:security:qa": "node --env-file=.env.test.local --import tsx scripts/check-security-database.mjs"
+    "test:security:qa": "node --env-file=.env.test.local --import tsx scripts/check-security-database.mjs",
+    "test:workspaces:qa": "node --env-file=.env.test.local --import tsx scripts/check-commercial-workspaces-database.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

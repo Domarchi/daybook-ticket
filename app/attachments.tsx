@@ -1,4 +1,8 @@
 'use client';
+import { workspaceApiPath } from '@/lib/workspace-model';
+import { currentWorkspaceId } from '@/lib/workspace-client';
+import { workspaceFetch } from '@/lib/workspace-client';
+
 import { useEffect, useId, useRef, useState } from 'react';
 import { Download, Eye, FileText, Paperclip, X } from 'lucide-react';
 import { ATTACHMENT_ACCEPT, attachmentSize } from '@/lib/attachment-drafts';
@@ -17,7 +21,7 @@ type PreviewFile = { id: string; name: string; size: number; contentType?: strin
 export function MessageAttachments({ attachments }: { attachments?: PreviewFile[] }) {
   const [selected, setSelected] = useState<PreviewFile | null>(null);
   if (!attachments?.length) return null;
-  return <><ul className="message-attachments">{attachments.map(item => <li key={item.id}><a href={`/api/attachments/${item.id}/download`} download><Download size={15}/><span>{item.name}<small>{attachmentSize(item.size)}</small></span></a>{['image/png', 'image/jpeg', 'image/webp', 'application/pdf'].includes(item.contentType || '') && <button type="button" className="attachment-preview-button" onClick={() => setSelected(item)} aria-label={`Ver ${item.name}`}><Eye size={15}/>Vista previa</button>}</li>)}</ul>{selected && <AttachmentPreview key={selected.id} attachment={selected} onClose={() => setSelected(null)}/>}</>;
+  return <><ul className="message-attachments">{attachments.map(item => <li key={item.id}><a href={workspaceApiPath(`/api/attachments/${item.id}/download`,currentWorkspaceId())} download><Download size={15}/><span>{item.name}<small>{attachmentSize(item.size)}</small></span></a>{['image/png', 'image/jpeg', 'image/webp', 'application/pdf'].includes(item.contentType || '') && <button type="button" className="attachment-preview-button" onClick={() => setSelected(item)} aria-label={`Ver ${item.name}`}><Eye size={15}/>Vista previa</button>}</li>)}</ul>{selected && <AttachmentPreview key={selected.id} attachment={selected} onClose={() => setSelected(null)}/>}</>;
 }
 
 function AttachmentPreview({ attachment, onClose }: { attachment: PreviewFile; onClose: () => void }) {
@@ -29,7 +33,7 @@ function AttachmentPreview({ attachment, onClose }: { attachment: PreviewFile; o
     let objectUrl: string | undefined;
     void (async () => {
       try {
-        const response = await fetch(`/api/attachments/${attachment.id}/preview`, { cache: 'no-store', credentials: 'same-origin', signal: controller.signal });
+        const response = await workspaceFetch(`/api/attachments/${attachment.id}/preview`, { cache: 'no-store', credentials: 'same-origin', signal: controller.signal });
         if (!response.ok) throw new Error('No se pudo abrir el archivo. Comprueba tu acceso o vuelve a intentarlo.');
         const type = response.headers.get('Content-Type') || '';
         if (!['image/png', 'image/jpeg', 'image/webp', 'application/pdf'].includes(type)) throw new Error('Este formato no tiene vista previa.');
@@ -50,7 +54,7 @@ function AttachmentPreview({ attachment, onClose }: { attachment: PreviewFile; o
         // Blob bytes came from the authenticated preview route, not an external image URL.
         // eslint-disable-next-line @next/next/no-img-element
         : <img src={file.url} alt={attachment.name} onError={() => setError('No se pudo mostrar esta imagen. Puedes descargar el archivo.')}/>}</div>
-    <footer><a className="secondary" href={`/api/attachments/${attachment.id}/download`} download><Download size={15}/>Descargar</a><button type="button" className="primary" onClick={onClose}>Cerrar</button></footer>
+    <footer><a className="secondary" href={workspaceApiPath(`/api/attachments/${attachment.id}/download`,currentWorkspaceId())} download><Download size={15}/>Descargar</a><button type="button" className="primary" onClick={onClose}>Cerrar</button></footer>
   </dialog>;
 }
 
@@ -58,7 +62,7 @@ function AttachmentPreview({ attachment, onClose }: { attachment: PreviewFile; o
  * Native PDF plugins are blocked by iframe sandbox; the browser isolates its own PDF viewer.
  * A protected download remains visible when inline PDF rendering is unavailable. */
 export function PdfAttachmentPreview({ attachment, fileUrl, nativePdfViewer }: { attachment: PreviewFile; fileUrl: string; nativePdfViewer: boolean }) {
-  const downloadUrl = `/api/attachments/${attachment.id}/download`;
+  const downloadUrl = workspaceApiPath(`/api/attachments/${attachment.id}/download`,currentWorkspaceId());
   return <div className={`attachment-pdf-preview ${nativePdfViewer ? 'has-native-viewer' : 'download-only'}`}>
     {nativePdfViewer ? <iframe src={fileUrl} title={`Vista previa de ${attachment.name}`} referrerPolicy="no-referrer" allow="camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'"/> : <div className="attachment-pdf-unavailable"><FileText size={34} aria-hidden="true"/><strong>Descarga el PDF para verlo</strong><p>Este navegador no permite mostrar el documento aquí. Puedes abrirlo en el visor de PDF de tu equipo.</p></div>}
     <p className="attachment-pdf-help">{nativePdfViewer ? 'Si el documento no se muestra, puedes descargarlo para abrirlo en tu visor. ' : ''}<a href={downloadUrl} download><Download size={15} aria-hidden="true"/>Descargar PDF</a></p>

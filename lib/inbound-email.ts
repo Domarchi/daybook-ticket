@@ -1,3 +1,6 @@
+import { verifiedWorkspaceSender } from './workspace-model';
+import { workspaceDeliveryContext } from './workspace-delivery';
+import { assertWorkspaceOperational } from './workspaces';
 import type { PoolClient } from 'pg';
 import type { Database } from '../db/database';
 import { canAccessTicket, publicMember, type AccessContext, type MemberRecord } from './access';
@@ -51,12 +54,12 @@ export async function retrieveInboundEmail(providerId: string, config = inboundC
 
 async function sourceFor(database: Database, route: InboundRoute): Promise<Source | null> {
   if (route.kind === 'new') return database.prepare(`SELECT m.* FROM members m JOIN organizations o ON o.id=m."organizationId" AND o."ownerId"=m."ownerId"
-    WHERE m.id=$1 AND o.id='daybook'`).bind(route.id).first<Source>();
+    WHERE m.id=$1`).bind(route.id).first<Source>();
   return database.prepare(`SELECT m.*, o."ticketId" AS "sourceTicketId",o."createdAt" AS "sourceCreatedAt",o."payloadJson" AS "sourcePayloadJson",
     o.environment AS "sourceEnvironment",o.event AS "sourceEvent",o."templateVersion" AS "sourceTemplateVersion"
     FROM "mailOutbox" o JOIN members m ON m.id=o."recipientMemberId" AND m."ownerId"=o."ownerId"
     JOIN organizations org ON org.id=m."organizationId" AND org."ownerId"=m."ownerId"
-    WHERE o.id=$1 AND org.id='daybook'`).bind(route.id).first<Source>();
+    WHERE o.id=$1`).bind(route.id).first<Source>();
 }
 
 async function writeReceipt(tx: PoolClient, envelope: InboundEnvelope, hash: string, config: InboundConfiguration, source: Source, result: InboundResult, now: string) {
@@ -86,6 +89,7 @@ export async function ingestInboundEmail(database: Database, envelope: InboundEn
   return database.transaction(async tx => {
     await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`daybook-inbound:${envelope.providerId}`]);
     await acquireTicketWorkLock(tx, source.ownerId);
+    await assertWorkspaceOperational(source.ownerId,tx);
     if (lease) await assertInboundLease(tx, source.ownerId, lease);
     const prior = (await tx.query<Receipt>('SELECT status,"reasonCode","ownerId","ticketId","messageId","payloadHash",environment FROM "inboundMailReceipts" WHERE "providerId"=$1 FOR UPDATE', [envelope.providerId])).rows[0];
     if (prior) {
@@ -96,6 +100,10 @@ export async function ingestInboundEmail(database: Database, envelope: InboundEn
     const row = (await tx.query<Source>('SELECT * FROM members WHERE id=$1 AND "ownerId"=$2 AND "organizationId"=$3 FOR NO KEY UPDATE', [source.id, source.ownerId, source.organizationId])).rows[0];
     if (imports && (imports.ids.length !== email.attachments.length || imports.draftId !== envelope.providerId || imports.kind !== (route.kind === 'new' ? 'request' : 'reply'))) throw new InvalidInboundEmail('invalid_attachments');
     let rejection = inboundRejection(email, Boolean(imports));
+    if(source.organizationId!=='daybook'){
+      const policy=(await tx.query('SELECT state,"inboundEnabled","mailFrom" FROM "workspaceProfiles" WHERE "ownerId"=$1 FOR SHARE',[source.ownerId])).rows[0];
+      if(!policy||policy.state!=='active'||!policy.inboundEnabled||!verifiedWorkspaceSender(source.organizationId,policy.mailFrom))rejection='disabled';
+    }
     if (!row || row.status !== 'active' || row.role !== 'client' || !row.userId) rejection = 'inactive_client';
     else if (row.email.toLowerCase() !== email.from || !validInboundRoute(route, { ownerId: row.ownerId, memberId: row.id, email: row.email }, config)) rejection = 'sender_changed';
     if (!rejection) {
@@ -160,6 +168,7 @@ export async function resolveInboundEnvelope(database: Database, envelope: Inbou
   if (routes.length !== 1) return ignored(routes.length ? 'ambiguous_recipient' : 'foreign_recipient');
   const route = routes[0], source = await sourceFor(database, route);
   if (!source || !validInboundRoute(route, { ownerId: source.ownerId, memberId: source.id, email: source.email }, config)) return ignored('unknown_route');
+  if(source.organizationId!=='daybook'&&!(await workspaceDeliveryContext(database,source.ownerId)).inbound)return ignored('disabled',source.ownerId);
   if (envelope.from !== source.email.toLowerCase()) return ignored('sender_mismatch');
   if (source.status !== 'active' || source.role !== 'client' || !source.userId) return ignored('inactive_client', source.ownerId);
   if (route.kind === 'reply') {

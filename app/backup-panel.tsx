@@ -1,4 +1,6 @@
 'use client';
+import { workspaceFetch } from '@/lib/workspace-client';
+
 import { useState } from 'react';
 import { Download, ShieldCheck, LoaderCircle } from 'lucide-react';
 export function BackupPanel({ memberId }: { memberId: string }) {
@@ -10,7 +12,7 @@ export function BackupPanel({ memberId }: { memberId: string }) {
       event.preventDefault(); if (busy || !accepted || password.length < 16 || password !== confirmation) return;
       setBusy(true); setError(''); setResult('');
       try {
-        const response = await fetch('/api/backups', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-Daybook-Member-Id': memberId }, body: JSON.stringify({ password, confirmation: 'RESPALDAR' }) });
+        const response = await workspaceFetch('/api/backups', { method: 'POST', credentials: 'same-origin', cache: 'no-store', headers: { 'Content-Type': 'application/json', 'X-Daybook-Member-Id': memberId }, body: JSON.stringify({ password, confirmation: 'RESPALDAR' }) });
         if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || 'No se pudo completar el respaldo.'); }
         const blob = await response.blob(), url = URL.createObjectURL(blob), link = document.createElement('a');
         link.href = url; link.download = `daybook-${new Date().toISOString().slice(0, 10)}.daybook`; link.click();

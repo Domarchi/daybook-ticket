@@ -78,6 +78,12 @@ export function db(): Database {
   return getDatabase();
 }
 export async function auth(request?: Request) {
+  if(request){
+    const path=new URL(request.url).pathname,referer=request.headers.get('referer');
+    if(/^\/api\//.test(path)&&!/^\/api\/(?:workspaces|operator|auth|account)(?:\/|$)/.test(path)&&referer){
+      try{if(/^\/w\//.test(new URL(referer).pathname))throw new ApiError(409,'Esta pestaña debe usar la ruta explícita de su espacio. Actualiza Daybook Ticket.');}catch(error){if(error instanceof ApiError)throw error;}
+    }
+  }
   if (request && request.method !== 'GET') {
     const origin = request.headers.get('origin');
     const siteUrl = process.env.DAYBOOK_SITE_URL;
@@ -107,6 +113,8 @@ export async function handle(fn: () => Promise<Response>) {
   catch (error) {
     if (error instanceof ApiError) return json({ error: error.message, ...(error.redirectTo ? { redirectTo: error.redirectTo } : {}) }, error.status);
     if (error instanceof z.ZodError) return json({ error: error.issues[0]?.message || 'Revisa los datos enviados.' }, 400);
+    if((error as {message?:string})?.message==='workspace_quota_exceeded')return json({error:'Este espacio alcanzó un límite del piloto. El administrador debe revisar su consumo.'},409);
+    if((error as {message?:string})?.message==='workspace_paused')return json({error:'Este espacio está en pausa. Sus datos se conservan.'},423);
     console.error('Daybook Ticket API failure', error instanceof Error ? error.message : 'Unknown error');
     return json({ error: 'No se pudieron guardar o consultar los datos. Intenta nuevamente.' }, 500);
   }

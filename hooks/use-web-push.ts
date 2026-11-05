@@ -1,5 +1,7 @@
 'use client';
 
+import { workspaceHome } from '@/lib/workspace-model';
+import { currentWorkspaceId } from '@/lib/workspace-client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { activePushRegistration, announcePushChange, publicPushKey, PUSH_CHANGED_EVENT, PUSH_STORAGE_KEY, pushRequest, supportsWebPush } from '@/lib/push-client';
 
@@ -109,7 +111,8 @@ export function useWebPush(account: string | null): WebPushControls {
         const saved = await pushRequest<{ enabled: boolean; subscriptionId: string | null }>('/api/push', 'PATCH', { endpoint: subscription.endpoint });
         if (!current()) return;
         if (!saved.enabled) {
-          await subscription.unsubscribe();
+          // Other workspaces may use the same native browser subscription.
+
           subscription = null;
         }
       }
@@ -143,10 +146,11 @@ export function useWebPush(account: string | null): WebPushControls {
       if (!current()) return;
       if (subscription) {
         await pushRequest('/api/push', 'DELETE', { endpoint: subscription.endpoint });
-        await subscription.unsubscribe();
+        // Other workspaces may use the same native browser subscription.
+
       }
       const notifications = await registration?.getNotifications();
-      notifications?.forEach(notification => notification.close());
+      notifications?.filter(notification=>{try{return new URL(notification.data?.url,location.origin).pathname===workspaceHome(currentWorkspaceId());}catch{return false;}}).forEach(notification=>notification.close());
       if (current()) {
         setState(previous => ({ ...previous, status: 'inactive', subscriptionId: null, notice: 'Los avisos con la página cerrada están desactivados en este navegador.' }));
         announcePushChange();
@@ -192,7 +196,7 @@ export function useWebPush(account: string | null): WebPushControls {
         tag: 'daybook-local-test',
         icon: '/icons/daybook-192.png',
         silent: false,
-        data: { url: '/' },
+        data: { url: workspaceHome(currentWorkspaceId()) },
       });
       if (current()) setState(previous => ({ ...previous, notice: 'Prueba local solicitada. Si no aparece, revisa las notificaciones del navegador en tu computador.' }));
     } catch (failure) {

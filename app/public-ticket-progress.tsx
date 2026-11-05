@@ -1,4 +1,6 @@
 'use client';
+import { workspaceFetch } from '@/lib/workspace-client';
+
 import { useEffect, useState } from 'react';
 import { Check, Clock3, UserRound } from 'lucide-react';
 import type { PublicTicketProgress as Progress } from '@/lib/ticket-presence-model';
@@ -13,7 +15,7 @@ export function PublicTicketProgress({ ticketId, memberId, version }: { ticketId
     const controller = new AbortController();
     void (async () => {
       try {
-        const response = await fetch(`/api/tickets/${ticketId}/progress`, { headers: { 'X-Daybook-Member-Id': memberId }, cache: 'no-store', signal: controller.signal });
+        const response = await workspaceFetch(`/api/tickets/${ticketId}/progress`, { headers: { 'X-Daybook-Member-Id': memberId }, cache: 'no-store', signal: controller.signal });
         if (!response.ok) throw new Error('Progress unavailable');
         const value = await response.json() as Progress;
         if (!controller.signal.aborted) setState({ key, value, failed: false });

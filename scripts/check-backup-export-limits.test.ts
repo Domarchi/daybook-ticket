@@ -30,6 +30,7 @@ function fixture(overrides: Record<string, { rows: string; bytes: string }> = {}
       queries.push({ sql, values });
       if (sql.startsWith('SET ')) return { rows: [] };
       if (sql.includes('pg_try_advisory_xact_lock')) return { rows: [{ locked: true }] };
+      if (sql.startsWith('SELECT state FROM \"workspaceProfiles\"')) return {rows:[]};
       if (sql.startsWith('SELECT * FROM members')) return { rows: [owner] };
       if (sql.includes('FROM information_schema.columns')) {
         const table = values?.[1];

@@ -1,4 +1,5 @@
 'use client';
+import { workspaceStorageKey } from '@/lib/workspace-client';
 import { useState } from 'react';
 export type TeamFilters = { company: string; agent: string; queue: string; priority: string; department: string };
 const EMPTY: TeamFilters = { company: 'all', agent: 'all', queue: 'all', priority: 'all', department: 'all' };
@@ -15,7 +16,7 @@ export function normalizeTeamFilters(value: unknown): TeamFilters {
 }
 function read(memberId: string): TeamFilters {
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(`daybook.ticket.filters.v1.${memberId}`) || 'null');
+    const value: unknown = JSON.parse(localStorage.getItem(workspaceStorageKey(`daybook.ticket.filters.v1.${memberId}`)) || 'null');
     return normalizeTeamFilters(value);
   } catch { /* Filters work without browser storage. */ }
   return EMPTY;
@@ -26,7 +27,7 @@ export function useTeamFilters(memberId?: string) {
   const filters = state.memberId === memberId ? state.filters : EMPTY;
   const update = (next: TeamFilters) => {
     setState({ memberId, filters: next });
-    if (memberId) try { localStorage.setItem(`daybook.ticket.filters.v1.${memberId}`, JSON.stringify(next)); } catch { /* Keep current filters in memory. */ }
+    if (memberId) try { localStorage.setItem(workspaceStorageKey(`daybook.ticket.filters.v1.${memberId}`), JSON.stringify(next)); } catch { /* Keep current filters in memory. */ }
   };
   return { filters, update };
 }

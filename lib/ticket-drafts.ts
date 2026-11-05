@@ -1,10 +1,11 @@
+import { currentWorkspaceId,workspaceStorageKey } from './workspace-client';
 export type DraftKind = 'reply' | 'note';
 export type DraftScope = { memberId: string; role: string; ticketId: number };
 export type TicketDraft = { kind: DraftKind; reply: string; note: string; recoveredLegacy: boolean };
 type DraftStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
 export function ticketDraftKey(scope: DraftScope) {
-  return `daybook.ticket.draft.v2.${encodeURIComponent(scope.memberId)}.${encodeURIComponent(scope.role)}.${scope.ticketId}`;
+  return workspaceStorageKey(`daybook.ticket.draft.v2.${encodeURIComponent(scope.memberId)}.${encodeURIComponent(scope.role)}.${scope.ticketId}`);
 }
 
 function emptyDraft(): TicketDraft {
@@ -43,7 +44,7 @@ export class TicketDraftStore {
     try {
       const saved = parseDraft(this.storage?.getItem(key) ?? null, scope.role === 'client');
       if (saved) draft = saved;
-      else if (legacyEmail && scope.role !== 'client') {
+      else if (legacyEmail && scope.role !== 'client' && currentWorkspaceId()==='daybook') {
         const legacyKey = `vexor.draft.v1.${legacyEmail}.${scope.ticketId}`;
         const legacy = this.storage?.getItem(legacyKey);
         if (legacy) {

@@ -1,8 +1,12 @@
 import { ApiError, auth, db, getSettings } from './server';
 import type { Member, MemberRole, MemberStatus, CompanyAccess, CustomerCompany } from './types';
+import type { Database } from '../db/database';
+import type { PoolClient } from 'pg';
 import type { DatabaseValue } from '../db/database';
 import { assertSecurityAccess, requireFreshSecurity } from './security';
 import { securityActionNeedsReauthentication } from './security-model';
+import { workspaceIdFromPath,isWorkspaceSetupPath } from './workspace-model';
+import { readCommercialWorkspace } from './workspaces';
 
 export interface MemberRecord extends Member {
   organizationId: string;
@@ -16,6 +20,7 @@ export interface AccessContext {
   member: Member;
   role: MemberRole;
   sessionId?: string;
+  workspaceSetup?: boolean;
 }
 export const memberColumns = '"isTest", id, name, email, role, status, ("userId" IS NOT NULL) AS "hasAccount", "customerCompanyId", "companyAccess", "createdAt", "updatedAt"';
 const memberRecordColumns = `${memberColumns}, "organizationId", "ownerId", "userId"`;
@@ -73,18 +78,29 @@ export async function validateMemberCompany(access: AccessContext, member: { rol
 }
 
 export async function requireAccess(request?: Request, options: { allowSecuritySetup?: boolean } = {}): Promise<AccessContext> {
-  const user = await auth(request);
-  const database = db();
-  const organization = await database.prepare("SELECT id, \"ownerId\" FROM organizations WHERE id = $1").bind('daybook').first<{ id: string; ownerId: string }>();
+  return resolveWorkspaceAccess(await auth(request),request,options);
+}
+/** Identity comes exclusively from the authenticated session; URL selects scope, never identity or role. */
+export async function resolveWorkspaceAccess(user:{userId:string;sessionId?:string},request:Request|undefined,options:{allowSecuritySetup?:boolean}={},database:Database=db()):Promise<AccessContext>{
+  const query={query:async(sql:string,values?:DatabaseValue[])=>{const value=await database.prepare(sql).bind(...values??[]).all();return {rows:value.results,rowCount:value.meta.changes};}} as Pick<PoolClient,'query'>;
+  const workspaceId=request?workspaceIdFromPath(new URL(request.url).pathname):'daybook';
+  const organization = await database.prepare("SELECT id, \"ownerId\" FROM organizations WHERE id = $1").bind(workspaceId).first<{ id: string; ownerId: string }>();
   if (!organization) throw new ApiError(503, 'El propietario debe activar Daybook Ticket.');
   const member = await database.prepare(`SELECT ${memberRecordColumns} FROM members WHERE "organizationId" = $1 AND "userId" = $2`).bind(organization.id, user.userId).first<MemberRecord>();
   if (!member || member.status !== 'active' || member.ownerId !== organization.ownerId) throw new ApiError(403, 'Tu cuenta no tiene acceso a Daybook Ticket. Solicita una invitación al equipo.');
   const expectedMember = request?.headers.get('X-Daybook-Member-Id');
   if (expectedMember && expectedMember !== member.id) throw new ApiError(409, 'La cuenta cambió. Actualiza la página antes de continuar.');
-  const access = { organizationId: organization.id, ownerId: organization.ownerId, userId: user.userId, sessionId: user.sessionId, member: publicMember(member), role: member.role };
+  const access:AccessContext = { organizationId: organization.id, ownerId: organization.ownerId, userId: user.userId, sessionId: user.sessionId, member: publicMember(member), role: member.role };
+  if(workspaceId!=='daybook'){
+    const profile=await readCommercialWorkspace(workspaceId,database);
+    if(!profile||profile.ownerId!==organization.ownerId)throw new ApiError(403,'Este espacio no está disponible.');
+    const setupPath=request&&isWorkspaceSetupPath(new URL(request.url).pathname);
+    if(profile.state!=='active'&&!(profile.state==='draft'&&access.role==='owner'&&setupPath))throw new ApiError(423,'Este espacio está en incorporación o en pausa. Sus datos se conservan.');
+    if(profile.state==='draft'&&access.role==='owner')access.workspaceSetup=true;
+  }
   if (!options.allowSecuritySetup) {
-    await assertSecurityAccess(access);
-    if (request && securityActionNeedsReauthentication(new URL(request.url).pathname, request.method)) await requireFreshSecurity(access);
+    await assertSecurityAccess(access,query);
+    if (request && securityActionNeedsReauthentication(new URL(request.url).pathname, request.method)) await requireFreshSecurity(access,query);
   }
   return access;
 }

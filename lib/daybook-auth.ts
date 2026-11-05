@@ -5,9 +5,8 @@ import { createAuthMiddleware, APIError, getAuthoritativeSessionFromCtx } from '
 import { twoFactor } from 'better-auth/plugins/two-factor';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { getDatabase, getPool } from '../db';
-import type { Database } from '../db/database';
 import * as schema from '../db/auth-schema';
-import { readInvitation } from './invitations';
+import { readInvitation,acceptInvitation } from './invitations';
 import { enqueueAuthEmail, getMailStatus } from './mail';
 import { safeAuthLogger } from './auth-logging';
 import { recordAuthProof, readIdentitySecurity } from './security';
@@ -29,9 +28,9 @@ export function daybookAuth() {
     emailAndPassword: {
       enabled: true, minPasswordLength: 12, maxPasswordLength: 128, revokeSessionsOnPasswordReset: true,
       sendResetPassword: async ({ user, url }) => {
-        const member = await database.prepare(`SELECT id,"ownerId" FROM members WHERE "userId"=$1 AND status='active'`).bind(user.id).first<{ id: string; ownerId: string }>();
+        const member = await database.prepare(`SELECT id,"ownerId" FROM members WHERE "userId"=$1 ORDER BY CASE WHEN status='active' THEN 0 ELSE 1 END,CASE WHEN "organizationId"='daybook' THEN 0 ELSE 1 END,"organizationId",id LIMIT 1`).bind(user.id).first<{ id: string; ownerId: string }>();
         if (!member) return;
-        if (!(await getMailStatus(member.ownerId)).configured) throw new APIError('SERVICE_UNAVAILABLE', { message: 'La recuperación por correo está pendiente de configuración. Contacta con tu administrador.' });
+        if (!(await getMailStatus('')).configured) throw new APIError('SERVICE_UNAVAILABLE', { message: 'La recuperación por correo está pendiente de configuración. Contacta con tu administrador.' });
         await enqueueAuthEmail(database, member.ownerId, member.id, url);
       },
     },
@@ -82,7 +81,7 @@ export function daybookAuth() {
       }
       if (ctx.path === '/sign-up/email' && ctx.context.newSession) {
         const user = ctx.context.newSession.user;
-        await linkInvitedAccount(database, user.id, user.email);
+        await acceptInvitation(database,ctx.headers?.get('x-daybook-invite')||'',{userId:user.id,email:user.email});
       }
     }) },
     databaseHooks: { user: { create: {
@@ -92,17 +91,8 @@ export function daybookAuth() {
   });
 }
 
-async function linkInvitedAccount(database: Database, userId: string, email: string) {
-  await database.batch([
-    database.prepare(`UPDATE members SET "userId"=$1,status='active',"updatedAt"=$2 WHERE email=$3 AND "userId" IS NULL AND status='invited' AND EXISTS(SELECT 1 FROM "authAccount" WHERE "userId"=$4 AND "providerId"='credential' AND password IS NOT NULL)`).bind(userId, new Date().toISOString(), email.toLowerCase(), userId),
-    database.prepare('DELETE FROM invitations WHERE "memberId" IN (SELECT id FROM members WHERE "userId"=$1)').bind(userId),
-  ]);
-}
-
 export async function getDaybookUser(request?: Request) {
   const session = await daybookAuth().api.getSession({ headers: request?.headers || await headers() });
   if (!session?.user.emailVerified) return null;
-  // Recovers a completed sign-up if a transient failure happened during membership linking.
-  await linkInvitedAccount(getDatabase(), session.user.id, session.user.email);
   return { userId: session.user.id, sessionId: session.session.id, email: session.user.email, fullName: session.user.name, displayName: session.user.name || session.user.email };
 }

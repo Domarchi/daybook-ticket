@@ -1,0 +1,117 @@
+// Explicit reviewed endpoint registry. Never dispatch auth, setup, provider webhooks, internal jobs or platform backups.
+import * as r0 from '@/app/api/agent-availability/route';
+import * as r1 from '@/app/api/alerts/route';
+import * as r2 from '@/app/api/articles/[id]/route';
+import * as r3 from '@/app/api/articles/route';
+import * as r4 from '@/app/api/assignment-rules/[id]/route';
+import * as r5 from '@/app/api/assignment-rules/route';
+import * as r6 from '@/app/api/attachments/[id]/complete/route';
+import * as r7 from '@/app/api/attachments/[id]/download/route';
+import * as r8 from '@/app/api/attachments/[id]/preview/route';
+import * as r9 from '@/app/api/attachments/[id]/route';
+import * as r10 from '@/app/api/attachments/cleanup/route';
+import * as r11 from '@/app/api/attachments/reserve/route';
+import * as r12 from '@/app/api/attachments/route';
+import * as r13 from '@/app/api/attachments/upload/route';
+import * as r14 from '@/app/api/companies/[id]/route';
+import * as r15 from '@/app/api/companies/route';
+import * as r16 from '@/app/api/email-inbound/[id]/retry/route';
+import * as r17 from '@/app/api/email-inbound/route';
+import * as r18 from '@/app/api/escalations/route';
+import * as r19 from '@/app/api/evolution/features/route';
+import * as r20 from '@/app/api/members/[id]/invite/route';
+import * as r21 from '@/app/api/members/[id]/route';
+import * as r22 from '@/app/api/members/route';
+import * as r23 from '@/app/api/metrics/agents/route';
+import * as r24 from '@/app/api/notifications/process/route';
+import * as r25 from '@/app/api/notifications/route';
+import * as r26 from '@/app/api/notifications/settings/route';
+import * as r27 from '@/app/api/push/diagnostics/route';
+import * as r28 from '@/app/api/push/receipt/route';
+import * as r29 from '@/app/api/push/route';
+import * as r30 from '@/app/api/push/test/route';
+import * as r31 from '@/app/api/satisfaction/route';
+import * as r32 from '@/app/api/saved-replies/[id]/route';
+import * as r33 from '@/app/api/saved-replies/route';
+import * as r34 from '@/app/api/security/audit/route';
+import * as r35 from '@/app/api/security/export/route';
+import * as r36 from '@/app/api/security/health/route';
+import * as r37 from '@/app/api/security/policy/route';
+import * as r38 from '@/app/api/security/route';
+import * as r39 from '@/app/api/security/sessions/route';
+import * as r40 from '@/app/api/service-policies/[scope]/route';
+import * as r41 from '@/app/api/service-policies/route';
+import * as r42 from '@/app/api/settings/route';
+import * as r43 from '@/app/api/tickets/[id]/claim/route';
+import * as r44 from '@/app/api/tickets/[id]/conversation/route';
+import * as r45 from '@/app/api/tickets/[id]/events/route';
+import * as r46 from '@/app/api/tickets/[id]/mail-delivery/route';
+import * as r47 from '@/app/api/tickets/[id]/messages/route';
+import * as r48 from '@/app/api/tickets/[id]/presence/route';
+import * as r49 from '@/app/api/tickets/[id]/progress/route';
+import * as r50 from '@/app/api/tickets/[id]/route';
+import * as r51 from '@/app/api/tickets/[id]/satisfaction/route';
+import * as r52 from '@/app/api/tickets/contacts/route';
+import * as r53 from '@/app/api/tickets/route';
+import * as r54 from '@/app/api/tickets/search/route';
+import * as r55 from '@/app/api/tickets/updates/route';
+import * as r56 from '@/app/api/workspace/route';
+export const WORKSPACE_ROUTE_REGISTRY=[
+{pattern:new RegExp('^agent-availability$'),names:[],handlers:r0},
+{pattern:new RegExp('^alerts$'),names:[],handlers:r1},
+{pattern:new RegExp('^articles/([^/]+)$'),names:['id'],handlers:r2},
+{pattern:new RegExp('^articles$'),names:[],handlers:r3},
+{pattern:new RegExp('^assignment-rules/([^/]+)$'),names:['id'],handlers:r4},
+{pattern:new RegExp('^assignment-rules$'),names:[],handlers:r5},
+{pattern:new RegExp('^attachments/([^/]+)/complete$'),names:['id'],handlers:r6},
+{pattern:new RegExp('^attachments/([^/]+)/download$'),names:['id'],handlers:r7},
+{pattern:new RegExp('^attachments/([^/]+)/preview$'),names:['id'],handlers:r8},
+{pattern:new RegExp('^attachments/([^/]+)$'),names:['id'],handlers:r9},
+{pattern:new RegExp('^attachments/cleanup$'),names:[],handlers:r10},
+{pattern:new RegExp('^attachments/reserve$'),names:[],handlers:r11},
+{pattern:new RegExp('^attachments$'),names:[],handlers:r12},
+{pattern:new RegExp('^attachments/upload$'),names:[],handlers:r13},
+{pattern:new RegExp('^companies/([^/]+)$'),names:['id'],handlers:r14},
+{pattern:new RegExp('^companies$'),names:[],handlers:r15},
+{pattern:new RegExp('^email-inbound/([^/]+)/retry$'),names:['id'],handlers:r16},
+{pattern:new RegExp('^email-inbound$'),names:[],handlers:r17},
+{pattern:new RegExp('^escalations$'),names:[],handlers:r18},
+{pattern:new RegExp('^evolution/features$'),names:[],handlers:r19},
+{pattern:new RegExp('^members/([^/]+)/invite$'),names:['id'],handlers:r20},
+{pattern:new RegExp('^members/([^/]+)$'),names:['id'],handlers:r21},
+{pattern:new RegExp('^members$'),names:[],handlers:r22},
+{pattern:new RegExp('^metrics/agents$'),names:[],handlers:r23},
+{pattern:new RegExp('^notifications/process$'),names:[],handlers:r24},
+{pattern:new RegExp('^notifications$'),names:[],handlers:r25},
+{pattern:new RegExp('^notifications/settings$'),names:[],handlers:r26},
+{pattern:new RegExp('^push/diagnostics$'),names:[],handlers:r27},
+{pattern:new RegExp('^push/receipt$'),names:[],handlers:r28},
+{pattern:new RegExp('^push$'),names:[],handlers:r29},
+{pattern:new RegExp('^push/test$'),names:[],handlers:r30},
+{pattern:new RegExp('^satisfaction$'),names:[],handlers:r31},
+{pattern:new RegExp('^saved-replies/([^/]+)$'),names:['id'],handlers:r32},
+{pattern:new RegExp('^saved-replies$'),names:[],handlers:r33},
+{pattern:new RegExp('^security/audit$'),names:[],handlers:r34},
+{pattern:new RegExp('^security/export$'),names:[],handlers:r35},
+{pattern:new RegExp('^security/health$'),names:[],handlers:r36},
+{pattern:new RegExp('^security/policy$'),names:[],handlers:r37},
+{pattern:new RegExp('^security$'),names:[],handlers:r38},
+{pattern:new RegExp('^security/sessions$'),names:[],handlers:r39},
+{pattern:new RegExp('^service-policies/([^/]+)$'),names:['scope'],handlers:r40},
+{pattern:new RegExp('^service-policies$'),names:[],handlers:r41},
+{pattern:new RegExp('^settings$'),names:[],handlers:r42},
+{pattern:new RegExp('^tickets/([^/]+)/claim$'),names:['id'],handlers:r43},
+{pattern:new RegExp('^tickets/([^/]+)/conversation$'),names:['id'],handlers:r44},
+{pattern:new RegExp('^tickets/([^/]+)/events$'),names:['id'],handlers:r45},
+{pattern:new RegExp('^tickets/([^/]+)/mail-delivery$'),names:['id'],handlers:r46},
+{pattern:new RegExp('^tickets/([^/]+)/messages$'),names:['id'],handlers:r47},
+{pattern:new RegExp('^tickets/([^/]+)/presence$'),names:['id'],handlers:r48},
+{pattern:new RegExp('^tickets/([^/]+)/progress$'),names:['id'],handlers:r49},
+{pattern:new RegExp('^tickets/([^/]+)$'),names:['id'],handlers:r50},
+{pattern:new RegExp('^tickets/([^/]+)/satisfaction$'),names:['id'],handlers:r51},
+{pattern:new RegExp('^tickets/contacts$'),names:[],handlers:r52},
+{pattern:new RegExp('^tickets$'),names:[],handlers:r53},
+{pattern:new RegExp('^tickets/search$'),names:[],handlers:r54},
+{pattern:new RegExp('^tickets/updates$'),names:[],handlers:r55},
+{pattern:new RegExp('^workspace$'),names:[],handlers:r56},
+];
