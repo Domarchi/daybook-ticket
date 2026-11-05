@@ -7,6 +7,10 @@ export interface PingerConfiguration {
   automationBypassSecret?: string;
   inboundEnabled?: boolean;
   backupsEnabled?: boolean;
+  serviceContextEnabled?: boolean;
+  serviceContextJobSecret?: string;
+  automationEnabled?: boolean;
+  automationJobSecret?: string;
 }
 export interface PingerDependencies { fetch?: typeof fetch; timeoutMs?: number }
 
@@ -22,7 +26,9 @@ export function createNotificationPinger(config: PingerConfiguration, dependenci
     || !origin.hostname.endsWith('.vercel.app') || !origin.hostname.startsWith('daybook-ticket')) throw new Error('Invalid target origin');
   const production = origin.hostname === 'daybook-ticket.vercel.app';
   if (production !== (config.environment === 'production') || (production && config.automationBypassSecret)) throw new Error('Environment target mismatch');
-  if (config.jobSecret.length < 32 || !config.expectedTriggerId.trim()) throw new Error('Missing private scheduler configuration');
+  const validWorkerSecret=(secret:string|undefined)=>typeof secret==='string'&&secret.length>=32&&secret.length<=4096&&secret.trim()===secret&&!/[\r\n]/.test(secret);
+  if(!validWorkerSecret(config.jobSecret)||!config.expectedTriggerId.trim()||(config.automationBypassSecret&&(/[\r\n]/.test(config.automationBypassSecret)||config.automationBypassSecret.length>4096)))throw new Error('Missing private scheduler configuration');
+  if((config.serviceContextEnabled&&!validWorkerSecret(config.serviceContextJobSecret))||(config.automationEnabled&&!validWorkerSecret(config.automationJobSecret)))throw new Error('Missing private worker configuration');
   const send = dependencies.fetch || fetch;
   return async (request: Request): Promise<Response> => {
     const privateHeaders = { 'cache-control': 'private, no-store' };
@@ -52,9 +58,9 @@ export function createNotificationPinger(config: PingerConfiguration, dependenci
     if (body.version !== 1 || body.invocation_id !== invocationId || body.trigger?.type !== 'schedule'
       || body.trigger?.id !== config.expectedTriggerId || typeof body.data?.scheduled_at !== 'string'
       || !Number.isFinite(Date.parse(body.data.scheduled_at))) return new Response('Unauthorized', { status: 401, headers: privateHeaders });
-    const headers = new Headers({ 'content-type': 'application/json', authorization: `Bearer ${config.jobSecret}` });
-    if (config.environment === 'qa' && config.automationBypassSecret) headers.set('x-vercel-protection-bypass', config.automationBypassSecret);
-    const invoke = async (path: string, timeout: number) => {
+    const invoke = async (path:string,timeout:number,secret=config.jobSecret) => {
+      const headers=new Headers({'content-type':'application/json',authorization:`Bearer ${secret}`});
+      if(config.environment==='qa'&&config.automationBypassSecret)headers.set('x-vercel-protection-bypass',config.automationBypassSecret);
       try {
         const response = await send(new URL(path, origin), {
           method: 'POST', redirect: 'manual', headers,
@@ -69,8 +75,10 @@ export function createNotificationPinger(config: PingerConfiguration, dependenci
     // a slow archive never takes away the reminder worker's Function budget.
     const notificationOk = await invoke('/api/internal/notification-tick', 25_000);
     const inboundOk = !config.inboundEnabled || await invoke('/api/internal/inbound-tick', 55_000);
+    const serviceContextOk=!config.serviceContextEnabled||await invoke('/api/internal/service-context-tick',45_000,config.serviceContextJobSecret);
+    const automationOk=!config.automationEnabled||await invoke('/api/internal/automation-tick',45_000,config.automationJobSecret);
     const backupsOk = !config.backupsEnabled || await invoke('/api/internal/backup-tick', 280_000);
-    if (!notificationOk || !inboundOk || !backupsOk) return new Response('Worker unavailable', { status: 503, headers: { ...privateHeaders, 'retry-after': '60' } });
+    if (!notificationOk || !inboundOk || !serviceContextOk || !automationOk || !backupsOk) return new Response('Worker unavailable', { status: 503, headers: { ...privateHeaders, 'retry-after': '60' } });
     return Response.json({ ok: true }, { headers: privateHeaders });
   };
 }

@@ -1,5 +1,6 @@
 import { ApiError, db } from './server';
 import { requireAdmin, type AccessContext } from './access';
+import { acquireTicketWorkLock } from './work-lock';
 import { lockAccess } from './ticket-mutations';
 import { featureChangeSchema, parseEvolutionFeatures, type EvolutionFeature } from './evolution-feature-model';
 import type { z } from 'zod';
@@ -18,6 +19,7 @@ export async function requireEvolutionFeature(access: AccessContext, feature: Ev
 }
 export async function changeEvolutionFeatures(access: AccessContext, input: z.infer<typeof featureChangeSchema>) {
   return db().transaction(async tx => {
+    await acquireTicketWorkLock(tx,access.ownerId);
     const fresh = requireAdmin(await lockAccess(tx, access));
     await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [`features:${access.ownerId}`]);
     const row = (await tx.query('SELECT * FROM "evolutionFeatures" WHERE "ownerId"=$1 FOR UPDATE', [access.ownerId])).rows[0];

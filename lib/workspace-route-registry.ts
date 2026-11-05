@@ -56,7 +56,53 @@ import * as r53 from '@/app/api/tickets/route';
 import * as r54 from '@/app/api/tickets/search/route';
 import * as r55 from '@/app/api/tickets/updates/route';
 import * as r56 from '@/app/api/workspace/route';
+import * as evolution0 from '@/app/api/automation/executions/route';
+import * as evolution1 from '@/app/api/automation/rules/[id]/versions/route';
+import * as evolution2 from '@/app/api/automation/rules/route';
+import * as evolution3 from '@/app/api/automation/settings/route';
+import * as evolution4 from '@/app/api/automation/simulate/route';
+import * as evolution5 from '@/app/api/organization/catalog/route';
+import * as evolution6 from '@/app/api/saved-views/[id]/route';
+import * as evolution7 from '@/app/api/saved-views/route';
+import * as evolution8 from '@/app/api/service-context/[resource]/[id]/route';
+import * as evolution9 from '@/app/api/service-context/assets/[id]/tickets/route';
+import * as evolution10 from '@/app/api/service-context/contracts/[id]/documents/route';
+import * as evolution11 from '@/app/api/service-context/route';
+import * as evolution12 from '@/app/api/task-templates/route';
+import * as evolution13 from '@/app/api/ticket-tasks/[id]/route';
+import * as evolution14 from '@/app/api/tickets/[id]/files/route';
+import * as evolution15 from '@/app/api/tickets/[id]/followers/route';
+import * as evolution16 from '@/app/api/tickets/[id]/messages/[messageId]/route';
+import * as evolution17 from '@/app/api/tickets/[id]/messages/search/route';
+import * as evolution18 from '@/app/api/tickets/[id]/organization/route';
+import * as evolution19 from '@/app/api/tickets/[id]/relations/route';
+import * as evolution20 from '@/app/api/tickets/[id]/service-context/route';
+import * as evolution21 from '@/app/api/tickets/[id]/task-templates/route';
+import * as evolution22 from '@/app/api/tickets/[id]/tasks/route';
 export const WORKSPACE_ROUTE_REGISTRY=[
+{pattern:new RegExp('^automation/executions$'),names:[],handlers:evolution0},
+{pattern:new RegExp('^automation/rules/([^/]+)/versions$'),names:["id"],handlers:evolution1},
+{pattern:new RegExp('^automation/rules$'),names:[],handlers:evolution2},
+{pattern:new RegExp('^automation/settings$'),names:[],handlers:evolution3},
+{pattern:new RegExp('^automation/simulate$'),names:[],handlers:evolution4},
+{pattern:new RegExp('^organization/catalog$'),names:[],handlers:evolution5},
+{pattern:new RegExp('^saved-views/([^/]+)$'),names:["id"],handlers:evolution6},
+{pattern:new RegExp('^saved-views$'),names:[],handlers:evolution7},
+{pattern:new RegExp('^service-context/([^/]+)/([^/]+)$'),names:["resource", "id"],handlers:evolution8},
+{pattern:new RegExp('^service-context/assets/([^/]+)/tickets$'),names:["id"],handlers:evolution9},
+{pattern:new RegExp('^service-context/contracts/([^/]+)/documents$'),names:["id"],handlers:evolution10},
+{pattern:new RegExp('^service-context$'),names:[],handlers:evolution11},
+{pattern:new RegExp('^task-templates$'),names:[],handlers:evolution12},
+{pattern:new RegExp('^ticket-tasks/([^/]+)$'),names:["id"],handlers:evolution13},
+{pattern:new RegExp('^tickets/([^/]+)/files$'),names:["id"],handlers:evolution14},
+{pattern:new RegExp('^tickets/([^/]+)/followers$'),names:["id"],handlers:evolution15},
+{pattern:new RegExp('^tickets/([^/]+)/messages/([^/]+)$'),names:["id", "messageId"],handlers:evolution16},
+{pattern:new RegExp('^tickets/([^/]+)/messages/search$'),names:["id"],handlers:evolution17},
+{pattern:new RegExp('^tickets/([^/]+)/organization$'),names:["id"],handlers:evolution18},
+{pattern:new RegExp('^tickets/([^/]+)/relations$'),names:["id"],handlers:evolution19},
+{pattern:new RegExp('^tickets/([^/]+)/service-context$'),names:["id"],handlers:evolution20},
+{pattern:new RegExp('^tickets/([^/]+)/task-templates$'),names:["id"],handlers:evolution21},
+{pattern:new RegExp('^tickets/([^/]+)/tasks$'),names:["id"],handlers:evolution22},
 {pattern:new RegExp('^agent-availability$'),names:[],handlers:r0},
 {pattern:new RegExp('^alerts$'),names:[],handlers:r1},
 {pattern:new RegExp('^articles/([^/]+)$'),names:['id'],handlers:r2},

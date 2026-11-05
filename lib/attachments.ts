@@ -1,28 +1,29 @@
 import { workspaceApiPath } from './workspace-model';
 import { randomUUID,createHash } from 'node:crypto';
+import {parseEvolutionFeatures} from './evolution-feature-model';
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import type { Database } from '../db/database';
 import { ApiError, db, getTicket } from './server';
 import { lockAccess } from './ticket-mutations';
-import { canAccessTicket, type AccessContext } from './access';
+import { canAccessTicket, requireAdmin, requireStaff, type AccessContext } from './access';
 import { attachmentFileInfo, AttachmentValidationError, MAX_ATTACHMENT_BYTES, validateAttachment } from './attachments-validation';
 import { AttachmentSizeError, attachmentStorage, attachmentStorageConfig, readAttachmentBytes, type PrivateAttachmentStorage } from './attachments-storage';
 
-export type AttachmentKind = 'request' | 'reply' | 'note';
+export type AttachmentKind = 'request' | 'reply' | 'note' | 'contract';
 export interface AttachmentRow {
-  id: string; ownerId: string; memberId: string; draftId: string; ticketId: number | null; messageId: number | null;
+  id: string; ownerId: string; memberId: string; draftId: string; ticketId: number | null; messageId: number | null; contractId?: string | null;
   kind: AttachmentKind; pathname: string; name: string; contentType: string; size: number;
   status: 'reserved' | 'uploaded' | 'ready' | 'attached' | 'deleting' | 'deleted';
   expiresAt: string; uploadedAt: string | null; validatedAt: string | null; createdAt: string; updatedAt: string;
 }
 export const attachmentScopeSchema = z.object({
-  draftId: z.string().uuid(), kind: z.enum(['request', 'reply', 'note']), ticketId: z.number().int().positive().optional(),
-}).strict().refine(scope => scope.kind === 'request' ? scope.ticketId === undefined : scope.ticketId !== undefined, 'Selecciona el ticket del adjunto.');
+  draftId: z.string().uuid(), kind: z.enum(['request', 'reply', 'note', 'contract']), ticketId: z.number().int().positive().optional(), contractId: z.string().uuid().optional(),
+}).strict().refine(scope => scope.kind === 'contract' ? scope.contractId !== undefined && scope.ticketId === undefined : scope.contractId === undefined && (scope.kind === 'request' ? scope.ticketId === undefined : scope.ticketId !== undefined), 'Selecciona un único destino válido para el adjunto.');
 export const reserveAttachmentSchema = z.object({
-  draftId: z.string().uuid(), kind: z.enum(['request', 'reply', 'note']), ticketId: z.number().int().positive().optional(),
+  draftId: z.string().uuid(), kind: z.enum(['request', 'reply', 'note', 'contract']), ticketId: z.number().int().positive().optional(), contractId: z.string().uuid().optional(),
   name: z.string().min(1).max(180), size: z.number().int().min(1).max(MAX_ATTACHMENT_BYTES), contentType: z.string().max(150),
-}).strict().refine(scope => scope.kind === 'request' ? scope.ticketId === undefined : scope.ticketId !== undefined, 'Selecciona el ticket del adjunto.');
+}).strict().refine(scope => scope.kind === 'contract' ? scope.contractId !== undefined && scope.ticketId === undefined : scope.contractId === undefined && (scope.kind === 'request' ? scope.ticketId === undefined : scope.ticketId !== undefined), 'Selecciona un único destino válido para el adjunto.');
 type Scope = z.infer<typeof attachmentScopeSchema>;
 export function publicAttachment(row: AttachmentRow) {
   return { id: row.id, name: row.name, contentType: row.contentType, size: row.size, status: row.status, expiresAt: row.expiresAt };
@@ -39,7 +40,15 @@ function validationError(error: unknown): never {
 function pending(row: AttachmentRow) {
   if (!['reserved', 'uploaded', 'ready'].includes(row.status) || row.expiresAt <= new Date().toISOString()) throw new ApiError(409, 'Este adjunto venció o ya no pertenece al borrador. Vuelve a adjuntarlo.');
 }
-async function scopeAccess(access: AccessContext, scope: Scope) {
+async function scopeAccess(access: AccessContext, scope: Scope, database:Database=db()) {
+  if (scope.kind === 'contract') {
+    requireAdmin(access);
+    const feature=await database.prepare('SELECT \"featuresJson\" FROM \"evolutionFeatures\" WHERE \"ownerId\"=$1').bind(access.ownerId).first<{featuresJson:string}>();
+    if(!parseEvolutionFeatures(feature?.featuresJson).serviceContext)throw new ApiError(503,'Los contratos están en pausa. El borrador se conserva.');
+    const contract=await database.prepare('SELECT id FROM "serviceContracts" WHERE id=$1 AND "ownerId"=$2 AND NOT archived').bind(scope.contractId!,access.ownerId).first();
+    if (!contract) throw new ApiError(404, 'El contrato no está disponible para adjuntar documentos.');
+    return;
+  }
   if (scope.kind === 'note' && access.role === 'client') throw new ApiError(403, 'Las notas internas están reservadas para el equipo.');
   if (scope.ticketId !== undefined) await getTicket(access, scope.ticketId);
 }
@@ -47,6 +56,14 @@ async function liveAccess(tx: PoolClient, access: AccessContext): Promise<Access
   return lockAccess(tx,access);
 }
 async function transactionScope(tx: PoolClient, access: AccessContext, scope: Scope) {
+  if (scope.kind === 'contract') {
+    requireAdmin(access);
+    const feature=(await tx.query('SELECT \"featuresJson\" FROM \"evolutionFeatures\" WHERE \"ownerId\"=$1',[access.ownerId])).rows[0];
+    if(!parseEvolutionFeatures(feature?.featuresJson).serviceContext)throw new ApiError(503,'Los contratos están en pausa. El borrador se conserva.');
+    const contract=(await tx.query('SELECT id FROM "serviceContracts" WHERE id=$1 AND "ownerId"=$2 AND NOT archived FOR SHARE',[scope.contractId,access.ownerId])).rows[0];
+    if (!contract) throw new ApiError(404, 'El contrato no está disponible para adjuntar documentos.');
+    return;
+  }
   if (scope.kind === 'note' && access.role === 'client') throw new ApiError(403, 'Las notas internas están reservadas para el equipo.');
   if (scope.ticketId !== undefined) {
     const ticket = (await tx.query('SELECT * FROM tickets WHERE id=$1 AND "ownerId"=$2 FOR SHARE', [scope.ticketId, access.ownerId])).rows[0];
@@ -55,9 +72,9 @@ async function transactionScope(tx: PoolClient, access: AccessContext, scope: Sc
 }
 
 export async function listDraftAttachments(access: AccessContext, scope: Scope, database = db()) {
-  await scopeAccess(access, scope);
-  const rows = await database.prepare(`SELECT * FROM attachments WHERE "ownerId"=$1 AND "memberId"=$2 AND "draftId"=$3 AND kind=$4 AND "ticketId" IS NOT DISTINCT FROM $5 AND status IN ('reserved','uploaded','ready') AND "expiresAt">$6 ORDER BY "createdAt",id`)
-    .bind(access.ownerId, access.member.id, scope.draftId, scope.kind, scope.ticketId ?? null, new Date().toISOString()).all<AttachmentRow>();
+  await scopeAccess(access, scope, database);
+  const rows = await database.prepare(`SELECT * FROM attachments WHERE "ownerId"=$1 AND "memberId"=$2 AND "draftId"=$3 AND kind=$4 AND "ticketId" IS NOT DISTINCT FROM $5 AND "contractId" IS NOT DISTINCT FROM $7::text AND status IN ('reserved','uploaded','ready') AND "expiresAt">$6 ORDER BY "createdAt",id`)
+    .bind(access.ownerId, access.member.id, scope.draftId, scope.kind, scope.ticketId ?? null, new Date().toISOString(), scope.contractId ?? null).all<AttachmentRow>();
   return { attachments: rows.results.map(publicAttachment), configured: attachmentsConfigured() };
 }
 
@@ -65,7 +82,7 @@ export async function reserveAttachment(access: AccessContext, input: z.infer<ty
   const store = storage ?? requireStorage();
   let file: ReturnType<typeof attachmentFileInfo>;
   try { file = attachmentFileInfo(input.name); } catch (error) { return validationError(error); }
-  await scopeAccess(access, input);
+  await scopeAccess(access, input, database);
   // A failed cleanup never prevents reading/sending an already ready attachment.
   await cleanupAttachments(access.ownerId, access.member.id, 10, database, store);
   const row = await database.transaction(async tx => {
@@ -76,7 +93,7 @@ export async function reserveAttachment(access: AccessContext, input: z.infer<ty
     if (rows.filter(row => row.draftId === input.draftId && row.kind === input.kind && !['deleting','deleted'].includes(row.status)).length >= 5) throw new ApiError(409, 'Puedes adjuntar hasta 5 archivos por mensaje.');
     const id = randomUUID(), now = new Date().toISOString(), expiresAt = new Date(Date.now() + 86400_000).toISOString();
     const pathname = `daybook/${attachmentStorageConfig()?.environment || 'qa'}/${access.organizationId==='daybook'?'':`workspaces/${createHash('sha256').update(access.ownerId).digest('hex')}/`}${randomUUID()}/${id}.bin`;
-    return (await tx.query<AttachmentRow>(`INSERT INTO attachments (id,"ownerId","memberId","draftId","ticketId",kind,pathname,name,"contentType",size,status,"expiresAt","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'reserved',$11,$12,$12) RETURNING *`, [id, access.ownerId, access.member.id, input.draftId, input.ticketId ?? null, input.kind, pathname, file.name, file.contentType, input.size, expiresAt, now])).rows[0];
+    return (await tx.query<AttachmentRow>(`INSERT INTO attachments (id,"ownerId","memberId","draftId","ticketId",kind,pathname,name,"contentType",size,status,"expiresAt","createdAt","updatedAt","contractId") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'reserved',$11,$12,$12,$13) RETURNING *`, [id, access.ownerId, access.member.id, input.draftId, input.ticketId ?? null, input.kind, pathname, file.name, file.contentType, input.size, expiresAt, now, input.contractId ?? null])).rows[0];
   });
   return { attachment: publicAttachment(row), pathname: row.pathname, uploadUrl: workspaceApiPath('/api/attachments/upload',access.organizationId) };
 }
@@ -85,7 +102,7 @@ export async function ownPendingAttachment(access: AccessContext, id: string, da
   const row = await database.prepare('SELECT * FROM attachments WHERE id=$1 AND "ownerId"=$2 AND "memberId"=$3').bind(id, access.ownerId, access.member.id).first<AttachmentRow>();
   if (!row) throw new ApiError(404, 'El adjunto no existe o no tienes acceso.');
   pending(row);
-  await scopeAccess(access, { draftId: row.draftId, kind: row.kind, ...(row.ticketId ? { ticketId: row.ticketId } : {}) });
+  await scopeAccess(access, { draftId: row.draftId, kind: row.kind, ...(row.ticketId ? { ticketId: row.ticketId } : {}), ...(row.contractId ? { contractId: row.contractId } : {}) }, database);
   return row;
 }
 
@@ -97,7 +114,7 @@ export async function attachmentUploadTokenOptions(access: AccessContext, id: st
     if (!row || row.pathname !== pathname) throw new ApiError(404, 'La reserva del archivo no existe.');
     pending(row);
     if (row.status === 'ready' || multipart) throw new ApiError(409, 'Esta carga no admite reemplazos ni fragmentos.');
-    await transactionScope(tx, fresh, { draftId: row.draftId, kind: row.kind, ...(row.ticketId ? { ticketId: row.ticketId } : {}) });
+    await transactionScope(tx, fresh, { draftId: row.draftId, kind: row.kind, ...(row.ticketId ? { ticketId: row.ticketId } : {}), ...(row.contractId ? { contractId: row.contractId } : {}) });
     return { allowedContentTypes: [row.contentType], maximumSizeInBytes: row.size, validUntil: Math.min(Date.parse(row.expiresAt), Date.now() + 5 * 60_000), addRandomSuffix: false, allowOverwrite: false, cacheControlMaxAge: 60 };
   });
 }
@@ -126,7 +143,7 @@ export async function completeAttachment(access: AccessContext, id: string, data
     const current = (await tx.query<AttachmentRow>('SELECT * FROM attachments WHERE id=$1 AND "ownerId"=$2 AND "memberId"=$3 FOR UPDATE', [id, access.ownerId, access.member.id])).rows[0];
     if (!current) throw new ApiError(404, 'El adjunto no existe.');
     pending(current);
-    await transactionScope(tx, fresh, { draftId: row.draftId, kind: row.kind, ...(row.ticketId ? { ticketId: row.ticketId } : {}) });
+    await transactionScope(tx, fresh, { draftId: row.draftId, kind: row.kind, ...(row.ticketId ? { ticketId: row.ticketId } : {}), ...(row.contractId ? { contractId: row.contractId } : {}) });
     const ready = (await tx.query<AttachmentRow>(`UPDATE attachments SET status='ready',"contentType"=$1,"validatedAt"=$2,"updatedAt"=$2 WHERE id=$3 RETURNING *`, [validated.contentType, new Date().toISOString(), id])).rows[0];
     return { attachment: publicAttachment(ready) };
   });
@@ -161,13 +178,14 @@ export async function linkReadyAttachments(tx: PoolClient, access: AccessContext
 }
 
 export async function downloadAttachment(access: AccessContext, id: string, database = db(), storage?: PrivateAttachmentStorage) {
-  const row = await database.prepare(`SELECT a.* FROM attachments a INNER JOIN messages m ON m.id=a."messageId" AND m."ownerId"=a."ownerId" AND m."ticketId"=a."ticketId" AND m.kind=a.kind
-    WHERE a.id=$1 AND a."ownerId"=$2 AND a.status='attached' AND EXISTS (SELECT 1 FROM members viewer
+  const row = await database.prepare(`SELECT a.* FROM attachments a LEFT JOIN messages m ON m.id=a."messageId" AND m."ownerId"=a."ownerId" AND m."ticketId"=a."ticketId" AND m.kind=a.kind LEFT JOIN "serviceContracts" c ON c.id=a."contractId" AND c."ownerId"=a."ownerId"
+    WHERE a.id=$1 AND a."ownerId"=$2 AND a.status='attached' AND ((a.kind='contract' AND c.id IS NOT NULL AND $6 IN ('owner','admin','agent')) OR (a.kind<>'contract' AND m.id IS NOT NULL)) AND EXISTS (SELECT 1 FROM members viewer
       WHERE viewer.id=$3 AND viewer."ownerId"=$2 AND viewer."organizationId"=$4 AND viewer."userId"=$5 AND viewer.status='active'
         AND viewer.role=$6 AND viewer."customerCompanyId" IS NOT DISTINCT FROM $7::text AND viewer."companyAccess"=$8)`)
     .bind(id, access.ownerId, access.member.id, access.organizationId, access.userId, access.role, access.member.customerCompanyId, access.member.companyAccess).first<AttachmentRow>();
-  if (!row || !row.ticketId || (row.kind === 'note' && access.role === 'client')) throw new ApiError(404, 'El adjunto no existe o no tienes acceso.');
-  await getTicket(access, row.ticketId);
+  if (!row || (row.kind !== 'contract' && !row.ticketId) || (row.kind === 'note' && access.role === 'client')) throw new ApiError(404, 'El adjunto no existe o no tienes acceso.');
+  if (row.kind === 'contract') requireStaff(access);
+  else await getTicket(access, row.ticketId!);
   const store = storage ?? requireStorage();
   let file;
   try { file = await store.read(row.pathname); } catch { throw new ApiError(503, 'No se pudo descargar el archivo. Intenta nuevamente.'); }
@@ -217,4 +235,21 @@ export async function cleanupAttachments(ownerId: string, memberId: string | nul
     } catch { /* Retry the leased row on later activity; never expose storage errors or keys. */ }
   }
   return { deleted };
+}
+
+
+/** Contract files have an explicit private destination, never a synthetic message. */
+export async function linkContractAttachments(tx: PoolClient, access: AccessContext, input: { ids: string[]; draftId: string; contractId: string }) {
+  const fresh = requireAdmin(await liveAccess(tx, access));
+  await transactionScope(tx, fresh, {draftId:input.draftId, kind:'contract', contractId:input.contractId});
+  if (!input.ids.length || input.ids.length>5 || new Set(input.ids).size!==input.ids.length) throw new ApiError(400,'Selecciona hasta cinco archivos diferentes.');
+  const count=(await tx.query('SELECT COUNT(*)::integer AS total FROM attachments WHERE "contractId"=$1 AND "ownerId"=$2 AND status=\'attached\'',[input.contractId,access.ownerId])).rows[0].total;
+  if(count+input.ids.length>100) throw new ApiError(409,'El contrato admite hasta 100 documentos.');
+  const rows=(await tx.query<AttachmentRow>('SELECT * FROM attachments WHERE id=ANY($1::text[]) AND "ownerId"=$2 ORDER BY id FOR UPDATE',[input.ids,access.ownerId])).rows;
+  if(rows.length!==input.ids.length) throw new ApiError(404,'Uno de los archivos no existe.');
+  for(const row of rows) {
+    pending(row);
+    if(row.status!=='ready' || row.memberId!==access.member.id || row.draftId!==input.draftId || row.kind!=='contract' || row.contractId!==input.contractId || row.ticketId!==null || row.messageId!==null) throw new ApiError(409,'Un archivo no pertenece a este borrador del contrato o aún no está listo.');
+  }
+  await tx.query('UPDATE attachments SET status=\'attached\',"updatedAt"=$1 WHERE id=ANY($2::text[])',[new Date().toISOString(),input.ids]);
 }

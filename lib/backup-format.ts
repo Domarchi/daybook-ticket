@@ -5,9 +5,29 @@ export const BACKUP_MAGIC = Buffer.from('DAYBOOK1\n');
 export const MAX_BACKUP_BYTES = 128 * 1024 * 1024;
 export const LEGACY_BACKUP_TABLES = ['authUser', 'authAccount', 'organizations', 'customerCompanies', 'members', 'tickets', 'messages', 'articles', 'settings', 'demoImports', 'savedReplies', 'operations', 'attachments', 'ticketEvents', 'servicePolicies', 'assignmentRules', 'agentAvailability', 'ticketSlaOutcomes', 'notificationSettings', 'reminderOccurrences', 'escalationSettings', 'escalationOccurrences', 'ticketSatisfaction', 'inboundMailReceipts', 'mailOutbox', 'mailDeliveryEvents', 'pushSubscriptions', 'pushDeliveries', 'invitations', 'notificationJobHealth'] as const;
 export const RELIABILITY_BACKUP_TABLES = [...LEGACY_BACKUP_TABLES, 'inboundMailJobs', 'inboundMailJobFiles', 'ticketPresence', 'automaticBackupSettings', 'automaticBackupRuns', 'automaticBackupUsage'] as const;
-export const SECURITY_BACKUP_TABLES=[...RELIABILITY_BACKUP_TABLES,'twoFactor','securityProfiles','securityPolicies','securityAudit'] as const;
-export const BACKUP_TABLES=[...SECURITY_BACKUP_TABLES,'workspaceProfiles'] as const;
-export const BACKUP_TABLE_PROFILES:readonly(readonly string[])[]=[LEGACY_BACKUP_TABLES,RELIABILITY_BACKUP_TABLES,SECURITY_BACKUP_TABLES,BACKUP_TABLES];
+export const COLLABORATION_BACKUP_TABLES = [...RELIABILITY_BACKUP_TABLES,'messageMentions','ticketFollowers','evolutionFeatures','userPreferences'] as const;
+export const ORGANIZATION_BACKUP_TABLES = [...COLLABORATION_BACKUP_TABLES, 'workOrganizationCatalog', 'workOrganizationRevisions', 'ticketOrganization', 'ticketTasks', 'savedTicketViews'] as const;
+export const SERVICE_CONTEXT_BACKUP_TABLES = ['companyProfiles','companySites','customerServices','customerAssets','serviceContracts','ticketServiceContext','ticketAssetLinks','ticketContractLinks','serviceContextEvents','serviceContextNotificationSettings','serviceContextReminders','serviceContextJobHealth'] as const;
+export const AUTOMATION_BACKUP_TABLES=['automationSettings','taskTemplates','automationRules','automationRuleVersions','automationEvents','automationExecutions','automationJobHealth','ticketRelations'] as const;
+export const LEGACY_SECURITY_BACKUP_TABLES=[...RELIABILITY_BACKUP_TABLES,'twoFactor','securityProfiles','securityPolicies','securityAudit'] as const;
+export const LEGACY_WORKSPACE_BACKUP_TABLES=[...LEGACY_SECURITY_BACKUP_TABLES,'workspaceProfiles'] as const;
+type BackupTableName=typeof ORGANIZATION_BACKUP_TABLES[number]|typeof SERVICE_CONTEXT_BACKUP_TABLES[number]|typeof AUTOMATION_BACKUP_TABLES[number]|'twoFactor'|'securityProfiles'|'securityPolicies'|'securityAudit'|'workspaceProfiles';
+const orderedBackupTables:BackupTableName[]=[];
+for(const table of ORGANIZATION_BACKUP_TABLES){
+ if(table==='attachments')orderedBackupTables.push(...SERVICE_CONTEXT_BACKUP_TABLES.slice(0,9));
+ if(table==='mailOutbox')orderedBackupTables.push(...SERVICE_CONTEXT_BACKUP_TABLES.slice(9));
+ orderedBackupTables.push(table);
+}
+export const PRE_AUTOMATION_BACKUP_TABLES:readonly BackupTableName[]=orderedBackupTables;
+export const AUTOMATION_RELEASE_BACKUP_TABLES:readonly BackupTableName[]=[...PRE_AUTOMATION_BACKUP_TABLES,...AUTOMATION_BACKUP_TABLES];
+export const SECURITY_BACKUP_TABLES:readonly BackupTableName[]=[...AUTOMATION_RELEASE_BACKUP_TABLES,'twoFactor','securityProfiles','securityPolicies','securityAudit'];
+export const BACKUP_TABLES:readonly BackupTableName[]=[...SECURITY_BACKUP_TABLES,'workspaceProfiles'];
+export const BACKUP_TABLE_PROFILES:readonly (readonly string[])[]=[LEGACY_BACKUP_TABLES,RELIABILITY_BACKUP_TABLES,COLLABORATION_BACKUP_TABLES,ORGANIZATION_BACKUP_TABLES,PRE_AUTOMATION_BACKUP_TABLES,AUTOMATION_RELEASE_BACKUP_TABLES,LEGACY_SECURITY_BACKUP_TABLES,LEGACY_WORKSPACE_BACKUP_TABLES,SECURITY_BACKUP_TABLES,BACKUP_TABLES];
+export const ADDED_BACKUP_COLUMNS: Readonly<Record<string,readonly string[]>> = {authUser:['twoFactorEnabled'],invitations:['acceptedAt','acceptedUserId'],members:['isTest'],tickets:['isTest'],messages:['replyToMessageId'],mailOutbox:['sourceMessageId','serviceReminderId'],attachments:['contractId']};
+export function compatibleBackupColumns(table:string,target:readonly string[],source:readonly string[]){
+ const optional=ADDED_BACKUP_COLUMNS[table]??[];
+ return JSON.stringify(target.filter(column=>source.includes(column)||!optional.includes(column)))===JSON.stringify(source);
+}
 export type BackupTable = typeof BACKUP_TABLES[number];
 export type BackupRow = Record<string, string | number | boolean | null>;
 export interface WorkspaceBackup {
@@ -73,8 +93,8 @@ export function validateBackup(input: unknown): WorkspaceBackup {
     if (bytes > 24 * 1024 * 1024) throw new Error('Backup data limit exceeded');
     if (sha256(canonical) !== table.sha256) throw new Error('Backup table checksum mismatch');
   }
-  const required=BACKUP_TABLE_PROFILES.find(profile=>profile.length===names.size&&profile.every(name=>names.has(name)));
-  if(!required)throw new Error('Backup is missing required tables');
+  const required = BACKUP_TABLE_PROFILES.find(profile=>profile.length===names.size&&profile.every(name=>names.has(name)));
+  if (!required) throw new Error('Backup is missing required tables');
   const attachments = new Map(data.tables.find(table => table.name === 'attachments')!.rows.map(row => [row.id, row]));
   const files = new Set<string>();
   for (const file of data.files) {

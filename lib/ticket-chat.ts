@@ -16,7 +16,7 @@ export function compareChatMessages(left: Message, right: Message): number {
 
 /** Filtering precedes every display, search and new-message calculation. */
 export function visibleChatMessages(messages: Message[], staff: boolean): Message[] {
-  return messages.filter(message => staff || message.kind !== 'note').sort(compareChatMessages);
+  return messages.filter(message => staff || message.kind !== 'note').map(message=>{const privateQuote=message.quote?.kind==='note'&&(message.kind!=='note'||!staff);const privateMentions=!staff&&Boolean(message.mentions?.length);return privateQuote||privateMentions?{...message,...(privateQuote?{quote:null}:{}),...(privateMentions?{mentions:[]}: {})}:message;}).sort(compareChatMessages);
 }
 
 export function chatDayKey(createdAt: string): string {

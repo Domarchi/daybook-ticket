@@ -13,6 +13,10 @@ const notificationPinger = {
         automationBypassSecret: process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
         inboundEnabled: process.env.DAYBOOK_PINGER_INBOUND_ENABLED === 'true',
         backupsEnabled: process.env.DAYBOOK_PINGER_BACKUPS_ENABLED === 'true',
+        serviceContextEnabled: process.env.DAYBOOK_SERVICE_CONTEXT_JOB_ENABLED === 'true',
+        serviceContextJobSecret: process.env.DAYBOOK_SERVICE_CONTEXT_JOB_SECRET,
+        automationEnabled: process.env.DAYBOOK_AUTOMATION_JOB_ENABLED === 'true',
+        automationJobSecret: process.env.DAYBOOK_AUTOMATION_JOB_SECRET,
       })(request);
     } catch { return new Response('Unconfigured', { status: 503 }); }
   },

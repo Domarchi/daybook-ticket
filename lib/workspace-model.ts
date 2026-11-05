@@ -8,7 +8,7 @@ export function workspaceIdFromPath(path:string):string {
 export function workspaceHome(id:string,ticketId?:number){workspaceIdSchema.parse(id);return `${id==='daybook'?'/':`/w/${id}`}${ticketId&&Number.isSafeInteger(ticketId)&&ticketId>0?`?ticket=${ticketId}`:''}`;}
 export function workspaceApiPath(path:string,id='daybook'){
   workspaceIdSchema.parse(id);
-  if(!path.startsWith('/api/')||/^\/api\/(?:auth|account|operator|workspaces)(?:\/|$)/.test(path))return path;
+  if(!path.startsWith('/api/')||/^\/api\/(?:auth|account|operator|workspaces|preferences)(?:\/|\?|$)/.test(path))return path;
   return id==='daybook'?path:`/api/workspaces/${id}/${path.slice(5)}`;
 }
 export function isWorkspaceSetupPath(path:string){return /^\/api\/workspaces\/[^/]+\/(?:security(?:\/(?:policy|sessions))?|administration|evolution\/features)$/.test(path);}

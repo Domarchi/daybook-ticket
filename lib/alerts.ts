@@ -6,7 +6,7 @@ import type { z } from 'zod';
 import type { AlertsPage } from './types';
 import type { DatabaseValue } from '../db/database';
 
-const events = "('ticket_created', 'agent_replied', 'client_replied', 'reminder', 'escalation', 'satisfaction_requested')";
+const events = "('ticket_created', 'agent_replied', 'client_replied', 'reminder', 'escalation', 'satisfaction_requested', 'member_mentioned', 'ticket_followed_update')";
 
 function alertScope(access: AccessContext) {
   const scope = ticketAccessSql(access);
@@ -20,7 +20,8 @@ function alertScope(access: AccessContext) {
     AND live."organizationId"=${organization} AND live."userId"=${user} AND live.status='active' AND live.role=${role}
     AND live."customerCompanyId" IS NOT DISTINCT FROM ${company}::text AND live."companyAccess"=${permission})`;
   return {
-    sql: `${scope.sql} AND ${live} AND o."recipientMemberId" = ${member} AND o.event IN ${events}${access.role === 'client' ? " AND o.event NOT IN ('reminder','escalation')" : ''}
+    sql: `${scope.sql} AND ${live} AND o."recipientMemberId" = ${member} AND o.event IN ${events}${access.role === 'client' ? " AND o.event NOT IN ('reminder','escalation','member_mentioned','ticket_followed_update')" : ''}
+      AND (o.event NOT IN ('member_mentioned','ticket_followed_update') OR (EXISTS (SELECT 1 FROM messages p WHERE p.id=o."sourceMessageId" AND p."ownerId"=o."ownerId" AND p."ticketId"=t.id AND ((o.event='member_mentioned' AND p.kind='note' AND EXISTS (SELECT 1 FROM "messageMentions" x WHERE x."messageId"=p.id AND x."memberId"=o."recipientMemberId" AND x."ownerId"=o."ownerId")) OR (o.event='ticket_followed_update' AND p.kind<>'note')))))
       AND (o.event <> 'satisfaction_requested' OR (${access.role === 'client' ? 'TRUE' : 'FALSE'} AND t."requesterMemberId"=o."recipientMemberId" AND EXISTS (SELECT 1 FROM "ticketSatisfaction" s WHERE s.id=o."satisfactionId" AND s."ownerId"=o."ownerId" AND s."requesterMemberId"=o."recipientMemberId")))`,
     values,
   };

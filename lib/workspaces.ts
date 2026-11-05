@@ -13,6 +13,12 @@ export async function assertWorkspaceOperational(ownerId:string,query:Pick<PoolC
   const profile=(await query.query('SELECT state FROM "workspaceProfiles" WHERE "ownerId"=$1',[ownerId])).rows[0];
   if(profile&&profile.state!=='active'&&!allowSetup)throw new ApiError(423,'Este espacio está en incorporación o en pausa. Sus datos se conservan.');
 }
+/** Workers hold the same owner lock as pilot suspension. A paused pilot leaves
+ * its queue intact and spends neither retries nor notification stage keys. */
+export async function workspaceOperationalInTransaction(ownerId:string,query:Pick<PoolClient,'query'>){
+  const row=(await query.query('SELECT o.id,p.state FROM organizations o LEFT JOIN "workspaceProfiles" p ON p."workspaceId"=o.id AND p."ownerId"=o."ownerId" WHERE o."ownerId"=$1',[ownerId])).rows[0];
+  return Boolean(row&&(row.id==='daybook'||row.state==='active'));
+}
 export async function requireOperator(request:Request,fresh=false){
   const user=await auth(request);
   if(!operatorGranted(user))throw new ApiError(403,'Esta consola requiere una concesión explícita de operador.');
@@ -61,9 +67,15 @@ export async function createPilot(input:{name:string;ownerName:string;ownerEmail
   });
   return {workspaceId,state:'draft',invitationUrl:invitation.url};
 }
+async function lockPilot(tx:PoolClient,id:string){
+  const identity=(await tx.query<{ownerId:string}>('SELECT "ownerId" FROM "workspaceProfiles" WHERE "workspaceId"=$1',[id])).rows[0];
+  if(!identity)return null;
+  await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`daybook-ticket-work:${identity.ownerId}`]);
+  return (await tx.query<CommercialWorkspace>('SELECT * FROM "workspaceProfiles" WHERE "workspaceId"=$1 FOR UPDATE',[id])).rows[0]??null;
+}
 export async function renewPilotOwnerInvitation(id:string,expectedVersion:number,database=db(),actor?:OperatorActor){
  return database.transaction(async tx=>{
-  const profile=(await tx.query<CommercialWorkspace>('SELECT * FROM "workspaceProfiles" WHERE "workspaceId"=$1 FOR UPDATE',[id])).rows[0];
+  const profile=await lockPilot(tx,id);
   if(!profile||profile.state!=='draft')throw new ApiError(409,'Solo puede renovarse el acceso inicial de un piloto en borrador.');
   if(profile.version!==expectedVersion)throw new ApiError(409,'El piloto cambió. Actualiza antes de renovar.');
   const owner=(await tx.query('SELECT id FROM members WHERE "ownerId"=$1 AND role=\'owner\' AND status=\'invited\' AND "userId" IS NULL FOR UPDATE',[profile.ownerId])).rows[0];
@@ -79,7 +91,7 @@ export async function renewPilotOwnerInvitation(id:string,expectedVersion:number
 export async function changePilot(id:string,input:{state?:CommercialWorkspace['state'];limits?:unknown;expectedVersion:number;capacityConfirmed?:boolean},database=db(),capacity=parsePilotCapacity(),actor?:OperatorActor){
   return database.transaction(async tx=>{
     await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',['commercial-workspace-capacity']);
-    const profile=(await tx.query<CommercialWorkspace>('SELECT * FROM "workspaceProfiles" WHERE "workspaceId"=$1 FOR UPDATE',[id])).rows[0];
+    const profile=await lockPilot(tx,id);
     if(!profile)throw new ApiError(404,'El piloto no existe.');
     if(profile.version!==input.expectedVersion)throw new ApiError(409,'El piloto cambió. Actualiza la consola.');
     if((input.state??profile.state)==='active'){
@@ -105,6 +117,7 @@ export async function changePilot(id:string,input:{state?:CommercialWorkspace['s
 export async function configureWorkspace(access:AccessContext,input:{brandName:string;mailFrom:string|null;mailEnabled:boolean;inboundEnabled:boolean;expectedVersion:number},database=db()){
   return database.transaction(async tx=>{
     const {lockAccess}=await import('./ticket-mutations'),{requireFreshSecurity}=await import('./security');
+    await tx.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`daybook-ticket-work:${access.ownerId}`]);
     const fresh=await lockAccess(tx,access);if(!['owner','admin'].includes(fresh.role))throw new ApiError(403,'Solo administración puede configurar el negocio.');await requireFreshSecurity(fresh,tx);
     const row=(await tx.query<CommercialWorkspace>('SELECT * FROM "workspaceProfiles" WHERE "workspaceId"=$1 AND "ownerId"=$2 FOR UPDATE',[access.organizationId,access.ownerId])).rows[0];
     if(!row)throw new ApiError(400,'La configuración de Daybook se conserva en sus ajustes actuales.');
