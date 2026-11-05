@@ -6,17 +6,18 @@ import type { CatalogItem, CatalogKind, FieldDefinition, FieldSnapshot, FieldVal
 import { selectCompanyForm } from '@/lib/work-organization-model';
 import { getDraftOperations } from '@/lib/draft-operations';
 import type { TicketFilters } from '@/hooks/use-ticket-search';
+import {daybookFetch} from '@/lib/browser-request';
 import './work-organization.css';
 
 const EMPTY_CATALOG: OrganizationCatalog = { tags: [], requestTypes: [], fields: [], forms: [] };
 const KIND_LABELS: Record<CatalogKind,string> = { tag:'Etiquetas',requestType:'Tipos de solicitud',field:'Campos',form:'Formularios' };
-async function orgRequest<T>(memberId:string,path:string,method='GET',body?:unknown,signal?:AbortSignal):Promise<T> {
-  const response=await fetch(path,{method,signal,cache:'no-store',headers:{'X-Daybook-Member-Id':memberId,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});
+export async function orgRequest<T>(memberId:string,path:string,method='GET',body?:unknown,signal?:AbortSignal):Promise<T> {
+  const response=await daybookFetch(path,{method,signal,cache:'no-store',headers:{'X-Daybook-Member-Id':memberId,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})},method==='GET'?'No se pudo conectar con Daybook. Vuelve a intentarlo.':'El cambio no se ha confirmado. Actualiza la vista para comprobar si se guardó antes de repetirlo.');
   const value=await response.json().catch(()=>({}));
   if(!response.ok) throw new Error(typeof value.error==='string'?value.error:'No se pudo completar la operación.');
   return value as T;
 }
-function useOrgResource<T>(memberId:string,path:string,enabled=true,refreshKey?:string|number) {
+export function useOrgResource<T>(memberId:string,path:string,enabled=true,refreshKey?:string|number) {
   const key=`${memberId}:${path}`, [revision,setRevision]=useState(0);
   const [state,setState]=useState<{key:string;data:T|null;error:string;loading:boolean}>({key:'',data:null,error:'',loading:false});
   useEffect(()=>{

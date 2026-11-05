@@ -1,3 +1,4 @@
+import {enqueueAutomationEvent,drainAutomationBestEffort} from '@/lib/automation';
 import {validateMessageCollaboration,attachMessageCollaboration,followerRecipients} from '@/lib/ticket-collaboration';
 import {ApiError,db,handle,json,parseBody,messageSchema,parseId,type RouteContext} from '@/lib/server';
 import {getSettingsInTransaction} from '@/lib/settings-transaction';
@@ -16,10 +17,12 @@ export async function POST(request:Request,context:RouteContext) {
     const data=await parseBody(request,messageSchema);
     const result=await runOperation(access,data.operationId,'message',{ticketId:id,...data},async(tx,fresh)=>{
       const settings=await getSettingsInTransaction(tx,access.ownerId);
-      const ticket=await lockTicket(tx,fresh,id);
       const client=fresh.role==='client';
       if(client && data.kind!=='reply') throw new ApiError(403,'Las notas internas están reservadas para el equipo.');
+      // Reserve mentioned members before the ticket, sharing the order used by
+      // current-membership readers and all owner-serialized ticket writers.
       const collaboration=await validateMessageCollaboration(tx,fresh,id,data);
+      const ticket=await lockTicket(tx,fresh,id);
       const now=new Date().toISOString();
       const {rows}=await tx.query('INSERT INTO messages ("ownerId","ticketId",author,"authorMemberId","authorRole",body,kind,"createdAt","bodyFormat") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,"ticketId",author,"authorMemberId","authorRole",body,"bodyFormat",kind,"createdAt"',[access.ownerId,id,fresh.member.name,fresh.member.id,fresh.role,data.body,data.kind,now,data.bodyFormat || 'plain']);
       const message={...rows[0],...collaboration};
@@ -37,9 +40,10 @@ export async function POST(request:Request,context:RouteContext) {
         for(const recipientMemberId of recipients) for(const stmt of notificationStatements(db(),{ownerId:access.ownerId,event:client?'client_replied':'agent_replied',eventKey:`message:${data.operationId}:${recipientMemberId}`,recipientMemberId,ticketId:id})) await db().execute(stmt,tx);
         for(const recipientMemberId of await followerRecipients(tx,fresh,id,recipients)) for(const stmt of notificationStatements(db(),{ownerId:access.ownerId,event:'ticket_followed_update',eventKey:`follow:${data.operationId}`,recipientMemberId,ticketId:id,sourceMessageId:message.id})) await db().execute(stmt,tx);
       }
+      if(data.kind!=='note')await enqueueAutomationEvent(tx,fresh,id,`message:${data.operationId}`,client?'client_replied':'agent_replied');
       return {message};
     });
-    after(async()=>{await Promise.allSettled([processPushOutboxBestEffort(access.ownerId),drainOutboxBestEffort(access.ownerId)]);});
+    after(async()=>{await Promise.allSettled([processPushOutboxBestEffort(access.ownerId),drainOutboxBestEffort(access.ownerId),drainAutomationBestEffort(access.ownerId)]);});
     return json(result,201);
   });
 }

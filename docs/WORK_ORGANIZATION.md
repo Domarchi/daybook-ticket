@@ -49,3 +49,9 @@ Límites iniciales: 100 entradas activas por tipo de catálogo y 1.000 incluyend
 - El coordinador aplica migraciones y ejecuta QA; este paquete no consulta ni modifica bases remotas.
 
 Al revertir código, conservar las cinco tablas nuevas y sus revisiones. Desactivar la interfaz/función conserva tareas, formularios y contexto histórico.
+
+## Integración y QA acumulada
+
+La interfaz ya está conectada a los formularios de cliente/equipo, detalle y vistas de bandeja. El interruptor `organization` gobierna las rutas; las referencias y valores del formulario se guardan por cuenta en el borrador y conservan el reintento tras una respuesta de red perdida. Los bloqueos de lectura y escritura respetan el orden de trabajo del espacio, miembros y ticket.
+
+QA: ocho grupos de integración revertidos, alta HTTP ficticia #384 (campos obligatorios, intento repetido sin duplicar, conflicto de versión, tareas/vistas privadas), revisión de escritorio y390×844, claro/oscuro y cliente sin campos internos. La migración conservó43tablas y587filas originales. Recuperación ampliada de45tablas ydosarchivos, incluidas tareas/catálogo/vistas, así como archivo histórico real de36tablas sin las columnas aditivas: huellas y limpieza completas. Sin solicitudes externas de correo/push/Blob. El operador de publicación fija el hash de0008 yfecha1793912001000.

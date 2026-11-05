@@ -1,7 +1,8 @@
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
 import { ApiError, db, getTicket } from './server';
-import { requireStaff, type AccessContext } from './access';
+import { canAccessTicket, requireStaff, type AccessContext } from './access';
+import { acquireTicketWorkLock } from './work-lock';
 import { lockAccess, lockTicket } from './ticket-mutations';
 import { ticketReadScope } from './ticket-read-scope';
 import { decodeTicketCursor, encodeTicketCursor, literalSearchPattern } from './ticket-search-query';
@@ -15,6 +16,10 @@ const messageSelect = `m.id,m."ticketId",m."replyToMessageId",m.author,m."author
   FROM attachments a WHERE a."ownerId"=m."ownerId" AND a."ticketId"=m."ticketId" AND a."messageId"=m.id AND a.kind=m.kind AND a.status='attached'),'[]'::jsonb) AS attachments`;
 
 export async function validateMessageCollaboration(tx: PoolClient, access: AccessContext, ticketId: number, input: { kind: string; replyToMessageId?: number | null; mentionMemberIds?: string[] }) {
+  // A read check before reserving mentioned members avoids an existence oracle.
+  // The caller holds the owner work lock; it locks the ticket after this check.
+  const ticket=(await tx.query('SELECT \"ownerId\",\"requesterMemberId\",\"customerCompanyId\" FROM tickets WHERE id=$1 AND \"ownerId\"=$2',[ticketId,access.ownerId])).rows[0];
+  if(!ticket||!canAccessTicket(access,ticket))throw new ApiError(404,'El ticket no existe o no tienes acceso.');
   if ((input.mentionMemberIds?.length ?? 0) && input.kind !== 'note') throw new ApiError(400, 'Las menciones están disponibles solo en notas internas.');
   const ids = safeMentionIds(input.mentionMemberIds ?? [], access.member.id, input.kind);
   if (input.replyToMessageId || ids.length) {
@@ -118,6 +123,7 @@ export async function getTicketFollowers(access: AccessContext, ticketId: number
 }
 export async function setTicketFollowing(access: AccessContext,ticketId:number,following:boolean) {
   await db().transaction(async tx=>{
+    await acquireTicketWorkLock(tx,access.ownerId);
     const fresh=requireStaff(await lockAccess(tx,access)); await lockTicket(tx,fresh,ticketId);
     if(following) await tx.query('INSERT INTO "ticketFollowers" ("ownerId","ticketId","memberId","createdAt") VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING',[access.ownerId,ticketId,fresh.member.id,new Date().toISOString()]);
     else await tx.query('DELETE FROM "ticketFollowers" WHERE "ownerId"=$1 AND "ticketId"=$2 AND "memberId"=$3',[access.ownerId,ticketId,fresh.member.id]);

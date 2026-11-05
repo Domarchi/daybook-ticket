@@ -1,6 +1,7 @@
 'use client';
 import {KnowledgePanel,KnowledgeSuggestions} from './knowledge';
 import {RequestOrganizationFields,TicketOrganizationPanel,SavedViewPicker,type OrganizationRequestValue} from './work-organization';
+import {daybookFetch,UNCERTAIN_SEND_MESSAGE} from '@/lib/browser-request';
 import { MessageEditor } from './message-content';
 import { TicketChat } from './ticket-chat';
 import { TicketSatisfactionPanel } from './satisfaction';
@@ -18,6 +19,7 @@ import type { ConnectionStatus } from '@/hooks/use-workspace';
 import type { AlertControls } from '@/hooks/use-ticket-alerts';
 import { TicketAlerts } from './ticket-alerts';
 import { disconnectPushOnSignOut } from '@/lib/push-client';
+import { useDraftQuote } from '@/hooks/use-draft-quote';
 import { useTicketDraft } from '@/hooks/use-ticket-draft';
 import { ticketDraftKey } from '@/lib/ticket-drafts';
 import { getDraftOperations } from '@/lib/draft-operations';
@@ -34,7 +36,7 @@ const date = (value: string) => new Intl.DateTimeFormat('es', { day: 'numeric', 
 const number = (id: number) => `#${String(id).padStart(4, '0')}`;
 
 async function post<T = unknown>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const response = await daybookFetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },UNCERTAIN_SEND_MESSAGE);
   const result: unknown = await response.json().catch(() => ({}));
   if (!response.ok) {
     const message = result && typeof result === 'object' && 'error' in result ? result.error : null;
@@ -216,20 +218,22 @@ function ClientComposer({ memberId, ticketId, busy, onSend, replyTarget, onClear
   replyTarget:Message|null;onClearReply:()=>void;
   onSend: (payload: ClientMessageSubmission) => Promise<boolean>;
 }) {
-  const { message, persistent, edit, complete } = useTicketDraft({ memberId, role: 'client', ticketId });
+  const { message, persistent, edit, complete, setReferences } = useTicketDraft({ memberId, role: 'client', ticketId });
   const scope = `${ticketDraftKey({ memberId, role: 'client', ticketId })}.reply`;
   const attachments = useDraftAttachments(scope, 'reply', ticketId);
+  const resolvedQuote=useDraftQuote({memberId,role:'client',ticketId},'reply',message.replyToMessageId),quote=resolvedQuote.quote;
+  useEffect(()=>{if(!replyTarget)return;if(replyTarget.kind!=='note'&&replyTarget.ticketId===ticketId)setReferences('reply',{replyToMessageId:replyTarget.id});onClearReply();},[replyTarget,ticketId,setReferences,onClearReply]);
   return <form className="client-composer ticket-chat-composer reply" onSubmit={async event => {
     event.preventDefault();
-    if (busy || !message.body.trim() || !attachments.canSubmit) return;
-    const payload = { body: message.body, ...attachments.payload(), bodyFormat: 'markdown' as const,...(replyTarget?{replyToMessageId:replyTarget.id}:{}) };
+    if (busy || !message.body.trim() || !attachments.canSubmit || resolvedQuote.loading || resolvedQuote.error) return;
+    const payload = { body: message.body, ...attachments.payload(), bodyFormat: 'markdown' as const,...('replyToMessageId' in message?{replyToMessageId:message.replyToMessageId}:{}) };
     const operations = getDraftOperations();
-    if (await onSend({ ...payload, operationId: operations.forPayload(scope, payload) })) { complete(message); attachments.complete(); operations.clear(scope);onClearReply(); }
+    if (await onSend({ ...payload, operationId: operations.forPayload(scope, payload) })) { complete(message); attachments.complete(); operations.clear(scope); }
   }}>
     {!persistent && <p className="draft-notice" role="status">Tu navegador no permite guardar este borrador al recargar. Conservaremos el texto mientras esta página siga abierta.</p>}
-    {replyTarget&&<div className="ticket-reply-banner"><span><strong>Respondiendo a {replyTarget.author}</strong><small>{replyTarget.body.slice(0,180)}</small></span><button type="button" className="icon-button" aria-label="Quitar cita" onClick={onClearReply}><X size={16}/></button></div>}
+    {message.replyToMessageId&&<div className="ticket-reply-banner"><span><strong>{quote?`Respondiendo a ${quote.author}`:resolvedQuote.loading?'Comprobando cita…':'Cita pendiente de comprobar'}</strong>{quote&&<small>{quote.body.slice(0,180)}</small>}{resolvedQuote.error&&<><small role="alert">{resolvedQuote.error}</small><button type="button" className="text-button" onClick={resolvedQuote.retry}>Reintentar cita</button></>}</span><button type="button" className="icon-button" aria-label="Quitar cita" onClick={()=>setReferences('reply',{})}><X size={16}/></button></div>}
     <MessageEditor compact id="client-reply" label="Añadir una respuesta" value={message.body} onChange={edit} disabled={busy} rows={5} placeholder="Escribe tu respuesta o añade información…"/>
     <AttachmentComposer controls={attachments} disabled={busy}/>
-    <div className="composer-footer"><span>Compartida con quienes tienen acceso a este ticket.</span><button className="primary" disabled={busy || !message.body.trim() || !attachments.canSubmit}>{busy ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}Enviar respuesta</button></div>
+    <div className="composer-footer"><span>Compartida con quienes tienen acceso a este ticket.</span><button className="primary" disabled={busy || !message.body.trim() || !attachments.canSubmit || resolvedQuote.loading || Boolean(resolvedQuote.error)}>{busy ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}Enviar respuesta</button></div>
   </form>;
 }

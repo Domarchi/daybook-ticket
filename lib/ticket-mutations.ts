@@ -1,3 +1,4 @@
+import {enqueueAutomationEvent} from './automation';
 import { createHash } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { ApiError, db } from './server';
@@ -150,6 +151,7 @@ export async function patchTicket(access:AccessContext,id:number,data:Record<str
       requesterMemberId:rows[0].requesterMemberId,resolverMemberId:fresh.member.id,customerCompanyId:rows[0].customerCompanyId,
     });
     for(const key of ['isTest','subject','status','priority','assigneeMemberId','customerCompanyId','requesterMemberId','department']) if(key in changes) await recordEvent(tx,fresh,id,key,old[key as keyof Ticket],changes[key]);
+    await enqueueAutomationEvent(tx,fresh,id,`ticket:${id}:version:${rows[0].version}`,'ticket_updated');
     return {ticket:rows[0] as Ticket};
   });
 }
