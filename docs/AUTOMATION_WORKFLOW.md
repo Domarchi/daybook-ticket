@@ -1,6 +1,6 @@
 # E4: automatizaciones internas y casos relacionados
 
-Implementación aditiva sobre E2. No cambia estados, prioridades, `dueAt`, políticas SLA, mensajes, archivos ni hilos de correo. Reglas, tareas y vínculos son internos; los clientes reciben 403. No existe ejecución de código de usuario, respuesta pública automática ni cascada de eventos.
+Implementación aditiva sobre E3. No cambia estados, prioridades, `dueAt`, políticas SLA, mensajes, archivos ni hilos de correo. Reglas, tareas y vínculos son internos; los clientes reciben 403. No existe ejecución de código de usuario, respuesta pública automática ni cascada de eventos.
 
 ## Comportamiento
 
@@ -33,7 +33,7 @@ Componentes: `AutomationPanel({memberId,companies,members,departments})` para ad
 
 ## Integración acumulada E1–E4
 
-La rama incorpora `codex/daybook-evolution-03` en `451062f`, incluido el arreglo de borradores de E1 y los formularios durables E2. El diario contiene el prefijo contiguo 0–10: `0010_automation`, índice 10 y fecha `1793912003000`. No se ha ejecutado la migración aquí. La lista productiva de migraciones revisadas conserva 0–9: incorporar el pin 0010 requiere primero el ensayo QA y la revisión del coordinador.
+La rama incorpora `codex/daybook-evolution-03` en `9d8375c`, incluido el arreglo de borradores de E1 y los formularios durables E2. El diario contiene el prefijo contiguo 0–10: `0010_automation`, índice 10 y fecha `1793912003000`. El coordinador ensayó y aplicó 0010 exclusivamente en QA mediante el operador revisado y fijó su hash; el prefijo 0–10 conservó todas las tablas, columnas y filas originales. No se aplicó a producción.
 
 - Todas las rutas públicas E4 pasan por `requireAutomationAccess` y el gate E1. Los mutadores administrativos vuelven a comprobar el gate dentro de la transacción. `enqueueAutomationEvent` y cada transacción del worker lo comprueban con su conexión; un gate apagado conserva la cola e historial, sin reservar ni ejecutar trabajo. El cambio administrativo de flags toma el owner work lock antes de la pertenencia para serializarlo con los eventos y acciones.
 - Portal: creación usa `ticket:<operationId>`; mensajes públicos usan `message:<operationId>` y distinguen cliente/equipo. `patchTicket` usa `ticket:<id>:version:<version>` solo cuando realmente hay cambios; la organización usa esa misma clave de versión al cambiar metadatos, etiquetas o motivo de espera. Todas las reservas se realizan dentro de la transacción original. No hay eventos para notas, importaciones, tareas, vínculos ni acciones del worker.
@@ -71,23 +71,16 @@ La restauración pausa explícitamente el motor, borra `activatedAt`, cancela lo
 
 Apagar primero el programador y luego el motor/gate del espacio detiene trabajo nuevo y existente. Los tickets, tareas, relaciones, snapshots y ejecuciones se conservan. Volver al despliegue anterior mantiene tablas aditivas y datos actuales; no revertir borrando tablas. Antes de producción, comparar inventario/huellas y comprobar descarga de archivos según el proceso de conservación del repositorio.
 
-## Resultado local (2026-11-05)
-
-- `npm run lint`: PASS; revisión adicional de los últimos cambios de automatización y del script QA sin incidencias.
-- `npm run typecheck`: PASS.
-- `npm run test:unit`: 271/271 PASS antes de añadir el borde de activación simultánea; la ejecución final específica de E4: 13/13 PASS. Subconjunto de automatización y compatibilidad de respaldos: 16/16 PASS antes de ese test adicional.
-- `npm run build`: PASS sobre las fuentes finales, con rutas nuevas registradas.
-- `node --check scripts/check-automation-database.mjs` y `git diff --check`: PASS.
-- Registro original del bloque aislado. La integración posterior añade gates E1 y respaldo; QA de base, conservación/restauración y revisión visual integrada siguen pendientes del coordinador. No se leyeron secretos ni se ejecutaron migraciones, QA mutante o infraestructura desde este worktree.
-
 ## Recuperación acumulada de 65 tablas
 
-El ensayo de recuperación conserva las fixtures E3 de sede, equipo, contrato y documento privado (tres archivos). Añade filas ficticias a las ocho tablas E4, versiones y ejecución histórica, un evento terminado y otro pendiente, y una relación de duplicado con un segundo caso. Verifica huellas originales antes de pausar el motor, cancelar solo el pendiente y limpiar el marcador del ejecutor; conserva versiones, plantillas, ejecución y vínculo. Este ensayo queda preparado para el coordinador: no se ha ejecutado en este worktree.
+El ensayo de recuperación conserva las fixtures E3 de sede, equipo, contrato y documento privado (tres archivos). Añade filas ficticias a las ocho tablas E4, versiones y ejecución histórica, un evento terminado y otro pendiente, y una relación de duplicado con un segundo caso. Verifica huellas originales antes de pausar el motor, cancelar solo el pendiente y limpiar el marcador del ejecutor; conserva versiones, plantillas, ejecución y vínculo. El ensayo pasó en QA con 65 tablas y tres archivos; las cuentas ficticias y los esquemas aislados se limpiaron al terminar.
 
-## Cierre de integración acumulada (2026-11-05)
+## Evidencia de revisión acumulada
 
-- Base E3 `451062f`, con feedback de red y recuperación contractual conservados. Diario 0–10 contiguo y declaraciones de esquema sin duplicados.
-- `npm run lint`, `npm run typecheck` y `npm run build`: PASS sobre la integración final. `npm run test:unit`: **323/323 PASS**. El último ajuste del transporte compartido y del ensayo de recuperación superó lint y las comprobaciones pertinentes.
-- Pinger: nueve comprobaciones conjuntas con recordatorios/fiabilidad, y seis casos finales de fanout y secretos, todos aprobados con fetch simulado. `npm run build:notification-pinger`: PASS. Artefacto local `outputs/notification-pinger/function.zip`, 1.789 bytes, SHA-256 `28869f062d5728436ca1ba7ed4030c4d615d9b4fb50a28a05a722dc216d752ab`. Sin claves dentro del artefacto.
-- Migración 0010 sin cambios: SHA-256 `520cb6ef34cee5ad428c4843388b2b712c3e4825a4591ebbb7fb1dd3e4ad435c`.
-- Los scripts QA de automatización, bloqueos y recuperación de 65 tablas están preparados y revisados sintácticamente, **sin ejecutarlos**. Pendientes del coordinador: ensayo/pin/aplicación QA 0010, recorridos HTTP/visuales, recuperación con datos reales ficticios de las 65 tablas y publicación revisable. No se publicaron producción/Preview ni se actualizaron Functions, secretos, DNS o planes desde esta entrega.
+Código integrado `87c5a3f`: lint, tipos, **323 pruebas unitarias** y compilación aprobados. QA pasó 15 grupos de automatización con rollback y limpieza, exclusión de una segunda transacción, acciones/recibo atómicos, revocación, reintentos y SLA intacto. El ensayo y la aplicación de 0010 conservaron **60 tablas y 638 filas** anteriores.
+
+El recorrido HTTP ficticio creó el ticket #398: simulación, alta idempotente, una ejecución y una tarea, etiqueta interna, acceso de cliente denegado y vínculo de duplicado. El motor quedó pausado al terminar. La revisión visual en escritorio y móvil, claro y negro, comprobó editor, simulación sin cambios y controles táctiles, sin desbordamiento horizontal.
+
+La recuperación de **65 tablas y tres archivos** pasó con huellas, claves foráneas, compatibilidad del archivo histórico y limpieza completa. Los trabajos quedaron pausados conservando reglas, versiones e historial. No hubo correo, push ni Blob externos.
+
+Pinger existente: fanout simulado y compilación aprobados. No se crearon ni actualizaron Functions, programaciones, proveedores, DNS o planes. Los destinos nuevos siguen desactivados. Vista previa protegida de QA: https://daybook-ticket-evolution-04-qa-domarchi.vercel.app/ . No hay publicación productiva.
