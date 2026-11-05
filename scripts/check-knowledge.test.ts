@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { PDFDocument,StandardFonts } from 'pdf-lib';
+import { PDFDocument,StandardFonts,PDFArray,PDFRawStream,decodePDFRawStream } from 'pdf-lib';
 import { knowledgeContentSchema,knowledgePublicationSchema,knowledgeSearchTokens,monthlyReportPeriod,companyReportSchema,pauseKnowledgeFeaturesJson } from '../lib/knowledge-model';
 import { companyReportCsv,companyReportPdf,wrapPdfText } from '../lib/company-report-export';
 import { KnowledgeDraftStore,knowledgeDraftKey } from '../lib/knowledge-drafts';
@@ -41,6 +41,28 @@ test('PDF layout measures long words and safely handles unsupported glyphs',asyn
 test('monthly PDF is a readable paginated branded document without contacting providers',async()=>{
  const fetch=globalThis.fetch;let requests=0;globalThis.fetch=async()=>{requests++;throw new Error('Network disabled');};
  try{const bytes=await companyReportPdf(knowledgeReportFixture(true));assert.ok(Buffer.from(bytes).subarray(0,5).equals(Buffer.from('%PDF-')));const doc=await PDFDocument.load(bytes);assert.ok(doc.getPageCount()>=3);assert.equal(doc.getAuthor(),'Daybook');assert.ok(doc.getPages().every(page=>page.getWidth()===595&&page.getHeight()===842));assert.equal(requests,0);}finally{globalThis.fetch=fetch;}
+});
+async function pdfPageTexts(bytes:Uint8Array){
+ const doc=await PDFDocument.load(bytes);
+ return doc.getPages().map(page=>{
+  const contents=page.node.Contents(),parts=contents instanceof PDFArray?contents.asArray():contents?[contents]:[];
+  return parts.flatMap(part=>{const stream=doc.context.lookup(part);assert.ok(stream instanceof PDFRawStream);const operators=Buffer.from(decodePDFRawStream(stream).decode()).toString('latin1');return [...operators.matchAll(/<([a-f\d]+)>\s*Tj/gi)].map(match=>Buffer.from(match[1],'hex').toString('latin1'));}).join('\n');
+ });
+}
+function compactPdfFixture(){const fixture=knowledgeReportFixture();fixture.report.byType=fixture.report.byType.slice(0,2);fixture.report.byAsset=fixture.report.byAsset.slice(0,2);fixture.report.byDay=fixture.report.byDay.slice(0,1);return fixture;}
+test('a coverage block that fits one page moves together rather than leaving its title or a paragraph fragment behind',async()=>{
+ const fixture=compactPdfFixture();fixture.report.coverageNotes=Array.from({length:5},(_,i)=>`SCOPE_${i}_START ${'Texto de cobertura que conserva el contexto del informe. '.repeat(3)}SCOPE_${i}_END`);const frozen=JSON.stringify(fixture),pages=await pdfPageTexts(await companyReportPdf(fixture));
+ const coveragePage=pages.findIndex(page=>page.includes('Alcance de este informe'));assert.ok(coveragePage>0,'The compact tables leave insufficient room for the complete coverage block.');
+ for(let i=0;i<5;i++){assert.equal(pages.findIndex(page=>page.includes(`SCOPE_${i}_START`)),coveragePage);assert.equal(pages.findIndex(page=>page.includes(`SCOPE_${i}_END`)),coveragePage);}
+ assert.equal(pages.filter(page=>page.includes('Alcance de este informe')).length,1);assert.equal(JSON.stringify(fixture),frozen);
+});
+test('long coverage breaks only between complete paragraphs and labels every continuation page',async()=>{
+ const fixture=compactPdfFixture();fixture.report.coverageNotes=Array.from({length:10},(_,i)=>`LONG_${i}_START ${'La cobertura de este informe se conserva sin reconstruir historia. '.repeat(13)}LONG_${i}_END`);assert.ok(fixture.report.coverageNotes.every(note=>note.length<=1000));
+ const pages=await pdfPageTexts(await companyReportPdf(fixture)),scopePages=pages.map((page,index)=>({page,index})).filter(({page})=>/LONG_\d+_START/.test(page));assert.ok(scopePages.length>=2);
+ for(let i=0;i<10;i++){const start=pages.findIndex(page=>page.includes(`LONG_${i}_START`));assert.ok(start>=0);assert.equal(pages.findIndex(page=>page.includes(`LONG_${i}_END`)),start,`Paragraph ${i} must remain whole.`);}
+ assert.equal(pages.findIndex(page=>page.includes('El CSV conserva el texto original.')),pages.findIndex(page=>page.includes('LONG_9_END')),'The closing note stays with the final paragraph.');
+ for(const {page}of scopePages)assert.ok(page.includes('Alcance de este informe'));
+ assert.equal(scopePages[0].page.includes('(continuaci'),false);for(const {page}of scopePages.slice(1))assert.ok(page.includes('(continuaci'));
 });
 test('backup accepts complete historical table profiles and rejects mixed or foreign-tenant rows',()=>{
  for(const profile of BACKUP_TABLE_PROFILES){const manifest={format:'daybook.workspace.v1',ownerId:'A',organizationId:'A',createdAt:'2026-11-05T15:00:00Z',tables:profile.map(name=>({name,columns:[],rows:[],sha256:sha256('')})),files:[],omissions:[]};assert.equal(validateBackup(manifest).tables.length,profile.length);}
