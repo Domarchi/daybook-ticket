@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID, randomBytes } from 'node:crypto';
 import pg from 'pg';
 import { Database } from '../db/database.ts';
-import { BACKUP_TABLES, canonicalBackupRows, decryptBackup, encryptBackup, sha256 } from '../lib/backup-format.ts';
+import { BACKUP_TABLES, RELIABILITY_BACKUP_TABLES, ADDED_BACKUP_COLUMNS, canonicalBackupRows, decryptBackup, encryptBackup, sha256 } from '../lib/backup-format.ts';
 import { createWorkspaceBackup, restoreWorkspaceBackup, backupRestoreStorage } from '../lib/workspace-backup.ts';
 import { hashInvite, readInvitation } from '../lib/invitations.ts';
 import { drizzle } from 'drizzle-orm/node-postgres';
@@ -125,6 +125,12 @@ try {
   // The v1 reader must also accept old archives, verify their original rows and invalidate
   // temporary credentials inside the recovery transaction before they become usable.
   const legacy = structuredClone(recovered);
+  legacy.tables=legacy.tables.filter(table=>RELIABILITY_BACKUP_TABLES.includes(table.name));
+  for(const table of legacy.tables){
+    const omitted=ADDED_BACKUP_COLUMNS[table.name]??[];
+    table.columns=table.columns.filter(column=>!omitted.includes(column));
+    table.rows=table.rows.map(row=>Object.fromEntries(table.columns.map(column=>[column,row[column]])));
+  }
   for (const row of legacy.tables.find(table => table.name === 'authAccount').rows) Object.assign(row, bearerCredentials);
   legacy.tables.find(table => table.name === 'invitations').rows = (await pool.query('SELECT * FROM invitations WHERE "ownerId"=$1', [ownerId])).rows;
   for (const table of legacy.tables) table.sha256 = sha256(canonicalBackupRows(table.rows));

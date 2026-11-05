@@ -6,7 +6,7 @@ import { db, ApiError } from './server';
 import type { Database } from '../db/database';
 import { lockAccess } from './ticket-mutations';
 import { attachmentStorage, attachmentStorageConfig, readAttachmentBytes, type PrivateAttachmentStorage } from './attachments-storage';
-import { BACKUP_TABLES, canonicalBackupRows, MAX_BACKUP_BYTES, sha256, validateBackup, type BackupRow, type WorkspaceBackup } from './backup-format';
+import { BACKUP_TABLES, compatibleBackupColumns, canonicalBackupRows, MAX_BACKUP_BYTES, sha256, validateBackup, type BackupRow, type WorkspaceBackup } from './backup-format';
 import { validateAttachment } from './attachments-validation';
 
 const quote = (name: string) => `"${name.replaceAll('"', '""')}"`;
@@ -119,8 +119,7 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
         const source = backup.tables.find(item => item.name === table);
         if (!source) continue; // A verified v1 archive predates the additive reliability tables.
         const target = await columns(tx, table, schema);
-        const compatible = target.filter(column => !(column === 'isTest' && ['members','tickets'].includes(table) && !source.columns.includes(column)));
-        if (JSON.stringify(compatible) !== JSON.stringify(source.columns)) throw new Error(`Schema version mismatch: ${table}`);
+        if (!compatibleBackupColumns(table,target,source.columns)) throw new Error(`Schema version mismatch: ${table}`);
       }
       if (schema === 'public') for (const table of ['authSession', 'authVerification', 'authRateLimit']) {
         if (Number((await tx.query(`SELECT count(*)::int AS n FROM ${qualified(schema, table)}`)).rows[0].n) !== 0) throw new Error('Recovery requires empty temporary authentication tables.');

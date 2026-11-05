@@ -7,6 +7,11 @@ export const LEGACY_BACKUP_TABLES = ['authUser', 'authAccount', 'organizations',
 export const RELIABILITY_BACKUP_TABLES = [...LEGACY_BACKUP_TABLES, 'inboundMailJobs', 'inboundMailJobFiles', 'ticketPresence', 'automaticBackupSettings', 'automaticBackupRuns', 'automaticBackupUsage'] as const;
 export const BACKUP_TABLES = [...RELIABILITY_BACKUP_TABLES,'messageMentions','ticketFollowers','evolutionFeatures','userPreferences'] as const;
 export const BACKUP_TABLE_PROFILES: readonly (readonly string[])[] = [LEGACY_BACKUP_TABLES, RELIABILITY_BACKUP_TABLES, BACKUP_TABLES];
+export const ADDED_BACKUP_COLUMNS: Readonly<Record<string,readonly string[]>> = {members:['isTest'],tickets:['isTest'],messages:['replyToMessageId'],mailOutbox:['sourceMessageId']};
+export function compatibleBackupColumns(table:string,target:readonly string[],source:readonly string[]){
+ const optional=ADDED_BACKUP_COLUMNS[table]??[];
+ return JSON.stringify(target.filter(column=>source.includes(column)||!optional.includes(column)))===JSON.stringify(source);
+}
 export type BackupTable = typeof BACKUP_TABLES[number];
 export type BackupRow = Record<string, string | number | boolean | null>;
 export interface WorkspaceBackup {
