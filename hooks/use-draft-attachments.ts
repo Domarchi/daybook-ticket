@@ -26,7 +26,7 @@ function restoreAttempt(scope: string, draftId: string, received: DraftAttachmen
   return restorePendingAttachmentIds(draftId, received, rememberedAttachments(draftId), attempt);
 }
 function initial(scope: string): State { return { scope, draftId: attachmentDraftId(scope), attachments: [], loading: true, configured: false, error: '', uploading: false, failedLoad: false }; }
-export function useDraftAttachments(scope: string, kind: 'request' | 'reply' | 'note', ticketId?: number) {
+export function useDraftAttachments(scope: string, kind: 'request' | 'reply' | 'note' | 'contract', ticketId?: number, contractId?: string) {
   const [state, setState] = useState(() => initial(scope));
   const [revision, setRevision] = useState(0);
   const operation = useRef(false);
@@ -38,9 +38,10 @@ export function useDraftAttachments(scope: string, kind: 'request' | 'reply' | '
     let active = true;
     const query = new URLSearchParams({ draftId, kind });
     if (ticketId) query.set('ticketId', String(ticketId));
+    if (contractId) query.set('contractId', contractId);
     void clientRequest<{ attachments: DraftAttachment[]; configured: boolean }>(`/api/attachments?${query}`).then(result => { if (active) setState(previous => previous.draftId === draftId ? { ...previous, attachments: restoreAttempt(scope, draftId, result.attachments), configured: result.configured, error: '', failedLoad: false, loading: false } : previous); }).catch(error => { if (active) setState(previous => previous.draftId === draftId ? { ...previous, loading: false, failedLoad: true, error: error instanceof Error ? error.message : 'No se pudieron recuperar los adjuntos.' } : previous); });
     return () => { active = false; };
-  }, [draftId, kind, ticketId, revision, scope]);
+  }, [draftId, kind, ticketId, contractId, revision, scope]);
   useEffect(() => { if (!state.loading) rememberAttachments(state.draftId, state.attachments); }, [state.draftId, state.attachments, state.loading]);
   const update = (fn: (value: State) => State) => setState(previous => previous.scope === scope && previous.draftId === draftId ? fn(previous) : previous);
   const add = async (files: FileList | File[]) => {
@@ -52,7 +53,7 @@ export function useDraftAttachments(scope: string, kind: 'request' | 'reply' | '
       for (const file of Array.from(files)) {
         const problem = attachmentValidation(file, count);
         if (problem) throw new Error(`${file.name}: ${problem}`);
-        const reservation = await clientRequest<{ attachment: DraftAttachment; pathname: string; uploadUrl: string }>('/api/attachments/reserve', 'POST', { draftId, kind, ...(ticketId ? { ticketId } : {}), name: file.name, size: file.size, contentType: file.type || 'application/octet-stream' });
+        const reservation = await clientRequest<{ attachment: DraftAttachment; pathname: string; uploadUrl: string }>('/api/attachments/reserve', 'POST', { draftId, kind, ...(ticketId ? { ticketId } : {}), ...(contractId ? { contractId } : {}), name: file.name, size: file.size, contentType: file.type || 'application/octet-stream' });
         count++;
         const attachment = reservation.attachment;
         update(value => ({ ...value, attachments: [...value.attachments, { ...attachment, progress: 0 }] }));

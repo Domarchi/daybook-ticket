@@ -8,7 +8,7 @@ import { acceptMailWithDelivery } from './mail-delivery';
 import type { DeliveryStatus } from './mail-delivery-validation';
 import { makeInboundAddress } from './inbound-email-validation';
 
-export type NotificationEvent = 'ticket_created' | 'agent_replied' | 'client_replied' | 'invitation' | 'password_reset' | 'reminder' | 'escalation' | 'satisfaction_requested';
+export type NotificationEvent = 'ticket_created' | 'agent_replied' | 'client_replied' | 'invitation' | 'password_reset' | 'reminder' | 'escalation' | 'satisfaction_requested' | 'service_due';
 export type NotificationStatus = 'awaiting_configuration' | 'queued' | 'processing' | 'accepted' | 'failed' | 'unknown' | 'cancelled';
 export interface MailStatus {
   configured: boolean;
@@ -25,14 +25,14 @@ type OutboxRow = {
   attempts: number; firstAttemptAt: string | null; leaseUntil: string | null;
   claimedFrom: NotificationStatus;
   templateVersion: number; environment: string | null; reminderId: string | null;
-  escalationId: string | null; satisfactionId: string | null;
+  escalationId: string | null; satisfactionId: string | null; serviceReminderId: string | null;
 };
 type Recipient = { id: string; userId: string | null; email: string; role: MemberRole; status: MemberStatus; customerCompanyId: string | null; companyAccess: CompanyAccess };
 const MAX_ATTEMPTS = 6;
 const IDEMPOTENCY_WINDOW_MS = 24 * 60 * 60 * 1000;
 const RETRY_DELAYS = [60, 300, 1800, 7200, 28800];
 const STATUSES: NotificationStatus[] = ['awaiting_configuration', 'queued', 'processing', 'accepted', 'failed', 'unknown', 'cancelled'];
-const EVENTS: NotificationEvent[] = ['ticket_created', 'agent_replied', 'client_replied', 'invitation', 'password_reset', 'reminder', 'escalation', 'satisfaction_requested'];
+const EVENTS: NotificationEvent[] = ['ticket_created', 'agent_replied', 'client_replied', 'invitation', 'password_reset', 'reminder', 'escalation', 'satisfaction_requested', 'service_due'];
 const DELIVERY_STATUSES: DeliveryStatus[] = ['untracked', 'sent', 'delayed', 'delivered', 'bounced', 'complained', 'failed', 'suppressed'];
 
 function database(): Database {
@@ -55,7 +55,7 @@ function configuration() {
 export function notificationStatements(db: Database, input: {
   ownerId: string; event: NotificationEvent; eventKey: string; recipientMemberId: string;
   ticketId?: number; ticketCreationKey?: string; invitationId?: string; actionUrl?: string; expiresAt?: string; reminderId?: string;
-  escalationId?: string; satisfactionId?: string;
+  escalationId?: string; satisfactionId?: string; serviceReminderId?: string;
 }): PreparedStatement[] {
   if (!EVENTS.includes(input.event)) throw new Error('Unsupported notification event');
   const now = new Date().toISOString();
@@ -71,10 +71,10 @@ export function notificationStatements(db: Database, input: {
     ? `(SELECT id FROM tickets WHERE "creationKey" = ${param(input.ticketCreationKey)} AND "ownerId" = ${param(input.ownerId)})`
     : param(input.ticketId ?? null);
   return [db.prepare(`INSERT INTO "mailOutbox"
-    (id, "ownerId", "eventKey", event, "recipientMemberId", "ticketId", "invitationId", "actionUrl", "expiresAt", "payloadJson", status, attempts, "createdAt", "updatedAt", "templateVersion", environment, "reminderId", "escalationId", "satisfactionId")
+    (id, "ownerId", "eventKey", event, "recipientMemberId", "ticketId", "invitationId", "actionUrl", "expiresAt", "payloadJson", status, attempts, "createdAt", "updatedAt", "templateVersion", environment, "reminderId", "escalationId", "satisfactionId", "serviceReminderId")
     VALUES (${id}, ${owner}, ${eventKey}, ${event}, ${recipient}, ${ticketExpression},
       ${param(input.invitationId ?? null)}, ${param(input.actionUrl ?? null)}, ${param(input.expiresAt ?? null)},
-      NULL, ${param(configuration().configured ? 'queued' : 'awaiting_configuration')}, 0, ${param(now)}, ${param(now)}, 3, ${param(notificationEnvironment())}, ${param(input.reminderId ?? null)}, ${param(input.escalationId ?? null)}, ${param(input.satisfactionId ?? null)})
+      NULL, ${param(configuration().configured ? 'queued' : 'awaiting_configuration')}, 0, ${param(now)}, ${param(now)}, 3, ${param(notificationEnvironment())}, ${param(input.reminderId ?? null)}, ${param(input.escalationId ?? null)}, ${param(input.satisfactionId ?? null)}, ${param(input.serviceReminderId ?? null)})
     ON CONFLICT("eventKey") DO NOTHING`).bind(...values),
     ...pushDeliveryStatements(db, { eventId, ownerId: input.ownerId, event: input.event, recipientMemberId: input.recipientMemberId, createdAt: now }),
   ];
@@ -97,6 +97,7 @@ function errorMessage(code: string): string {
     reminder_obsolete: 'El recordatorio dejó de ser necesario y no se envió.',
     escalation_obsolete: 'El escalamiento dejó de estar vigente y no se envió.',
     satisfaction_obsolete: 'La encuesta dejó de estar disponible y no se envió.',
+    service_due_obsolete: 'El vencimiento de servicio dejó de estar vigente y no se envió.',
   };
   return messages[code] || 'No se pudo procesar una notificación de correo.';
 }
@@ -130,6 +131,7 @@ async function recipientFor(db: Database, row: OutboxRow): Promise<Recipient | n
   if (!member || !/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(member.email)) return null;
   if (row.event === 'invitation') return member.status === 'invited' ? member : null;
   if (row.event === 'password_reset') return member.status === 'active' ? member : null;
+  if (row.event === 'service_due') return member.status === 'active' && member.userId && ['owner','admin','agent'].includes(member.role) ? member : null;
   if (member.status !== 'active' || !row.ticketId) return null;
   const ticket = await db.prepare("SELECT \"ownerId\", \"requesterMemberId\", \"customerCompanyId\" FROM tickets WHERE id = $1 AND \"ownerId\" = $2")
     .bind(row.ticketId, row.ownerId).first<{ ownerId: string; requesterMemberId: string | null; customerCompanyId: string | null }>();
@@ -149,9 +151,15 @@ function makePayload(row: OutboxRow, recipient: Recipient, from: string, siteUrl
     reminder: `${label} requiere atención. Revisa la conversación y sus plazos en Daybook Ticket.`,
     escalation: `${label} necesita apoyo del equipo. Revisa la atención y el plazo en Daybook Ticket.`,
     satisfaction_requested: `${label} fue resuelto. Cuéntanos cómo fue la atención desde Daybook Ticket.`,
+    service_due: 'Un equipo o contrato requiere revisión de su vencimiento. Consulta la ficha privada de servicios desde Daybook Ticket.',
   };
   let url = new URL('/', siteUrl);
   if (row.ticketId) url.searchParams.set('ticket', String(row.ticketId));
+  if (row.event === 'service_due') {
+    if (!row.actionUrl) return null;
+    try { url=new URL(row.actionUrl); } catch { return null; }
+    if (url.origin!==new URL(siteUrl).origin || url.username || url.password) return null;
+  }
   if (row.event === 'invitation' || row.event === 'password_reset') {
     if (!row.actionUrl || !row.expiresAt || !Number.isFinite(Date.parse(row.expiresAt))) return null;
     try { url = new URL(row.actionUrl); } catch { return null; }
@@ -171,7 +179,7 @@ async function newPayload(db: Database, row: OutboxRow, recipient: Recipient, fr
   const legacy = makePayload(row, recipient, from, siteUrl);
   if (!legacy || row.templateVersion === 1) return legacy;
   if (![2, 3].includes(row.templateVersion) || !['production', 'qa'].includes(row.environment || '')) return null;
-  const url = row.event === 'invitation' || row.event === 'password_reset' ? row.actionUrl! : new URL('/', siteUrl).toString();
+  const url = row.event === 'invitation' || row.event === 'password_reset' || row.event === 'service_due' ? row.actionUrl! : new URL('/', siteUrl).toString();
   const target = new URL(url);
   if (row.ticketId) target.searchParams.set('ticket', String(row.ticketId));
   const [metadata, reasons] = await Promise.all([
@@ -254,6 +262,10 @@ async function processOutboxBatch(ownerId: string, limit: number, eventId?: stri
     if (row.event === 'satisfaction_requested') {
       const { isSatisfactionEligibleForDelivery } = await import('./satisfaction');
       if (!(await isSatisfactionEligibleForDelivery(db, row))) { await finish(db, row, 'cancelled', 'satisfaction_obsolete'); continue; }
+    }
+    if (row.event === 'service_due') {
+      const { isServiceReminderEligibleForDelivery }=await import('./service-context-reminders');
+      if (!(await isServiceReminderEligibleForDelivery(db,row))) { await finish(db,row,'cancelled','service_due_obsolete'); continue; }
     }
     const payload = row.payloadJson ? readFrozenMailPayload(row.payloadJson) : await newPayload(db, row, recipient, config.sender, config.siteUrl);
     if (!payload) { await finish(db, row, 'failed', 'invalid_payload'); continue; }

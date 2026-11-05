@@ -133,6 +133,7 @@ export const attachments = pgTable('attachments', {
   id: text('id').primaryKey(), ownerId: text('ownerId').notNull(),
   memberId: text('memberId').notNull().references(() => members.id), draftId: text('draftId').notNull(),
   ticketId: integer('ticketId').references(() => tickets.id), messageId: integer('messageId').references(() => messages.id),
+  contractId: text('contractId').references(() => serviceContracts.id),
   kind: text('kind').notNull(), pathname: text('pathname').notNull(), name: text('name').notNull(),
   contentType: text('contentType').notNull(), size: integer('size').notNull(), status: text('status').notNull().default('reserved'),
   expiresAt: text('expiresAt').notNull(), uploadedAt: text('uploadedAt'), validatedAt: text('validatedAt'),
@@ -141,7 +142,9 @@ export const attachments = pgTable('attachments', {
   uniqueIndex('attachments_pathname').on(t.pathname), index('attachments_pending').on(t.ownerId, t.memberId, t.status, t.expiresAt),
   index('attachments_message').on(t.ownerId, t.messageId),
   check('attachments_size', sql`${t.size} BETWEEN 1 AND 10485760`),
-  check('attachments_kind', sql`${t.kind} IN ('request', 'reply', 'note')`),
+  check('attachments_kind', sql`${t.kind} IN ('request', 'reply', 'note', 'contract')`),
+  check('attachment_contract_scope', sql`(${t.kind}='contract' AND ${t.contractId} IS NOT NULL AND ${t.ticketId} IS NULL AND ${t.messageId} IS NULL) OR (${t.kind}<>'contract' AND ${t.contractId} IS NULL)`),
+  index('attachments_contract').on(t.ownerId,t.contractId,t.status),
   check('attachments_status', sql`${t.status} IN ('reserved', 'uploaded', 'ready', 'attached', 'deleting', 'deleted')`),
 ]);
 
@@ -243,6 +246,7 @@ export const mailOutbox = pgTable('mailOutbox', {
   reminderId: text('reminderId').references(() => reminderOccurrences.id),
   escalationId: text('escalationId').references(() => escalationOccurrences.id),
   satisfactionId: text('satisfactionId').references(() => ticketSatisfaction.id),
+  serviceReminderId: text('serviceReminderId').references(() => serviceContextReminders.id),
   templateVersion: integer('templateVersion').notNull().default(1),
   environment: text('environment'),
   deliveryStatus: text('deliveryStatus').notNull().default('untracked'),
@@ -318,3 +322,28 @@ export const automaticBackupRuns=pgTable('automaticBackupRuns',{
 export const automaticBackupUsage=pgTable('automaticBackupUsage',{
   ownerId:text('ownerId').notNull().references(()=>organizations.ownerId),environment:text('environment').notNull(),month:text('month').notNull(),transferBytes:bigint('transferBytes',{mode:'number'}).notNull().default(0),
 },t=>[primaryKey({columns:[t.ownerId,t.environment,t.month]}),check('automatic_backup_usage_environment',sql`${t.environment} IN ('qa','production')`),check('automatic_backup_usage_bytes',sql`${t.transferBytes} >= 0`)]);
+
+
+// Private customer service context; customer portal permissions are never inherited.
+export const companyProfiles = pgTable('companyProfiles', {
+  companyId:text('companyId').primaryKey().references(()=>customerCompanies.id),ownerId:text('ownerId').notNull(),legalName:text('legalName').notNull().default(''),taxId:text('taxId').notNull().default(''),industry:text('industry').notNull().default(''),website:text('website').notNull().default(''),primaryContactMemberId:text('primaryContactMemberId').references(()=>members.id),notes:text('notes').notNull().default(''),version:integer('version').notNull().default(0),createdAt:text('createdAt').notNull(),updatedAt:text('updatedAt').notNull(),
+});
+export const companySites = pgTable('companySites', {
+  id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),companyId:text('companyId').notNull().references(()=>customerCompanies.id),name:text('name').notNull(),address:text('address').notNull().default(''),primaryContactMemberId:text('primaryContactMemberId').references(()=>members.id),notes:text('notes').notNull().default(''),archived:boolean('archived').notNull().default(false),version:integer('version').notNull().default(0),createdAt:text('createdAt').notNull(),updatedAt:text('updatedAt').notNull(),
+},t=>[index('company_sites_owner_company').on(t.ownerId,t.companyId,t.id)]);
+export const customerAssets = pgTable('customerAssets', {
+  id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),companyId:text('companyId').notNull().references(()=>customerCompanies.id),name:text('name').notNull(),category:text('category').notNull().default('Equipo'),vendor:text('vendor').notNull().default(''),model:text('model').notNull().default(''),serial:text('serial').notNull().default(''),siteId:text('siteId').references(()=>companySites.id),assignedContactMemberId:text('assignedContactMemberId').references(()=>members.id),responsibleMemberId:text('responsibleMemberId').references(()=>members.id),warrantyUntil:text('warrantyUntil'),notes:text('notes').notNull().default(''),archived:boolean('archived').notNull().default(false),reminderBaselineAt:text('reminderBaselineAt').notNull(),version:integer('version').notNull().default(0),createdAt:text('createdAt').notNull(),updatedAt:text('updatedAt').notNull(),
+},t=>[index('customer_assets_owner_company').on(t.ownerId,t.companyId,t.id),check('customer_asset_warranty_date',sql`${t.warrantyUntil} IS NULL OR ${t.warrantyUntil} ~ '^\\d{4}-\\d{2}-\\d{2}$'`)]);
+export const customerServices = pgTable('customerServices', {
+  id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),companyId:text('companyId').notNull().references(()=>customerCompanies.id),name:text('name').notNull(),description:text('description').notNull().default(''),responsibleMemberId:text('responsibleMemberId').references(()=>members.id),notes:text('notes').notNull().default(''),archived:boolean('archived').notNull().default(false),version:integer('version').notNull().default(0),createdAt:text('createdAt').notNull(),updatedAt:text('updatedAt').notNull(),
+},t=>[index('customer_services_owner_company').on(t.ownerId,t.companyId,t.id)]);
+export const serviceContracts = pgTable('serviceContracts', {
+  id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),companyId:text('companyId').notNull().references(()=>customerCompanies.id),name:text('name').notNull(),reference:text('reference').notNull().default(''),provider:text('provider').notNull().default(''),startsOn:text('startsOn').notNull(),endsOn:text('endsOn').notNull(),renewalOn:text('renewalOn'),responsibleMemberId:text('responsibleMemberId').references(()=>members.id),serviceIdsJson:text('serviceIdsJson').notNull().default('[]'),notes:text('notes').notNull().default(''),archived:boolean('archived').notNull().default(false),reminderBaselineAt:text('reminderBaselineAt').notNull(),version:integer('version').notNull().default(0),createdAt:text('createdAt').notNull(),updatedAt:text('updatedAt').notNull(),
+},t=>[index('service_contracts_owner_company').on(t.ownerId,t.companyId,t.id),check('service_contract_dates',sql`${t.startsOn} ~ '^\\d{4}-\\d{2}-\\d{2}$' AND ${t.endsOn} ~ '^\\d{4}-\\d{2}-\\d{2}$' AND ${t.endsOn}>=${t.startsOn} AND (${t.renewalOn} IS NULL OR ${t.renewalOn}>=${t.startsOn})`)]);
+export const ticketServiceContext = pgTable('ticketServiceContext',{ticketId:integer('ticketId').primaryKey().references(()=>tickets.id),ownerId:text('ownerId').notNull(),version:integer('version').notNull().default(0),updatedAt:text('updatedAt').notNull()});
+export const ticketAssetLinks = pgTable('ticketAssetLinks',{ticketId:integer('ticketId').notNull().references(()=>tickets.id),assetId:text('assetId').notNull().references(()=>customerAssets.id),ownerId:text('ownerId').notNull(),createdAt:text('createdAt').notNull(),createdBy:text('createdBy').notNull().references(()=>members.id)},t=>[primaryKey({columns:[t.ticketId,t.assetId]}),index('ticket_asset_links_asset').on(t.ownerId,t.assetId,t.ticketId)]);
+export const ticketContractLinks = pgTable('ticketContractLinks',{ticketId:integer('ticketId').notNull().references(()=>tickets.id),contractId:text('contractId').notNull().references(()=>serviceContracts.id),ownerId:text('ownerId').notNull(),createdAt:text('createdAt').notNull(),createdBy:text('createdBy').notNull().references(()=>members.id)},t=>[primaryKey({columns:[t.ticketId,t.contractId]})]);
+export const serviceContextEvents = pgTable('serviceContextEvents',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),companyId:text('companyId').notNull().references(()=>customerCompanies.id),resource:text('resource').notNull(),resourceId:text('resourceId').notNull(),actorMemberId:text('actorMemberId').notNull().references(()=>members.id),beforeJson:text('beforeJson'),afterJson:text('afterJson').notNull(),createdAt:text('createdAt').notNull()},t=>[index('service_context_events_subject').on(t.ownerId,t.resource,t.resourceId,t.createdAt)]);
+export const serviceContextNotificationSettings = pgTable('serviceContextNotificationSettings',{ownerId:text('ownerId').primaryKey().references(()=>organizations.ownerId),enabled:boolean('enabled').notNull().default(false),activatedAt:text('activatedAt'),version:integer('version').notNull().default(0),updatedAt:text('updatedAt').notNull()});
+export const serviceContextReminders = pgTable('serviceContextReminders',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),companyId:text('companyId').notNull().references(()=>customerCompanies.id),recipientMemberId:text('recipientMemberId').notNull().references(()=>members.id),entityKind:text('entityKind').notNull(),entityId:text('entityId').notNull(),entityName:text('entityName').notNull(),dateValue:text('dateValue').notNull(),stage:integer('stage').notNull(),activationAt:text('activationAt').notNull(),readAt:text('readAt'),createdAt:text('createdAt').notNull()},t=>[uniqueIndex('service_context_reminder_stage').on(t.ownerId,t.recipientMemberId,t.entityKind,t.entityId,t.dateValue,t.stage),index('service_context_reminders_member').on(t.ownerId,t.recipientMemberId,t.createdAt,t.id),check('service_reminder_kind',sql`${t.entityKind} IN ('asset','contract')`),check('service_reminder_stage',sql`${t.stage} IN (30,7,0)`)]);
+export const serviceContextJobHealth = pgTable('serviceContextJobHealth',{ownerId:text('ownerId').primaryKey().references(()=>organizations.ownerId),cursorKey:text('cursorKey').notNull().default(''),leaseToken:text('leaseToken'),leaseUntil:text('leaseUntil'),lastStartedAt:text('lastStartedAt'),lastSucceededAt:text('lastSucceededAt'),lastFailedAt:text('lastFailedAt'),lastErrorCode:text('lastErrorCode'),lastInvocationId:text('lastInvocationId')});
