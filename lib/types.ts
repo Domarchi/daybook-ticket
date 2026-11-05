@@ -45,7 +45,11 @@ export interface Ticket {
   slaPolicySnapshot?: string | null;
   slaStartedAt?: string | null;
 }
+export interface MessageQuote { id: number; author: string; body: string; kind: MessageKind; createdAt: string }
 export interface Message {
+  replyToMessageId?: number | null;
+  quote?: MessageQuote | null;
+  mentions?: { id: string; name: string }[];
   id: number;
   ticketId: number;
   author: string;
@@ -63,7 +67,7 @@ export interface TicketEvent { id: string; ticketId: number; actorMemberId: stri
 export interface Attachment { id: string; name: string; size: number; contentType: string }
 export interface TicketAlert {
   id: string;
-  event: 'ticket_created' | 'agent_replied' | 'client_replied' | 'reminder' | 'escalation' | 'satisfaction_requested';
+  event: 'ticket_created' | 'agent_replied' | 'client_replied' | 'reminder' | 'escalation' | 'satisfaction_requested' | 'member_mentioned' | 'ticket_followed_update';
   ticketId: number;
   subject: string;
   createdAt: string;
@@ -95,6 +99,8 @@ export interface Settings {
   slaHours: Record<TicketPriority, number>;
 }
 export interface Workspace {
+  evolution?: { features: import('./evolution-feature-model').EvolutionFeatures; version: number; available: boolean };
+  preferences?: { theme: 'system' | 'light' | 'dark' };
   viewer: Member | null;
   members: Member[];
   mailStatus: MailStatus | null;

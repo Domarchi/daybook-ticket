@@ -1,6 +1,7 @@
-import { ticketAccessSql, type AccessContext } from './access';
+import { type AccessContext } from './access';
 import { ApiError, db, getTicket, ticketColumns } from './server';
-import type { DatabaseValue } from '@/db/database';
+import { ticketReadScope as scopeFor } from './ticket-read-scope';
+import { hydrateMessageReferences } from './ticket-collaboration';
 import type { Message, Ticket } from './types';
 import { decodeTicketCursor, encodeTicketCursor, literalSearchPattern, type TicketSearchQuery } from './ticket-search-query';
 
@@ -10,16 +11,6 @@ export interface TicketDepartmentCount { department: string; total: number }
 export interface TicketContact { email: string; name: string; total: number; active: number }
 export interface ContactPage { items: TicketContact[]; total: number; nextCursor: string | null }
 export interface ConversationPage { ticket: Ticket; messages: Message[]; nextCursor: string | null }
-
-/** Reject a read if the membership changed after requireAccess read its snapshot. */
-function scopeFor(access: AccessContext) {
-  const scope = ticketAccessSql(access);
-  const values: DatabaseValue[] = [...scope.values];
-  const bind = (value: DatabaseValue) => { values.push(value); return `$${values.length}`; };
-  const member = bind(access.member.id), role = bind(access.role), company = bind(access.member.customerCompanyId ?? null), permission = bind(access.member.companyAccess);
-  const sql = `(${scope.sql}) AND EXISTS (SELECT 1 FROM members live WHERE live.id=${member} AND live."ownerId"=t."ownerId" AND live.status='active' AND live.role=${role} AND live."customerCompanyId" IS NOT DISTINCT FROM ${company}::text AND live."companyAccess"=${permission})`;
-  return { sql, values, bind };
-}
 
 export async function getTicketCounts(access: AccessContext, now = new Date().toISOString()): Promise<TicketCounts> {
   const scope = scopeFor(access), member = scope.bind(access.member.id), time = scope.bind(now);
@@ -76,7 +67,7 @@ export async function getConversationPage(access: AccessContext, ticketId: numbe
   const id = scope.bind(ticketId), cursor = decodeTicketCursor(cursorValue);
   const boundary = cursor ? ` AND (m."createdAt",m.id)<(${scope.bind(cursor.at)},${scope.bind(cursor.id)})` : '';
   const size = scope.bind(limit + 1);
-  const result = await db().prepare(`SELECT m.id,m."ticketId",m.author,m."authorMemberId",m."authorRole",m.body,m."bodyFormat",m.kind,m."createdAt",
+  const result = await db().prepare(`SELECT m.id,m."replyToMessageId",m."ticketId",m.author,m."authorMemberId",m."authorRole",m.body,m."bodyFormat",m.kind,m."createdAt",
       COALESCE((SELECT jsonb_agg(jsonb_build_object('id',a.id,'name',a.name,'size',a.size,'contentType',a."contentType") ORDER BY a."createdAt",a.id)
         FROM attachments a WHERE a."ownerId"=m."ownerId" AND a."messageId"=m.id AND a."ticketId"=m."ticketId" AND a.kind=m.kind AND a.status='attached'),'[]'::jsonb) AS attachments
     FROM messages m JOIN tickets t ON t.id=m."ticketId" AND t."ownerId"=m."ownerId"
@@ -90,7 +81,7 @@ export async function getConversationPage(access: AccessContext, ticketId: numbe
     const permitted = await db().prepare(`SELECT t.id FROM tickets t WHERE ${currentScope.sql} AND t.id=${currentId}`).bind(...currentScope.values).first();
     if (!permitted) throw new ApiError(404, 'El ticket no existe o no tienes acceso.');
   }
-  return { ticket, messages: messages.reverse(), nextCursor: result.results.length > limit && oldest ? encodeTicketCursor({ at: oldest.createdAt, id: oldest.id }) : null };
+  return { ticket, messages: await hydrateMessageReferences(access, messages.reverse()), nextCursor: result.results.length > limit && oldest ? encodeTicketCursor({ at: oldest.createdAt, id: oldest.id }) : null };
 }
 
 export async function getContactPage(access: AccessContext, limit = 50, cursor: string | null = null): Promise<ContactPage> {

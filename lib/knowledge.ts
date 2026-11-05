@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { Database } from '../db/database';
 import { requireAdmin,requireStaff,type AccessContext } from './access';
 import { ApiError,db } from './server';
+import {parseEvolutionFeatures} from './evolution-feature-model';
 import { lockAccess,operationHash } from './ticket-mutations';
 import { knowledgeSearchSchema,knowledgeSearchTokens,type KnowledgeArticle,type KnowledgeDetail,type KnowledgePage,type KnowledgeRevision,type KnowledgeReview,type KnowledgePublication,knowledgeCreateSchema,knowledgePatchSchema,knowledgeReviewSchema,knowledgePublicationSchema } from './knowledge-model';
 
@@ -23,7 +24,7 @@ async function revision(tx:PoolClient,access:AccessContext,row:ArticleRow,origin
 }
 async function operation<T>(access:AccessContext,operationId:string,kind:string,input:unknown,admin:boolean,work:(tx:PoolClient,fresh:AccessContext)=>Promise<T>,database:Database) {
  return database.transaction(async tx=>{
-  const fresh=admin?requireAdmin(await lockAccess(tx,access)):requireStaff(await lockAccess(tx,access)),hash=operationHash(input);
+  const fresh=admin?requireAdmin(await lockAccess(tx,access)):requireStaff(await lockAccess(tx,access)),hash=operationHash(input);await requireKnowledgeEnabled(tx,fresh.ownerId);
   await tx.query('INSERT INTO operations ("operationId","ownerId","memberId",kind,"requestHash","resultJson","createdAt") VALUES ($1,$2,$3,$4,$5,\'null\',$6) ON CONFLICT DO NOTHING',[operationId,fresh.ownerId,fresh.member.id,kind,hash,new Date().toISOString()]);
   const old=(await tx.query('SELECT * FROM operations WHERE "operationId"=$1 FOR UPDATE',[operationId])).rows[0];
   if(old.ownerId!==fresh.ownerId||old.memberId!==fresh.member.id||old.kind!==kind||old.requestHash!==hash)throw new ApiError(409,'Este envío ya se utilizó con otros datos.');
@@ -31,22 +32,29 @@ async function operation<T>(access:AccessContext,operationId:string,kind:string,
   const result=await work(tx,fresh);await tx.query('UPDATE operations SET "resultJson"=$1 WHERE "operationId"=$2',[JSON.stringify(result),operationId]);return result;
  });
 }
-export async function listKnowledge(access:AccessContext,input:z.input<typeof knowledgeSearchSchema>,database:Database=db()):Promise<KnowledgePage> {
- const query=knowledgeSearchSchema.parse(input),tokens=knowledgeSearchTokens(query.q);
- return database.transaction(async tx=>{
-  const fresh=await lockAccess(tx,access),client=fresh.role==='client';if(!client)requireStaff(fresh);
-  const source=client?'"knowledgeArticlePublications" p JOIN articles a ON a.id=p."articleId" AND a."ownerId"=p."ownerId" JOIN "knowledgeArticleRevisions" r ON r.id=p."revisionId" AND r."articleId"=a.id AND r."ownerId"=a."ownerId" JOIN "customerCompanies" c ON c.id=p."companyId" AND c."ownerId"=p."ownerId"': 'articles a';
+export async function knowledgeEnabledInTransaction(tx:PoolClient,ownerId:string){
+ if(!(await tx.query<{relation:string|null}>(`SELECT to_regclass('public."evolutionFeatures"')::text AS relation`)).rows[0]?.relation)return false;
+ const row=(await tx.query<{featuresJson:string}>('SELECT "featuresJson" FROM "evolutionFeatures" WHERE "ownerId"=$1 FOR SHARE',[ownerId])).rows[0];return parseEvolutionFeatures(row?.featuresJson).knowledge;
+}
+export async function requireKnowledgeEnabled(tx:PoolClient,ownerId:string){if(!await knowledgeEnabledInTransaction(tx,ownerId))throw new ApiError(503,'Esta función está en pausa para este espacio. Sus datos se conservan.');}
+async function knowledgePageInTransaction(tx:PoolClient,fresh:AccessContext,query:z.output<typeof knowledgeSearchSchema>):Promise<KnowledgePage>{
+ const client=fresh.role==='client',tokens=knowledgeSearchTokens(query.q);if(!client)requireStaff(fresh);
+ const source=client?'"knowledgeArticlePublications" p JOIN articles a ON a.id=p."articleId" AND a."ownerId"=p."ownerId" JOIN "knowledgeArticleRevisions" r ON r.id=p."revisionId" AND r."articleId"=a.id AND r."ownerId"=a."ownerId" JOIN "customerCompanies" c ON c.id=p."companyId" AND c."ownerId"=p."ownerId"': 'articles a';
   const title=client?'r.title':'a.title',category=client?'r.category':'a.category',body=client?'r.body':'a.body';
   const selection=client?'a.id,r.title,r.category,left(r.body,320) AS body,0 AS version,r.revision AS "contentRevision",\'approved\' AS "reviewState",false AS archived,p."createdAt",p."createdAt" AS "updatedAt",true AS published':fields.replace('a.body','left(a.body,320) AS body')+',EXISTS(SELECT 1 FROM "knowledgeArticlePublications" shared WHERE shared."ownerId"=a."ownerId" AND shared."articleId"=a.id AND shared.active) AS published';
   const rows=(await tx.query<KnowledgeArticle>(`SELECT ${selection} FROM ${source} WHERE a."ownerId"=$1 AND ($2::int IS NULL OR a.id<$2) AND ($3='' OR ${category}=$3)
    AND ($4='' OR position(lower($4) IN lower(${title} || ' ' || ${body}))>0 OR EXISTS(SELECT 1 FROM unnest($5::text[]) token WHERE position(token IN lower(${title} || ' ' || ${body}))>0))
    ${client?'AND NOT a.archived AND p.active AND p."companyId"=$6 AND c."organizationId"=$7 AND ($8::boolean OR NOT a.archived) AND ($9=\'all\' OR $9=\'approved\')':'AND ($8::boolean OR NOT a.archived) AND ($9=\'all\' OR a."reviewState"=$9) AND $6::text IS NULL AND EXISTS(SELECT 1 FROM organizations o WHERE o."ownerId"=$1 AND o.id=$7)'} ORDER BY a.id DESC LIMIT $10`,[fresh.ownerId,query.cursor,query.category,query.q,tokens,client?fresh.member.customerCompanyId:null,fresh.organizationId,query.includeArchived,query.state,query.limit+1])).rows;
   return {items:rows.slice(0,query.limit),nextCursor:rows.length>query.limit?rows[query.limit-1].id:null};
- });
+
+}
+export async function listKnowledge(access:AccessContext,input:z.input<typeof knowledgeSearchSchema>,database:Database=db()):Promise<KnowledgePage> {
+ const query=knowledgeSearchSchema.parse(input);
+ return database.transaction(async tx=>{const fresh=await lockAccess(tx,access);await requireKnowledgeEnabled(tx,fresh.ownerId);return knowledgePageInTransaction(tx,fresh,query);});
 }
 export async function getKnowledge(access:AccessContext,id:number,cursor:number|null=null,database:Database=db()):Promise<KnowledgeDetail> {
  return database.transaction(async tx=>{
-  const fresh=await lockAccess(tx,access);
+  const fresh=await lockAccess(tx,access);await requireKnowledgeEnabled(tx,fresh.ownerId);
   if(fresh.role==='client'){
    const article=(await tx.query<KnowledgeArticle>(`SELECT a.id,r.title,r.category,r.body,0 AS version,r.revision AS "contentRevision",'approved' AS "reviewState",false AS archived,p."createdAt",p."createdAt" AS "updatedAt",true AS published FROM "knowledgeArticlePublications" p JOIN articles a ON a.id=p."articleId" AND a."ownerId"=p."ownerId" JOIN "knowledgeArticleRevisions" r ON r.id=p."revisionId" AND r."articleId"=a.id AND r."ownerId"=a."ownerId" JOIN "customerCompanies" c ON c.id=p."companyId" AND c."ownerId"=p."ownerId" AND c."organizationId"=$4 WHERE a.id=$1 AND a."ownerId"=$2 AND p."companyId"=$3 AND p.active AND NOT a.archived`,[id,fresh.ownerId,fresh.member.customerCompanyId,fresh.organizationId])).rows[0];
    if(!article)throw new ApiError(404,'El artículo no está disponible para tu empresa.');
@@ -68,7 +76,7 @@ export async function createKnowledge(access:AccessContext,input:z.output<typeof
 }
 export async function updateKnowledge(access:AccessContext,id:number,input:z.output<typeof knowledgePatchSchema>,database:Database=db()) {
  return database.transaction(async tx=>{
-  const fresh=requireStaff(await lockAccess(tx,access)),old=await articleLock(tx,fresh,id,input.expectedVersion),changed=old.title!==input.title||old.category!==input.category||old.body!==input.body;
+  const fresh=requireStaff(await lockAccess(tx,access));await requireKnowledgeEnabled(tx,fresh.ownerId);const old=await articleLock(tx,fresh,id,input.expectedVersion),changed=old.title!==input.title||old.category!==input.category||old.body!==input.body;
   if(input.archived!==undefined)requireAdmin(fresh);
   if(!changed&&(input.archived===undefined||old.archived===input.archived))return {article:articleView(old)};
   if(changed)await tx.query('UPDATE "knowledgeArticleReviews" SET status=\'superseded\',"decidedAt"=$1 WHERE "articleId"=$2 AND "ownerId"=$3 AND status=\'pending\'',[new Date().toISOString(),id,fresh.ownerId]);
@@ -110,5 +118,22 @@ export async function publishKnowledge(access:AccessContext,id:number,input:z.ou
  },database);
 }
 /** Safe compatibility feed: clients receive only their explicitly published immutable revisions. */
-export async function knowledgeWorkspaceArticles(access:AccessContext,database:Database=db()) {return (await listKnowledge(access,{limit:50},database)).items.map(article=>({...article,published:Boolean(article.published)}));}
+export async function knowledgeWorkspaceArticles(access:AccessContext,database:Database=db()) {
+ return database.transaction(async tx=>{
+  const fresh=await lockAccess(tx,access),enabled=await knowledgeEnabledInTransaction(tx,fresh.ownerId);
+  if(enabled)return (await knowledgePageInTransaction(tx,fresh,knowledgeSearchSchema.parse({limit:50}))).items.map(article=>({...article,published:Boolean(article.published)}));
+  if(fresh.role==='client')return [];
+  requireStaff(fresh);
+  // Compatibility library remains internal and read-only while evolution is paused; do not read new columns before migration 0011.
+  return (await tx.query('SELECT id,title,category,body,false AS published,"createdAt","updatedAt" FROM articles WHERE "ownerId"=$1 ORDER BY "updatedAt" DESC,id DESC LIMIT 50',[fresh.ownerId])).rows;
+ });
+}
+/** Read-only compatibility endpoints never grant access to clients or accept the old published flag. */
+export async function listLegacyKnowledge(access:AccessContext,input:z.input<typeof knowledgeSearchSchema>,database:Database=db()):Promise<KnowledgePage>{
+ const query=knowledgeSearchSchema.parse(input);
+ return database.transaction(async tx=>{const fresh=requireStaff(await lockAccess(tx,access));const rows=(await tx.query<KnowledgeArticle>('SELECT id,title,category,left(body,320) AS body,false AS published,"createdAt","updatedAt",0 AS version,0 AS "contentRevision",\'draft\' AS "reviewState",false AS archived FROM articles WHERE "ownerId"=$1 AND ($2::int IS NULL OR id<$2) AND ($3=\'\' OR position(lower($3) IN lower(title || \' \' || body))>0) ORDER BY id DESC LIMIT $4',[fresh.ownerId,query.cursor,query.q,query.limit+1])).rows;return {items:rows.slice(0,query.limit),nextCursor:rows.length>query.limit?rows[query.limit-1].id:null};});
+}
+export async function getLegacyKnowledge(access:AccessContext,id:number,database:Database=db()):Promise<KnowledgeDetail>{
+ return database.transaction(async tx=>{const fresh=requireStaff(await lockAccess(tx,access)),article=(await tx.query<KnowledgeArticle>('SELECT id,title,category,body,false AS published,"createdAt","updatedAt",0 AS version,0 AS "contentRevision",\'draft\' AS "reviewState",false AS archived FROM articles WHERE id=$1 AND "ownerId"=$2',[id,fresh.ownerId])).rows[0];if(!article)throw new ApiError(404,'El artículo no existe.');return {article,revisions:[],reviews:[],publications:[],reader:'staff',historyNextCursor:null};});
+}
 export { operation as runKnowledgeOperation };

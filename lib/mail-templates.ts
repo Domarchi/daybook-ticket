@@ -41,6 +41,8 @@ export function buildMailPayload(input: {
 }): MailPayload {
   const ticket = input.ticketId ? `Ticket #${input.ticketId}` : 'Daybook Ticket';
   const copy: Record<NotificationEvent, { heading: string; body: string; action: string }> = {
+    member_mentioned: { heading: 'Te mencionaron en una nota interna', body: `${ticket} tiene una mención para ti. Entra al portal para consultar la nota del equipo.`, action: 'Ver mención' },
+    ticket_followed_update: { heading: 'Un ticket que sigues tiene novedades', body: `${ticket} tiene una actualización pública. Entra al portal para continuar la atención.`, action: 'Ver actualización' },
     ticket_created: { heading: 'Un nuevo ticket te espera', body: `${ticket} fue creado. Consulta su estado y continúa la atención desde el portal.`, action: 'Ver ticket' },
     agent_replied: { heading: 'Tienes una nueva respuesta', body: `El equipo de soporte respondió en ${ticket.toLowerCase()}. Entra al portal para leer y continuar la conversación.`, action: 'Ver respuesta' },
     client_replied: { heading: 'El cliente respondió', body: `${ticket} tiene una nueva respuesta del cliente. Entra al portal para continuar la atención.`, action: 'Ver ticket' },

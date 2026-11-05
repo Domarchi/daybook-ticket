@@ -1,11 +1,12 @@
-import { requireAccess,requireStaff } from '@/lib/access';
+import {requireStaff} from '@/lib/access';
+import {requireKnowledgeAccess} from '@/lib/knowledge-access';
 import { ApiError,handle } from '@/lib/server';
 import { getMonthlyReport } from '@/lib/company-reports';
 import { companyReportCsv,companyReportPdf } from '@/lib/company-report-export';
 export const runtime='nodejs';
 type Context={params:Promise<{id:string}>};
 export async function GET(request:Request,context:Context){return handle(async()=>{
- const access=requireStaff(await requireAccess(request)),id=(await context.params).id,params=new URL(request.url).searchParams,format=params.get('format')||'pdf';
+ const access=requireStaff(await requireKnowledgeAccess(request)),id=(await context.params).id,params=new URL(request.url).searchParams,format=params.get('format')||'pdf';
  if(!['pdf','csv'].includes(format)||[...params.keys()].some(key=>key!=='format'||params.getAll(key).length!==1))throw new ApiError(400,'Selecciona PDF o CSV.');
  const snapshot=await getMonthlyReport(access,id),bytes=format==='pdf'?await companyReportPdf(snapshot):companyReportCsv(snapshot);
  // Recheck the live role after rendering and before returning private bytes.

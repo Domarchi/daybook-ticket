@@ -1,3 +1,5 @@
+import {acquireTicketWorkLock} from './work-lock';
+import {parseEvolutionFeatures} from './evolution-feature-model';
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import type { Database } from '../db/database';
@@ -23,6 +25,9 @@ async function recipients(tx:PoolClient,ownerId:string,assigned:string|null):Pro
 /** All state and outbox writes share this transaction and stage key. */
 export async function enqueueServiceContextReminder(database:Database,ownerId:string,kind:EntityKind,id:string,now=new Date()):Promise<number> {
   return database.transaction(async tx=>{
+    await acquireTicketWorkLock(tx,ownerId);
+    const feature=(await tx.query('SELECT "featuresJson" FROM "evolutionFeatures" WHERE "ownerId"=$1',[ownerId])).rows[0];
+    if(!parseEvolutionFeatures(feature?.featuresJson).serviceContext)return 0;
     const current=await entity(tx,ownerId,kind,id,true);
     if(!current || current.archived || !current.dateValue) return 0;
     const config=(await tx.query<{enabled:boolean;activatedAt:string|null}>('SELECT enabled,"activatedAt" FROM "serviceContextNotificationSettings" WHERE "ownerId"=$1 FOR SHARE',[ownerId])).rows[0];
@@ -46,6 +51,8 @@ export async function enqueueServiceContextReminder(database:Database,ownerId:st
 export async function isServiceReminderEligibleForDelivery(database:Database,row:{ownerId:string;recipientMemberId:string;serviceReminderId?:string|null},now=new Date()):Promise<boolean> {
   if(!row.serviceReminderId) return false;
   return database.transaction(async tx=>{
+    const feature=(await tx.query('SELECT "featuresJson" FROM "evolutionFeatures" WHERE "ownerId"=$1',[row.ownerId])).rows[0];
+    if(!parseEvolutionFeatures(feature?.featuresJson).serviceContext)return false;
     const occurrence=(await tx.query<Occurrence>('SELECT * FROM "serviceContextReminders" WHERE id=$1 AND "ownerId"=$2 AND "recipientMemberId"=$3',[row.serviceReminderId,row.ownerId,row.recipientMemberId])).rows[0];
     if(!occurrence) return false;
     const config=(await tx.query<{enabled:boolean;activatedAt:string|null}>('SELECT enabled,"activatedAt" FROM "serviceContextNotificationSettings" WHERE "ownerId"=$1',[row.ownerId])).rows[0];
@@ -58,7 +65,7 @@ export async function isServiceReminderEligibleForDelivery(database:Database,row
 
 /** Bounded, resumable sweeps. No remote infrastructure is provisioned by this worker. */
 export async function runServiceContextTick(invocationId:string,now=new Date(),database:Database=db()) {
-  const owners=(await database.prepare(`SELECT s."ownerId" FROM "serviceContextNotificationSettings" s JOIN organizations o ON o."ownerId"=s."ownerId" LEFT JOIN "serviceContextJobHealth" h ON h."ownerId"=s."ownerId" WHERE s.enabled ORDER BY h."lastStartedAt" NULLS FIRST,s."ownerId" LIMIT 5`).all<{ownerId:string}>()).results;
+  const owners=(await database.prepare(`SELECT s."ownerId" FROM "serviceContextNotificationSettings" s JOIN "evolutionFeatures" f ON f."ownerId"=s."ownerId" AND f."featuresJson"::jsonb->>'serviceContext'='true' JOIN organizations o ON o."ownerId"=s."ownerId" LEFT JOIN "serviceContextJobHealth" h ON h."ownerId"=s."ownerId" WHERE s.enabled ORDER BY h."lastStartedAt" NULLS FIRST,s."ownerId" LIMIT 5`).all<{ownerId:string}>()).results;
   const result={owners:0,examined:0,enqueued:0,failed:0};const deadline=Date.now()+35000;
   for(const owner of owners) {
     if(Date.now()>deadline) break;

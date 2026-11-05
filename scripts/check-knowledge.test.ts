@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PDFDocument,StandardFonts } from 'pdf-lib';
-import { knowledgeContentSchema,knowledgePublicationSchema,knowledgeSearchTokens,monthlyReportPeriod,companyReportSchema } from '../lib/knowledge-model';
+import { knowledgeContentSchema,knowledgePublicationSchema,knowledgeSearchTokens,monthlyReportPeriod,companyReportSchema,pauseKnowledgeFeaturesJson } from '../lib/knowledge-model';
 import { companyReportCsv,companyReportPdf,wrapPdfText } from '../lib/company-report-export';
 import { KnowledgeDraftStore,knowledgeDraftKey } from '../lib/knowledge-drafts';
 import { BACKUP_TABLES,BACKUP_TABLE_PROFILES,SERVICE_CONTEXT_BACKUP_PROFILE,validateBackup,sha256 } from '../lib/backup-format';
-import { compatibleBackupColumns } from '../lib/workspace-backup';
+import { compatibleBackupColumns } from '../lib/backup-format';
 import { knowledgeReportFixture } from './knowledge-report-fixture';
 
 test('knowledge input rejects extra private scopes and duplicate publication companies',()=>{
@@ -49,6 +49,16 @@ test('backup accepts complete historical table profiles and rejects mixed or for
  const foreign=structuredClone(manifest);foreign.tables[0].columns=['ownerId'];foreign.tables[0].rows=[{ownerId:'B'}];foreign.tables[0].sha256=sha256('{"ownerId":"B"}');assert.throws(()=>validateBackup(foreign),/workspace mismatch/);
 });
 test('recovery permits only named additive columns and preserves required schema checks',()=>{
- assert.deepEqual(compatibleBackupColumns('articles',['id','title','body','version','contentRevision','reviewState','archived'],['id','title','body']),['id','title','body']);
- assert.deepEqual(compatibleBackupColumns('articles',['id','body','ownerId','version'],['id','body']),['id','body','ownerId']);assert.deepEqual(compatibleBackupColumns('other',['id','version'],['id']),['id','version']);
+ assert.equal(compatibleBackupColumns('articles',['id','title','body','version','contentRevision','reviewState','archived'],['id','title','body']),true);
+ assert.equal(compatibleBackupColumns('articles',['id','body','ownerId','version'],['id','body']),false);assert.equal(compatibleBackupColumns('other',['id','version'],['id']),false);
+ assert.equal(compatibleBackupColumns('messages',['id','body','replyToMessageId'],['id','body']),true);assert.equal(compatibleBackupColumns('mailOutbox',['id','sourceMessageId','serviceReminderId'],['id']),true);
+});
+
+test('recovery pauses knowledge while preserving security, MFA and workspace control choices',()=>{
+ assert.deepEqual(JSON.parse(pauseKnowledgeFeaturesJson('{"knowledge":true,"security":true,"workspaces":true,"custom":true}')),{knowledge:false,security:true,workspaces:true,custom:true});assert.deepEqual(JSON.parse(pauseKnowledgeFeaturesJson('broken')),{knowledge:false});
+});
+
+test('frozen reports keep their original classification basis when export labels evolve',()=>{
+ const legacy=knowledgeReportFixture(),before=JSON.stringify(legacy),current=structuredClone(legacy);current.report.classificationBasis='verified-period-cutoff';
+ assert.ok(companyReportCsv(legacy).includes('Equipos vinculados actualmente'));assert.ok(companyReportCsv(current).includes('Equipos verificables al cierre'));assert.equal(JSON.stringify(legacy),before);
 });

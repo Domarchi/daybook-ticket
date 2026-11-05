@@ -1,4 +1,5 @@
-import { pgTable, integer, serial, boolean, text, index, uniqueIndex, check, primaryKey, bigint } from 'drizzle-orm/pg-core';
+import {user as preferenceUser} from './auth-schema';
+import { pgTable, integer, serial, boolean, text, index, uniqueIndex, check, primaryKey, bigint, type AnyPgColumn } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const organizations = pgTable('organizations', {
@@ -98,6 +99,7 @@ export const ticketSlaOutcomes = pgTable('ticketSlaOutcomes', {
 }, t => [index('ticket_sla_outcomes_period').on(t.ownerId, t.resolvedAt), index('ticket_sla_outcomes_ticket').on(t.ownerId, t.ticketId)]);
 
 export const messages = pgTable('messages', {
+  replyToMessageId: integer('replyToMessageId').references((): AnyPgColumn => messages.id),
   id: serial('id').primaryKey(),
   ownerId: text('ownerId').notNull(),
   ticketId: integer('ticketId').notNull().references(() => tickets.id),
@@ -229,6 +231,7 @@ export const inboundMailReceipts = pgTable('inboundMailReceipts', {
 }, t => [index('inbound_receipt_owner').on(t.ownerId, t.createdAt), index('inbound_receipt_member').on(t.ownerId, t.memberId, t.createdAt), check('inbound_environment', sql`${t.environment} IN ('qa','production')`), check('inbound_receipt_status', sql`${t.status} IN ('processed','ignored')`)]);
 
 export const mailOutbox = pgTable('mailOutbox', {
+  sourceMessageId: integer('sourceMessageId').references(() => messages.id),
   id: text('id').primaryKey(),
   ownerId: text('ownerId').notNull(),
   eventKey: text('eventKey').notNull(),
@@ -352,8 +355,49 @@ export const serviceContextNotificationSettings = pgTable('serviceContextNotific
 export const serviceContextReminders = pgTable('serviceContextReminders',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),companyId:text('companyId').notNull().references(()=>customerCompanies.id),recipientMemberId:text('recipientMemberId').notNull().references(()=>members.id),entityKind:text('entityKind').notNull(),entityId:text('entityId').notNull(),entityName:text('entityName').notNull(),dateValue:text('dateValue').notNull(),stage:integer('stage').notNull(),activationAt:text('activationAt').notNull(),readAt:text('readAt'),createdAt:text('createdAt').notNull()},t=>[uniqueIndex('service_context_reminder_stage').on(t.ownerId,t.recipientMemberId,t.entityKind,t.entityId,t.dateValue,t.stage),index('service_context_reminders_member').on(t.ownerId,t.recipientMemberId,t.createdAt,t.id),check('service_reminder_kind',sql`${t.entityKind} IN ('asset','contract')`),check('service_reminder_stage',sql`${t.stage} IN (30,7,0)`)]);
 export const serviceContextJobHealth = pgTable('serviceContextJobHealth',{ownerId:text('ownerId').primaryKey().references(()=>organizations.ownerId),cursorKey:text('cursorKey').notNull().default(''),leaseToken:text('leaseToken'),leaseUntil:text('leaseUntil'),lastStartedAt:text('lastStartedAt'),lastSucceededAt:text('lastSucceededAt'),lastFailedAt:text('lastFailedAt'),lastErrorCode:text('lastErrorCode'),lastInvocationId:text('lastInvocationId')});
 
+
 export const knowledgeArticleRevisions=pgTable('knowledgeArticleRevisions',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),articleId:integer('articleId').notNull().references(()=>articles.id),revision:integer('revision').notNull(),title:text('title').notNull(),category:text('category').notNull(),body:text('body').notNull(),changeNote:text('changeNote').notNull().default(''),origin:text('origin').notNull(),createdByMemberId:text('createdByMemberId').references(()=>members.id),createdAt:text('createdAt').notNull()},t=>[uniqueIndex('knowledgeArticleRevisions_articleId_revision_key').on(t.articleId,t.revision),index('knowledge_revisions_owner_article').on(t.ownerId,t.articleId,t.revision.desc()),check('knowledgeArticleRevisions_origin_check',sql`${t.origin} IN ('legacy','edit')`)]);
 export const knowledgeArticleReviews=pgTable('knowledgeArticleReviews',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),articleId:integer('articleId').notNull().references(()=>articles.id),revisionId:text('revisionId').notNull().references(()=>knowledgeArticleRevisions.id),status:text('status').notNull(),note:text('note').notNull().default(''),requestedByMemberId:text('requestedByMemberId').notNull().references(()=>members.id),reviewerMemberId:text('reviewerMemberId').references(()=>members.id),requestedAt:text('requestedAt').notNull(),decidedAt:text('decidedAt')},t=>[uniqueIndex('knowledge_reviews_pending').on(t.revisionId).where(sql`${t.status}='pending'`),index('knowledge_reviews_owner_article').on(t.ownerId,t.articleId,t.requestedAt.desc(),t.id.desc()),check('knowledgeArticleReviews_status_check',sql`${t.status} IN ('pending','approved','changes','superseded')`)]);
 export const knowledgeArticlePublications=pgTable('knowledgeArticlePublications',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),articleId:integer('articleId').notNull().references(()=>articles.id),revisionId:text('revisionId').notNull().references(()=>knowledgeArticleRevisions.id),companyId:text('companyId').notNull().references(()=>customerCompanies.id),active:boolean('active').notNull().default(true),publishedByMemberId:text('publishedByMemberId').notNull().references(()=>members.id),createdAt:text('createdAt').notNull(),revokedAt:text('revokedAt')},t=>[uniqueIndex('knowledge_publication_active').on(t.ownerId,t.articleId,t.companyId).where(sql`${t.active}`),index('knowledge_publications_company').on(t.ownerId,t.companyId,t.active,t.articleId)]);
 export const knowledgeEvents=pgTable('knowledgeEvents',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),articleId:integer('articleId').notNull().references(()=>articles.id),actorMemberId:text('actorMemberId').notNull().references(()=>members.id),action:text('action').notNull(),detailJson:text('detailJson').notNull(),createdAt:text('createdAt').notNull()},t=>[index('knowledge_events_article').on(t.ownerId,t.articleId,t.createdAt.desc(),t.id.desc())]);
 export const companyMonthlyReports=pgTable('companyMonthlyReports',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),companyId:text('companyId').notNull().references(()=>customerCompanies.id),month:text('month').notNull(),payloadJson:text('payloadJson').notNull(),payloadHash:text('payloadHash').notNull(),createdByMemberId:text('createdByMemberId').notNull().references(()=>members.id),createdAt:text('createdAt').notNull()},t=>[index('company_reports_owner_company').on(t.ownerId,t.companyId,t.createdAt.desc(),t.id.desc()),check('companyMonthlyReports_month_check',sql`${t.month} ~ '^20[0-9]{2}-(0[1-9]|1[0-2])$'`)]);
+
+export const workOrganizationCatalog = pgTable('workOrganizationCatalog', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull().references(() => organizations.ownerId),
+  kind: text('kind').notNull(), name: text('name').notNull(), definitionJson: text('definitionJson').notNull(),
+  version: integer('version').notNull().default(0), archived: boolean('archived').notNull().default(false),
+  createdAt: text('createdAt').notNull(), updatedAt: text('updatedAt').notNull(),
+}, t => [index('work_organization_catalog_owner_kind').on(t.ownerId,t.kind,t.archived,t.name,t.id), uniqueIndex('work_organization_catalog_active_name').on(t.ownerId,t.kind,sql`lower(${t.name})`).where(sql`NOT ${t.archived}`), check('work_organization_catalog_kind',sql`${t.kind} IN ('tag','requestType','field','form')`)]);
+export const workOrganizationRevisions = pgTable('workOrganizationRevisions', {
+  catalogId: text('catalogId').notNull().references(() => workOrganizationCatalog.id), version: integer('version').notNull(),
+  ownerId: text('ownerId').notNull(), definitionJson: text('definitionJson').notNull(), createdAt: text('createdAt').notNull(),
+}, t => [primaryKey({ columns: [t.catalogId,t.version] })]);
+export const ticketOrganization = pgTable('ticketOrganization', {
+  ticketId: integer('ticketId').primaryKey().references(() => tickets.id), ownerId: text('ownerId').notNull(),
+  metadataJson: text('metadataJson').notNull(), tagIdsJson: text('tagIdsJson').notNull().default('[]'), waitReason: text('waitReason').notNull().default(''),
+  version: integer('version').notNull().default(0), updatedAt: text('updatedAt').notNull(),
+}, t => [index('ticket_organization_owner').on(t.ownerId,t.ticketId)]);
+export const ticketTasks = pgTable('ticketTasks', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull(), ticketId: integer('ticketId').notNull().references(() => tickets.id),
+  createdByMemberId: text('createdByMemberId').notNull().references(() => members.id), operationId: text('operationId').notNull(), requestHash: text('requestHash').notNull(),
+  title: text('title').notNull(), assigneeMemberId: text('assigneeMemberId').references(() => members.id), dueAt: text('dueAt'),
+  status: text('status').notNull().default('open'), version: integer('version').notNull().default(0), createdAt: text('createdAt').notNull(), updatedAt: text('updatedAt').notNull(),
+}, t => [uniqueIndex('ticket_tasks_operation').on(t.ownerId,t.operationId),index('ticket_tasks_owner_ticket').on(t.ownerId,t.ticketId,t.createdAt.desc(),t.id.desc()),index('ticket_tasks_assignee').on(t.ownerId,t.assigneeMemberId,t.status,t.dueAt),check('ticket_tasks_status',sql`${t.status} IN ('open','done','cancelled')`)]);
+export const savedTicketViews = pgTable('savedTicketViews', {
+  id: text('id').primaryKey(), ownerId: text('ownerId').notNull(), memberId: text('memberId').notNull().references(() => members.id), name: text('name').notNull(), filtersJson: text('filtersJson').notNull(),
+  version: integer('version').notNull().default(0), createdAt: text('createdAt').notNull(), updatedAt: text('updatedAt').notNull(),
+}, t => [uniqueIndex('saved_ticket_views_name').on(t.memberId,t.name),index('saved_ticket_views_member').on(t.ownerId,t.memberId,t.name,t.id)]);
+export const messageMentions = pgTable('messageMentions', {
+  ownerId: text('ownerId').notNull(), messageId: integer('messageId').notNull().references(() => messages.id),
+  memberId: text('memberId').notNull().references(() => members.id), createdAt: text('createdAt').notNull(),
+},t => [primaryKey({columns:[t.messageId,t.memberId]}),index('message_mentions_recipient').on(t.ownerId,t.memberId,t.messageId)]);
+export const ticketFollowers = pgTable('ticketFollowers', {
+  ownerId: text('ownerId').notNull(), ticketId: integer('ticketId').notNull().references(() => tickets.id),
+  memberId: text('memberId').notNull().references(() => members.id),createdAt: text('createdAt').notNull(),
+},t => [primaryKey({columns:[t.ticketId,t.memberId]}),index('ticket_followers_owner').on(t.ownerId,t.memberId)]);
+export const evolutionFeatures = pgTable('evolutionFeatures', {
+  ownerId: text('ownerId').primaryKey().references(() => organizations.ownerId), featuresJson: text('featuresJson').notNull().default('{}'),
+  version:integer('version').notNull().default(0),updatedAt:text('updatedAt').notNull(),
+});
+export const userPreferences = pgTable('userPreferences', {userId:text('userId').primaryKey().references(()=>preferenceUser.id),theme:text('theme').notNull().default('system'),updatedAt:text('updatedAt').notNull()},t=>[check('user_preferences_theme',sql`${t.theme} IN ('system','light','dark')`)]);
+
