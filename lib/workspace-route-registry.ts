@@ -79,7 +79,25 @@ import * as evolution19 from '@/app/api/tickets/[id]/relations/route';
 import * as evolution20 from '@/app/api/tickets/[id]/service-context/route';
 import * as evolution21 from '@/app/api/tickets/[id]/task-templates/route';
 import * as evolution22 from '@/app/api/tickets/[id]/tasks/route';
+import * as knowledge0 from '@/app/api/knowledge/[id]/publications/route';
+import * as knowledge1 from '@/app/api/knowledge/[id]/review/route';
+import * as knowledge2 from '@/app/api/knowledge/[id]/route';
+import * as knowledge3 from '@/app/api/knowledge/route';
+import * as knowledge4 from '@/app/api/knowledge/suggestions/route';
+import * as knowledge5 from '@/app/api/reports/company/route';
+import * as knowledge6 from '@/app/api/reports/monthly/[id]/download/route';
+import * as knowledge7 from '@/app/api/reports/monthly/[id]/route';
+import * as knowledge8 from '@/app/api/reports/monthly/route';
 export const WORKSPACE_ROUTE_REGISTRY=[
+{pattern:new RegExp('^knowledge/([^/]+)/publications$'),names:["id"],handlers:knowledge0},
+{pattern:new RegExp('^knowledge/([^/]+)/review$'),names:["id"],handlers:knowledge1},
+{pattern:new RegExp('^knowledge/([^/]+)$'),names:["id"],handlers:knowledge2},
+{pattern:new RegExp('^knowledge$'),names:[],handlers:knowledge3},
+{pattern:new RegExp('^knowledge/suggestions$'),names:[],handlers:knowledge4},
+{pattern:new RegExp('^reports/company$'),names:[],handlers:knowledge5},
+{pattern:new RegExp('^reports/monthly/([^/]+)/download$'),names:["id"],handlers:knowledge6},
+{pattern:new RegExp('^reports/monthly/([^/]+)$'),names:["id"],handlers:knowledge7},
+{pattern:new RegExp('^reports/monthly$'),names:[],handlers:knowledge8},
 {pattern:new RegExp('^automation/executions$'),names:[],handlers:evolution0},
 {pattern:new RegExp('^automation/rules/([^/]+)/versions$'),names:["id"],handlers:evolution1},
 {pattern:new RegExp('^automation/rules$'),names:[],handlers:evolution2},

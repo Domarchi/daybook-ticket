@@ -1,4 +1,6 @@
 'use client';
+import {readDaybookJson} from '@/lib/browser-json';
+import {domainResponseValidator} from '@/lib/domain-response';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Archive, Check, ClipboardList, Filter, LoaderCircle, Plus, RefreshCw, Save, Tag, X } from 'lucide-react';
 import type { CustomerCompany, Member } from '@/lib/types';
@@ -13,9 +15,7 @@ const EMPTY_CATALOG: OrganizationCatalog = { tags: [], requestTypes: [], fields:
 const KIND_LABELS: Record<CatalogKind,string> = { tag:'Etiquetas',requestType:'Tipos de solicitud',field:'Campos',form:'Formularios' };
 export async function orgRequest<T>(memberId:string,path:string,method='GET',body?:unknown,signal?:AbortSignal):Promise<T> {
   const response=await daybookFetch(path,{method,signal,cache:'no-store',headers:{'X-Daybook-Member-Id':memberId,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})},method==='GET'?'No se pudo conectar con Daybook. Vuelve a intentarlo.':'El cambio no se ha confirmado. Actualiza la vista para comprobar si se guardó antes de repetirlo.');
-  const value=await response.json().catch(()=>({}));
-  if(!response.ok) throw new Error(typeof value.error==='string'?value.error:'No se pudo completar la operación.');
-  return value as T;
+  return readDaybookJson(response,{mutation:method!=='GET',validate:domainResponseValidator<T>(path,method)});
 }
 export function useOrgResource<T>(memberId:string,path:string,enabled=true,refreshKey?:string|number) {
   const key=`${memberId}:${path}`, [revision,setRevision]=useState(0);

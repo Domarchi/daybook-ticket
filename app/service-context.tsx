@@ -1,4 +1,6 @@
 'use client';
+import {readDaybookJson} from '@/lib/browser-json';
+import {domainResponseValidator} from '@/lib/domain-response';
 import {currentWorkspaceId} from '@/lib/workspace-client';
 import {workspaceHome} from '@/lib/workspace-model';
 import {daybookFetch} from '@/lib/browser-request';
@@ -22,7 +24,7 @@ const FIELDS:Record<ServiceResource,Field[]>={
   contracts:[{name:'name',label:'Nombre del contrato',required:true},{name:'reference',label:'Referencia'},{name:'provider',label:'Proveedor'},{name:'startsOn',label:'Inicio de vigencia',type:'date',required:true},{name:'endsOn',label:'Fin de vigencia',type:'date',required:true},{name:'renewalOn',label:'Próxima renovación',type:'date'},{name:'responsibleMemberId',label:'Responsable Daybook',type:'staff'},{name:'serviceIds',label:'Servicios incluidos',type:'services'}],
 };
 async function api<T>(memberId:string,path:string,method='GET',body?:unknown,signal?:AbortSignal):Promise<T>{
- const response=await daybookFetch(path,{method,cache:'no-store',signal,headers:{'X-Daybook-Member-Id':memberId,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});const value=await response.json().catch(()=>({}));if(!response.ok)throw new Error(typeof value.error==='string'?value.error:'No se pudo completar esta operación.');return value as T;
+ const response=await daybookFetch(path,{method,cache:'no-store',signal,headers:{'X-Daybook-Member-Id':memberId,...(body===undefined?{}:{'Content-Type':'application/json'})},...(body===undefined?{}:{body:JSON.stringify(body)})});return readDaybookJson(response,{mutation:method!=='GET',validate:domainResponseValidator<T>(path,method)});
 }
 const day=(value:unknown)=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)?new Intl.DateTimeFormat('es-CL',{dateStyle:'medium',timeZone:'UTC'}).format(new Date(`${value}T12:00:00Z`)):'Sin fecha';
 function Feedback({error}:{error:string}) {return error?<p className="service-context-error" role="alert">{error}</p>:null;}

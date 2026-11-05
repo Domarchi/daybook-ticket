@@ -19,15 +19,22 @@ for(const table of ORGANIZATION_BACKUP_TABLES){
  orderedBackupTables.push(table);
 }
 export const PRE_AUTOMATION_BACKUP_TABLES:readonly BackupTableName[]=orderedBackupTables;
-export const AUTOMATION_RELEASE_BACKUP_TABLES:readonly BackupTableName[]=[...PRE_AUTOMATION_BACKUP_TABLES,...AUTOMATION_BACKUP_TABLES];
-export const SECURITY_BACKUP_TABLES:readonly BackupTableName[]=[...AUTOMATION_RELEASE_BACKUP_TABLES,'twoFactor','securityProfiles','securityPolicies','securityAudit'];
-export const BACKUP_TABLES:readonly BackupTableName[]=[...SECURITY_BACKUP_TABLES,'workspaceProfiles'];
-export const BACKUP_TABLE_PROFILES:readonly (readonly string[])[]=[LEGACY_BACKUP_TABLES,RELIABILITY_BACKUP_TABLES,COLLABORATION_BACKUP_TABLES,ORGANIZATION_BACKUP_TABLES,PRE_AUTOMATION_BACKUP_TABLES,AUTOMATION_RELEASE_BACKUP_TABLES,LEGACY_SECURITY_BACKUP_TABLES,LEGACY_WORKSPACE_BACKUP_TABLES,SECURITY_BACKUP_TABLES,BACKUP_TABLES];
-export const ADDED_BACKUP_COLUMNS: Readonly<Record<string,readonly string[]>> = {authUser:['twoFactorEnabled'],invitations:['acceptedAt','acceptedUserId'],members:['isTest'],tickets:['isTest'],messages:['replyToMessageId'],mailOutbox:['sourceMessageId','serviceReminderId'],attachments:['contractId']};
+export const SERVICE_CONTEXT_BACKUP_PROFILE=PRE_AUTOMATION_BACKUP_TABLES;
+export const PRE_KNOWLEDGE_BACKUP_TABLES:readonly BackupTableName[]=[...PRE_AUTOMATION_BACKUP_TABLES,...AUTOMATION_BACKUP_TABLES];
+export const AUTOMATION_RELEASE_BACKUP_TABLES=PRE_KNOWLEDGE_BACKUP_TABLES;
+export const KNOWLEDGE_BACKUP_TABLES=['knowledgeArticleRevisions','knowledgeArticleReviews','knowledgeArticlePublications','knowledgeEvents','companyMonthlyReports'] as const;
+export const KNOWLEDGE_RELEASE_BACKUP_TABLES=[...PRE_KNOWLEDGE_BACKUP_TABLES,...KNOWLEDGE_BACKUP_TABLES] as const;
+export const PRE_KNOWLEDGE_SECURITY_BACKUP_TABLES=[...PRE_KNOWLEDGE_BACKUP_TABLES,'twoFactor','securityProfiles','securityPolicies','securityAudit'] as const;
+export const PRE_KNOWLEDGE_WORKSPACE_BACKUP_TABLES=[...PRE_KNOWLEDGE_SECURITY_BACKUP_TABLES,'workspaceProfiles'] as const;
+export const SECURITY_BACKUP_TABLES=[...KNOWLEDGE_RELEASE_BACKUP_TABLES,'twoFactor','securityProfiles','securityPolicies','securityAudit'] as const;
+export const BACKUP_TABLES=[...SECURITY_BACKUP_TABLES,'workspaceProfiles'] as const;
+export const BACKUP_TABLE_PROFILES:readonly (readonly string[])[]=[LEGACY_BACKUP_TABLES,RELIABILITY_BACKUP_TABLES,COLLABORATION_BACKUP_TABLES,ORGANIZATION_BACKUP_TABLES,SERVICE_CONTEXT_BACKUP_PROFILE,PRE_KNOWLEDGE_BACKUP_TABLES,KNOWLEDGE_RELEASE_BACKUP_TABLES,LEGACY_SECURITY_BACKUP_TABLES,LEGACY_WORKSPACE_BACKUP_TABLES,PRE_KNOWLEDGE_SECURITY_BACKUP_TABLES,PRE_KNOWLEDGE_WORKSPACE_BACKUP_TABLES,SECURITY_BACKUP_TABLES,BACKUP_TABLES];
+export const ADDED_BACKUP_COLUMNS: Readonly<Record<string,readonly string[]>> = {authUser:['twoFactorEnabled'],invitations:['acceptedAt','acceptedUserId'],members:['isTest'],tickets:['isTest'],messages:['replyToMessageId'],mailOutbox:['sourceMessageId','serviceReminderId'],attachments:['contractId'],articles:['version','contentRevision','reviewState','archived']};
 export function compatibleBackupColumns(table:string,target:readonly string[],source:readonly string[]){
  const optional=ADDED_BACKUP_COLUMNS[table]??[];
  return JSON.stringify(target.filter(column=>source.includes(column)||!optional.includes(column)))===JSON.stringify(source);
 }
+
 export type BackupTable = typeof BACKUP_TABLES[number];
 export type BackupRow = Record<string, string | number | boolean | null>;
 export interface WorkspaceBackup {

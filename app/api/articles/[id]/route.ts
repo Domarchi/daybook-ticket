@@ -1,15 +1,10 @@
 import { requireAccess, requireAdmin } from '@/lib/access';
-import { db, handle, json, parseBody, patchArticleSchema, articleColumns, asArticle, parseId, ApiError, type RouteContext } from '@/lib/server';
-import type { Article } from '@/lib/types';
-export async function PATCH(request: Request, context: RouteContext) {
+import { handle,ApiError,json,parseId,type RouteContext } from '@/lib/server';
+import {getLegacyKnowledge} from '@/lib/knowledge';
+export async function GET(request:Request,context:RouteContext){return handle(async()=>json(await getLegacyKnowledge(await requireAccess(request),parseId((await context.params).id))));}
+export async function PATCH(request: Request) {
   return handle(async () => {
-    const access = requireAdmin(await requireAccess(request));
-    const id = parseId((await context.params).id);
-    const data = await parseBody(request, patchArticleSchema);
-    const changes: Record<string, string | boolean> = { ...data, updatedAt: new Date().toISOString() };
-    const keys = Object.keys(changes);
-    const article = await db().prepare(`UPDATE articles SET ${keys.map((key, index) => `"${key}" = $${index + 1}`).join(', ')} WHERE id = $${keys.length + 1} AND "ownerId" = $${keys.length + 2} RETURNING ${articleColumns}`).bind(...Object.values(changes), id, access.ownerId).first<Article>();
-    if (!article) throw new ApiError(404, 'El artículo no existe o no tienes acceso.');
-    return json({ article: asArticle(article) });
+    requireAdmin(await requireAccess(request));
+    throw new ApiError(409,'Abre la biblioteca de conocimiento para editar con control de versiones y publicación por empresa.');
   });
 }

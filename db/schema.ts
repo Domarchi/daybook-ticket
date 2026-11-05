@@ -151,6 +151,10 @@ export const attachments = pgTable('attachments', {
 ]);
 
 export const articles = pgTable('articles', {
+  version: integer('version').notNull().default(0),
+  contentRevision: integer('contentRevision').notNull().default(0),
+  reviewState: text('reviewState').notNull().default('draft'),
+  archived: boolean('archived').notNull().default(false),
   id: serial('id').primaryKey(),
   ownerId: text('ownerId').notNull(),
   title: text('title').notNull(),
@@ -159,7 +163,7 @@ export const articles = pgTable('articles', {
   published: boolean('published').notNull().default(false),
   createdAt: text('createdAt').notNull(),
   updatedAt: text('updatedAt').notNull(),
-}, (t) => [index('articles_owner').on(t.ownerId)]);
+}, (t) => [index('articles_owner').on(t.ownerId),check('articles_reviewState_check',sql`${t.reviewState} IN ('draft','review','approved','changes')`)]);
 
 export const settings = pgTable('settings', {
   ownerId: text('ownerId').primaryKey(),
@@ -350,6 +354,14 @@ export const serviceContextEvents = pgTable('serviceContextEvents',{id:text('id'
 export const serviceContextNotificationSettings = pgTable('serviceContextNotificationSettings',{ownerId:text('ownerId').primaryKey().references(()=>organizations.ownerId),enabled:boolean('enabled').notNull().default(false),activatedAt:text('activatedAt'),version:integer('version').notNull().default(0),updatedAt:text('updatedAt').notNull()});
 export const serviceContextReminders = pgTable('serviceContextReminders',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),companyId:text('companyId').notNull().references(()=>customerCompanies.id),recipientMemberId:text('recipientMemberId').notNull().references(()=>members.id),entityKind:text('entityKind').notNull(),entityId:text('entityId').notNull(),entityName:text('entityName').notNull(),dateValue:text('dateValue').notNull(),stage:integer('stage').notNull(),activationAt:text('activationAt').notNull(),readAt:text('readAt'),createdAt:text('createdAt').notNull()},t=>[uniqueIndex('service_context_reminder_stage').on(t.ownerId,t.recipientMemberId,t.entityKind,t.entityId,t.dateValue,t.stage),index('service_context_reminders_member').on(t.ownerId,t.recipientMemberId,t.createdAt,t.id),check('service_reminder_kind',sql`${t.entityKind} IN ('asset','contract')`),check('service_reminder_stage',sql`${t.stage} IN (30,7,0)`)]);
 export const serviceContextJobHealth = pgTable('serviceContextJobHealth',{ownerId:text('ownerId').primaryKey().references(()=>organizations.ownerId),cursorKey:text('cursorKey').notNull().default(''),leaseToken:text('leaseToken'),leaseUntil:text('leaseUntil'),lastStartedAt:text('lastStartedAt'),lastSucceededAt:text('lastSucceededAt'),lastFailedAt:text('lastFailedAt'),lastErrorCode:text('lastErrorCode'),lastInvocationId:text('lastInvocationId')});
+
+
+export const knowledgeArticleRevisions=pgTable('knowledgeArticleRevisions',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),articleId:integer('articleId').notNull().references(()=>articles.id),revision:integer('revision').notNull(),title:text('title').notNull(),category:text('category').notNull(),body:text('body').notNull(),changeNote:text('changeNote').notNull().default(''),origin:text('origin').notNull(),createdByMemberId:text('createdByMemberId').references(()=>members.id),createdAt:text('createdAt').notNull()},t=>[uniqueIndex('knowledgeArticleRevisions_articleId_revision_key').on(t.articleId,t.revision),index('knowledge_revisions_owner_article').on(t.ownerId,t.articleId,t.revision.desc()),check('knowledgeArticleRevisions_origin_check',sql`${t.origin} IN ('legacy','edit')`)]);
+export const knowledgeArticleReviews=pgTable('knowledgeArticleReviews',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),articleId:integer('articleId').notNull().references(()=>articles.id),revisionId:text('revisionId').notNull().references(()=>knowledgeArticleRevisions.id),status:text('status').notNull(),note:text('note').notNull().default(''),requestedByMemberId:text('requestedByMemberId').notNull().references(()=>members.id),reviewerMemberId:text('reviewerMemberId').references(()=>members.id),requestedAt:text('requestedAt').notNull(),decidedAt:text('decidedAt')},t=>[uniqueIndex('knowledge_reviews_pending').on(t.revisionId).where(sql`${t.status}='pending'`),index('knowledge_reviews_owner_article').on(t.ownerId,t.articleId,t.requestedAt.desc(),t.id.desc()),check('knowledgeArticleReviews_status_check',sql`${t.status} IN ('pending','approved','changes','superseded')`)]);
+export const knowledgeArticlePublications=pgTable('knowledgeArticlePublications',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),articleId:integer('articleId').notNull().references(()=>articles.id),revisionId:text('revisionId').notNull().references(()=>knowledgeArticleRevisions.id),companyId:text('companyId').notNull().references(()=>customerCompanies.id),active:boolean('active').notNull().default(true),publishedByMemberId:text('publishedByMemberId').notNull().references(()=>members.id),createdAt:text('createdAt').notNull(),revokedAt:text('revokedAt')},t=>[uniqueIndex('knowledge_publication_active').on(t.ownerId,t.articleId,t.companyId).where(sql`${t.active}`),index('knowledge_publications_company').on(t.ownerId,t.companyId,t.active,t.articleId)]);
+export const knowledgeEvents=pgTable('knowledgeEvents',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),articleId:integer('articleId').notNull().references(()=>articles.id),actorMemberId:text('actorMemberId').notNull().references(()=>members.id),action:text('action').notNull(),detailJson:text('detailJson').notNull(),createdAt:text('createdAt').notNull()},t=>[index('knowledge_events_article').on(t.ownerId,t.articleId,t.createdAt.desc(),t.id.desc())]);
+export const companyMonthlyReports=pgTable('companyMonthlyReports',{id:text('id').primaryKey(),ownerId:text('ownerId').notNull(),companyId:text('companyId').notNull().references(()=>customerCompanies.id),month:text('month').notNull(),payloadJson:text('payloadJson').notNull(),payloadHash:text('payloadHash').notNull(),createdByMemberId:text('createdByMemberId').notNull().references(()=>members.id),createdAt:text('createdAt').notNull()},t=>[index('company_reports_owner_company').on(t.ownerId,t.companyId,t.createdAt.desc(),t.id.desc()),check('companyMonthlyReports_month_check',sql`${t.month} ~ '^20[0-9]{2}-(0[1-9]|1[0-2])$'`)]);
+
 export const workOrganizationCatalog = pgTable('workOrganizationCatalog', {
   id: text('id').primaryKey(), ownerId: text('ownerId').notNull().references(() => organizations.ownerId),
   kind: text('kind').notNull(), name: text('name').notNull(), definitionJson: text('definitionJson').notNull(),

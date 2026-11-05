@@ -1,12 +1,10 @@
 import { requireAccess, requireAdmin } from '@/lib/access';
-import { db, handle, json, parseBody, articleSchema, articleColumns, asArticle } from '@/lib/server';
-import type { Article } from '@/lib/types';
+import { ApiError,handle,json } from '@/lib/server';
+import {listLegacyKnowledge} from '@/lib/knowledge';
+export async function GET(request:Request){return handle(async()=>{const params=new URL(request.url).searchParams;for(const key of params.keys())if(!['q','cursor','limit'].includes(key)||params.getAll(key).length!==1)throw new ApiError(400,'Los filtros no son válidos.');return json(await listLegacyKnowledge(await requireAccess(request),{q:params.get('q')||'',cursor:params.has('cursor')?Number(params.get('cursor')):null,limit:params.has('limit')?Number(params.get('limit')):20}));});}
 export async function POST(request: Request) {
   return handle(async () => {
-    const access = requireAdmin(await requireAccess(request));
-    const data = await parseBody(request, articleSchema);
-    const now = new Date().toISOString();
-    const article = await db().prepare(`INSERT INTO articles ("ownerId", title, category, body, published, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING ${articleColumns}`).bind(access.ownerId, data.title, data.category, data.body, data.published, now, now).first<Article>();
-    return json({ article: asArticle(article!) }, 201);
+    requireAdmin(await requireAccess(request));
+    throw new ApiError(409,'Abre la biblioteca de conocimiento para crear una versión y elegir sus empresas autorizadas.');
   });
 }
