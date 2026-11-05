@@ -1,5 +1,6 @@
 'use client';
-import { MessageContent, MessageEditor } from './message-content';
+import { MessageEditor } from './message-content';
+import { TicketChat } from './ticket-chat';
 import { TicketSatisfactionPanel } from './satisfaction';
 import { EmailInboundPanel } from './email-inbound';
 import { PublicTicketProgress } from './public-ticket-progress';
@@ -19,10 +20,10 @@ import { ticketDraftKey } from '@/lib/ticket-drafts';
 import { getDraftOperations } from '@/lib/draft-operations';
 import { readNewTicketDraft, writeNewTicketDraft, clearNewTicketDraft } from '@/lib/new-ticket-draft';
 import { useDraftAttachments } from '@/hooks/use-draft-attachments';
-import { AttachmentComposer, MessageAttachments } from './attachments';
+import { AttachmentComposer } from './attachments';
 import './client-portal.css';
 import { useTicketSearch, useTicketConversation, type TicketFilters } from '@/hooks/use-ticket-search';
-import { TicketPagination, ConversationPagination } from './ticket-pagination';
+import { TicketPagination } from './ticket-pagination';
 
 const STATUS: Record<TicketStatus, string> = { open: 'Abierto', pending: 'En espera', resolved: 'Resuelto' };
 const PRIORITY: Record<TicketPriority, string> = { low: 'Baja', normal: 'Normal', high: 'Alta', urgent: 'Urgente' };
@@ -178,10 +179,10 @@ export default function ClientPortal({ data, displayName, email, onRefresh, conn
         <div className="client-detail-actions"><button className="client-back" onClick={() => navigate('tickets')} disabled={busy}><ArrowLeft size={16} />{isCompanyManager ? 'Tickets de mi empresa' : 'Mis tickets'}</button><button className="secondary" onClick={refresh} disabled={busy}><RefreshCw size={15} className={busy ? 'spin' : ''} />Actualizar</button></div>
         <div className="client-heading detail"><div><div className="client-ticket-meta"><span>{number(current.id)}</span><Badge status={current.status} /></div><h1 ref={headingRef} tabIndex={-1}>{current.subject}</h1><p>{current.department} · Creado el {date(current.createdAt)}{isCompanyManager && ` · Solicitado por ${current.requesterName}`}</p></div></div>
         <PublicTicketProgress key={`${data.viewer!.id}:${current.id}`} ticketId={current.id} memberId={data.viewer!.id} version={current.version}/>
-        <div className="client-detail-grid"><section className="client-conversation" aria-label="Conversación del ticket">
-          <div className="client-section-heading"><MessageSquare size={18} /><h2>Tu conversación</h2></div>
-          <div className="client-messages">{conversation.hasOlder && <ConversationPagination loading={conversation.loadingOlder} onLoad={conversation.loadOlder}/>}<p className="sr-only" role="status">{conversation.loading ? 'Actualizando conversación…' : ''}</p>{conversation.error && <p className="ticket-search-feedback" role="alert">{conversation.error}</p>}{conversation.messages.filter(message => message.kind !== 'note').map(message => <article className={`client-message ${message.authorMemberId === data.viewer?.id ? 'is-own' : ''}`} key={message.id}><div className="client-message-avatar" aria-hidden="true">{message.author.trim().slice(0, 1).toUpperCase() || 'D'}</div><div><header><strong>{message.authorMemberId === data.viewer?.id ? 'Tú' : message.author}</strong><time dateTime={message.createdAt}>{date(message.createdAt)}</time></header><MessageContent body={message.body} format={message.bodyFormat}/><MessageAttachments attachments={message.attachments}/></div></article>)}</div>
+        <div className="client-detail-grid"><section className="client-conversation ticket-chat-panel" aria-label="Conversación del ticket">
+          <TicketChat key={`${accessKey}:${current.id}`} messages={conversation.messages} viewerId={data.viewer!.id} staff={false} hasOlder={conversation.hasOlder} loadingOlder={conversation.loadingOlder} onLoadOlder={conversation.loadOlder} loading={conversation.loading} error={conversation.error} title="Tu conversación">
           {data.viewer && <ClientComposer key={ticketDraftKey({ memberId: data.viewer.id, role: 'client', ticketId: current.id })} memberId={data.viewer.id} ticketId={current.id} busy={busy} onSend={sendReply}/>}
+          </TicketChat>
         <TicketSatisfactionPanel key={`${data.viewer!.id}:${current.id}`} ticketId={current.id} memberId={data.viewer!.id} version={current.version} status={current.status}/></section><aside className="client-ticket-summary"><Headphones size={25} /><h2>Seguimos tu caso</h2><p>Consulta aquí el estado y las respuestas de nuestro equipo.</p><dl><div><dt>Estado</dt><dd><Badge status={current.status} /></dd></div><div><dt>Prioridad</dt><dd>{PRIORITY[current.priority]}</dd></div><div><dt>Última actividad</dt><dd>{date(current.updatedAt)}</dd></div></dl><div className="client-private-note"><ShieldCheck size={16} /><span>{isCompanyManager ? 'Visible para los contactos autorizados de tu empresa y el equipo de Daybook.' : 'Visible para ti, el equipo de Daybook y los contactos autorizados de tu empresa, si corresponde.'}</span></div></aside></div>
       </> : section === 'help' ? <>
         {article ? <>
@@ -219,17 +220,16 @@ function ClientComposer({ memberId, ticketId, busy, onSend }: {
   const { message, persistent, edit, complete } = useTicketDraft({ memberId, role: 'client', ticketId });
   const scope = `${ticketDraftKey({ memberId, role: 'client', ticketId })}.reply`;
   const attachments = useDraftAttachments(scope, 'reply', ticketId);
-  return <form className="client-composer" onSubmit={async event => {
+  return <form className="client-composer ticket-chat-composer reply" onSubmit={async event => {
     event.preventDefault();
     if (busy || !message.body.trim() || !attachments.canSubmit) return;
     const payload = { body: message.body, ...attachments.payload(), bodyFormat: 'markdown' as const };
     const operations = getDraftOperations();
     if (await onSend({ ...payload, operationId: operations.forPayload(scope, payload) })) { complete(message); attachments.complete(); operations.clear(scope); }
   }}>
-    <label htmlFor="client-reply">Añadir una respuesta</label>
     {!persistent && <p className="draft-notice" role="status">Tu navegador no permite guardar este borrador al recargar. Conservaremos el texto mientras esta página siga abierta.</p>}
-    <MessageEditor id="client-reply" label="Añadir una respuesta" value={message.body} onChange={edit} disabled={busy} rows={5} placeholder="Escribe tu respuesta o añade información…"/>
+    <MessageEditor compact id="client-reply" label="Añadir una respuesta" value={message.body} onChange={edit} disabled={busy} rows={5} placeholder="Escribe tu respuesta o añade información…"/>
     <AttachmentComposer controls={attachments} disabled={busy}/>
-    <div><span>Compartida con quienes tienen acceso a este ticket.</span><button className="primary" disabled={busy || !message.body.trim() || !attachments.canSubmit}>{busy ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}Enviar respuesta</button></div>
+    <div className="composer-footer"><span>Compartida con quienes tienen acceso a este ticket.</span><button className="primary" disabled={busy || !message.body.trim() || !attachments.canSubmit}>{busy ? <LoaderCircle className="spin" size={16} /> : <Send size={16} />}Enviar respuesta</button></div>
   </form>;
 }
