@@ -1,4 +1,5 @@
 import { ApiError, db } from './server';
+import {recordSecurityEvent} from './security';
 import { requireAdmin, type AccessContext } from './access';
 import { acquireTicketWorkLock } from './work-lock';
 import { lockAccess } from './ticket-mutations';
@@ -28,6 +29,7 @@ export async function changeEvolutionFeatures(access: AccessContext, input: z.in
     // Multi-business pilots require the independent security gate, not just this UI switch.
     if (features.workspaces && fresh.role !== 'owner') throw new ApiError(403, 'Solo el propietario puede preparar los pilotos.');
     await tx.query('INSERT INTO "evolutionFeatures" ("ownerId","featuresJson",version,"updatedAt") VALUES ($1,$2,$3,$4) ON CONFLICT ("ownerId") DO UPDATE SET "featuresJson"=EXCLUDED."featuresJson",version=EXCLUDED.version,"updatedAt"=EXCLUDED."updatedAt"', [access.ownerId, JSON.stringify(features), (row?.version ?? 0) + 1, new Date().toISOString()]);
+    await recordSecurityEvent(tx,fresh,'configuration_changed');
     return { features, version: (row?.version ?? 0) + 1, available: true };
   });
 }

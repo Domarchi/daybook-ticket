@@ -1,4 +1,6 @@
 'use client';
+import {daybookFetch} from '@/lib/browser-request';
+
 import { useEffect, useId, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Files, LoaderCircle, Search, Star, X } from 'lucide-react';
 import { readTicketResource } from '@/hooks/use-ticket-search';
@@ -52,7 +54,7 @@ export function TicketCollaborationTools({ticketId,memberId,staff,onOpenMessage}
   <button type="button" className="ticket-chat-icon-button" aria-label="Archivos del ticket" title="Archivos del ticket" onClick={()=>show('files')}><Files size={19}/></button>
   {staff&&<button type="button" className="ticket-chat-icon-button" aria-label={follow?.following?'Dejar de seguir el ticket':'Seguir el ticket'} title={followError|| (follow?.following?'Sigues las actualizaciones públicas de este ticket':'Seguir sin cambiar al responsable')} aria-pressed={Boolean(follow?.following)} disabled={followingBusy||!follow} onClick={async()=>{
     if(!follow)return;setFollowingBusy(true);setFollowError('');
-    try{const response=await fetch(`/api/tickets/${ticketId}/followers`,{method:'PUT',headers:{'Content-Type':'application/json','X-Daybook-Member-Id':memberId},body:JSON.stringify({following:!follow.following})});const value=await response.json();if(!response.ok)throw new Error(value.error||'No se pudo guardar el seguimiento.');setFollow(value);}
+    try{const response=await daybookFetch(`/api/tickets/${ticketId}/followers`,{method:'PUT',headers:{'Content-Type':'application/json','X-Daybook-Member-Id':memberId},body:JSON.stringify({following:!follow.following})});const value=await response.json();if(!response.ok)throw new Error(value.error||'No se pudo guardar el seguimiento.');setFollow(value);}
     catch(error){setFollowError(error instanceof Error?error.message:'No se pudo guardar.');}finally{setFollowingBusy(false);}
   }}>{followingBusy?<LoaderCircle className="spin" size={18}/>:<Star size={18} fill={follow?.following?'currentColor':'none'}/>}</button>}
   {followError&&<span className="sr-only" role="alert">{followError}</span>}

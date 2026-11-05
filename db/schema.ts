@@ -427,3 +427,9 @@ export const evolutionFeatures = pgTable('evolutionFeatures', {
 });
 export const userPreferences = pgTable('userPreferences', {userId:text('userId').primaryKey().references(()=>preferenceUser.id),theme:text('theme').notNull().default('system'),updatedAt:text('updatedAt').notNull()},t=>[check('user_preferences_theme',sql`${t.theme} IN ('system','light','dark')`)]);
 
+export const securityPolicies=pgTable('securityPolicies',{
+  ownerId:text('ownerId').primaryKey().references(()=>organizations.ownerId),requireStaffMfa:boolean('requireStaffMfa').notNull().default(false),activatedAt:text('activatedAt'),version:integer('version').notNull().default(0),updatedAt:text('updatedAt').notNull(),
+},t=>[check('security_policy_version',sql`${t.version} >= 0`)]);
+export const securityAudit=pgTable('securityAudit',{
+  id:text('id').primaryKey(),ownerId:text('ownerId').notNull().references(()=>organizations.ownerId),actorMemberId:text('actorMemberId'),actorUserId:text('actorUserId').notNull(),actorName:text('actorName').notNull(),action:text('action').notNull(),targetId:text('targetId'),createdAt:text('createdAt').notNull(),
+},t=>[index('security_audit_page').on(t.ownerId,t.createdAt.desc(),t.id.desc())]);

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { requireAccess } from '@/lib/access';
 import { db, handle, type RouteContext } from '@/lib/server';
 import { downloadAutomaticBackup } from '@/lib/automatic-backup';
+import { assertPlatformBackupAccess } from '@/lib/security';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -9,6 +10,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request, context: RouteContext) {
   return handle(async () => {
     const access = await requireAccess(request), id = z.string().uuid().parse((await context.params).id);
+    assertPlatformBackupAccess(access);
     const { bytes, date } = await downloadAutomaticBackup(access, id, db());
     let offset = 0;
     const stream = new ReadableStream<Uint8Array>({

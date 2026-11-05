@@ -1,4 +1,6 @@
 'use client';
+import {daybookFetch} from '@/lib/browser-request';
+
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AlertsPage, TicketAlert, Workspace } from '@/lib/types';
@@ -114,7 +116,7 @@ export function useTicketAlerts(): AlertControls & { receive: (workspace: Worksp
       do {
         const params = new URLSearchParams({ filter: forFilter, limit: '20' });
         if (nextCursor) params.set('cursor', nextCursor);
-        const response = await fetch(`/api/alerts?${params}`, { cache: 'no-store', signal: controller.signal, headers: { [ALERT_VIEWER_HEADER]: forAccount.split(':')[0] } });
+        const response = await daybookFetch(`/api/alerts?${params}`, { cache: 'no-store', signal: controller.signal, headers: { [ALERT_VIEWER_HEADER]: forAccount.split(':')[0] } });
         const result = await response.json();
         if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'No se pudieron actualizar tus avisos.');
         page = result as AlertsPage;
@@ -146,7 +148,7 @@ export function useTicketAlerts(): AlertControls & { receive: (workspace: Worksp
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 15_000);
       try {
-        const response = await fetch('/api/alerts', { method: 'PATCH', headers: { 'Content-Type': 'application/json', [ALERT_VIEWER_HEADER]: forAccount.split(':')[0] }, body: JSON.stringify(change), signal: controller.signal });
+        const response = await daybookFetch('/api/alerts', { method: 'PATCH', headers: { 'Content-Type': 'application/json', [ALERT_VIEWER_HEADER]: forAccount.split(':')[0] }, body: JSON.stringify(change), signal: controller.signal });
         const result = await response.json();
         if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : 'No se pudo guardar la lectura.');
         if (!mounted.current || account.current !== forAccount) return;

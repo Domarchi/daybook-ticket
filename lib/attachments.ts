@@ -1,4 +1,5 @@
 import {parseEvolutionFeatures} from './evolution-feature-model';
+import {lockAccess} from './ticket-mutations';
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
@@ -177,20 +178,34 @@ export async function linkReadyAttachments(tx: PoolClient, access: AccessContext
   await tx.query(`UPDATE attachments SET status='attached',"ticketId"=$1,"messageId"=$2,"updatedAt"=$3 WHERE id=ANY($4::text[])`, [input.ticketId, input.messageId, new Date().toISOString(), input.ids]);
 }
 
+/** Revalidated after private storage I/O; a revoked account never receives a prepared stream. */
+async function downloadableAttachment(access:AccessContext,id:string,database:Database):Promise<AttachmentRow>{
+  return database.transaction(async tx=>{
+    const fresh=await lockAccess(tx,access);
+    const row=(await tx.query<AttachmentRow>(`SELECT a.* FROM attachments a LEFT JOIN messages m ON m.id=a."messageId" AND m."ownerId"=a."ownerId" AND m."ticketId"=a."ticketId" AND m.kind=a.kind LEFT JOIN "serviceContracts" c ON c.id=a."contractId" AND c."ownerId"=a."ownerId"
+      WHERE a.id=$1 AND a."ownerId"=$2 AND a.status='attached' AND ((a.kind='contract' AND c.id IS NOT NULL) OR (a.kind<>'contract' AND m.id IS NOT NULL))`,[id,fresh.ownerId])).rows[0];
+    if(!row||(row.kind!=='contract'&&!row.ticketId)||(row.kind==='note'&&fresh.role==='client'))throw new ApiError(404,'El adjunto no existe o no tienes acceso.');
+    if(row.kind==='contract'){
+      requireStaff(fresh);
+      const feature=(await tx.query('SELECT "featuresJson" FROM "evolutionFeatures" WHERE "ownerId"=$1',[fresh.ownerId])).rows[0];
+      if(!parseEvolutionFeatures(feature?.featuresJson).serviceContext)throw new ApiError(503,'Los contratos están en pausa. Sus documentos se conservan.');
+    }else{
+      const ticket=(await tx.query('SELECT "ownerId","requesterMemberId","customerCompanyId" FROM tickets WHERE id=$1 AND "ownerId"=$2 FOR SHARE',[row.ticketId,fresh.ownerId])).rows[0];
+      if(!ticket||!canAccessTicket(fresh,ticket))throw new ApiError(404,'El adjunto no existe o no tienes acceso.');
+    }
+    return row;
+  });
+}
 export async function downloadAttachment(access: AccessContext, id: string, database = db(), storage?: PrivateAttachmentStorage) {
-  const row = await database.prepare(`SELECT a.* FROM attachments a LEFT JOIN messages m ON m.id=a."messageId" AND m."ownerId"=a."ownerId" AND m."ticketId"=a."ticketId" AND m.kind=a.kind LEFT JOIN "serviceContracts" c ON c.id=a."contractId" AND c."ownerId"=a."ownerId"
-    WHERE a.id=$1 AND a."ownerId"=$2 AND a.status='attached' AND ((a.kind='contract' AND c.id IS NOT NULL AND $6 IN ('owner','admin','agent')) OR (a.kind<>'contract' AND m.id IS NOT NULL)) AND EXISTS (SELECT 1 FROM members viewer
-      WHERE viewer.id=$3 AND viewer."ownerId"=$2 AND viewer."organizationId"=$4 AND viewer."userId"=$5 AND viewer.status='active'
-        AND viewer.role=$6 AND viewer."customerCompanyId" IS NOT DISTINCT FROM $7::text AND viewer."companyAccess"=$8)`)
-    .bind(id, access.ownerId, access.member.id, access.organizationId, access.userId, access.role, access.member.customerCompanyId, access.member.companyAccess).first<AttachmentRow>();
-  if (!row || (row.kind !== 'contract' && !row.ticketId) || (row.kind === 'note' && access.role === 'client')) throw new ApiError(404, 'El adjunto no existe o no tienes acceso.');
-  if (row.kind === 'contract') requireStaff(access);
-  else await getTicket(access, row.ticketId!);
-  const store = storage ?? requireStorage();
+  const row=await downloadableAttachment(access,id,database),store=storage??requireStorage();
   let file;
   try { file = await store.read(row.pathname); } catch { throw new ApiError(503, 'No se pudo descargar el archivo. Intenta nuevamente.'); }
   if (!file) throw new ApiError(404, 'El archivo no está disponible.');
-  if (file.size !== row.size) { await file.stream.cancel(); throw new ApiError(503, 'No se pudo verificar el archivo.'); }
+  try{
+    if(file.size!==row.size)throw new ApiError(503,'No se pudo verificar el archivo.');
+    const current=await downloadableAttachment(access,id,database);
+    if(['pathname','size','contentType','name','kind','ticketId','messageId','contractId'].some(key=>current[key as keyof AttachmentRow]!==row[key as keyof AttachmentRow]))throw new ApiError(409,'El archivo cambió durante la descarga. Vuelve a intentarlo.');
+  }catch(error){await file.stream.cancel().catch(()=>{});throw error;}
   const filename = encodeURIComponent(row.name).replace(/[!'()*]/g, c => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
   return new Response(file.stream, { headers: {
     'Content-Type': row.contentType, 'Content-Length': String(row.size),

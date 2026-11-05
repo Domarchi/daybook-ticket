@@ -1,4 +1,6 @@
 'use client';
+import {daybookFetch} from '@/lib/browser-request';
+
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_SETTINGS, type Workspace } from '@/lib/types';
@@ -13,7 +15,7 @@ class ReadError extends Error {
 }
 
 async function read<T>(path: string, signal: AbortSignal): Promise<T> {
-  const response = await fetch(path, { signal, cache: 'no-store' });
+  const response = await daybookFetch(path, { signal, cache: 'no-store' });
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
     throw new ReadError(typeof result.error === 'string' ? result.error : 'No se pudo actualizar la conversación.', response.status);
@@ -82,7 +84,9 @@ export function useWorkspace(onSnapshot: (workspace: Workspace) => void) {
       return next;
     } catch (failure) {
       if (mounted.current && active.current === controller && !(failure instanceof Error && failure.name === 'AbortError')) {
-        if (failure instanceof ReadError && (failure.status === 401 || failure.status === 403)) {
+        if (failure instanceof ReadError && failure.status===428) {
+          denied.current=true; commit(EMPTY);setLoadError('Verifica tu identidad desde Seguridad para continuar.');
+        } else if (failure instanceof ReadError && (failure.status === 401 || failure.status === 403)) {
           denied.current = true;
           commit(EMPTY);
           setLoadError('Tu sesión terminó o tu acceso cambió. Vuelve a iniciar sesión.');

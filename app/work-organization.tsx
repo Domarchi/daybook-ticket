@@ -1,4 +1,5 @@
 'use client';
+
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Archive, Check, ClipboardList, Filter, LoaderCircle, Plus, RefreshCw, Save, Tag, X } from 'lucide-react';
 import type { CustomerCompany, Member } from '@/lib/types';

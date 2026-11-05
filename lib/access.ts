@@ -1,6 +1,8 @@
 import { ApiError, auth, db, getSettings } from './server';
 import type { Member, MemberRole, MemberStatus, CompanyAccess, CustomerCompany } from './types';
 import type { DatabaseValue } from '../db/database';
+import { assertSecurityAccess, requireFreshSecurity } from './security';
+import { securityActionNeedsReauthentication } from './security-model';
 
 export interface MemberRecord extends Member {
   organizationId: string;
@@ -13,6 +15,7 @@ export interface AccessContext {
   userId: string;
   member: Member;
   role: MemberRole;
+  sessionId?: string;
 }
 export const memberColumns = '"isTest", id, name, email, role, status, ("userId" IS NOT NULL) AS "hasAccount", "customerCompanyId", "companyAccess", "createdAt", "updatedAt"';
 const memberRecordColumns = `${memberColumns}, "organizationId", "ownerId", "userId"`;
@@ -69,7 +72,7 @@ export async function validateMemberCompany(access: AccessContext, member: { rol
   if (member.customerCompanyId) await getCustomerCompany(access, member.customerCompanyId);
 }
 
-export async function requireAccess(request?: Request): Promise<AccessContext> {
+export async function requireAccess(request?: Request, options: { allowSecuritySetup?: boolean } = {}): Promise<AccessContext> {
   const user = await auth(request);
   const database = db();
   const organization = await database.prepare("SELECT id, \"ownerId\" FROM organizations WHERE id = $1").bind('daybook').first<{ id: string; ownerId: string }>();
@@ -78,7 +81,12 @@ export async function requireAccess(request?: Request): Promise<AccessContext> {
   if (!member || member.status !== 'active' || member.ownerId !== organization.ownerId) throw new ApiError(403, 'Tu cuenta no tiene acceso a Daybook Ticket. Solicita una invitación al equipo.');
   const expectedMember = request?.headers.get('X-Daybook-Member-Id');
   if (expectedMember && expectedMember !== member.id) throw new ApiError(409, 'La cuenta cambió. Actualiza la página antes de continuar.');
-  return { organizationId: organization.id, ownerId: organization.ownerId, userId: user.userId, member: publicMember(member), role: member.role };
+  const access = { organizationId: organization.id, ownerId: organization.ownerId, userId: user.userId, sessionId: user.sessionId, member: publicMember(member), role: member.role };
+  if (!options.allowSecuritySetup) {
+    await assertSecurityAccess(access);
+    if (request && securityActionNeedsReauthentication(new URL(request.url).pathname, request.method)) await requireFreshSecurity(access);
+  }
+  return access;
 }
 
 export function requireStaff(access: AccessContext) {

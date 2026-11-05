@@ -1,4 +1,6 @@
 'use client';
+import {daybookFetch} from '@/lib/browser-request';
+
 
 import { useEffect, useState } from 'react';
 import { ArrowDownToLine, RefreshCw, Star } from 'lucide-react';
@@ -23,7 +25,7 @@ export function SatisfactionReportPanel({ memberId, companies, members }: { memb
   useEffect(() => {
     if (incomplete) return;
     const controller = new AbortController();
-    void fetch(`/api/satisfaction?${query}`, { cache: 'no-store', headers: { 'X-Daybook-Member-Id': memberId }, signal: controller.signal })
+    void daybookFetch(`/api/satisfaction?${query}`, { cache: 'no-store', headers: { 'X-Daybook-Member-Id': memberId }, signal: controller.signal })
       .then(async response => { const value = await response.json(); if (!response.ok) throw new Error(value.error || 'No se pudieron consultar las evaluaciones.'); if (!controller.signal.aborted) setResult({ key, report: value, error: '' }); })
       .catch(failure => { if (!controller.signal.aborted) setResult({ key, report: null, error: failure instanceof Error ? failure.message : 'No se pudieron consultar las evaluaciones.' }); });
     return () => controller.abort();

@@ -1,4 +1,5 @@
 import {acquireTicketWorkLock} from './work-lock';
+import {recordSecurityEvent} from './security';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { PoolClient } from 'pg';
@@ -197,10 +198,11 @@ export async function saveServiceReminderConfig(access:AccessContext,input:{expe
   if(input.enabled && !serviceReminderJobConfigured()) throw new ApiError(503,'La programación de estos avisos aún no está disponible.');
   return database.transaction(async tx=>{
     await acquireTicketWorkLock(tx,access.ownerId);
-    requireAdmin(await lockAccess(tx,access));
+    const fresh=requireAdmin(await lockAccess(tx,access));
     const now=new Date().toISOString();await tx.query('INSERT INTO "serviceContextNotificationSettings" ("ownerId",enabled,version,"updatedAt") VALUES ($1,false,0,$2) ON CONFLICT DO NOTHING',[access.ownerId,now]);
     const old=(await tx.query('SELECT * FROM "serviceContextNotificationSettings" WHERE "ownerId"=$1 FOR UPDATE',[access.ownerId])).rows[0];
     if(old.version!==input.expectedVersion) throw new ApiError(409,'La configuración cambió. Actualiza antes de guardar.');
+    await recordSecurityEvent(tx,fresh,'configuration_changed');
     return (await tx.query('UPDATE "serviceContextNotificationSettings" SET enabled=$1,"activatedAt"=$2,version=version+1,"updatedAt"=$3 WHERE "ownerId"=$4 RETURNING enabled,"activatedAt",version,"updatedAt"',[input.enabled,input.enabled && !old.enabled?now:old.activatedAt,now,access.ownerId])).rows[0];
   });
 }
