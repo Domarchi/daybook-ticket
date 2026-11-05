@@ -80,13 +80,15 @@ export function db(): Database {
   if (!process.env.DATABASE_URL) throw new ApiError(503, 'El almacenamiento no está disponible. Intenta nuevamente en unos minutos.');
   return getDatabase();
 }
+/** A stale pilot tab must use explicit domain APIs. The Referer never selects
+ * a workspace; personal preferences and account/auth routes keep global identity. */
+export function enforceExplicitWorkspaceApi(request:Request){
+  const path=new URL(request.url).pathname,referer=request.headers.get('referer');
+  if(!/^\/api\//.test(path)||path==='/api/preferences'||/^\/api\/(?:workspaces|operator|auth|account)(?:\/|$)/.test(path)||!referer)return;
+  try{if(/^\/w\//.test(new URL(referer).pathname))throw new ApiError(409,'Esta pestaña debe usar la ruta explícita de su espacio. Actualiza Daybook Ticket.');}catch(error){if(error instanceof ApiError)throw error;}
+}
 export async function auth(request?: Request) {
-  if(request){
-    const path=new URL(request.url).pathname,referer=request.headers.get('referer');
-    if(/^\/api\//.test(path)&&!/^\/api\/(?:workspaces|operator|auth|account)(?:\/|$)/.test(path)&&referer){
-      try{if(/^\/w\//.test(new URL(referer).pathname))throw new ApiError(409,'Esta pestaña debe usar la ruta explícita de su espacio. Actualiza Daybook Ticket.');}catch(error){if(error instanceof ApiError)throw error;}
-    }
-  }
+  if(request)enforceExplicitWorkspaceApi(request);
   if (request && request.method !== 'GET') {
     const origin = request.headers.get('origin');
     const siteUrl = process.env.DAYBOOK_SITE_URL;
