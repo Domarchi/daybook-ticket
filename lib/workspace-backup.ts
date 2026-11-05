@@ -169,6 +169,16 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
       await tx.query(`UPDATE ${qualified(schema, 'pushSubscriptions')} SET active=false`);
       await tx.query(`UPDATE ${qualified(schema, 'notificationJobHealth')} SET "leaseToken"=NULL,"leaseUntil"=NULL`);
       await tx.query(`UPDATE ${qualified(schema, 'assignmentRules')} SET enabled=false`);
+      // E4 tables are registered by the stacked release. Old archives restore into
+      // that same empty current schema; never replay their pending rule events.
+      if ((BACKUP_TABLES as readonly string[]).includes('automationSettings')) {
+        const pausedAt = new Date().toISOString();
+        await tx.query(`UPDATE ${qualified(schema, 'automationSettings')} SET enabled=false,"activatedAt"=NULL,version=version+1,"updatedAt"=$1`, [pausedAt]);
+        await tx.query(`UPDATE ${qualified(schema, 'automationEvents')} SET status='cancelled',"lastErrorCode"='restore_paused',"updatedAt"=$1 WHERE status='queued'`, [pausedAt]);
+        // The worker holds a transaction rather than a portable lease. A stale
+        // start marker is cleared while keeping execution history and counts.
+        await tx.query(`UPDATE ${qualified(schema, 'automationJobHealth')} SET "lastStartedAt"=NULL,"lastErrorCode"='restore_paused',"updatedAt"=$1`, [pausedAt]);
+      }
       await tx.query(`UPDATE ${qualified(schema, 'mailOutbox')} SET status=CASE WHEN status='processing' THEN 'unknown' ELSE 'cancelled' END,"lastErrorCode"=CASE WHEN status='processing' THEN 'restore_uncertain' ELSE 'restore_paused' END,"leaseUntil"=NULL,"nextAttemptAt"=NULL WHERE status IN ('queued','awaiting_configuration','processing')`);
       await tx.query(`UPDATE ${qualified(schema, 'pushDeliveries')} SET status='cancelled',"lastErrorCode"='restore_paused',"leaseUntil"=NULL WHERE status IN ('queued','processing')`);
       if (schema === 'public') for (const table of ['tickets', 'messages', 'articles']) {

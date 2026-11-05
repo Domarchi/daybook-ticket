@@ -1,3 +1,4 @@
+import {enqueueAutomationEvent} from './automation';
 import type { PoolClient } from 'pg';
 import type { Database } from '../db/database';
 import { canAccessTicket, publicMember, type AccessContext, type MemberRecord } from './access';
@@ -148,6 +149,7 @@ export async function ingestInboundEmail(database: Database, envelope: InboundEn
     for (const recipientMemberId of recipients) for (const statement of notificationStatements(database, {
       ownerId: access.ownerId, event: route.kind === 'new' ? 'ticket_created' : 'client_replied', eventKey: `inbound:${envelope.providerId}`, recipientMemberId, ticketId: ticket.id,
     })) await database.execute(statement, tx);
+    await enqueueAutomationEvent(tx,access,ticket.id,`inbound:${config.environment}:${envelope.providerId}`,route.kind==='new'?'ticket_created':'client_replied');
     const result: InboundResult = { status: 'processed', reasonCode: null, ownerId: access.ownerId, ticketId: ticket.id, messageId: message.id };
     await writeReceipt(tx, envelope, hash, config, source, result, timestamp);
     await finishInboundJob(tx, result, source, lease, timestamp); return result;

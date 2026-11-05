@@ -8,15 +8,17 @@ export const RELIABILITY_BACKUP_TABLES = [...LEGACY_BACKUP_TABLES, 'inboundMailJ
 export const COLLABORATION_BACKUP_TABLES = [...RELIABILITY_BACKUP_TABLES,'messageMentions','ticketFollowers','evolutionFeatures','userPreferences'] as const;
 export const ORGANIZATION_BACKUP_TABLES = [...COLLABORATION_BACKUP_TABLES, 'workOrganizationCatalog', 'workOrganizationRevisions', 'ticketOrganization', 'ticketTasks', 'savedTicketViews'] as const;
 export const SERVICE_CONTEXT_BACKUP_TABLES = ['companyProfiles','companySites','customerServices','customerAssets','serviceContracts','ticketServiceContext','ticketAssetLinks','ticketContractLinks','serviceContextEvents','serviceContextNotificationSettings','serviceContextReminders','serviceContextJobHealth'] as const;
-type BackupTableName=typeof ORGANIZATION_BACKUP_TABLES[number]|typeof SERVICE_CONTEXT_BACKUP_TABLES[number];
+export const AUTOMATION_BACKUP_TABLES=['automationSettings','taskTemplates','automationRules','automationRuleVersions','automationEvents','automationExecutions','automationJobHealth','ticketRelations'] as const;
+type BackupTableName=typeof ORGANIZATION_BACKUP_TABLES[number]|typeof SERVICE_CONTEXT_BACKUP_TABLES[number]|typeof AUTOMATION_BACKUP_TABLES[number];
 const orderedBackupTables:BackupTableName[]=[];
 for(const table of ORGANIZATION_BACKUP_TABLES){
  if(table==='attachments')orderedBackupTables.push(...SERVICE_CONTEXT_BACKUP_TABLES.slice(0,9));
  if(table==='mailOutbox')orderedBackupTables.push(...SERVICE_CONTEXT_BACKUP_TABLES.slice(9));
  orderedBackupTables.push(table);
 }
-export const BACKUP_TABLES:readonly BackupTableName[]=orderedBackupTables;
-export const BACKUP_TABLE_PROFILES:readonly (readonly string[])[]=[LEGACY_BACKUP_TABLES,RELIABILITY_BACKUP_TABLES,COLLABORATION_BACKUP_TABLES,ORGANIZATION_BACKUP_TABLES,BACKUP_TABLES];
+export const PRE_AUTOMATION_BACKUP_TABLES:readonly BackupTableName[]=orderedBackupTables;
+export const BACKUP_TABLES:readonly BackupTableName[]=[...PRE_AUTOMATION_BACKUP_TABLES,...AUTOMATION_BACKUP_TABLES];
+export const BACKUP_TABLE_PROFILES:readonly (readonly string[])[]=[LEGACY_BACKUP_TABLES,RELIABILITY_BACKUP_TABLES,COLLABORATION_BACKUP_TABLES,ORGANIZATION_BACKUP_TABLES,PRE_AUTOMATION_BACKUP_TABLES,BACKUP_TABLES];
 export const ADDED_BACKUP_COLUMNS: Readonly<Record<string,readonly string[]>> = {members:['isTest'],tickets:['isTest'],messages:['replyToMessageId'],mailOutbox:['sourceMessageId','serviceReminderId'],attachments:['contractId']};
 export function compatibleBackupColumns(table:string,target:readonly string[],source:readonly string[]){
  const optional=ADDED_BACKUP_COLUMNS[table]??[];

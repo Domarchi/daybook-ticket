@@ -12,6 +12,7 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 const url = new URL(process.env.DATABASE_URL), ci = process.env.CI === 'true' && process.env.DAYBOOK_RECOVERY_CI === '1';
 const realStorage = process.argv.slice(2).includes('--real-qa-storage');
 const expectedFiles=BACKUP_TABLES.includes('serviceContracts')?3:2;
+const expectedTickets=BACKUP_TABLES.includes('automationRules')?2:1;
 assert.ok(process.argv.slice(2).every(value => value === '--real-qa-storage'));
 assert.ok(!ci || !realStorage, 'The CI drill never uses an external file store.');
 if (ci) {
@@ -111,6 +112,19 @@ try {
     const pathname=`qa-backup-fixture/${document}.txt`,bytes=Buffer.from('Documento contractual privado ficticio.');fileMap.set(pathname,bytes);
     await pool.query('INSERT INTO attachments (id,"ownerId","memberId","draftId","contractId",kind,pathname,name,"contentType",size,status,"expiresAt","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,\'contract\',$6,\'qa-contract.txt\',\'text/plain\',$7,\'attached\',$8,$8,$8)',[document,ownerId,owner,randomUUID(),contract,pathname,bytes.length,now]);
   }
+  if(BACKUP_TABLES.includes('automationRules')){
+    const template=randomUUID(),rule=randomUUID(),queued=randomUUID(),done=randomUUID(),version=randomUUID();
+    const second=(await pool.query('INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail","requesterMemberId","customerCompanyId",department,status,priority,"createdAt","updatedAt","dueAt") VALUES ($1,$2,\'QA caso principal\',\'Cliente ficticio\',$3,$4,$5,\'Soporte\',\'open\',\'normal\',$6,$6,$6) RETURNING id',[ownerId,randomUUID(),`${client}@example.test`,client,company,now])).rows[0].id;
+    const conditions={events:['ticket_created'],customerCompanyId:null,departments:[],priorities:[],statuses:['open','pending'],requestTypeIds:[],allTagIds:[]},actions={addTagIds:[],department:'Soporte',assignMemberIds:[],taskTemplateIds:[template]},snapshot={id:rule,name:'Regla ficticia recuperable',enabled:true,position:0,conditions,actions,version:0,archived:false,enabledAt:now,updatedByMemberId:owner,referencesHash:sha256('qa-references'),createdAt:now,updatedAt:now};
+    await pool.query('INSERT INTO "automationSettings" ("ownerId",enabled,"activatedAt",version,"updatedAt") VALUES ($1,true,$2,1,$2)',[ownerId,now]);
+    await pool.query('INSERT INTO "taskTemplates" (id,"ownerId",name,"itemsJson","updatedByMemberId","createdAt","updatedAt") VALUES ($1,$2,\'Plantilla ficticia recuperable\',$3,$4,$5,$5)',[template,ownerId,JSON.stringify([{title:'Paso interno recuperable',assigneeMemberId:owner,dueAfterHours:4}]),owner,now]);
+    await pool.query('INSERT INTO "automationRules" (id,"ownerId",name,"conditionsJson","actionsJson","referencesHash",enabled,"enabledAt","updatedByMemberId","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,true,$7,$8,$7,$7)',[rule,ownerId,snapshot.name,JSON.stringify(conditions),JSON.stringify(actions),snapshot.referencesHash,now,owner]);
+    await pool.query('INSERT INTO "automationRuleVersions" (id,"ownerId","ruleId",version,"snapshotJson","changedByMemberId","createdAt") VALUES ($1,$2,$3,0,$4,$5,$6)',[version,ownerId,rule,JSON.stringify(snapshot),owner,now]);
+    for(const [id,status]of[[queued,'queued'],[done,'done']])await pool.query('INSERT INTO "automationEvents" (id,"ownerId","ticketId","operationKey","eventKind","actorMemberId","requestHash","activationVersion",status,"nextAttemptAt","createdAt","updatedAt") VALUES ($1,$2,$3,$4,\'ticket_created\',$5,$6,1,$7,$8,$8,$8)',[id,ownerId,ticket,`qa-recovery:${id}`,client,sha256(id),status,now]);
+    await pool.query('INSERT INTO "automationExecutions" (id,"ownerId","eventId","ticketId","ruleId","ruleKey","ruleVersion","ruleName",status,"summaryJson","createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$5,0,$6,\'applied\',$7,$8,$8)',[randomUUID(),ownerId,done,ticket,rule,snapshot.name,JSON.stringify({summary:['Historial ficticio conservado']}),now]);
+    await pool.query('INSERT INTO "automationJobHealth" ("ownerId","lastStartedAt","lastSucceededAt","processedEvents","updatedAt") VALUES ($1,$2,$2,1,$2)',[ownerId,now]);
+    await pool.query('INSERT INTO "ticketRelations" (id,"ownerId","sourceTicketId","targetTicketId",kind,"createdByMemberId","operationId","requestHash","createdAt","updatedAt") VALUES ($1,$2,$3,$4,\'duplicate\',$5,$6,$7,$8,$8)',[randomUUID(),ownerId,ticket,second,owner,randomUUID(),sha256('qa-relation'),now]);
+  }
   const queuedId = randomUUID(), processingId = randomUUID();
   for (const [id, status] of [[queuedId, 'queued'], [processingId, 'processing']]) await pool.query('INSERT INTO "mailOutbox" (id,"ownerId","eventKey",event,"recipientMemberId","ticketId",status,attempts,"payloadJson","createdAt","updatedAt") VALUES ($1,$2,$1,\'ticket_created\',$3,$4,$5,1,$6,$7,$7)', [id, ownerId, owner, ticket, status, JSON.stringify({ fixture: 'frozen-qa-payload' }), now]);
   await pool.query('INSERT INTO "notificationSettings" ("ownerId","alertsActivatedAt","remindersEnabled","remindersActivatedAt") VALUES ($1,$2,true,$2)', [ownerId, now]);
@@ -135,6 +149,12 @@ try {
   if(BACKUP_TABLES.includes('serviceContextNotificationSettings')){
     assert.equal((await pool.query(`SELECT enabled FROM "${schema}"."serviceContextNotificationSettings"`)).rows[0].enabled,false);
     assert.equal((await pool.query(`SELECT "leaseToken" FROM "${schema}"."serviceContextJobHealth"`)).rows[0].leaseToken,null);
+  }
+  if(BACKUP_TABLES.includes('automationRules')){
+    const restoredSettings=(await pool.query(`SELECT enabled,"activatedAt" FROM "${schema}"."automationSettings"`)).rows[0];assert.deepEqual(restoredSettings,{enabled:false,activatedAt:null});
+    const events=(await pool.query(`SELECT status,"lastErrorCode" FROM "${schema}"."automationEvents"`)).rows;assert.equal(events.filter(row=>row.status==='cancelled'&&row.lastErrorCode==='restore_paused').length,1);assert.equal(events.filter(row=>row.status==='done').length,1);
+    const health=(await pool.query(`SELECT "lastStartedAt","processedEvents","lastErrorCode" FROM "${schema}"."automationJobHealth"`)).rows[0];assert.equal(health.lastStartedAt,null);assert.equal(health.processedEvents,1);assert.equal(health.lastErrorCode,'restore_paused');
+    for(const table of ['taskTemplates','automationRules','automationRuleVersions','automationExecutions','ticketRelations'])assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${schema}"."${table}"`)).rows[0].n,1);
   }
   await assertTemporaryCredentialsNotRestored(schema);
   assert.equal((await pool.query(`SELECT "remindersEnabled" FROM "${schema}"."notificationSettings"`)).rows[0].remindersEnabled, false);
@@ -166,7 +186,7 @@ try {
   const uncertainFiles = new Map(), uncertainDatabase = { async transaction(work) { const value = await database.transaction(work); void value; throw new Error('qa-lost-commit-response'); } };
   await assert.rejects(restoreWorkspaceBackup(legacy, uncertainDatabase, fakeStorage(uncertainFiles), { environment: 'qa', schema: failedSchema }), /lost-commit/);
   assert.equal(uncertainFiles.size, 2, 'An uncertain commit never deletes files that the committed rows reference.');
-  assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${failedSchema}".tickets`)).rows[0].n, 1);
+  assert.equal((await pool.query(`SELECT count(*)::int AS n FROM "${failedSchema}".tickets`)).rows[0].n, expectedTickets);
   await assertTemporaryCredentialsNotRestored(failedSchema);
   console.log(JSON.stringify({ result: 'PASS', tables: BACKUP_TABLES.length, files: expectedFiles, storage: realStorage ? 'real-private-qa' : 'injected-private', checks: ['owner-only-export', 'private-note-and-file-preservation', 'credential-and-microsecond-preservation', 'temporary-credentials-excluded', 'legacy-v1-credentials-invalidated', 'invited-members-preserved', 'encrypted-exact-roundtrip', 'real-foreign-keys', 'empty-destination-only', 'all-row-checksums', 'private-file-hashes', 'restored-deliveries-paused', 'corrupt-file-rollback', 'uncertain-commit-keeps-files'], externalEmailRequests: 0 }));
 } finally {

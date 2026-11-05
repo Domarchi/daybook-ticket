@@ -1,3 +1,4 @@
+import {enqueueAutomationEvent,drainAutomationBestEffort} from '@/lib/automation';
 import {validateMessageCollaboration,attachMessageCollaboration,followerRecipients} from '@/lib/ticket-collaboration';
 import {ApiError,db,handle,json,parseBody,messageSchema,parseId,type RouteContext} from '@/lib/server';
 import {getSettingsInTransaction} from '@/lib/settings-transaction';
@@ -39,9 +40,10 @@ export async function POST(request:Request,context:RouteContext) {
         for(const recipientMemberId of recipients) for(const stmt of notificationStatements(db(),{ownerId:access.ownerId,event:client?'client_replied':'agent_replied',eventKey:`message:${data.operationId}:${recipientMemberId}`,recipientMemberId,ticketId:id})) await db().execute(stmt,tx);
         for(const recipientMemberId of await followerRecipients(tx,fresh,id,recipients)) for(const stmt of notificationStatements(db(),{ownerId:access.ownerId,event:'ticket_followed_update',eventKey:`follow:${data.operationId}`,recipientMemberId,ticketId:id,sourceMessageId:message.id})) await db().execute(stmt,tx);
       }
+      if(data.kind!=='note')await enqueueAutomationEvent(tx,fresh,id,`message:${data.operationId}`,client?'client_replied':'agent_replied');
       return {message};
     });
-    after(async()=>{await Promise.allSettled([processPushOutboxBestEffort(access.ownerId),drainOutboxBestEffort(access.ownerId)]);});
+    after(async()=>{await Promise.allSettled([processPushOutboxBestEffort(access.ownerId),drainOutboxBestEffort(access.ownerId),drainAutomationBestEffort(access.ownerId)]);});
     return json(result,201);
   });
 }
