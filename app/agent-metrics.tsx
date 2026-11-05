@@ -12,7 +12,7 @@ const percentage = (value: number | null) => value === null ? 'Sin datos' : `${n
 
 export function AgentMetricsPanel({ companies, memberId }: { companies: CustomerCompany[]; memberId?: string }) {
   const [today] = useState(() => metricsDate(new Date()));
-  const [filters, setFilters] = useState(() => ({ from: shiftMetricsDate(today, -29), to: today, companyId: '' }));
+  const [filters, setFilters] = useState(() => ({ from: shiftMetricsDate(today, -29), to: today, includeTests: 'false', companyId: '' }));
   const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<{ key: string; data: AgentMetricsReport | null; error: string } | null>(null);
   const query = new URLSearchParams(filters).toString();
@@ -62,7 +62,7 @@ export function AgentMetricsPanel({ companies, memberId }: { companies: Customer
       <label>Desde<input type="date" min="2000-01-01" max={filters.to || today} value={filters.from} onChange={event => setFilters(value => ({ ...value, from: event.target.value }))}/></label>
       <label>Hasta<input type="date" min={filters.from || '2000-01-01'} max={today} value={filters.to} onChange={event => setFilters(value => ({ ...value, to: event.target.value }))}/></label>
       <label>Empresa<select value={filters.companyId} onChange={event => setFilters(value => ({ ...value, companyId: event.target.value }))}><option value="">Todas las empresas</option>{companies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}</select></label>
-      <p>Fechas de Santiago · hasta 366 días. Los tiempos se expresan en horas corridas.</p>
+      <label>Pruebas<select aria-label="Incluir datos de prueba" value={filters.includeTests} onChange={event => setFilters(value => ({ ...value, includeTests: event.target.value }))}><option value="false">Excluir datos de prueba</option><option value="true">Incluir datos de prueba</option></select></label><p>Fechas de Santiago · hasta 366 días. Los tiempos se expresan en horas corridas.</p>
     </section>
     {incomplete && <p className="agent-metrics-no-activity" role="status">Selecciona una fecha de inicio y una fecha de término para consultar el período.</p>}
     {current?.error && <div className="error-banner" role="alert">{current.error}<button type="button" className="secondary" onClick={() => setRevision(value => value + 1)}>Reintentar</button></div>}

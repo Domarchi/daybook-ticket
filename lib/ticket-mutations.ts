@@ -93,6 +93,12 @@ export async function patchTicket(access:AccessContext,id:number,data:Record<str
     if(assigning && data.expectedVersion!==old.version) throw new ApiError(409,'El ticket cambió. Revisa su responsable antes de continuar.');
     if(claim && old.assigneeMemberId) throw new ApiError(409,`El ticket ya está asignado a ${old.assignee}.`);
     const changes:Record<string,unknown>={};
+    if(data.isTest!==undefined) {
+      if(!['owner','admin'].includes(fresh.role)) throw new ApiError(403,'Solo los administradores pueden marcar pruebas.');
+      if(data.expectedVersion!==old.version) throw new ApiError(409,'El ticket cambió. Actualiza antes de marcarlo.');
+      if(typeof data.isTest!=='boolean') throw new ApiError(400,'La marca de prueba no es válida.');
+      if(data.isTest!==Boolean(old.isTest)) changes.isTest=data.isTest;
+    }
     for(const key of ['subject','department','priority','status']) if(data[key]!==undefined && data[key]!==old[key as keyof Ticket]) changes[key]=data[key];
     if(data.department!==undefined && !settings.departments.includes(String(data.department))) throw new ApiError(400,'Selecciona un departamento válido.');
     if(assigning) {
@@ -143,7 +149,7 @@ export async function patchTicket(access:AccessContext,id:number,data:Record<str
       ownerId:access.ownerId,ticketId:id,resolutionKey,resolvedAt:now,
       requesterMemberId:rows[0].requesterMemberId,resolverMemberId:fresh.member.id,customerCompanyId:rows[0].customerCompanyId,
     });
-    for(const key of ['subject','status','priority','assigneeMemberId','customerCompanyId','requesterMemberId','department']) if(key in changes) await recordEvent(tx,fresh,id,key,old[key as keyof Ticket],changes[key]);
+    for(const key of ['isTest','subject','status','priority','assigneeMemberId','customerCompanyId','requesterMemberId','department']) if(key in changes) await recordEvent(tx,fresh,id,key,old[key as keyof Ticket],changes[key]);
     return {ticket:rows[0] as Ticket};
   });
 }

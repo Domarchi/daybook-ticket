@@ -133,7 +133,10 @@ try {
   }
   // Test-owned isolated schemas only. No existing schema/table is dropped.
   for (const destination of [schema, failedSchema]) await pool.query(`DROP SCHEMA IF EXISTS "${destination}" CASCADE`);
-  for (const table of [...BACKUP_TABLES].reverse().filter(table => !['authUser', 'authAccount'].includes(table))) await pool.query(`DELETE FROM "${table}" WHERE "ownerId"=$1`, [ownerId]);
+  for (const table of [...BACKUP_TABLES].reverse().filter(table => !['authUser', 'authAccount'].includes(table))) {
+    const where = table === 'inboundMailJobFiles' ? '"providerId" IN (SELECT "providerId" FROM "inboundMailJobs" WHERE "ownerId"=$1)' : '"ownerId"=$1';
+    await pool.query(`DELETE FROM "${table}" WHERE ${where}`, [ownerId]);
+  }
   await pool.query('DELETE FROM "authAccount" WHERE "userId"=ANY($1::text[])', [authIds]); await pool.query('DELETE FROM "authUser" WHERE id=ANY($1::text[])', [authIds]);
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM organizations WHERE "ownerId"=$1', [ownerId])).rows[0].n, 0);
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM pg_namespace WHERE nspname=ANY($1::text[])', [[schema, failedSchema]])).rows[0].n, 0);

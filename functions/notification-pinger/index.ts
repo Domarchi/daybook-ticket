@@ -11,6 +11,8 @@ const notificationPinger = {
         expectedTriggerId: process.env.DAYBOOK_EXPECTED_TRIGGER_ID || '',
         jobSecret: process.env.DAYBOOK_NOTIFICATION_JOB_SECRET || '',
         automationBypassSecret: process.env.VERCEL_AUTOMATION_BYPASS_SECRET,
+        inboundEnabled: process.env.DAYBOOK_PINGER_INBOUND_ENABLED === 'true',
+        backupsEnabled: process.env.DAYBOOK_PINGER_BACKUPS_ENABLED === 'true',
       })(request);
     } catch { return new Response('Unconfigured', { status: 503 }); }
   },

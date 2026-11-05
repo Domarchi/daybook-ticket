@@ -9,7 +9,7 @@ export interface SatisfactionAggregate {
   averageScore: number | null; positivePercent: number | null;
 }
 export interface SatisfactionReport {
-  period: { from: string; to: string; companyId: string | null };
+  period: { from: string; to: string; companyId: string | null; includeTests?: boolean };
   totals: { invitations: number; responses: number; averageScore: number | null; positivePercent: number | null };
   agents: SatisfactionAggregate[]; companies: SatisfactionAggregate[];
   recent: { id: string; ticketId: number; score: number; comment: string | null; submittedAt: string; agent: string; company: string }[];

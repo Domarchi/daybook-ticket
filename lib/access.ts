@@ -14,10 +14,10 @@ export interface AccessContext {
   member: Member;
   role: MemberRole;
 }
-export const memberColumns = 'id, name, email, role, status, ("userId" IS NOT NULL) AS "hasAccount", "customerCompanyId", "companyAccess", "createdAt", "updatedAt"';
+export const memberColumns = '"isTest", id, name, email, role, status, ("userId" IS NOT NULL) AS "hasAccount", "customerCompanyId", "companyAccess", "createdAt", "updatedAt"';
 const memberRecordColumns = `${memberColumns}, "organizationId", "ownerId", "userId"`;
 export function publicMember(row: MemberRecord | Member): Member {
-  return { id: row.id, name: row.name, email: row.email, role: row.role, status: row.status, hasAccount: Boolean(row.hasAccount), customerCompanyId: row.customerCompanyId ?? null, companyAccess: row.companyAccess ?? 'own', createdAt: row.createdAt, updatedAt: row.updatedAt };
+  return { isTest: Boolean(row.isTest), id: row.id, name: row.name, email: row.email, role: row.role, status: row.status, hasAccount: Boolean(row.hasAccount), customerCompanyId: row.customerCompanyId ?? null, companyAccess: row.companyAccess ?? 'own', createdAt: row.createdAt, updatedAt: row.updatedAt };
 }
 
 export type TicketAccessContext = Pick<AccessContext, 'ownerId' | 'role'> & {

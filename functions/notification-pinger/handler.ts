@@ -5,6 +5,8 @@ export interface PingerConfiguration {
   expectedTriggerId: string;
   jobSecret: string;
   automationBypassSecret?: string;
+  inboundEnabled?: boolean;
+  backupsEnabled?: boolean;
 }
 export interface PingerDependencies { fetch?: typeof fetch; timeoutMs?: number }
 
@@ -50,18 +52,25 @@ export function createNotificationPinger(config: PingerConfiguration, dependenci
     if (body.version !== 1 || body.invocation_id !== invocationId || body.trigger?.type !== 'schedule'
       || body.trigger?.id !== config.expectedTriggerId || typeof body.data?.scheduled_at !== 'string'
       || !Number.isFinite(Date.parse(body.data.scheduled_at))) return new Response('Unauthorized', { status: 401, headers: privateHeaders });
-    try {
-      const headers = new Headers({ 'content-type': 'application/json', authorization: `Bearer ${config.jobSecret}` });
-      if (config.environment === 'qa' && config.automationBypassSecret) headers.set('x-vercel-protection-bypass', config.automationBypassSecret);
-      const response = await send(new URL('/api/internal/notification-tick', origin), {
-        method: 'POST', redirect: 'manual', headers,
-        body: JSON.stringify({ invocationId, scheduledAt: body.data.scheduled_at }),
-        signal: AbortSignal.timeout(Math.max(1, Math.min(30_000, dependencies.timeoutMs || 25_000))),
-      });
-      // Drain/cancel the response before reporting success to the trigger system.
-      await response.body?.cancel();
-      if (!response.ok) return new Response('Worker unavailable', { status: 503, headers: { ...privateHeaders, 'retry-after': '60' } });
-      return Response.json({ ok: true }, { headers: privateHeaders });
-    } catch { return new Response('Worker unavailable', { status: 503, headers: { ...privateHeaders, 'retry-after': '60' } }); }
+    const headers = new Headers({ 'content-type': 'application/json', authorization: `Bearer ${config.jobSecret}` });
+    if (config.environment === 'qa' && config.automationBypassSecret) headers.set('x-vercel-protection-bypass', config.automationBypassSecret);
+    const invoke = async (path: string, timeout: number) => {
+      try {
+        const response = await send(new URL(path, origin), {
+          method: 'POST', redirect: 'manual', headers,
+          body: JSON.stringify({ invocationId, scheduledAt: body.data!.scheduled_at }),
+          signal: AbortSignal.timeout(Math.max(1, Math.min(timeout, dependencies.timeoutMs || timeout))),
+        });
+        await response.body?.cancel();
+        return response.ok;
+      } catch { return false; }
+    };
+    // Each worker has its own lease/idempotency. Always run reminders first;
+    // a slow archive never takes away the reminder worker's Function budget.
+    const notificationOk = await invoke('/api/internal/notification-tick', 25_000);
+    const inboundOk = !config.inboundEnabled || await invoke('/api/internal/inbound-tick', 55_000);
+    const backupsOk = !config.backupsEnabled || await invoke('/api/internal/backup-tick', 280_000);
+    if (!notificationOk || !inboundOk || !backupsOk) return new Response('Worker unavailable', { status: 503, headers: { ...privateHeaders, 'retry-after': '60' } });
+    return Response.json({ ok: true }, { headers: privateHeaders });
   };
 }

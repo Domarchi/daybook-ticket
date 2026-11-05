@@ -30,6 +30,7 @@ export const createTicketSchema = z.object({
   bodyFormat: z.enum(['plain', 'markdown']).optional(),
 }).strict();
 export const patchTicketSchema = z.object({
+  isTest: z.boolean().optional(),
   expectedVersion: z.number().int().nonnegative().optional(),
   customerCompanyId: memberId.optional(),
   subject: shortText.optional(),
@@ -42,10 +43,12 @@ export const patchTicketSchema = z.object({
 }).strict().refine(v => Object.keys(v).length > 0, 'No hay cambios para guardar.');
 export const messageSchema = z.object({ operationId: z.string().uuid(), draftId: z.string().uuid().optional(), attachmentIds: z.array(z.string().uuid()).max(5).default([]), body: messageBody, bodyFormat: z.enum(['plain', 'markdown']).optional(), kind: z.enum(['reply', 'note']) }).strict();
 export const inviteMemberSchema = z.object({
+  isTest: z.boolean().optional(),
   name: shortText, email: emailAddress, role: z.enum(['admin', 'agent', 'client']),
   customerCompanyId: memberId.optional(), companyAccess: z.enum(['own', 'manager']).optional(),
 }).strict();
 export const patchMemberSchema = z.object({
+  isTest: z.boolean().optional(),
   role: z.enum(['admin', 'agent', 'client']).optional(),
   status: z.enum(['invited', 'active', 'revoked']).optional(),
   customerCompanyId: memberId.optional(),
@@ -148,7 +151,7 @@ export function parseId(raw: string) {
 export function checkAssignment(data: { department?: string; assignee?: string }, settings: Settings) {
   if (data.department !== undefined && !settings.departments.includes(data.department)) throw new ApiError(400, 'Selecciona un departamento válido.');
 }
-export const ticketColumns = 'id, subject, "requesterName", "requesterEmail", "requesterMemberId", "customerCompanyId", version, department, assignee, "assigneeMemberId", status, priority, "createdAt", "updatedAt", "dueAt"';
+export const ticketColumns = '"isTest", id, subject, "requesterName", "requesterEmail", "requesterMemberId", "customerCompanyId", version, department, assignee, "assigneeMemberId", status, priority, "createdAt", "updatedAt", "dueAt"';
 export const messageColumns = 'id, "ticketId", author, "authorMemberId", "authorRole", body, "bodyFormat", kind, "createdAt", \'[]\'::jsonb AS attachments';
 export const articleColumns = 'id, title, category, body, published, "createdAt", "updatedAt"';
 export const asArticle = (row: Article) => ({ ...row, published: Boolean(row.published) });

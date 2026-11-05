@@ -6,6 +6,7 @@ import { ApiError } from './server';
 import { acquireTicketWorkLock } from './work-lock';
 import type { MetricsQuery } from './agent-metrics-model';
 import { canSubmitSatisfaction, satisfactionIsEnabled, type SatisfactionReport, type TicketSatisfaction } from './satisfaction-model';
+import { productionTicketSql } from './test-data';
 
 interface SatisfactionRow extends Omit<TicketSatisfaction, 'available'> {
   ownerId: string; resolutionKey: string; requesterMemberId: string;
@@ -91,8 +92,9 @@ export async function getSatisfactionReport(tx: PoolClient, access: AccessContex
   requireAdmin(access);
   if (period.companyId && !(await tx.query('SELECT id FROM "customerCompanies" WHERE id=$1 AND "ownerId"=$2 AND "organizationId"=$3', [period.companyId, access.ownerId, access.organizationId])).rowCount) throw new ApiError(400, 'Selecciona una empresa de este espacio.');
   if (agentId && !(await tx.query('SELECT id FROM members WHERE id=$1 AND "ownerId"=$2 AND "organizationId"=$3', [agentId, access.ownerId, access.organizationId])).rowCount) throw new ApiError(400, 'Selecciona un integrante de este equipo.');
-  const values = [access.ownerId, period.fromInstant, period.untilInstant, period.companyId, agentId];
+  const values = [access.ownerId, period.fromInstant, period.untilInstant, period.companyId, agentId, period.includeTests === true];
   const where = `s."ownerId"=$1 AND s."resolvedAt">=$2 AND s."resolvedAt"<$3
+    AND ($6::boolean OR EXISTS (SELECT 1 FROM tickets tested WHERE tested.id=s."ticketId" AND tested."ownerId"=s."ownerId" AND ${productionTicketSql('tested')}))
     AND ($4::text IS NULL OR s."customerCompanyId"=$4) AND ($5::text IS NULL OR s."resolverMemberId"=$5)`;
   const aggregate = `count(*)::int AS invitations,count(s.score)::int AS responses,avg(s.score)::float8 AS "averageScore",
     CASE WHEN count(s.score)>0 THEN 100.0*count(*) FILTER (WHERE s.score>=4)/count(s.score) ELSE NULL END::float8 AS "positivePercent"`;
@@ -104,5 +106,5 @@ export async function getSatisfactionReport(tx: PoolClient, access: AccessContex
   const recent = (await tx.query<SatisfactionReport['recent'][number]>(`SELECT s.id,s."ticketId",s.score,s.comment,s."submittedAt",COALESCE(m.name,'Sin atribución') AS agent,COALESCE(c.name,'Sin empresa') AS company
     FROM "ticketSatisfaction" s LEFT JOIN members m ON m.id=s."resolverMemberId" AND m."ownerId"=s."ownerId"
     LEFT JOIN "customerCompanies" c ON c.id=s."customerCompanyId" AND c."ownerId"=s."ownerId" WHERE ${where} AND s.score IS NOT NULL ORDER BY s."submittedAt" DESC,s.id DESC LIMIT 50`, values)).rows;
-  return { period: { from: period.from, to: period.to, companyId: period.companyId }, totals, agents, companies, recent };
+  return { period: { from: period.from, to: period.to, companyId: period.companyId, includeTests: period.includeTests === true }, totals, agents, companies, recent };
 }

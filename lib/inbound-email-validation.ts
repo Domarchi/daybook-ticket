@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 import { mailAddress } from './mail-delivery-validation';
 import type { MailEnvironment } from './mail-templates';
+import { normalizeInboundBody } from './inbound-email-content';
 
 export class InvalidInboundEmail extends Error {}
 export type InboundRouteKind = 'new' | 'reply';
@@ -138,7 +139,7 @@ export function normalizeReceivedEmail(value: unknown, envelope: InboundEnvelope
   }
   if (typeof data.text !== 'string' && data.text !== null && data.text !== undefined) throw new InvalidInboundEmail('invalid_text');
   if (typeof data.html !== 'string' && data.html !== null && data.html !== undefined) throw new InvalidInboundEmail('invalid_html');
-  const text = unquotedInboundText(typeof data.text === 'string' && data.text.trim() ? data.text : htmlToInboundText(typeof data.html === 'string' ? data.html : ''));
+  const text = normalizeInboundBody(data.text as string | null | undefined, data.html as string | null | undefined);
   if (text.length > 20000 || /\0/.test(text)) throw new InvalidInboundEmail('message_too_large');
   if (!Array.isArray(data.attachments) || data.attachments.length > 100) throw new InvalidInboundEmail('invalid_attachments');
   const attachments = data.attachments.map(value => {
@@ -147,6 +148,7 @@ export function normalizeReceivedEmail(value: unknown, envelope: InboundEnvelope
       || typeof item.content_type !== 'string' || !Number.isSafeInteger(item.size) || Number(item.size) < 0) throw new InvalidInboundEmail('invalid_attachments');
     return { id: item.id, name: item.filename, contentType: item.content_type, size: Number(item.size), disposition: typeof item.content_disposition === 'string' ? item.content_disposition : null };
   });
+  if (new Set(attachments.map(file => file.id)).size !== attachments.length) throw new InvalidInboundEmail('invalid_attachments');
   // This is Resend's structured receiving-server verdict fetched from its API.
   // Never trust an Authentication-Results header supplied by the sender.
   const authentication = object(data.authentication);
@@ -154,13 +156,13 @@ export function normalizeReceivedEmail(value: unknown, envelope: InboundEnvelope
   return { id: envelope.providerId, from: from!, to, subject: data.subject, text, headers, attachments, authenticated };
 }
 
-export function inboundRejection(email: ReceivedEmail): string | null {
+export function inboundRejection(email: ReceivedEmail, allowAttachments = false): string | null {
   if (!email.authenticated) return 'authentication_required';
   if ((email.headers['auto-submitted'] && email.headers['auto-submitted'].trim().toLowerCase() !== 'no')
     || /^(?:bulk|junk|list)$/i.test(email.headers.precedence?.trim() || '') || email.headers['list-id']
     || /multipart\/report/i.test(email.headers['content-type'] || '') || email.headers['return-path']?.trim() === '<>') return 'automatic_message';
-  if (!email.text) return 'empty_message';
-  if (email.attachments.length) return 'attachments_use_portal';
+  if (!email.text && !(allowAttachments && email.attachments.length)) return 'empty_message';
+  if (!allowAttachments && email.attachments.length) return 'attachments_use_portal';
   return null;
 }
 

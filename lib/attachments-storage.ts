@@ -1,4 +1,4 @@
-import { del, get } from '@vercel/blob';
+import { del, get, head } from '@vercel/blob';
 import { MAX_ATTACHMENT_BYTES } from './attachments-validation';
 
 export interface PrivateAttachmentStorage {
@@ -6,6 +6,14 @@ export interface PrivateAttachmentStorage {
   remove(pathname: string): Promise<void>;
 }
 export class AttachmentSizeError extends Error {}
+/** The SDK reports zero when the HTTP transfer omits Content-Length. Obtain
+ * authenticated object metadata before reading; the stream is still checked
+ * against this size and the database reservation by readAttachmentBytes. */
+export async function resolvePrivateAttachmentSize(reported: number, metadata: () => Promise<{ size: number }>): Promise<number> {
+  const size = reported === 0 ? (await metadata()).size : reported;
+  if (!Number.isSafeInteger(size) || size < 1 || size > MAX_ATTACHMENT_BYTES) throw new AttachmentSizeError('Attachment size invalid.');
+  return size;
+}
 export function attachmentStorageConfig(env: Readonly<Record<string, string | undefined>> = process.env): { environment: 'qa' | 'production'; token: string } | null {
   const environment = env.VERCEL_ENV === 'production' ? 'production' : 'qa';
   const token = environment === 'production' ? env.DAYBOOK_BLOB_PRODUCTION_READ_WRITE_TOKEN : env.DAYBOOK_BLOB_QA_READ_WRITE_TOKEN;
@@ -21,7 +29,11 @@ export function attachmentStorage(): PrivateAttachmentStorage {
   return {
     async read(pathname) {
       const result = await get(pathname, { access: 'private', token: config.token, useCache: false, abortSignal: AbortSignal.timeout(30_000) });
-      return result?.statusCode === 200 ? { stream: result.stream, size: result.blob.size } : null;
+      if (result?.statusCode !== 200) return null;
+      try {
+        const size = await resolvePrivateAttachmentSize(result.blob.size, () => head(pathname, { token: config.token, abortSignal: AbortSignal.timeout(15_000) }));
+        return { stream: result.stream, size };
+      } catch (error) { await result.stream.cancel().catch(() => undefined); throw error; }
     },
     async remove(pathname) { await del(pathname, { token: config.token, abortSignal: AbortSignal.timeout(15_000) }); },
   };

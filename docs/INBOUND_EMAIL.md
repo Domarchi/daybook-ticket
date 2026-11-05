@@ -6,9 +6,23 @@ Un cliente activo invitado puede crear un ticket escribiendo desde su correo reg
 
 Las nuevas respuestas públicas del equipo pueden incluir `Reply-To` por destinatario. La respuesta del cliente se incorpora al ticket correcto como comentario público y notifica al equipo. Si estaba resuelto, abre un ciclo nuevo usando el SLA vigente. El asunto nunca decide qué ticket o empresa puede consultar una persona. El equipo sigue respondiendo desde el portal; ningún correo entrante crea notas internas.
 
-Esta entrega incorpora **texto**. Un correo con archivos se registra como no incorporado (`attachments_use_portal`); no se guarda solo el texto perdiendo los archivos. La interfaz y el pie del correo indican que los adjuntos deben enviarse desde el portal. Administración puede revisar los últimos ingresos y sus motivos de rechazo en Configuración. No se envían respuestas automáticas a remitentes rechazados, evitando bucles y correo no solicitado.
+La recepción incorpora **texto nuevo y hasta cinco archivos de 10 MiB cada uno**. Usa la misma validación real de contenido y almacenamiento privado del portal: PNG, JPEG, WebP, PDF, TXT, CSV, DOCX y XLSX sin macros, contenido ejecutable ni documentos cifrados. El archivo no se acepta por su nombre o MIME solamente. Si falla un archivo, no se guarda parcialmente el mensaje. Los recibos antiguos `attachments_use_portal` se conservan sin reinterpretarlos. No se envían respuestas automáticas a remitentes rechazados.
 
-Algunos clientes de correo citan la marca CID de Daybook como imagen inline al responder. Se omite exclusivamente esa imagen pública si sus bytes coinciden exactamente con el SHA-256 del logo existente. Se consulta la API de adjuntos y el CDN documentado de Resend con límites estrictos y sin redirecciones; el nombre o tamaño por sí solos no autorizan omitir archivos. Una imagen modificada o cualquier otro archivo mantiene el rechazo íntegro.
+Algunos clientes de correo citan la marca CID de Daybook al responder. Se omite exclusivamente esa imagen pública si sus bytes coinciden exactamente con el SHA-256 del logo existente, también cuando viene junto a archivos del cliente. Se consulta la API de adjuntos y únicamente las dos combinaciones exactas de CDN/ruta admitidas, sin redirecciones; el nombre o tamaño por sí solos no autorizan omitir archivos. Una imagen modificada sigue siendo un archivo sujeto a validación e importación.
+
+## Procesamiento duradero y salud
+
+Después de verificar la firma y la dirección privada contra su cuenta actual, el webhook guarda un trabajo `pending` con el sobre normalizado mínimo. Nunca guarda otra copia del cuerpo/HTML/MIME ni URLs de descarga. Responde al proveedor después de esa confirmación; la descarga y la incorporación continúan mediante `after()` y el tick privado existente de recepción.
+
+`inboundMailJobs` refleja `pending`, `processing`, `retry`, `processed`, `rejected` o `failed`. Los errores se clasifican con códigos cerrados, sin mensajes del proveedor, correos, cuerpo, tokens ni URLs en los logs. La interfaz administrativa muestra contadores, antigüedad pendiente, última incorporación, motivos y los últimos 25 trabajos; el historial anterior permanece en sus recibos. No expone sobres privados. Su lectura y el reintento revalidan la membresía administrativa bajo bloqueo y separan QA/producción.
+
+El worker reclama con lease de cinco minutos y token único, hasta dos trabajos y 45 segundos por tick (máximo cinco por llamada). Hace hasta seis intentos con espera mínima de 1, 5, 30, 120 y 480 minutos. Son tiempos de elegibilidad; la ejecución depende del siguiente tick o actividad. Un lease agotado se recupera; su sexto intento vencido queda `failed`. La pausa conserva trabajos y archivos. Se comprueban otra vez cuenta, rol, dirección, remitente, acceso y autenticación antes de incorporar.
+
+Administración puede reintentar hasta tres veces un trabajo fallido/rechazado, mediante `POST /api/email-inbound/<providerId>/retry` y un `operationId` UUID. La operación es idempotente por cuenta, trabajo y contenido; un trabajo procesado nunca vuelve a pendiente. Un recibo antiguo de rechazo conserva su decisión original. Reintentar no envía otro correo ni altera mensajes actuales.
+
+Los archivos se descargan secuencialmente desde la API fija y CDN exacto, con límites de bytes y tiempo. Se validan antes de reservar; las reservas usan el mismo cupo de 10 archivos/100 MiB pendientes por cliente. `inboundMailJobFiles` conserva IDs y SHA estables antes de cargar objetos privados sin sobrescribir. Un timeout ambiguo se resuelve comprobando los bytes existentes. El enlace de los archivos, mensaje, ticket, recibo, notificaciones y estado terminal del trabajo se confirma en la misma transacción. Un COMMIT ambiguo se reconcilia con su recibo y nunca autoriza borrar archivos vinculados.
+
+Las reservas rechazadas se marcan para limpieza y el limpiador existente elimina únicamente objetos sin vincular, después del margen de seguridad. Los objetos de intentos anteriores conservan su alcance por `draftId`; un reintento crea una reserva nueva si la anterior ya está eliminándose. Los archivos enviados siguen siendo inmutables y usan las descargas/vistas previas autenticadas del portal.
 
 ## Identidad, permisos y reintentos
 
@@ -19,7 +33,7 @@ Algunos clientes de correo citan la marca CID de Daybook como imagen inline al r
 - Un recibo por `email_id` guarda un resumen hash, estado y referencias, sin conservar otra copia del correo. El recibo, ticket/comentario y avisos se confirman juntos. Repeticiones concurrentes devuelven el resultado anterior; reutilizar un identificador con contenido distinto se rechaza.
 - Las entradas ajenas a las direcciones Daybook se reconocen sin consultar su cuerpo. La API del proveedor utiliza una URL fija, sin redirecciones ni descargas de enlaces suministrados por el remitente.
 
-Límites: webhook de 256 KiB, respuesta del proveedor de 2 MiB, texto nuevo de 20.000 caracteres y 60 incorporaciones por cliente en una hora. Se omite el texto citado después de separadores habituales de respuesta. HTML se convierte en texto inerte; scripts, estilos y elementos activos nunca se renderizan. Se descartan respuestas automáticas y listas.
+Límites: webhook de 256 KiB, respuesta del proveedor de 2 MiB, texto nuevo de 20.000 caracteres y 60 incorporaciones por cliente en una hora. Se reconocen atribuciones multilínea de Gmail en español/inglés, cabeceras citadas de Outlook y contenedores HTML específicos de correo. Las citas genéricas del cliente se conservan; HTML se convierte en texto inerte y no se ejecuta. Se descartan respuestas automáticas y listas. Un correo solo con archivos válidos puede incorporarse sin inventar texto.
 
 ## Configuración por ambiente
 
@@ -63,10 +77,12 @@ Para pausar, desactivar `DAYBOOK_INBOUND_ENABLED`, manteniendo datos, dominio y 
 ## Comprobaciones
 
 ```sh
-node --import tsx --test scripts/check-inbound-email.test.ts scripts/check-resend-webhook-handlers.test.ts scripts/check-mail-delivery.test.ts
+node --import tsx --test scripts/check-inbound-email.test.ts scripts/check-inbound-reliability.test.ts scripts/check-resend-webhook-handlers.test.ts scripts/check-mail-delivery.test.ts
 node --env-file=.env.test.local --import tsx scripts/check-inbound-email-database.mjs
+# Solo con lease QA coordinado, después de 0006 y en serie:
+node --env-file=.env.test.local --import tsx scripts/check-inbound-reliability-database.mjs
 ```
 
-La segunda prueba se ejecuta en serie después de migrar QA. Usa un espacio y cuentas `@example.test` propios, llama al servicio transaccional con el transporte del proveedor inyectado y limpia sus filas. Comprueba concurrencia, reintentos, conflicto de contenido, reparto, reapertura, revocación de empresa, remitentes no autenticados y rechazo íntegro de archivos. No envía correos, push ni solicitudes al proveedor.
+Las pruebas de base se ejecutan en serie después de migrar QA. La original conserva sus casos de recibos heredados; la nueva crea cuentas/tickets `@example.test` explícitamente de prueba en el espacio QA, inyecta proveedor y almacenamiento en memoria, conserva/restaura los desempates de reparto y limpia únicamente sus registros. Sus diez escenarios comprueban reclamos concurrentes, deduplicación, reintento manual idempotente, carga/COMMIT ambiguos, leases obsoletos, revocación y rechazo íntegro. Incluye la caída del sexto intento: su lease vencido queda fallido, los archivos sin vincular pasan a limpieza y se eliminan después del margen; un archivo ya adjunto y su recibo procesado permanecen intactos. No envía correos, push ni solicitudes externas.
 
 Referencias oficiales: [recepción y dominio administrado](https://resend.com/features/inbound), [recuperar un correo recibido y autenticación calculada por el servidor receptor](https://resend.com/docs/api-reference/emails/retrieve-received-email), [webhooks de recepción con cuerpo recuperado por API](https://resend.com/docs/dashboard/receiving/forward-emails), [metadatos y CDN de un adjunto recibido](https://resend.com/docs/api-reference/emails/retrieve-received-email-attachment).

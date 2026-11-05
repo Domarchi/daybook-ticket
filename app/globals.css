@@ -524,3 +524,8 @@ button:focus-visible,a:focus-visible{outline:2px solid #a46d09;outline-offset:3p
 /* Keep the expanded staff navigation usable on short and mobile screens. */
 .sidebar{overflow-y:auto;overscroll-behavior:contain}
 .sidebar>nav,.sidebar>.workspace,.sidebar>.brand,.sidebar>.sidebar-bottom{flex-shrink:0}
+
+.test-ticket-control { flex-wrap: wrap; gap: .5rem 1rem; margin-block: .75rem; }
+.test-ticket-control label { display: inline-flex; align-items: center; gap: .5rem; white-space: nowrap; }
+.test-ticket-control input[type="checkbox"] { width: 1rem; height: 1rem; margin: 0; accent-color: var(--gold, #b49652); }
+.test-ticket-control small { overflow-wrap: anywhere; }

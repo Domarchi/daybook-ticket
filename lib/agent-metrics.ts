@@ -4,6 +4,7 @@ import type { AccessContext } from './access';
 import { requireAdmin } from './access';
 import { ApiError } from './server';
 import { METRICS_TIME_ZONE, type AgentMetric, type AgentMetricsReport, type MetricsQuery } from './agent-metrics-model';
+import { productionTicketSql } from './test-data';
 
 export interface SlaOutcomeInput {
   ownerId: string;
@@ -44,10 +45,10 @@ export async function getAgentMetrics(tx: PoolClient, access: AccessContext, per
     const company = await tx.query('SELECT id FROM "customerCompanies" WHERE id=$1 AND "ownerId"=$2 AND "organizationId"=$3 FOR SHARE', [period.companyId, access.ownerId, access.organizationId]);
     if (!company.rowCount) throw new ApiError(400, 'Selecciona una empresa de este espacio.');
   }
-  const values = [access.ownerId, access.organizationId, period.fromInstant, period.untilInstant, period.companyId];
+  const values = [access.ownerId, access.organizationId, period.fromInstant, period.untilInstant, period.companyId, period.includeTests === true];
   const { rows } = await tx.query<AgentMetric>(`WITH scoped_tickets AS (
-      SELECT id,"createdAt","assigneeMemberId",status FROM tickets
-      WHERE "ownerId"=$1 AND ($5::text IS NULL OR "customerCompanyId"=$5)
+      SELECT t.id,t."createdAt",t."assigneeMemberId",t.status FROM tickets t
+      WHERE ($6::boolean OR ${productionTicketSql('t')}) AND t."ownerId"=$1 AND ($5::text IS NULL OR "customerCompanyId"=$5)
     ), first_replies AS (
       SELECT DISTINCT ON (p."ticketId") p."ticketId",p."authorMemberId",p."authorRole",p."createdAt",t."createdAt" AS "ticketCreatedAt"
       FROM messages p JOIN scoped_tickets t ON t.id=p."ticketId"
@@ -69,7 +70,7 @@ export async function getAgentMetrics(tx: PoolClient, access: AccessContext, per
         AND "createdAt">=$3 AND "createdAt"<$4 GROUP BY "authorMemberId"
     ), outcomes AS (
       SELECT o.* FROM "ticketSlaOutcomes" o JOIN tickets t ON t.id=o."ticketId" AND t."ownerId"=o."ownerId"
-      WHERE o."ownerId"=$1 AND ($5::text IS NULL OR o."customerCompanyId"=$5) AND o."resolvedAt">=$3 AND o."resolvedAt"<$4
+      WHERE o."ownerId"=$1 AND ($6::boolean OR ${productionTicketSql('t')}) AND ($5::text IS NULL OR o."customerCompanyId"=$5) AND o."resolvedAt">=$3 AND o."resolvedAt"<$4
     ), resolution AS (
       SELECT "actorMemberId" AS member_id,count(*)::int AS total,count("startedAt")::int AS measured,
         avg(EXTRACT(EPOCH FROM ("resolvedAt"::timestamptz-"startedAt"::timestamptz))/3600)::float8 AS hours,
@@ -88,7 +89,7 @@ export async function getAgentMetrics(tx: PoolClient, access: AccessContext, per
       AND (m.role IN ('owner','admin','agent') OR p.total>0 OR f.total>0 OR r.total>0)
     ORDER BY m.name COLLATE "C",m.id`, values);
   const coverage = (await tx.query<AgentMetricsReport['coverage']>(`WITH scoped AS (
-      SELECT id,"createdAt",status FROM tickets WHERE "ownerId"=$1 AND ($5::text IS NULL OR "customerCompanyId"=$5)
+      SELECT t.id,t."createdAt",t.status FROM tickets t WHERE ($6::boolean OR ${productionTicketSql('t')}) AND t."ownerId"=$1 AND ($5::text IS NULL OR "customerCompanyId"=$5)
         AND EXISTS (SELECT 1 FROM organizations WHERE "ownerId"=$1 AND id=$2)
     ), first_replies AS (
       SELECT DISTINCT ON (p."ticketId") p."ticketId",p."authorMemberId",p."authorRole",p."createdAt"
@@ -99,7 +100,7 @@ export async function getAgentMetrics(tx: PoolClient, access: AccessContext, per
       (SELECT count(*)::int FROM messages p JOIN scoped t ON t.id=p."ticketId" WHERE p."ownerId"=$1 AND p.kind='reply'
         AND (COALESCE(p."authorRole",'') NOT IN ('client','owner','admin','agent') OR (p."authorRole" IN ('owner','admin','agent') AND p."authorMemberId" IS NULL)) AND p."createdAt">=$3 AND p."createdAt"<$4) AS "unknownPublicReplies",
       (SELECT count(*)::int FROM first_replies WHERE (COALESCE("authorRole",'') NOT IN ('owner','admin','agent') OR "authorMemberId" IS NULL) AND "createdAt">=$3 AND "createdAt"<$4) AS "unknownFirstResponseTickets",
-      (SELECT count(*)::int FROM "ticketSlaOutcomes" o WHERE o."ownerId"=$1 AND o."actorMemberId" IS NULL
+      (SELECT count(*)::int FROM "ticketSlaOutcomes" o JOIN tickets t ON t.id=o."ticketId" AND t."ownerId"=o."ownerId" WHERE o."ownerId"=$1 AND ($6::boolean OR ${productionTicketSql('t')}) AND o."actorMemberId" IS NULL
         AND ($5::text IS NULL OR o."customerCompanyId"=$5) AND o."resolvedAt">=$3 AND o."resolvedAt"<$4) AS "unattributedResolutions",
       (SELECT count(*)::int FROM scoped t WHERE t.status='resolved' AND NOT EXISTS (SELECT 1 FROM "ticketSlaOutcomes" o WHERE o."ticketId"=t.id AND o."ownerId"=$1)) AS "historicalResolvedWithoutMeasurement"`, values)).rows[0];
   return { period: { ...period, timeZone: METRICS_TIME_ZONE }, generatedAt: now.toISOString(), agents: rows, coverage };

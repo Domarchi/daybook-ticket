@@ -18,10 +18,12 @@ export async function POST(request:Request) {
       checkAssignment(data,settings);
       const client=fresh.role==='client';
       if(client && (data.assigneeMemberId || data.assignee || (data.requesterMemberId && data.requesterMemberId!==fresh.member.id))) throw new ApiError(403,'Solo puedes crear tickets para tu propia cuenta.');
+      let requesterIsTest=client && Boolean(fresh.member.isTest);
       let requester={requesterMemberId:client?fresh.member.id:null as string|null,requesterName:client?fresh.member.name:data.requesterName||'',requesterEmail:client?fresh.member.email:data.requesterEmail||'',customerCompanyId:client?fresh.member.customerCompanyId:null as string|null};
       if(!client && data.requesterMemberId) {
         const {rows}=await tx.query('SELECT * FROM members WHERE id=$1 AND "ownerId"=$2 AND role=\'client\' AND status<>\'revoked\'',[data.requesterMemberId,access.ownerId]);
         if(!rows[0]) throw new ApiError(400,'Selecciona una cuenta de cliente habilitada.');
+        requesterIsTest=Boolean(rows[0].isTest);
         requester={requesterMemberId:rows[0].id,requesterName:rows[0].name,requesterEmail:rows[0].email,customerCompanyId:rows[0].customerCompanyId};
       }
       if(!requester.requesterName || !requester.requesterEmail) throw new ApiError(400,'Selecciona un cliente o completa su nombre y correo.');
@@ -39,6 +41,7 @@ export async function POST(request:Request) {
       const dueAt=resolutionDeadline(now,data.priority,policy);
       const {rows}=await tx.query('INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail","requesterMemberId","customerCompanyId",department,assignee,"assigneeMemberId",status,priority,"createdAt","updatedAt","dueAt","slaPolicySnapshot","slaStartedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,\'open\',$11,$12,$12,$13,$14,$12) RETURNING *',[access.ownerId,data.operationId,data.subject,requester.requesterName,requester.requesterEmail,requester.requesterMemberId,requester.customerCompanyId,data.department,assignee,assigneeMemberId,data.priority,now,dueAt,JSON.stringify(policy)]);
       const ticket=rows[0];
+      if(requesterIsTest) {await tx.query('UPDATE tickets SET "isTest"=true WHERE id=$1 AND "ownerId"=$2',[ticket.id,access.ownerId]);ticket.isTest=true;}
       const message=await tx.query('INSERT INTO messages ("ownerId","ticketId",author,"authorMemberId","authorRole",body,kind,"createdAt","bodyFormat") VALUES ($1,$2,$3,$4,$5,$6,\'request\',$7,$8) RETURNING id',[access.ownerId,ticket.id,fresh.member.name,fresh.member.id,fresh.role,data.body,now,data.bodyFormat || 'plain']);
       await linkReadyAttachments(tx,fresh,{ids:data.attachmentIds,draftId:data.draftId||data.operationId,kind:'request',ticketId:ticket.id,messageId:message.rows[0].id});
       await recordEvent(tx,fresh,ticket.id,'created',null,'open');

@@ -10,9 +10,10 @@ import {
 interface WebhookDependencies {
   after: (task: () => Promise<void>) => void;
   env?: Record<string, string | undefined>;
-  receive?: (envelope: InboundEnvelope, config: InboundConfiguration) => Promise<InboundResult>;
+  receive?: (envelope: InboundEnvelope, config: InboundConfiguration) => Promise<InboundResult | { status: 'pending'; ownerId: string; reasonCode: null; ticketId: null; messageId: null }>;
   recordDelivery?: (receipt: DeliveryReceipt) => Promise<void>;
   dispatchNotifications?: (ownerId: string) => Promise<void>;
+  drainIncoming?: (ownerId: string, providerId: string) => Promise<unknown>;
 }
 const headers = { 'Cache-Control': 'private, no-store' };
 const accepted = () => Response.json({ received: true }, { headers });
@@ -23,8 +24,8 @@ const unavailable = () => Response.json({ error: 'Correo entrante no configurado
 export function createResendWebhookHandlers(dependencies: WebhookDependencies) {
   const env = dependencies.env || process.env;
   const receive = dependencies.receive || (async (envelope, config) => {
-    const [{ getDatabase }, { receiveInboundEmail }] = await Promise.all([import('../db'), import('./inbound-email')]);
-    return receiveInboundEmail(getDatabase(), envelope, { config });
+    const [{ getDatabase }, { enqueueInboundMail }] = await Promise.all([import('../db'), import('./inbound-email-jobs')]);
+    return enqueueInboundMail(getDatabase(), envelope, config);
   });
   const recordDelivery = dependencies.recordDelivery || (async receipt => {
     const [{ getDatabase }, { recordDeliveryReceipt }] = await Promise.all([import('../db'), import('./mail-delivery')]);
@@ -34,6 +35,7 @@ export function createResendWebhookHandlers(dependencies: WebhookDependencies) {
     const [{ drainOutboxBestEffort }, { processPushOutboxBestEffort }] = await Promise.all([import('./mail'), import('./push')]);
     await Promise.allSettled([drainOutboxBestEffort(ownerId), processPushOutboxBestEffort(ownerId)]);
   });
+  const drainIncoming = dependencies.drainIncoming || (async (ownerId, providerId) => (await import('./inbound-email-jobs')).drainInboundMailBestEffort(ownerId, { providerId }));
 
   async function receiveVerified(raw: Buffer, webhookId: string, config: InboundConfiguration): Promise<Response | null> {
     // Decode incoming JSON once, after HMAC verification, without reserializing
@@ -44,9 +46,12 @@ export function createResendWebhookHandlers(dependencies: WebhookDependencies) {
     const envelope = normalizeInboundWebhookEvent(event, webhookId);
     if (!envelope || !envelope.to.some(address => parseInboundRoute(address, config))) return accepted();
     const result = await receive(envelope, config);
-    if (result.status === 'processed' && result.ownerId) {
+    if ((result.status === 'processed' || result.status === 'pending') && result.ownerId) {
       const ownerId = result.ownerId;
-      dependencies.after(() => dispatchNotifications(ownerId));
+      dependencies.after(async () => {
+        if (result.status === 'pending') await drainIncoming(ownerId, envelope.providerId);
+        await dispatchNotifications(ownerId);
+      });
     }
     return accepted();
   }

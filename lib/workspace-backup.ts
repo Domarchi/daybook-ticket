@@ -24,37 +24,49 @@ async function selectColumns(tx: PoolClient, table: string, schema = 'public', e
 }
 
 /** One consistent DB snapshot. Uploaded drafts, sessions and reset/device credentials are not portable logins. */
-export async function createWorkspaceBackup(access: AccessContext, database = db(), storage?: PrivateAttachmentStorage): Promise<WorkspaceBackup> {
+export async function createWorkspaceBackup(access: AccessContext, database = db(), storage?: PrivateAttachmentStorage, options: { deadline?: number } = {}): Promise<WorkspaceBackup> {
   if (access.role !== 'owner') throw new ApiError(403, 'Solo el propietario puede exportar el respaldo completo.');
   return database.transaction(async tx => {
+    let deadline = options.deadline ?? Number.POSITIVE_INFINITY;
+    // Automatic jobs have a shorter total budget. Clamp every SQL statement to
+    // its remaining time; a slow query cannot start a fresh ninety-second wait.
+    const query = async (sql: string, values?: unknown[]) => {
+      if (options.deadline === undefined) return tx.query(sql, values);
+      const remaining = deadline - Date.now();
+      if (remaining < 1) throw new ApiError(503, 'El respaldo agotó su tiempo disponible. Se puede reintentar sin modificar los datos.');
+      if (options.deadline !== undefined) await tx.query("SELECT set_config('statement_timeout',$1,true)", [`${Math.min(90000, remaining)}ms`]);
+      return tx.query(sql, values);
+    };
+    const reader = { query } as PoolClient;
     // Acquire the current owner before creating a repeatable snapshot. A concurrent revocation waits for this export.
     await tx.query('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');
     await tx.query("SET LOCAL TIME ZONE 'UTC'; SET LOCAL DateStyle='ISO,YMD'");
     const reserved = (await tx.query("SELECT pg_try_advisory_xact_lock(hashtextextended($1,0)) AS locked", [`daybook-backup:${access.ownerId}`])).rows[0]?.locked;
     if (!reserved) throw new ApiError(409, 'Ya se está preparando un respaldo de este espacio.');
-    const fresh = await lockAccess(tx, access);
+    const fresh = await lockAccess(reader, access);
     if (fresh.role !== 'owner') throw new ApiError(403, 'Solo el propietario puede exportar el respaldo completo.');
     await tx.query("SET LOCAL statement_timeout='90s'");
     const backup: WorkspaceBackup = { format: 'daybook.workspace.v1', createdAt: new Date().toISOString(), ownerId: access.ownerId, organizationId: access.organizationId, tables: [], files: [], omissions: ['Active sessions, password reset tokens and rate limits require a fresh sign-in after recovery.', 'Invitation tokens and OAuth bearer tokens are excluded. Invited members remain; issue new invitations after recovery.', 'Unsent draft attachments are temporary and are excluded. Environment variables and provider keys are never included.'] };
     let bytes = 0, rowsCount = 0;
-    const deadline = Date.now() + 210000;
+    if (options.deadline === undefined) deadline = Date.now() + 210000;
     for (const table of BACKUP_TABLES) {
-      const tableColumns = await columns(tx, table);
+      const tableColumns = await columns(reader, table);
       if (!tableColumns.length) throw new ApiError(503, 'Aplica la migración de esta versión antes de crear respaldos.');
       let where = '"ownerId"=$1';
       if (table === 'authUser') where = 'id IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
       else if (table === 'authAccount') where = '"userId" IN (SELECT "userId" FROM members WHERE "ownerId"=$1 AND "userId" IS NOT NULL)';
       else if (table === 'attachments') where += " AND status='attached'";
-      else if (table === 'invitations') where += ' AND FALSE';
+      else if (table === 'invitations' || table === 'ticketPresence') where += ' AND FALSE';
+      else if (table === 'inboundMailJobFiles') where = '"providerId" IN (SELECT "providerId" FROM "inboundMailJobs" WHERE "ownerId"=$1) AND "attachmentId" IN (SELECT id FROM attachments WHERE "ownerId"=$1 AND status=\'attached\')';
       // Omit temporary credentials in SQL, before they can enter the Function or its byte totals.
-      const selection = `SELECT ${await selectColumns(tx, table, 'public', true)} FROM ${quote(table)} WHERE ${where} LIMIT 100001`;
+      const selection = `SELECT ${await selectColumns(reader, table, 'public', true)} FROM ${quote(table)} WHERE ${where} LIMIT 100001`;
       // Count bytes inside the same snapshot before pg materializes private rows.
       // LIMIT bounds this aggregate too; only two totals leave PostgreSQL.
-      const total = (await tx.query(`SELECT count(*)::text AS rows, COALESCE(sum(octet_length(row_to_json(source)::text)),0)::text AS bytes FROM (${selection}) source`, [access.ownerId])).rows[0];
+      const total = (await query(`SELECT count(*)::text AS rows, COALESCE(sum(octet_length(row_to_json(source)::text)),0)::text AS bytes FROM (${selection}) source`, [access.ownerId])).rows[0];
       const tableRows = Number(total?.rows), tableBytes = Number(total?.bytes);
       if (!Number.isSafeInteger(tableRows) || tableRows < 0 || !Number.isSafeInteger(tableBytes) || tableBytes < 0
         || rowsCount + tableRows > 100000 || bytes + tableBytes > 24 * 1024 * 1024) throw new ApiError(413, 'El espacio supera el límite de esta exportación. Usa el procedimiento operativo de respaldo de base y archivos.');
-      const result = await tx.query(selection, [access.ownerId]);
+      const result = await query(selection, [access.ownerId]);
       const rows = JSON.parse(JSON.stringify(result.rows)) as BackupRow[]; // pg timestamps become portable ISO strings.
       rowsCount += rows.length;
       const encoded = canonicalBackupRows(rows); bytes += Buffer.byteLength(encoded);
@@ -104,9 +116,11 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
       await tx.query(`LOCK TABLE ${locked.map(table => qualified(schema, table)).join(',')} IN ACCESS EXCLUSIVE MODE`);
       for (const table of BACKUP_TABLES) {
         if (Number((await tx.query(`SELECT count(*)::int AS n FROM ${qualified(schema, table)}`)).rows[0].n) !== 0) throw new Error('Recovery requires an empty destination. No existing data was changed.');
-        const source = backup.tables.find(item => item.name === table)!;
+        const source = backup.tables.find(item => item.name === table);
+        if (!source) continue; // A verified v1 archive predates the additive reliability tables.
         const target = await columns(tx, table, schema);
-        if (JSON.stringify(target) !== JSON.stringify(source.columns)) throw new Error(`Schema version mismatch: ${table}`);
+        const compatible = target.filter(column => !(column === 'isTest' && ['members','tickets'].includes(table) && !source.columns.includes(column)));
+        if (JSON.stringify(compatible) !== JSON.stringify(source.columns)) throw new Error(`Schema version mismatch: ${table}`);
       }
       if (schema === 'public') for (const table of ['authSession', 'authVerification', 'authRateLimit']) {
         if (Number((await tx.query(`SELECT count(*)::int AS n FROM ${qualified(schema, table)}`)).rows[0].n) !== 0) throw new Error('Recovery requires empty temporary authentication tables.');
@@ -125,7 +139,8 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
       }
       const fingerprints: { table: string; rows: number; sha256: string }[] = [];
       for (const table of BACKUP_TABLES) {
-        const source = backup.tables.find(item => item.name === table)!;
+        const source = backup.tables.find(item => item.name === table);
+        if (!source) continue;
         for (const original of source.rows) {
           const row = table === 'attachments' ? { ...original, pathname: attachmentPaths.get(String(original.id))! } : original;
           await tx.query(`INSERT INTO ${qualified(schema, table)} (${source.columns.map(quote).join(',')}) VALUES (${source.columns.map((_, i) => `$${i + 1}`).join(',')})`, source.columns.map(column => row[column]));
@@ -133,7 +148,7 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
         const restored = JSON.parse(JSON.stringify((await tx.query(`SELECT ${await selectColumns(tx, table, schema)} FROM ${qualified(schema, table)}`)).rows)) as BackupRow[];
         // File bytes are copied to new private paths; compare the original metadata after reversing that intentional mapping.
         if (table === 'attachments') for (const row of restored) row.pathname = source.rows.find(original => original.id === row.id)!.pathname;
-        const fingerprint = sha256(canonicalBackupRows(restored));
+        const fingerprint = sha256(canonicalBackupRows(restored.map(row => Object.fromEntries(source.columns.map(column => [column, row[column]])))));
         if (fingerprint !== source.sha256) throw new Error(`Recovery checksum mismatch: ${table}`);
         fingerprints.push({ table, rows: restored.length, sha256: fingerprint });
       }
@@ -141,6 +156,10 @@ export async function restoreWorkspaceBackup(input: WorkspaceBackup, database: D
       // then invalidate them before COMMIT; password hashes and account/provider identities stay intact.
       await tx.query(`DELETE FROM ${qualified(schema, 'invitations')}`);
       await tx.query(`UPDATE ${qualified(schema, 'authAccount')} SET ${temporaryAccountColumns.map(column => `${quote(column)}=NULL`).join(',')}`);
+      await tx.query(`UPDATE ${qualified(schema, 'automaticBackupSettings')} SET enabled=false,"leaseToken"=NULL,"leaseUntil"=NULL,"lastErrorCode"='restore_paused'`);
+      await tx.query(`UPDATE ${qualified(schema, 'automaticBackupRuns')} SET status='deleted',"deletedAt"=COALESCE("deletedAt",$1),"reservedBytes"=0,"errorCode"='restore_nonportable'`,[new Date().toISOString()]);
+      await tx.query(`DELETE FROM ${qualified(schema, 'ticketPresence')}`);
+      await tx.query(`UPDATE ${qualified(schema, 'inboundMailJobs')} SET status='failed',attempts=6,"lastErrorCode"='restore_paused',"leaseToken"=NULL,"leaseUntil"=NULL,"nextAttemptAt"=NULL WHERE status IN ('pending','processing','retry')`);
       // Recovered work stays paused until the owner checks accounts/files and explicitly enables integrations.
       await tx.query(`UPDATE ${qualified(schema, 'notificationSettings')} SET "remindersEnabled"=false`);
       await tx.query(`UPDATE ${qualified(schema, 'escalationSettings')} SET enabled=false`);

@@ -5,6 +5,7 @@ export type MemberRole = 'owner' | 'admin' | 'agent' | 'client';
 export type MemberStatus = 'invited' | 'active' | 'revoked';
 export type CompanyAccess = 'own' | 'manager';
 export interface Member {
+  isTest?: boolean;
   id: string;
   name: string;
   email: string;
@@ -25,6 +26,7 @@ export interface MailStatus {
   webhookConfigured?: boolean;
 }
 export interface Ticket {
+  isTest?: boolean;
   id: number;
   subject: string;
   requesterName: string;

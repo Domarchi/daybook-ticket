@@ -50,7 +50,7 @@ export function buildMailPayload(input: {
   };
   const message = copy[input.event];
   const replyTo = input.replyTo && /^[^\s<>@\r\n]+@[^\s<>@\r\n]+\.[^\s<>@\r\n]+$/.test(input.replyTo) ? input.replyTo : null;
-  const footer = replyTo ? 'Puedes responder a este correo desde tu dirección registrada. Envía los archivos desde el portal.' : FOOTER;
+  const footer = replyTo ? 'Puedes responder a este correo desde tu dirección registrada con hasta 5 archivos de 10 MiB cada uno. También puedes enviarlos desde el portal.' : FOOTER;
   const metadata: [string, string][] = [];
   if (input.ticketId) metadata.push(['Ticket', `#${input.ticketId}`]);
   if (input.metadata?.subject) metadata.push(['Asunto', input.metadata.subject.replace(/[\r\n\t]+/g, ' ').slice(0, 160)]);

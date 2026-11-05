@@ -1,12 +1,12 @@
 # Daybook Ticket
 
-## Seis mejoras de servicio
+La entrega `codex/daybook-ticket-reliability` añade recepción durable y adjuntos por correo, marcas de prueba con métricas filtradas, respaldos automáticos privados cifrados, presencia del equipo y progreso público del portal. Alcance y conservación en [RELIABILITY_PLAN.md](docs/RELIABILITY_PLAN.md); activación segura y reversión en [RELIABILITY_RELEASE.md](docs/RELIABILITY_RELEASE.md).
 
-La rama `codex/daybook-ticket-service-plus` prepara correo entrante para clientes invitados, escalamiento, encuestas de satisfacción, editor con formato y vista previa privada de archivos, búsqueda en conversaciones con paginación y respaldo cifrado del espacio. El estado y las pruebas están en [SERVICE_PLUS_PLAN.md](docs/SERVICE_PLUS_PLAN.md); la publicación conservando datos y las activaciones están en [SERVICE_PLUS_RELEASE.md](docs/SERVICE_PLUS_RELEASE.md).
+Centro de soporte de Servicios Daybook: acceso por invitación y contraseña, empresas, tickets, bandeja compartida, SLA por empresa, reparto automático, métricas, avisos persistentes, seguimiento de entrega, recordatorios, recepción por correo, encuestas, conversaciones y archivos privados. Next.js en Vercel y PostgreSQL en un proyecto Neon exclusivo; sin compartir datos con Consorcio C17 u otros Daybook.
 
-El correo entrante es opt-in y usa direcciones privadas vinculadas a cuentas activas; los adjuntos se envían desde el portal. Escalamiento comienza desactivado y satisfacción se solicita solo tras cierres reales nuevos. El propietario dispone de exportación cifrada; el ensayo periódico de recuperación usa datos ficticios y no constituye una copia automática de producción. Ver [INBOUND_EMAIL.md](docs/INBOUND_EMAIL.md), [ESCALATIONS_SATISFACTION.md](docs/ESCALATIONS_SATISFACTION.md) y [TICKET_SEARCH.md](docs/TICKET_SEARCH.md).
+El correo entrante usa direcciones privadas de cuentas activas; valida texto y hasta cinco archivos de 10 MiB antes de incorporarlos juntos. El propietario puede exportar una copia cifrada y configurar respaldos diarios privados con verificación y presupuesto. La programación se mantiene desactivada hasta comprobar claves, cuotas y activación. La recepción y los respaldos nuevos se entregan en Preview antes de una publicación productiva independiente.
 
-Centro de soporte de Servicios Daybook: acceso por correo y contraseña, invitaciones, roles y portal de clientes. Esta versión usa Next.js en Vercel y PostgreSQL en un proyecto Neon exclusivo. No comparte datos ni despliegues con Consorcio C17 u otros Daybook.
+Guías: [correo entrante](docs/INBOUND_EMAIL.md), [respaldos automáticos](docs/AUTOMATIC_BACKUPS.md), [presencia y progreso](docs/RELIABILITY_PRESENCE.md), [encuestas y escalamiento](docs/ESCALATIONS_SATISFACTION.md), [búsqueda](docs/TICKET_SEARCH.md). El [plan anterior](docs/SERVICE_PLUS_PLAN.md) documenta la entrega ya publicada.
 
 ## Desarrollo
 

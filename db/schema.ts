@@ -1,4 +1,4 @@
-import { pgTable, integer, serial, boolean, text, index, uniqueIndex, check } from 'drizzle-orm/pg-core';
+import { pgTable, integer, serial, boolean, text, index, uniqueIndex, check, primaryKey, bigint } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 export const organizations = pgTable('organizations', {
@@ -18,6 +18,7 @@ export const customerCompanies = pgTable('customerCompanies', {
 }, (t) => [index('customer_companies_owner').on(t.ownerId)]);
 
 export const members = pgTable('members', {
+  isTest: boolean('isTest').notNull().default(false),
   id: text('id').primaryKey(),
   organizationId: text('organizationId').notNull().references(() => organizations.id),
   ownerId: text('ownerId').notNull(),
@@ -40,6 +41,7 @@ export const members = pgTable('members', {
 ]);
 
 export const tickets = pgTable('tickets', {
+  isTest: boolean('isTest').notNull().default(false),
   id: serial('id').primaryKey(),
   ownerId: text('ownerId').notNull(),
   creationKey: text('creationKey').notNull(),
@@ -287,3 +289,32 @@ export const pushDeliveries = pgTable('pushDeliveries', {
 }, (t) => [uniqueIndex('push_delivery_event_device').on(t.eventId, t.subscriptionId), index('push_delivery_pending').on(t.ownerId, t.status, t.createdAt)]);
 
 export * from './auth-schema';
+
+// Delivery reliability: only new tables; no synthetic historical state.
+export const inboundMailJobs = pgTable('inboundMailJobs', {
+  providerId: text('providerId').primaryKey(), ownerId: text('ownerId').notNull().references(() => organizations.ownerId),
+  memberId: text('memberId').notNull().references(() => members.id), environment: text('environment').notNull(),
+  envelopeJson: text('envelopeJson').notNull(), envelopeHash: text('envelopeHash').notNull(), status: text('status').notNull().default('pending'),
+  attempts: integer('attempts').notNull().default(0), nextAttemptAt: text('nextAttemptAt'), lastAttemptAt: text('lastAttemptAt'), lastErrorCode: text('lastErrorCode'),
+  leaseToken: text('leaseToken'), leaseUntil: text('leaseUntil'), ticketId: integer('ticketId').references(() => tickets.id), messageId: integer('messageId').references(() => messages.id),
+  manualRetries: integer('manualRetries').notNull().default(0), lastRetryKey: text('lastRetryKey'), lastRetriedAt: text('lastRetriedAt'), createdAt: text('createdAt').notNull(), updatedAt: text('updatedAt').notNull(),
+}, t => [index('inbound_jobs_owner_recent').on(t.ownerId,t.createdAt.desc(),t.providerId),index('inbound_jobs_due').on(t.ownerId,t.status,t.nextAttemptAt,t.leaseUntil),
+  check('inbound_jobs_environment',sql`${t.environment} IN ('qa','production')`),check('inbound_jobs_status',sql`${t.status} IN ('pending','processing','retry','processed','rejected','failed')`),
+  check('inbound_jobs_attempts',sql`${t.attempts} BETWEEN 0 AND 6`),check('inbound_jobs_manual_retries',sql`${t.manualRetries} BETWEEN 0 AND 3`)]);
+export const inboundMailJobFiles = pgTable('inboundMailJobFiles', {
+  providerId:text('providerId').notNull().references(() => inboundMailJobs.providerId), providerAttachmentId:text('providerAttachmentId').notNull(),
+  attachmentId:text('attachmentId').notNull().references(() => attachments.id), sha256:text('sha256').notNull(), createdAt:text('createdAt').notNull(),
+},t=>[primaryKey({columns:[t.providerId,t.providerAttachmentId]}),uniqueIndex('inbound_job_file_attachment').on(t.attachmentId)]);
+export const ticketPresence = pgTable('ticketPresence', {
+  ownerId:text('ownerId').notNull().references(()=>organizations.ownerId,{onDelete:'cascade'}),ticketId:integer('ticketId').notNull().references(()=>tickets.id,{onDelete:'cascade'}),
+  memberId:text('memberId').notNull().references(()=>members.id,{onDelete:'cascade'}),tabId:text('tabId').notNull(),activity:text('activity').notNull(),updatedAt:text('updatedAt').notNull(),expiresAt:text('expiresAt').notNull(),
+},t=>[primaryKey({columns:[t.ownerId,t.ticketId,t.memberId,t.tabId]}),index('ticket_presence_ticket_expiry').on(t.ownerId,t.ticketId,t.expiresAt),index('ticket_presence_member_expiry').on(t.ownerId,t.memberId,t.expiresAt),check('ticket_presence_activity',sql`${t.activity} IN ('viewing','reply','note')`),check('ticket_presence_tab',sql`${t.tabId} ~ '^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$'`)]);
+export const automaticBackupSettings=pgTable('automaticBackupSettings',{
+  ownerId:text('ownerId').primaryKey().references(()=>organizations.ownerId),enabled:boolean('enabled').notNull().default(false),localTime:text('localTime').notNull().default('03:00'),retention:integer('retention').notNull().default(7),storageBudgetMiB:integer('storageBudgetMiB').notNull().default(512),planReviewedAt:text('planReviewedAt'),version:integer('version').notNull().default(0),leaseToken:text('leaseToken'),leaseUntil:text('leaseUntil'),lastErrorCode:text('lastErrorCode'),updatedAt:text('updatedAt').notNull(),
+},t=>[check('automatic_backup_time',sql`${t.localTime} ~ '^([01][0-9]|2[0-3]):(00|30)$'`),check('automatic_backup_retention',sql`${t.retention} BETWEEN 1 AND 14`),check('automatic_backup_budget',sql`${t.storageBudgetMiB} BETWEEN 64 AND 1024`),check('automatic_backup_version',sql`${t.version} >= 0`)]);
+export const automaticBackupRuns=pgTable('automaticBackupRuns',{
+  id:text('id').primaryKey(),ownerId:text('ownerId').notNull().references(()=>organizations.ownerId),environment:text('environment').notNull(),localDate:text('localDate').notNull(),status:text('status').notNull(),attempts:integer('attempts').notNull().default(0),keyId:text('keyId'),archiveSha256:text('archiveSha256'),sizeBytes:integer('sizeBytes'),reservedBytes:integer('reservedBytes').notNull().default(33554432),rowCount:integer('rowCount'),fileCount:integer('fileCount'),errorCode:text('errorCode'),createdAt:text('createdAt').notNull(),updatedAt:text('updatedAt').notNull(),uploadedAt:text('uploadedAt'),verifiedAt:text('verifiedAt'),deletedAt:text('deletedAt'),
+},t=>[uniqueIndex('automatic_backup_daily').on(t.ownerId,t.environment,t.localDate),index('automatic_backup_owner_status').on(t.ownerId,t.createdAt),check('automatic_backup_environment',sql`${t.environment} IN ('qa','production')`),check('automatic_backup_status',sql`${t.status} IN ('processing','complete','failed','deleting','deleted')`),check('automatic_backup_attempts',sql`${t.attempts} BETWEEN 0 AND 3`),check('automatic_backup_reserved',sql`${t.reservedBytes} BETWEEN 0 AND 33554432`),check('automatic_backup_size',sql`${t.sizeBytes} IS NULL OR ${t.sizeBytes} BETWEEN 1 AND 33554432`)]);
+export const automaticBackupUsage=pgTable('automaticBackupUsage',{
+  ownerId:text('ownerId').notNull().references(()=>organizations.ownerId),environment:text('environment').notNull(),month:text('month').notNull(),transferBytes:bigint('transferBytes',{mode:'number'}).notNull().default(0),
+},t=>[primaryKey({columns:[t.ownerId,t.environment,t.month]}),check('automatic_backup_usage_environment',sql`${t.environment} IN ('qa','production')`),check('automatic_backup_usage_bytes',sql`${t.transferBytes} >= 0`)]);

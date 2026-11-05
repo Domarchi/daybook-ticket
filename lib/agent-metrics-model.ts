@@ -1,6 +1,7 @@
 export const METRICS_TIME_ZONE = 'America/Santiago';
 
 export interface MetricsQuery {
+  includeTests?: boolean;
   from: string;
   to: string;
   fromInstant: string;
@@ -74,7 +75,7 @@ export function metricsDayStart(date: string): string {
 
 export function parseMetricsQuery(params: URLSearchParams, now = new Date()): MetricsQuery {
   for (const key of params.keys()) {
-    if (!['from', 'to', 'companyId'].includes(key) || params.getAll(key).length !== 1) throw new MetricsQueryError('Los filtros de métricas no son válidos.');
+    if (!['from', 'to', 'companyId', 'includeTests'].includes(key) || params.getAll(key).length !== 1) throw new MetricsQueryError('Los filtros de métricas no son válidos.');
   }
   const today = metricsDate(now);
   const to = params.get('to') || today;
@@ -85,7 +86,9 @@ export function parseMetricsQuery(params: URLSearchParams, now = new Date()): Me
   if (days < 1 || days > 366 || to > today) throw new MetricsQueryError('Selecciona un período de hasta 366 días, sin fechas futuras.');
   const companyId = params.get('companyId') || null;
   if (companyId && !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(companyId)) throw new MetricsQueryError('Selecciona una empresa válida.');
-  return { from, to, fromInstant: metricsDayStart(from), untilInstant: metricsDayStart(shiftMetricsDate(to, 1)), companyId };
+  const includeTests = params.get('includeTests');
+  if (includeTests !== null && !['true', 'false'].includes(includeTests)) throw new MetricsQueryError('El filtro de pruebas no es válido.');
+  return { from, to, fromInstant: metricsDayStart(from), untilInstant: metricsDayStart(shiftMetricsDate(to, 1)), companyId, ...(includeTests !== null ? { includeTests: includeTests === 'true' } : {}) };
 }
 
 export function metricsCsvCell(value: string | number | null): string {
@@ -96,6 +99,7 @@ export function metricsCsvCell(value: string | number | null): string {
 export function agentMetricsCsv(report: AgentMetricsReport): string {
   const rows: (string | number | null)[][] = [
     ['Desde', report.period.from, 'Hasta', report.period.to, 'Zona horaria', report.period.timeZone],
+    ['Datos de prueba', report.period.includeTests ? 'Incluidos' : 'Excluidos'],
     ['Agente', 'Estado', 'Abiertos actuales', 'Pendientes actuales', 'Respuestas públicas', 'Primeras respuestas medidas', 'Primera respuesta promedio (horas corridas)', 'Resoluciones registradas', 'Duraciones medidas', 'Resolución promedio (horas corridas)', 'Dentro del SLA', 'Fuera del SLA', 'Cumplimiento SLA (%)'],
     ...report.agents.map(row => [row.name, row.status, row.currentOpen, row.currentPending, row.publicReplies, row.firstResponseCount, row.averageFirstResponseHours, row.resolutions, row.measurableResolutions, row.averageResolutionHours, row.slaMet, row.slaBreached, row.slaCompliancePercent]),
   ];
