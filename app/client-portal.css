@@ -268,7 +268,7 @@
 @media(max-width:750px){.client-ticket-summary{position:static}.client-detail-grid{gap:13px}.client-messages{padding:0 14px}.client-message{padding:17px 0;gap:9px}.client-message.is-own>div:last-child{padding:11px 12px}.client-message p{font-size:13px;line-height:1.7}.client-message-avatar{width:28px;height:28px;font-size:11px}.client-shell .client-heading.detail h1{font-size:24px;line-height:1.4}.client-shell .client-heading.detail{margin-bottom:17px}.client-composer textarea{min-height:110px}.client-ticket-summary dl{gap:10px}.client-composer .message-editor-toolbar{flex-wrap:wrap}}
 @media (prefers-color-scheme: dark) {
   /* Neutral black hierarchy, with Daybook gold reserved for emphasis. */
-  .client-shell {
+  :root:not([data-color-scheme="light"]) .client-shell {
     color-scheme: dark;
     --paper: #000;
     --navy: #000;
@@ -281,107 +281,220 @@
     --accent: #edc879;
     --accent-soft: #241f13;
   }
-  .client-shell .client-header { background: #000; border-color: var(--line); }
-  .client-shell .client-header .client-brand { color: var(--ink); }
-  .client-shell .client-header nav button.is-active { color: #0a0a0a; }
-  .client-shell .secondary,
-  .client-shell .search-box,
-  .client-shell .client-list-filters select,
-  .client-shell .message-attachments a,
-  .client-shell .attachment-preview,
-  .client-shell .message-editor,
-  .client-shell .message-editor-toolbar,
-  .client-shell .message-editor-preview,
-  .client-shell .message-editor-render {
+  :root:not([data-color-scheme="light"]) .client-shell .client-header { background: #000; border-color: var(--line); }
+  :root:not([data-color-scheme="light"]) .client-shell .client-header .client-brand { color: var(--ink); }
+  :root:not([data-color-scheme="light"]) .client-shell .client-header nav button.is-active { color: #0a0a0a; }
+  :root:not([data-color-scheme="light"]) .client-shell .secondary,
+  :root:not([data-color-scheme="light"]) .client-shell .search-box,
+  :root:not([data-color-scheme="light"]) .client-shell .client-list-filters select,
+  :root:not([data-color-scheme="light"]) .client-shell .message-attachments a,
+  :root:not([data-color-scheme="light"]) .client-shell .attachment-preview,
+  :root:not([data-color-scheme="light"]) .client-shell .message-editor,
+  :root:not([data-color-scheme="light"]) .client-shell .message-editor-toolbar,
+  :root:not([data-color-scheme="light"]) .client-shell .message-editor-preview,
+  :root:not([data-color-scheme="light"]) .client-shell .message-editor-render {
     background: var(--client-surface); color: var(--ink); border-color: var(--line);
   }
-  .client-shell .search-box,
-  .client-shell .client-list-filters select,
-  .client-shell .client-new-ticket input,
-  .client-shell .client-new-ticket textarea,
-  .client-shell .client-new-ticket select { border-color: var(--control-line); }
-  .client-shell .primary { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
-  .client-shell .primary:hover { background: #f6d99a; }
-  .client-shell .secondary:hover,
-  .client-shell .client-article:hover,
-  .client-shell .client-ticket-row:hover { background: var(--client-soft); }
-  .client-shell .client-resource-link:hover { color: #f6d99a; }
-  .client-shell .client-overview-icon,
-  .client-shell .client-row-icon,
-  .client-shell .client-message-avatar { background: var(--client-soft); color: var(--muted); border-color: var(--line); }
-  .client-shell .client-message.is-own .client-message-avatar { background: var(--accent-soft); color: var(--accent); }
-  .client-shell .client-help-cta { background: var(--client-surface); border-color: var(--line); }
-  .client-shell .client-reading > div { color: var(--ink); }
-  .client-shell .status.open { background: #10233f; color: #b9d6f8; }
-  .client-shell .status.pending { background: #2b210e; color: #f0ce80; }
-  .client-shell .status.resolved,
-  .client-shell .client-overview-icon.resolved { background: #10261a; color: #b7dfbd; }
-  .client-shell .client-feedback.error { background: #2a1414; border-color: #653333; color: #fca5a5; }
-  .client-shell .client-feedback.success { background: #10261a; border-color: #2b6040; color: #b7dfbd; }
-  .client-shell .message-markdown pre,
-  .client-shell .message-markdown code,
-  .client-shell .message-content-rich code { background: #000; color: var(--ink); }
-  .client-shell .message-content-rich a { color: var(--accent); }
-  .client-shell .message-editor-toolbar button:hover:not(:disabled) { background: var(--client-soft); color: var(--ink); }
-  .client-shell .public-progress-timeline .is-complete .public-progress-dot { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
-  .client-shell .conversation-sync,
-  .client-shell .ticket-alert-desktop,
-  .client-shell .ticket-alert-desktop.is-blocked,
-  .client-shell .ticket-push-feedback { color: var(--muted); }
+  :root:not([data-color-scheme="light"]) .client-shell .search-box,
+  :root:not([data-color-scheme="light"]) .client-shell .client-list-filters select,
+  :root:not([data-color-scheme="light"]) .client-shell .client-new-ticket input,
+  :root:not([data-color-scheme="light"]) .client-shell .client-new-ticket textarea,
+  :root:not([data-color-scheme="light"]) .client-shell .client-new-ticket select { border-color: var(--control-line); }
+  :root:not([data-color-scheme="light"]) .client-shell .primary { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
+  :root:not([data-color-scheme="light"]) .client-shell .primary:hover { background: #f6d99a; }
+  :root:not([data-color-scheme="light"]) .client-shell .secondary:hover,
+  :root:not([data-color-scheme="light"]) .client-shell .client-article:hover,
+  :root:not([data-color-scheme="light"]) .client-shell .client-ticket-row:hover { background: var(--client-soft); }
+  :root:not([data-color-scheme="light"]) .client-shell .client-resource-link:hover { color: #f6d99a; }
+  :root:not([data-color-scheme="light"]) .client-shell .client-overview-icon,
+  :root:not([data-color-scheme="light"]) .client-shell .client-row-icon,
+  :root:not([data-color-scheme="light"]) .client-shell .client-message-avatar { background: var(--client-soft); color: var(--muted); border-color: var(--line); }
+  :root:not([data-color-scheme="light"]) .client-shell .client-message.is-own .client-message-avatar { background: var(--accent-soft); color: var(--accent); }
+  :root:not([data-color-scheme="light"]) .client-shell .client-help-cta { background: var(--client-surface); border-color: var(--line); }
+  :root:not([data-color-scheme="light"]) .client-shell .client-reading > div { color: var(--ink); }
+  :root:not([data-color-scheme="light"]) .client-shell .status.open { background: #10233f; color: #b9d6f8; }
+  :root:not([data-color-scheme="light"]) .client-shell .status.pending { background: #2b210e; color: #f0ce80; }
+  :root:not([data-color-scheme="light"]) .client-shell .status.resolved,
+  :root:not([data-color-scheme="light"]) .client-shell .client-overview-icon.resolved { background: #10261a; color: #b7dfbd; }
+  :root:not([data-color-scheme="light"]) .client-shell .client-feedback.error { background: #2a1414; border-color: #653333; color: #fca5a5; }
+  :root:not([data-color-scheme="light"]) .client-shell .client-feedback.success { background: #10261a; border-color: #2b6040; color: #b7dfbd; }
+  :root:not([data-color-scheme="light"]) .client-shell .message-markdown pre,
+  :root:not([data-color-scheme="light"]) .client-shell .message-markdown code,
+  :root:not([data-color-scheme="light"]) .client-shell .message-content-rich code { background: #000; color: var(--ink); }
+  :root:not([data-color-scheme="light"]) .client-shell .message-content-rich a { color: var(--accent); }
+  :root:not([data-color-scheme="light"]) .client-shell .message-editor-toolbar button:hover:not(:disabled) { background: var(--client-soft); color: var(--ink); }
+  :root:not([data-color-scheme="light"]) .client-shell .public-progress-timeline .is-complete .public-progress-dot { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
+  :root:not([data-color-scheme="light"]) .client-shell .conversation-sync,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-desktop,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-desktop.is-blocked,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-push-feedback { color: var(--muted); }
 
-  .client-shell .conversation-sync.connecting,
-  .client-shell .conversation-sync.reconnecting { color: var(--accent); }
-  .client-shell .conversation-sync.offline { color: #f4a69a; }
+  :root:not([data-color-scheme="light"]) .client-shell .conversation-sync.connecting,
+  :root:not([data-color-scheme="light"]) .client-shell .conversation-sync.reconnecting { color: var(--accent); }
+  :root:not([data-color-scheme="light"]) .client-shell .conversation-sync.offline { color: #f4a69a; }
 
-  .client-shell .ticket-alert-control,
-  .client-shell .ticket-alert-panel,
-  .client-shell .ticket-alert-toast { background: var(--client-surface); color: var(--ink); border-color: var(--line); }
-  .client-shell .ticket-alert-panel,
-  .client-shell .ticket-alert-toast { box-shadow: 0 16px 48px #0009; }
-  .client-shell .ticket-alert-control:hover,
-  .client-shell .ticket-alert-icon-button:hover,
-  .client-shell .ticket-alert-item:hover,
-  .client-shell .ticket-alert-read-all:hover,
-  .client-shell .ticket-alert-load-more:hover { background: var(--client-soft); color: var(--ink); }
-  .client-shell .ticket-alert-control.is-enabled,
-  .client-shell .ticket-alert-control.is-open,
-  .client-shell .ticket-alert-filters button[aria-pressed="true"],
-  .client-shell .ticket-alert-item.is-unread { background: var(--accent-soft); color: var(--accent); border-color: #6c572e; }
-  .client-shell .ticket-alert-item.is-unread:hover { background: #302817; }
-  .client-shell .ticket-alert-panel-heading,
-  .client-shell .ticket-alert-filters,
-  .client-shell .ticket-alert-read-all,
-  .client-shell .ticket-alert-load-more,
-  .client-shell .ticket-alert-persistence,
-  .client-shell .ticket-alert-list li + li { border-color: var(--line); }
-  .client-shell .ticket-alert-filters,
-  .client-shell .ticket-alert-date-group,
-  .client-shell .ticket-alert-persistence,
-  .client-shell .ticket-alert-item-icon { background: var(--client-soft); color: var(--muted); }
-  .client-shell .ticket-alert-filters button,
-  .client-shell .ticket-alert-panel-heading p,
-  .client-shell .ticket-alert-item-kind,
-  .client-shell .ticket-alert-item-copy time,
-  .client-shell .ticket-alert-history-label,
-  .client-shell .ticket-alert-empty p,
-  .client-shell .ticket-alert-chevron,
-  .client-shell .ticket-alert-icon-button { color: var(--muted); }
-  .client-shell .ticket-alert-panel-heading h2,
-  .client-shell .ticket-alert-item-copy strong,
-  .client-shell .ticket-alert-empty strong,
-  .client-shell .ticket-alert-toast-copy > strong { color: var(--ink); }
-  .client-shell .ticket-alert-filters button span,
-  .client-shell .ticket-alert-badge { background: var(--client-soft); color: var(--accent); }
-  .client-shell .ticket-alert-read-all,
-  .client-shell .ticket-alert-load-more,
-  .client-shell .ticket-alert-toast-copy > span,
-  .client-shell .ticket-alert-toast-copy > button,
-  .client-shell .ticket-alert-item.is-unread .ticket-alert-item-kind { color: var(--accent); }
-  .client-shell .ticket-alert-item.is-unread .ticket-alert-item-icon,
-  .client-shell .ticket-alert-toast-icon { background: var(--accent-soft); color: var(--accent); }
-  .client-shell .ticket-alert-audio-error,
-  .client-shell .ticket-alert-error { background: #2a1414; color: #fca5a5; border-color: #653333; }
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-control,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-panel,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-toast { background: var(--client-surface); color: var(--ink); border-color: var(--line); }
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-panel,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-toast { box-shadow: 0 16px 48px #0009; }
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-control:hover,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-icon-button:hover,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-item:hover,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-read-all:hover,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-load-more:hover { background: var(--client-soft); color: var(--ink); }
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-control.is-enabled,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-control.is-open,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-filters button[aria-pressed="true"],
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-item.is-unread { background: var(--accent-soft); color: var(--accent); border-color: #6c572e; }
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-item.is-unread:hover { background: #302817; }
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-panel-heading,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-filters,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-read-all,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-load-more,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-persistence,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-list li + li { border-color: var(--line); }
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-filters,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-date-group,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-persistence,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-item-icon { background: var(--client-soft); color: var(--muted); }
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-filters button,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-panel-heading p,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-item-kind,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-item-copy time,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-history-label,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-empty p,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-chevron,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-icon-button { color: var(--muted); }
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-panel-heading h2,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-item-copy strong,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-empty strong,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-toast-copy > strong { color: var(--ink); }
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-filters button span,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-badge { background: var(--client-soft); color: var(--accent); }
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-read-all,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-load-more,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-toast-copy > span,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-toast-copy > button,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-item.is-unread .ticket-alert-item-kind { color: var(--accent); }
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-item.is-unread .ticket-alert-item-icon,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-toast-icon { background: var(--accent-soft); color: var(--accent); }
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-audio-error,
+  :root:not([data-color-scheme="light"]) .client-shell .ticket-alert-error { background: #2a1414; color: #fca5a5; border-color: #653333; }
 }
+  :root[data-color-scheme="dark"] .client-shell {
+    color-scheme: dark;
+    --paper: #000;
+    --navy: #000;
+    --client-surface: #0a0a0a;
+    --client-soft: #171717;
+    --ink: #ededed;
+    --muted: #a1a1a1;
+    --line: #2e2e2e;
+    --control-line: #636363;
+    --accent: #edc879;
+    --accent-soft: #241f13;
+  }
+  :root[data-color-scheme="dark"] .client-shell .client-header { background: #000; border-color: var(--line); }
+  :root[data-color-scheme="dark"] .client-shell .client-header .client-brand { color: var(--ink); }
+  :root[data-color-scheme="dark"] .client-shell .client-header nav button.is-active { color: #0a0a0a; }
+  :root[data-color-scheme="dark"] .client-shell .secondary,
+  :root[data-color-scheme="dark"] .client-shell .search-box,
+  :root[data-color-scheme="dark"] .client-shell .client-list-filters select,
+  :root[data-color-scheme="dark"] .client-shell .message-attachments a,
+  :root[data-color-scheme="dark"] .client-shell .attachment-preview,
+  :root[data-color-scheme="dark"] .client-shell .message-editor,
+  :root[data-color-scheme="dark"] .client-shell .message-editor-toolbar,
+  :root[data-color-scheme="dark"] .client-shell .message-editor-preview,
+  :root[data-color-scheme="dark"] .client-shell .message-editor-render {
+    background: var(--client-surface); color: var(--ink); border-color: var(--line);
+  }
+  :root[data-color-scheme="dark"] .client-shell .search-box,
+  :root[data-color-scheme="dark"] .client-shell .client-list-filters select,
+  :root[data-color-scheme="dark"] .client-shell .client-new-ticket input,
+  :root[data-color-scheme="dark"] .client-shell .client-new-ticket textarea,
+  :root[data-color-scheme="dark"] .client-shell .client-new-ticket select { border-color: var(--control-line); }
+  :root[data-color-scheme="dark"] .client-shell .primary { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
+  :root[data-color-scheme="dark"] .client-shell .primary:hover { background: #f6d99a; }
+  :root[data-color-scheme="dark"] .client-shell .secondary:hover,
+  :root[data-color-scheme="dark"] .client-shell .client-article:hover,
+  :root[data-color-scheme="dark"] .client-shell .client-ticket-row:hover { background: var(--client-soft); }
+  :root[data-color-scheme="dark"] .client-shell .client-resource-link:hover { color: #f6d99a; }
+  :root[data-color-scheme="dark"] .client-shell .client-overview-icon,
+  :root[data-color-scheme="dark"] .client-shell .client-row-icon,
+  :root[data-color-scheme="dark"] .client-shell .client-message-avatar { background: var(--client-soft); color: var(--muted); border-color: var(--line); }
+  :root[data-color-scheme="dark"] .client-shell .client-message.is-own .client-message-avatar { background: var(--accent-soft); color: var(--accent); }
+  :root[data-color-scheme="dark"] .client-shell .client-help-cta { background: var(--client-surface); border-color: var(--line); }
+  :root[data-color-scheme="dark"] .client-shell .client-reading > div { color: var(--ink); }
+  :root[data-color-scheme="dark"] .client-shell .status.open { background: #10233f; color: #b9d6f8; }
+  :root[data-color-scheme="dark"] .client-shell .status.pending { background: #2b210e; color: #f0ce80; }
+  :root[data-color-scheme="dark"] .client-shell .status.resolved,
+  :root[data-color-scheme="dark"] .client-shell .client-overview-icon.resolved { background: #10261a; color: #b7dfbd; }
+  :root[data-color-scheme="dark"] .client-shell .client-feedback.error { background: #2a1414; border-color: #653333; color: #fca5a5; }
+  :root[data-color-scheme="dark"] .client-shell .client-feedback.success { background: #10261a; border-color: #2b6040; color: #b7dfbd; }
+  :root[data-color-scheme="dark"] .client-shell .message-markdown pre,
+  :root[data-color-scheme="dark"] .client-shell .message-markdown code,
+  :root[data-color-scheme="dark"] .client-shell .message-content-rich code { background: #000; color: var(--ink); }
+  :root[data-color-scheme="dark"] .client-shell .message-content-rich a { color: var(--accent); }
+  :root[data-color-scheme="dark"] .client-shell .message-editor-toolbar button:hover:not(:disabled) { background: var(--client-soft); color: var(--ink); }
+  :root[data-color-scheme="dark"] .client-shell .public-progress-timeline .is-complete .public-progress-dot { background: var(--accent); border-color: var(--accent); color: #0a0a0a; }
+  :root[data-color-scheme="dark"] .client-shell .conversation-sync,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-desktop,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-desktop.is-blocked,
+  :root[data-color-scheme="dark"] .client-shell .ticket-push-feedback { color: var(--muted); }
+
+  :root[data-color-scheme="dark"] .client-shell .conversation-sync.connecting,
+  :root[data-color-scheme="dark"] .client-shell .conversation-sync.reconnecting { color: var(--accent); }
+  :root[data-color-scheme="dark"] .client-shell .conversation-sync.offline { color: #f4a69a; }
+
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-control,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-panel,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-toast { background: var(--client-surface); color: var(--ink); border-color: var(--line); }
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-panel,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-toast { box-shadow: 0 16px 48px #0009; }
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-control:hover,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-icon-button:hover,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-item:hover,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-read-all:hover,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-load-more:hover { background: var(--client-soft); color: var(--ink); }
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-control.is-enabled,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-control.is-open,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-filters button[aria-pressed="true"],
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-item.is-unread { background: var(--accent-soft); color: var(--accent); border-color: #6c572e; }
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-item.is-unread:hover { background: #302817; }
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-panel-heading,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-filters,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-read-all,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-load-more,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-persistence,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-list li + li { border-color: var(--line); }
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-filters,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-date-group,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-persistence,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-item-icon { background: var(--client-soft); color: var(--muted); }
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-filters button,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-panel-heading p,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-item-kind,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-item-copy time,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-history-label,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-empty p,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-chevron,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-icon-button { color: var(--muted); }
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-panel-heading h2,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-item-copy strong,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-empty strong,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-toast-copy > strong { color: var(--ink); }
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-filters button span,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-badge { background: var(--client-soft); color: var(--accent); }
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-read-all,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-load-more,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-toast-copy > span,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-toast-copy > button,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-item.is-unread .ticket-alert-item-kind { color: var(--accent); }
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-item.is-unread .ticket-alert-item-icon,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-toast-icon { background: var(--accent-soft); color: var(--accent); }
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-audio-error,
+  :root[data-color-scheme="dark"] .client-shell .ticket-alert-error { background: #2a1414; color: #fca5a5; border-color: #653333; }
 
 .client-shell{--surface:var(--client-surface)}
 /* Match the summary card's surface in both OS themes. The more specific

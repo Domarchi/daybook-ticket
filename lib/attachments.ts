@@ -1,3 +1,4 @@
+import {parseEvolutionFeatures} from './evolution-feature-model';
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { z } from 'zod';
@@ -40,6 +41,8 @@ function pending(row: AttachmentRow) {
 async function scopeAccess(access: AccessContext, scope: Scope, database:Database=db()) {
   if (scope.kind === 'contract') {
     requireAdmin(access);
+    const feature=await database.prepare('SELECT \"featuresJson\" FROM \"evolutionFeatures\" WHERE \"ownerId\"=$1').bind(access.ownerId).first<{featuresJson:string}>();
+    if(!parseEvolutionFeatures(feature?.featuresJson).serviceContext)throw new ApiError(503,'Los contratos están en pausa. El borrador se conserva.');
     const contract=await database.prepare('SELECT id FROM "serviceContracts" WHERE id=$1 AND "ownerId"=$2 AND NOT archived').bind(scope.contractId!,access.ownerId).first();
     if (!contract) throw new ApiError(404, 'El contrato no está disponible para adjuntar documentos.');
     return;
@@ -55,6 +58,8 @@ async function liveAccess(tx: PoolClient, access: AccessContext): Promise<Access
 async function transactionScope(tx: PoolClient, access: AccessContext, scope: Scope) {
   if (scope.kind === 'contract') {
     requireAdmin(access);
+    const feature=(await tx.query('SELECT \"featuresJson\" FROM \"evolutionFeatures\" WHERE \"ownerId\"=$1',[access.ownerId])).rows[0];
+    if(!parseEvolutionFeatures(feature?.featuresJson).serviceContext)throw new ApiError(503,'Los contratos están en pausa. El borrador se conserva.');
     const contract=(await tx.query('SELECT id FROM "serviceContracts" WHERE id=$1 AND "ownerId"=$2 AND NOT archived FOR SHARE',[scope.contractId,access.ownerId])).rows[0];
     if (!contract) throw new ApiError(404, 'El contrato no está disponible para adjuntar documentos.');
     return;

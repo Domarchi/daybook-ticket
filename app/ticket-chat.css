@@ -107,12 +107,17 @@
 .ticket-chat .message-attachments small { color: var(--chat-muted); }
 .ticket-chat .draft-notice { margin: 6px 12px; padding: 8px 10px; background: var(--chat-note); color: var(--chat-gold); border: 1px solid #b38b3f; font-size: 11px; }
 @media (prefers-color-scheme: dark) {
-  .ticket-chat { color-scheme: dark; --chat-bg: #050505; --chat-surface: #0a0a0a; --chat-soft: #202020; --chat-line: #303030; --chat-control: #6a6a6a; --chat-ink: #ededed; --chat-muted: #aaa; --chat-gold: #edc879; --chat-own: #292315; --chat-note: #211b0f; }
-  .ticket-chat-viewport { background-image: radial-gradient(#ffffff0d .7px, transparent .7px); }
-  .ticket-chat-message.is-own > .ticket-chat-bubble { border-color: #65532c; }
-  .ticket-chat-message.is-note > .ticket-chat-bubble { border-color: #a98a49; }
-  .ticket-chat-feedback[role="alert"] { color: #ffb6ac; border-color: #9e5147; }
+  :root:not([data-color-scheme="light"]) .ticket-chat { color-scheme: dark; --chat-bg: #050505; --chat-surface: #0a0a0a; --chat-soft: #202020; --chat-line: #303030; --chat-control: #6a6a6a; --chat-ink: #ededed; --chat-muted: #aaa; --chat-gold: #edc879; --chat-own: #292315; --chat-note: #211b0f; }
+  :root:not([data-color-scheme="light"]) .ticket-chat-viewport { background-image: radial-gradient(#ffffff0d .7px, transparent .7px); }
+  :root:not([data-color-scheme="light"]) .ticket-chat-message.is-own > .ticket-chat-bubble { border-color: #65532c; }
+  :root:not([data-color-scheme="light"]) .ticket-chat-message.is-note > .ticket-chat-bubble { border-color: #a98a49; }
+  :root:not([data-color-scheme="light"]) .ticket-chat-feedback[role="alert"] { color: #ffb6ac; border-color: #9e5147; }
 }
+  :root[data-color-scheme="dark"] .ticket-chat { color-scheme: dark; --chat-bg: #050505; --chat-surface: #0a0a0a; --chat-soft: #202020; --chat-line: #303030; --chat-control: #6a6a6a; --chat-ink: #ededed; --chat-muted: #aaa; --chat-gold: #edc879; --chat-own: #292315; --chat-note: #211b0f; }
+  :root[data-color-scheme="dark"] .ticket-chat-viewport { background-image: radial-gradient(#ffffff0d .7px, transparent .7px); }
+  :root[data-color-scheme="dark"] .ticket-chat-message.is-own > .ticket-chat-bubble { border-color: #65532c; }
+  :root[data-color-scheme="dark"] .ticket-chat-message.is-note > .ticket-chat-bubble { border-color: #a98a49; }
+  :root[data-color-scheme="dark"] .ticket-chat-feedback[role="alert"] { color: #ffb6ac; border-color: #9e5147; }
 @media (max-width: 750px) {
   .ticket-chat { height: calc(100svh - 80px); min-height: 480px; max-height: 900px; border-radius: 10px; }
   .ticket-chat-header { padding: 12px 14px; }

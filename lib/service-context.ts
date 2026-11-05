@@ -1,3 +1,4 @@
+import {acquireTicketWorkLock} from './work-lock';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { PoolClient } from 'pg';
@@ -53,6 +54,7 @@ async function audit(tx: PoolClient, access: AccessContext, resource: string, id
 }
 async function operation<T>(access: AccessContext, operationId: string, kind: string, input: unknown, work: (tx: PoolClient, fresh: AccessContext) => Promise<T>, database:Database=db()): Promise<T> {
   return database.transaction(async tx => {
+    await acquireTicketWorkLock(tx,access.ownerId);
     const fresh = requireAdmin(await lockAccess(tx,access));
     const hash=operationHash(input);
     await tx.query('INSERT INTO operations ("operationId","ownerId","memberId",kind,"requestHash","resultJson","createdAt") VALUES ($1,$2,$3,$4,$5,\'null\',$6) ON CONFLICT("operationId") DO NOTHING', [operationId,access.ownerId,access.member.id,kind,hash,new Date().toISOString()]);
@@ -70,6 +72,7 @@ export async function listServiceContext(access: AccessContext, query: URLSearch
   const limit=z.coerce.number().int().min(1).max(100).parse(query.get('limit') || 20), cursor=query.get('cursor') ? uuid.parse(query.get('cursor')) : null;
   const q=z.string().trim().max(160).parse(query.get('q') || ''), archived=query.get('includeArchived') === 'true';
   return database.transaction(async tx => {
+    await acquireTicketWorkLock(tx,access.ownerId);
     const fresh=requireStaff(await lockAccess(tx,access)); await company(tx,fresh,companyId);
     if (resource==='profiles') {
       const row=(await tx.query('SELECT * FROM "companyProfiles" WHERE "companyId"=$1 AND "ownerId"=$2',[companyId,access.ownerId])).rows[0];
@@ -99,6 +102,7 @@ export async function updateServiceContext(access: AccessContext, resourceValue:
   const resource=resourceSchema.parse(resourceValue), id=uuid.parse(idValue),expectedVersion=z.number().int().min(0).parse(input.expectedVersion);
   for (const key of Object.keys(input)) if (key!=='expectedVersion' && !fields[resource].includes(key)) throw new ApiError(400,'El formulario contiene campos no permitidos.');
   return database.transaction(async tx=>{
+    await acquireTicketWorkLock(tx,access.ownerId);
     const fresh=requireAdmin(await lockAccess(tx,access));
     const key=resource==='profiles'?'companyId':'id';
     if (resource==='profiles' && !(await tx.query('SELECT id FROM "customerCompanies" WHERE id=$1 AND "ownerId"=$2 AND "organizationId"=$3 FOR UPDATE',[id,access.ownerId,access.organizationId])).rows[0]) throw new ApiError(404,'La empresa no existe.');
@@ -130,9 +134,10 @@ async function ticketContext(tx:PoolClient,access:AccessContext,ticketId:number)
   const contracts=(await tx.query('SELECT a.* FROM "ticketContractLinks" l JOIN "serviceContracts" a ON a.id=l."contractId" AND a."ownerId"=l."ownerId" WHERE l."ticketId"=$1 AND l."ownerId"=$2 AND a."companyId"=$3 ORDER BY a.name,a.id',[ticketId,access.ownerId,ticket.customerCompanyId])).rows.map(row=>view('contracts',row) as ServiceContract);
   return {version,assetIds:assets.map(a=>a.id),contractIds:contracts.map(a=>a.id),assets,contracts};
 }
-export async function readTicketServiceContext(access:AccessContext,ticketId:number,database:Database=db()) {return database.transaction(async tx=>ticketContext(tx,requireStaff(await lockAccess(tx,access)),ticketId));}
+export async function readTicketServiceContext(access:AccessContext,ticketId:number,database:Database=db()) {return database.transaction(async tx=>{await acquireTicketWorkLock(tx,access.ownerId);return ticketContext(tx,requireStaff(await lockAccess(tx,access)),ticketId);});}
 export async function saveTicketServiceContext(access:AccessContext,ticketId:number,input:z.infer<typeof ticketContextSchema>,database:Database=db()) {
   return database.transaction(async tx=>{
+    await acquireTicketWorkLock(tx,access.ownerId);
     const fresh=requireStaff(await lockAccess(tx,access)), ticket=await lockTicket(tx,fresh,ticketId), before=await ticketContext(tx,fresh,ticketId);
     if(before.version!==input.expectedVersion) throw new ApiError(409,'Los vínculos cambiaron. Actualiza antes de guardarlos.');
     if((input.assetIds.length || input.contractIds.length) && !ticket.customerCompanyId) throw new ApiError(400,'Vincula primero el ticket a una empresa.');
@@ -152,6 +157,7 @@ export async function saveTicketServiceContext(access:AccessContext,ticketId:num
 export async function assetTicketHistory(access:AccessContext,idValue:string,cursorValue:string|null,database:Database=db()) {
   const id=uuid.parse(idValue),cursor=cursorValue?z.coerce.number().int().positive().parse(cursorValue):2147483647;
   return database.transaction(async tx=>{
+    await acquireTicketWorkLock(tx,access.ownerId);
     const fresh=requireStaff(await lockAccess(tx,access));
     const asset=(await tx.query('SELECT "companyId" FROM "customerAssets" WHERE id=$1 AND "ownerId"=$2',[id,access.ownerId])).rows[0]; if(!asset) throw new ApiError(404,'El equipo no existe.');
     await company(tx,fresh,asset.companyId);
@@ -162,6 +168,7 @@ export async function assetTicketHistory(access:AccessContext,idValue:string,cur
 export async function listContractDocuments(access:AccessContext,idValue:string,database:Database=db()) {
   const id=uuid.parse(idValue);
   return database.transaction(async tx=>{
+    await acquireTicketWorkLock(tx,access.ownerId);
     requireStaff(await lockAccess(tx,access));
     if(!(await tx.query('SELECT id FROM "serviceContracts" WHERE id=$1 AND "ownerId"=$2',[id,access.ownerId])).rows[0]) throw new ApiError(404,'El contrato no existe.');
     const rows=(await tx.query('SELECT id,name,size,"contentType" FROM attachments WHERE "contractId"=$1 AND "ownerId"=$2 AND kind=\'contract\' AND status=\'attached\' ORDER BY "createdAt",id LIMIT 100',[id,access.ownerId])).rows;
@@ -178,6 +185,7 @@ export async function attachContractDocuments(access:AccessContext,idValue:strin
 }
 export async function getServiceReminderConfig(access:AccessContext,database:Database=db()):Promise<ServiceReminderConfig & {configured:boolean;health:Record<string,unknown>|null}> {
   return database.transaction(async tx=>{
+    await acquireTicketWorkLock(tx,access.ownerId);
     requireStaff(await lockAccess(tx,access));
     const row=(await tx.query('SELECT enabled,"activatedAt",version,"updatedAt" FROM "serviceContextNotificationSettings" WHERE "ownerId"=$1',[access.ownerId])).rows[0];
     const health=(await tx.query('SELECT "lastStartedAt","lastSucceededAt","lastFailedAt","lastErrorCode","lastInvocationId" FROM "serviceContextJobHealth" WHERE "ownerId"=$1',[access.ownerId])).rows[0] || null;
@@ -188,6 +196,7 @@ export function serviceReminderJobConfigured() { return process.env.DAYBOOK_SERV
 export async function saveServiceReminderConfig(access:AccessContext,input:{expectedVersion:number;enabled:boolean},database:Database=db()) {
   if(input.enabled && !serviceReminderJobConfigured()) throw new ApiError(503,'La programación de estos avisos aún no está disponible.');
   return database.transaction(async tx=>{
+    await acquireTicketWorkLock(tx,access.ownerId);
     requireAdmin(await lockAccess(tx,access));
     const now=new Date().toISOString();await tx.query('INSERT INTO "serviceContextNotificationSettings" ("ownerId",enabled,version,"updatedAt") VALUES ($1,false,0,$2) ON CONFLICT DO NOTHING',[access.ownerId,now]);
     const old=(await tx.query('SELECT * FROM "serviceContextNotificationSettings" WHERE "ownerId"=$1 FOR UPDATE',[access.ownerId])).rows[0];
@@ -198,6 +207,7 @@ export async function saveServiceReminderConfig(access:AccessContext,input:{expe
 export async function listServiceReminders(access:AccessContext,query:URLSearchParams,database:Database=db()):Promise<ServicePage<ServiceReminder>> {
   const companyId=query.get('companyId')?uuid.parse(query.get('companyId')):null,cursor=query.get('cursor')?uuid.parse(query.get('cursor')):null;
   return database.transaction(async tx=>{
+    await acquireTicketWorkLock(tx,access.ownerId);
     requireStaff(await lockAccess(tx,access));
     const rows=(await tx.query('SELECT r.id,r."entityKind",r."entityId",r."entityName",r."companyId",r."dateValue",r.stage,r."readAt",r."createdAt" FROM "serviceContextReminders" r JOIN "customerCompanies" c ON c.id=r."companyId" AND c."ownerId"=r."ownerId" WHERE r."ownerId"=$1 AND r."recipientMemberId"=$2 AND ($3::text IS NULL OR r."companyId"=$3) AND ($4::text IS NULL OR (r."createdAt",r.id)<(SELECT cursor."createdAt",cursor.id FROM "serviceContextReminders" cursor WHERE cursor.id=$4 AND cursor."ownerId"=$1 AND cursor."recipientMemberId"=$2)) ORDER BY r."createdAt" DESC,r.id DESC LIMIT 21',[access.ownerId,access.member.id,companyId,cursor])).rows as ServiceReminder[];
     return {items:rows.slice(0,20),nextCursor:rows.length>20?rows[19].id:null};
@@ -206,6 +216,7 @@ export async function listServiceReminders(access:AccessContext,query:URLSearchP
 export async function markServiceReminderRead(access:AccessContext,idValue:string,database:Database=db()) {
   const id=uuid.parse(idValue);
   return database.transaction(async tx=>{
+    await acquireTicketWorkLock(tx,access.ownerId);
     requireStaff(await lockAccess(tx,access));
     const row=(await tx.query('UPDATE "serviceContextReminders" SET "readAt"=COALESCE("readAt",$1) WHERE id=$2 AND "ownerId"=$3 AND "recipientMemberId"=$4 RETURNING id,"readAt"',[new Date().toISOString(),id,access.ownerId,access.member.id])).rows[0];
     if(!row) throw new ApiError(404,'El aviso no existe.');return row;
