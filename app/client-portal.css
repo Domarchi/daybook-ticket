@@ -273,3 +273,6 @@
 }
 .client-shell{--surface:var(--client-surface)}
 @media(prefers-color-scheme:dark){.client-shell .message-content-rich a{color:#edc879}.client-shell .message-content-rich code{background:#151811;color:#e9e7d3}.client-shell .message-editor-render{background:var(--client-surface);color:var(--ink)}}
+/* Match the summary card's surface in both OS themes. The more specific
+   original help-card selector otherwise retains a white background in dark. */
+.client-overview .client-overview-help{background:var(--client-surface)}

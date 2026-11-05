@@ -26,7 +26,7 @@ Los avisos existentes siguen usando el programador actual. Los trabajos de recep
 - Primera pasada de unidades: 205/205, sin red.
 - Marca de pruebas QA: PASS; exclusión de carga, respuestas, SLA y CSAT; inclusión opcional y reversión sin eliminar historial; limpieza completa.
 - Respaldo QA: PASS; snapshot y archivo privados ficticios, cifrado/lectura verificada, concurrencia, permisos, idempotencia diaria y cuotas; transporte inyectado sin servicios externos y limpieza.
-- Resto de comprobaciones, revisión visual, CI y Preview: en progreso. Los resultados finales se registran en `RELIABILITY_VALIDATION.md`.
+- Comprobaciones integradas, revisión visual, CI y Preview: resultados en [RELIABILITY_VALIDATION.md](RELIABILITY_VALIDATION.md).
 
 ## Publicación
 
