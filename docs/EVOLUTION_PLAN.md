@@ -7,15 +7,17 @@ Plan aprobado: fortalecer primero el servicio de Joaquín y Mario y después hab
 | Entrega | Rama | Alcance | Estado |
 |---|---|---|---|
 | 0 | codex/daybook-ticket-reliability | Base PR #6, chat moderno, fiabilidad, Preview protegida | CI de código aprobado; Preview READY en ae0b039 |
-| 1 | codex/daybook-evolution-01 | Citas, menciones privadas, seguidores, archivos y búsqueda completa; temas y controles de activación | En desarrollo y QA |
-| 2 | codex/daybook-evolution-02 | Etiquetas, tipos, campos/formularios versionados, tareas, vistas y espera interna | Código aislado preparado; integración y QA pendientes |
-| 3 | codex/daybook-evolution-03 | Empresas, sedes, equipos, servicios, contratos y vencimientos | Código aislado preparado; integración y QA pendientes |
-| 4 | codex/daybook-evolution-04 | Reglas simulables, plantillas y relaciones/duplicados | En desarrollo aislado |
-| 5 | codex/daybook-evolution-05 | Conocimiento versionado, informes privados y paneles | En desarrollo aislado |
-| 6 | codex/daybook-evolution-06 | TOTP, sesiones, auditoría, salud y exportación sin credenciales | Código aislado preparado; integración y QA pendientes |
-| 7 | codex/daybook-evolution-07 | Espacios explícitos, pilotos manuales y límites aislados | En desarrollo aislado; requiere entrega 6 |
+| 1 | codex/daybook-evolution-01 | Citas, menciones privadas, seguidores, archivos y búsqueda completa; temas y controles de activación | PR #7; CI y Preview protegida READY; QA y revisión visual aprobadas |
+| 2 | codex/daybook-evolution-02 | Etiquetas, tipos, campos/formularios versionados, tareas, vistas y espera interna | PR #8; CI y Preview protegida READY; QA y revisión visual aprobadas |
+| 3 | codex/daybook-evolution-03 | Empresas, sedes, equipos, servicios, contratos y vencimientos | PR #9; CI y Preview protegida READY; QA y revisión visual aprobadas |
+| 4 | codex/daybook-evolution-04 | Reglas simulables, plantillas y relaciones/duplicados | PR #10; CI y Preview protegida READY; QA y revisión visual aprobadas |
+| 5 | codex/daybook-evolution-05 | Conocimiento versionado, informes privados y paneles | PR #11; CI y Preview protegida READY; QA, exportaciones y revisión visual aprobadas |
+| 6 | codex/daybook-evolution-06 | TOTP, sesiones, auditoría, salud y exportación sin credenciales | PR #12; CI y Preview protegida READY, incluido el puente push previo a SQL0013 |
+| 7 | codex/daybook-evolution-07 | Espacios explícitos, pilotos manuales y límites aislados | PR #13; QA acumulada, MFA, Blob privado y revisión visual aprobadas; candidato final revisable |
 
 Las ramas se apilan en orden de entrega antes de abrir sus PR. Cada trabajo se realiza en su worktree aislado. La revisión de seguridad empieza en cada bloque; una rama individual no autoriza su publicación productiva ni activar políticas, programadores o pilotos.
+
+La matriz de candidatos, pruebas, vistas previas y condiciones de publicación se conserva en [EVOLUTION_REVIEW.md](EVOLUTION_REVIEW.md). El código no se ha fusionado ni publicado en producción. Cada revisión usa cuentas ficticias de QA; las credenciales reales de Daybook no corresponden a esas vistas previas.
 
 ## Reglas de conservación
 
