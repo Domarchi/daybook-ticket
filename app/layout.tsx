@@ -4,6 +4,7 @@ import "./service-plus.css";
 import "./ticket-chat.css";
 import "./collaboration.css";
 import "./evolution-theme.css";
+import "./accessibility.css";
 import {ThemeBootstrap} from "./evolution-controls";
 
 export const metadata: Metadata = {

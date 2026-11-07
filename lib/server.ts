@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { getDaybookUser } from './daybook-auth';
 import { DEFAULT_SETTINGS, type Settings, type Ticket, type Article } from './types';
 import { ticketAccessSql, type AccessContext } from './access';
+import { mutationOriginAllowed } from './request-origin';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public redirectTo?: string) { super(message); }
@@ -82,12 +83,11 @@ export function db(): Database {
 }
 export async function auth(request?: Request) {
   if (request && request.method !== 'GET') {
-    const origin = request.headers.get('origin');
     const siteUrl = process.env.DAYBOOK_SITE_URL;
     if (!siteUrl) throw new ApiError(503, 'El acceso de Daybook Ticket aún no está configurado.');
     // Next.js may reconstruct request.url from an internal proxy address.
     // Only the configured public origin is trusted for browser mutations.
-    if (origin && origin !== new URL(siteUrl).origin) throw new ApiError(403, 'La solicitud debe realizarse desde Daybook Ticket.');
+    if (!mutationOriginAllowed(request.headers, new URL(siteUrl).origin)) throw new ApiError(403, 'La solicitud debe realizarse desde Daybook Ticket.');
   }
   const user = await getDaybookUser(request);
   if (!user) throw new ApiError(401, 'Inicia sesión para continuar.');

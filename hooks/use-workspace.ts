@@ -4,9 +4,9 @@ import {daybookFetch} from '@/lib/browser-request';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { DEFAULT_SETTINGS, type Workspace } from '@/lib/types';
+import { IDLE_AFTER_MS, pollDelay } from '@/lib/poll-schedule';
 
 const EMPTY: Workspace = { viewer: null, members: [], companies: [], savedReplies: [], mailStatus: null, tickets: [], messages: [], alerts: [], articles: [], settings: DEFAULT_SETTINGS, demoLoaded: false };
-const INTERVAL = 5_000;
 export type ConnectionStatus = 'connecting' | 'live' | 'reconnecting' | 'offline';
 type Feed = Pick<Workspace, 'viewer' | 'tickets' | 'messages' | 'alerts' | 'alertsPage' | 'ticketCounts' | 'ticketDepartments' | 'ticketPage'>;
 
@@ -110,12 +110,16 @@ export function useWorkspace(onSnapshot: (workspace: Workspace) => void) {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let stopped = false;
     let failures = 0;
+    let lastInteraction = Date.now();
+    let hiddenSince: number | null = document.visibilityState === 'hidden' ? Date.now() : null;
     const available = () => navigator.onLine;
     const schedule = () => {
       clearTimeout(timer);
       if (!stopped && !denied.current && available()) {
-        const interval = document.visibilityState === 'hidden' ? 15_000 : INTERVAL;
-        timer = setTimeout(tick, Math.min(interval * 2 ** failures, 60_000));
+        const now = Date.now();
+        const delay = pollDelay({ hidden: hiddenSince !== null, sinceInteractionMs: now - lastInteraction, hiddenForMs: hiddenSince === null ? 0 : now - hiddenSince, failures });
+        // null: the tab has been hidden for a long time. It resumes when shown again.
+        if (delay !== null) timer = setTimeout(tick, delay);
       }
     };
     const tick = async () => {
@@ -129,8 +133,20 @@ export function useWorkspace(onSnapshot: (workspace: Workspace) => void) {
         if (!(failure instanceof Error && failure.name === 'AbortError')) failures = Math.min(failures + 1, 3);
       } finally { schedule(); }
     };
-    const resume = () => { if (available()) { failures = 0; if (document.visibilityState === 'hidden') schedule(); else void tick(); } else clearTimeout(timer); };
+    const resume = () => {
+      if (document.visibilityState === 'hidden') hiddenSince ??= Date.now();
+      else { hiddenSince = null; lastInteraction = Date.now(); }
+      if (available()) { failures = 0; if (document.visibilityState === 'hidden') schedule(); else void tick(); } else clearTimeout(timer);
+    };
+    // Real use brings the fast cadence back at once after an idle period.
+    const interact = () => {
+      const wasIdle = Date.now() - lastInteraction >= IDLE_AFTER_MS;
+      lastInteraction = Date.now();
+      if (wasIdle && !stopped && !denied.current && available() && document.visibilityState !== 'hidden') void tick();
+    };
     const offline = () => { clearTimeout(timer); setConnection('offline'); };
+    const interactions = ['pointerdown', 'keydown', 'touchstart', 'wheel'] as const;
+    for (const name of interactions) window.addEventListener(name, interact, { passive: true });
     document.addEventListener('visibilitychange', resume);
     window.addEventListener('focus', resume);
     window.addEventListener('online', resume);
@@ -146,6 +162,7 @@ export function useWorkspace(onSnapshot: (workspace: Workspace) => void) {
       clearTimeout(timer);
       active.current?.abort();
       active.current = null;
+      for (const name of interactions) window.removeEventListener(name, interact);
       document.removeEventListener('visibilitychange', resume);
       window.removeEventListener('focus', resume);
       window.removeEventListener('online', resume);

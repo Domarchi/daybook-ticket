@@ -1,0 +1,17 @@
+/*
+ * Accessibility overrides, loaded after the base styles.
+ * Additive on purpose: it restores visible keyboard focus where the base styles
+ * removed the outline, and enlarges touch targets on coarse pointers.
+ */
+
+/* The search box and the reply editor removed their outline; show focus on the field wrapper. */
+.search-box:focus-within { outline: 2px solid #a46d09; outline-offset: 2px; }
+.composer textarea:focus-visible { outline: 2px solid #a46d09; outline-offset: 2px; }
+
+/* Touch targets of at least 44 px for people using a finger instead of a mouse. */
+@media (pointer: coarse) {
+  .icon-button { width: 44px; height: 44px; }
+  .ticket-table .check-cell { min-width: 44px; }
+  .ticket-table .check-cell input[type='checkbox'] { width: 22px; height: 22px; }
+  .filter-button, .primary, .secondary, .text-button { min-height: 44px; }
+}
