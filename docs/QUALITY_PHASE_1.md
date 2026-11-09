@@ -35,9 +35,30 @@ Pendiente de Fase 3: una versión ligera del feed (contador por propietario mant
 
 Fuera de esta entrega (Fase 3, tocan líneas que E7 modifica): `aria-current` de la barra inferior (Seguridad, Configuración, Centro de ayuda), marca fija "Servicios Daybook", relleno de marketing, cajón móvil con trampa de foco, contraste de botones deshabilitados.
 
+## A3. Salud y registros
+
+- `GET /api/health` (público, sin sesión): `{status, version}` sin tocar la base de datos. Con `?deep=1` consulta la base con tope de 3 s y el resultado se reutiliza 10 s, de modo que una URL pública no mantiene despierto a Neon ni multiplica consultas; responde 503 si no contesta. `version` es el SHA del despliegue (`VERCEL_GIT_COMMIT_SHA`). Un monitor externo (decisión pendiente del usuario) debería usar la variante simple cada minuto y la `deep` cada 5–10 min.
+- `lib/log.ts`: líneas JSON (`level`, `event`, `at`, `requestId`). `handle()` ahora registra los 500 inesperados con `requestId`, nombre del error y código de Postgres, y devuelve ese mismo `requestId` en el cuerpo y en `X-Request-Id`, para poder buscar el fallo en los registros a partir de lo que ve la persona. Se descartan los mensajes que traen la consulta SQL y sus parámetros ("Failed query ... params"), que antes sí se registraban.
+- Pendiente: mostrar el `requestId` en el aviso de error de la interfaz (toca `desk.tsx`, queda para Fase 3) y el watchdog del pinger en el panel de salud existente.
+
+## A4. Dependencias y CI
+
+- `.github/dependabot.yml`: npm y GitHub Actions, semanal, agrupado, máximo 5 y 3 PR abiertos; los mayores de `next`, `react` y `react-dom` quedan fuera (se revisan a mano).
+- `ci.yml`: nuevo trabajo `audit` (`npm audit --omit=dev --audit-level=high`) **informativo** (`continue-on-error`), porque hoy falla (ver abajo). Cuando quede limpio se quita `continue-on-error`.
+- Hallazgo: `npm audit` de producción reporta `next` 16.3.4 como crítico (RCE en `next/og` `ImageResponse` y fuga de Draft Mode con `use cache`; corregido en 16.4.5, mismo menor). El código **no usa** `next/og`, `ImageResponse` ni `use cache`, así que no hay exposición hoy; aun así conviene subir a 16.4.5 en un PR propio con su Preview. También hay avisos altos en `zod` anidado dentro de `@vercel/blob` (la "corrección" propuesta por npm es bajar de versión; no se aplica) y en `source-map-js`.
+- **Pruebas de base de datos en CI: no se hizo.** Todos los `check-*-database.mjs` salvo `check-backup-recovery-database.mjs` (que ya corre en el simulacro semanal y en cada PR) exigen por aserción el host de Neon de QA, y esas aserciones son la protección contra tocar producción. Hacerlas correr contra el Postgres 17 del CI implica un guardián común (`scripts/qa-guard`) que acepte "QA de Neon" o "Postgres desechable local en CI" y migrar cada script a él. Se propone para la ventana de E7, cuando se revisan esos scripts de todos modos.
+
+## A5. Poda de dependencias
+
+Se quitan `@hookform/resolvers` y `date-fns` (cero importaciones; `date-fns` sigue llegando como dependencia de `react-day-picker`). Los 61 archivos de `components/ui` y sus paquetes (`radix-ui`, `recharts`, `cmdk`, `vaul`, `sonner`...) **no los importa ningún archivo de la aplicación**; su destino (adoptar o borrar) se decide en la Fase 3 con el resto de la interfaz.
+
 ## Verificación
 
-`npm run check`: lint, 388 pruebas unitarias (14 nuevas), tipos y build correctos. Cabeceras comprobadas con `next start` en una respuesta HTML, una de API y el service worker. Una fusión simulada con `codex/daybook-evolution-07` no produce conflictos. Pendiente: Preview protegida y revisión manual en navegador (escritorio y 375 px) antes de pedir publicación.
+`npm run check`: lint, 395 pruebas unitarias (21 nuevas), tipos y build correctos. Cabeceras comprobadas con `next start` en una respuesta HTML, una de API y el service worker; `/api/health` comprobado en vivo (la variante `deep` responde 503 sin base de datos). Una fusión simulada con `codex/daybook-evolution-07` no produce conflictos. Pendiente: Preview protegida y revisión manual en navegador (escritorio y 375 px) antes de pedir publicación.
+
+## Conflicto conocido con E7
+
+Una fusión simulada con `codex/daybook-evolution-07` (`git merge-tree`) tiene **un solo conflicto, trivial**, en `handle()` de `lib/server.ts`: E7 inserta dos líneas (`workspace_quota_exceeded`, `workspace_paused`) justo antes del bloque de 500 que aquí se reemplaza por el registro estructurado. Al integrar `main` en E7 (Fase 2) se conservan las dos líneas de E7 y a continuación el bloque `requestId`. `auth()` y `package.json` se fusionan solos. No se evitó reescribiendo el cambio porque la alternativa dejaba el registro con mensajes que pueden incluir SQL.
 
 ## Reversión
 
