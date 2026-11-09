@@ -6,6 +6,8 @@ import { z } from 'zod';
 import { getDaybookUser } from './daybook-auth';
 import { DEFAULT_SETTINGS, type Settings, type Ticket, type Article } from './types';
 import { ticketAccessSql, type AccessContext } from './access';
+import { mutationOriginAllowed } from './request-origin';
+import { describeError, logEvent, newRequestId } from './log';
 
 export class ApiError extends Error {
   constructor(public status: number, message: string, public redirectTo?: string) { super(message); }
@@ -90,12 +92,11 @@ export function enforceExplicitWorkspaceApi(request:Request){
 export async function auth(request?: Request) {
   if(request)enforceExplicitWorkspaceApi(request);
   if (request && request.method !== 'GET') {
-    const origin = request.headers.get('origin');
     const siteUrl = process.env.DAYBOOK_SITE_URL;
     if (!siteUrl) throw new ApiError(503, 'El acceso de Daybook Ticket aún no está configurado.');
     // Next.js may reconstruct request.url from an internal proxy address.
     // Only the configured public origin is trusted for browser mutations.
-    if (origin && origin !== new URL(siteUrl).origin) throw new ApiError(403, 'La solicitud debe realizarse desde Daybook Ticket.');
+    if (!mutationOriginAllowed(request.headers, new URL(siteUrl).origin)) throw new ApiError(403, 'La solicitud debe realizarse desde Daybook Ticket.');
   }
   const user = await getDaybookUser(request);
   if (!user) throw new ApiError(401, 'Inicia sesión para continuar.');
@@ -120,8 +121,11 @@ export async function handle(fn: () => Promise<Response>) {
     if (error instanceof z.ZodError) return json({ error: error.issues[0]?.message || 'Revisa los datos enviados.' }, 400);
     if((error as {message?:string})?.message==='workspace_quota_exceeded')return json({error:'Este espacio alcanzó un límite del piloto. El administrador debe revisar su consumo.'},409);
     if((error as {message?:string})?.message==='workspace_paused')return json({error:'Este espacio está en pausa. Sus datos se conservan.'},423);
-    console.error('Daybook Ticket API failure', error instanceof Error ? error.message : 'Unknown error');
-    return json({ error: 'No se pudieron guardar o consultar los datos. Intenta nuevamente.' }, 500);
+    const requestId = newRequestId();
+    logEvent('error', 'api_failure', { requestId, ...describeError(error) });
+    const response = json({ error: 'No se pudieron guardar o consultar los datos. Intenta nuevamente.', requestId }, 500);
+    response.headers.set('X-Request-Id', requestId);
+    return response;
   }
 }
 export async function getSettings(ownerId: string): Promise<Settings> {

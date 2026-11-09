@@ -27,3 +27,7 @@ node --env-file=.env.test.local --import tsx scripts/check-ticket-presence-datab
 ```
 
 La suite unitaria usa dependencias simuladas sin red. La suite de base fija el host QA, usa personas ficticias, prohíbe proveedores y revierte todo el espacio de prueba. No ejecutar esta última sobre producción ni en paralelo con otras pruebas que escriben QA.
+
+## Decisión de publicación (6 nov 2026)
+
+La presencia pertenece a la entrega de fiabilidad (migración 0006) y **no depende de ninguna función de la evolución**: está activa para el personal en cuanto se aplica 0006 y se publica este código. Se decidió mantenerla así: es orientativa, solo la ve el equipo, no guarda texto ni correos, caduca a los 45 segundos y no envía avisos externos. Si algún día se quisiera pausarla, hay que añadir un interruptor propio; los interruptores de la evolución (`collaboration` y los demás) no la controlan.
