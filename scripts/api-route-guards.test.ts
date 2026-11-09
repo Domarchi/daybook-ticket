@@ -23,6 +23,7 @@ const sessionGuard = /requireAccess|require[A-Za-z]*Access|requireStaff|requireA
 const otherwiseProtected: Record<string, { marker: RegExp; reason: string }> = {
   'auth/[...all]/route.ts': { marker: /daybookAuth[\s\S]*Ruta no disponible/, reason: 'closed allow-list of Better Auth paths; Better Auth applies its own rate limits and CSRF' },
   'health/route.ts': { marker: /checkHealth/, reason: 'public liveness probe; returns only ok/degraded and a version, database check is cached' },
+  'workspaces/route.ts': { marker: /listIdentityWorkspaces/, reason: 'lib/workspaces.ts calls auth(request) and returns only the caller\'s own active memberships' },
   'setup/route.ts': { marker: /status:\s*403/, reason: 'always refuses; owner provisioning is offline' },
   'webhooks/resend/route.ts': { marker: /createResendWebhookHandlers/, reason: 'verifies the Svix signature on the raw body' },
   'webhooks/resend/inbound/route.ts': { marker: /createResendWebhookHandlers/, reason: 'verifies the Svix signature on the raw body' },
