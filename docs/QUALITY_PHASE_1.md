@@ -52,6 +52,14 @@ Fuera de esta entrega (Fase 3, tocan líneas que E7 modifica): `aria-current` de
 
 Se quitan `@hookform/resolvers` y `date-fns` (cero importaciones; `date-fns` sigue llegando como dependencia de `react-day-picker`). Los 61 archivos de `components/ui` y sus paquetes (`radix-ui`, `recharts`, `cmdk`, `vaul`, `sonner`...) **no los importa ningún archivo de la aplicación**; su destino (adoptar o borrar) se decide en la Fase 3 con el resto de la interfaz.
 
+## A6. Límites de tasa por dominio
+
+`lib/rate-limit.ts` aplica ventanas fijas por usuario y acción sobre la tabla `authRateLimit` que ya usa Better Auth (sin migración). Una comprobación es un único `INSERT ... ON CONFLICT` atómico; por eso solo se limitan acciones caras o abusables, **no** el sondeo del feed. Límites por minuto y usuario: búsqueda de tickets 120, creación de tickets 30, reserva de adjuntos 30, emisión de tokens de subida 90, informes mensuales 10. Superado el límite: 429 con un mensaje en español. Si el propio limitador falla (base de datos), la petición **continúa** (falla abierto) y se registra `rate_limit_unavailable`: un fallo del limitador no debe tumbar la búsqueda. El SQL se comprobó contra un Postgres 17 desechable (ventana, reinicio, aislamiento entre usuarios y acciones). Ninguna de las cinco rutas está tocada por E7. El `reauth` de Seguridad conserva su propio contador.
+
+## B1. Tokens de diseño (aditivo)
+
+`app/tokens.css` define tokens semánticos (`--color-bg|surface|text|text-muted|border|accent|accent-soft|focus|danger-*`, radios, espaciado, sombra, anillo de foco, objetivo táctil) con el modo oscuro **definido una sola vez**, y no renombra nada: `--ink`, `--paper`, `--blue`, `--lime` siguen funcionando (`--blue` y `--lime` son alias del dorado/marrón, pese al nombre). `scripts/design-tokens.test.ts` comprueba contraste WCAG AA en claro y oscuro para cada par texto/fondo, que el bloque `prefers-color-scheme` repite el oscuro explícito, que los tokens coinciden con la paleta heredada (sin deriva) y que todo token que usa `accessibility.css` existe. Hallazgo corregido: el texto del aviso de error en modo claro (#b46c60 sobre #fff0ed) estaba por debajo de 4,5:1; ahora usa `--color-danger-text` (#8f3f33). La migración de los ~410 colores fijos y la sustitución de las listas de selectores oscuros de `evolution-theme.css` por reglas que solo leen tokens queda para la Fase 3, con capturas antes/después.
+
 ## Verificación
 
 `npm run check`: lint, 395 pruebas unitarias (21 nuevas), tipos y build correctos. Cabeceras comprobadas con `next start` en una respuesta HTML, una de API y el service worker; `/api/health` comprobado en vivo (la variante `deep` responde 503 sin base de datos). Una fusión simulada con `codex/daybook-evolution-07` no produce conflictos. Pendiente: Preview protegida y revisión manual en navegador (escritorio y 375 px) antes de pedir publicación.

@@ -12,9 +12,11 @@ import { runOperation,eligibleRecipients,recordEvent,recordAutomaticAssignmentEv
 import { linkReadyAttachments } from '@/lib/attachments';
 import {after} from 'next/server';
 import {processPushOutboxBestEffort} from '@/lib/push';
+import {consumeRateLimit,RATE_RULES} from '@/lib/rate-limit';
 export async function POST(request:Request) {
   return handle(async()=>{
     const access=await requireAccess(request);
+    await consumeRateLimit(access,RATE_RULES.ticketCreate);
     const data=await parseBody(request,createTicketSchema);
     const organizationEnabled=(await getEvolutionFeatures(access.ownerId)).features.organization;
     if(data.requestTypeId!==undefined||data.fieldValues!==undefined)await requireEvolutionFeature(access,'organization');

@@ -2,6 +2,7 @@ import { handleUpload } from '@vercel/blob/client';
 import { z } from 'zod';
 import { requireAccess } from '@/lib/access';
 import { ApiError, handle, json, parseBody } from '@/lib/server';
+import { consumeRateLimit, RATE_RULES } from '@/lib/rate-limit';
 import { attachmentUploadTokenOptions } from '@/lib/attachments';
 import { attachmentStorageConfig } from '@/lib/attachments-storage';
 
@@ -13,6 +14,7 @@ const payloadSchema = z.object({ attachmentId: z.string().uuid() }).strict();
 export async function POST(request: Request) {
   return handle(async () => {
     const access = await requireAccess(request);
+    await consumeRateLimit(access, RATE_RULES.attachmentUpload);
     const body = await parseBody(request, uploadRequest);
     const config = attachmentStorageConfig();
     if (!config) throw new ApiError(503, 'Los adjuntos privados todavía no están configurados.');

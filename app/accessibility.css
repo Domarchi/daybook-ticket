@@ -5,13 +5,16 @@
  */
 
 /* The search box and the reply editor removed their outline; show focus on the field wrapper. */
-.search-box:focus-within { outline: 2px solid #a46d09; outline-offset: 2px; }
-.composer textarea:focus-visible { outline: 2px solid #a46d09; outline-offset: 2px; }
+.search-box:focus-within { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+.composer textarea:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
 
 /* Touch targets of at least 44 px for people using a finger instead of a mouse. */
 @media (pointer: coarse) {
-  .icon-button { width: 44px; height: 44px; }
+  .icon-button { width: var(--touch-target); height: var(--touch-target); }
   .ticket-table .check-cell { min-width: 44px; }
   .ticket-table .check-cell input[type='checkbox'] { width: 22px; height: 22px; }
   .filter-button, .primary, .secondary, .text-button { min-height: 44px; }
 }
+
+/* The light error banner (#b46c60 on #fff0ed) is under 4.5:1; dark mode has its own, higher-specificity colors. */
+.error-banner { color: var(--color-danger-text); }
