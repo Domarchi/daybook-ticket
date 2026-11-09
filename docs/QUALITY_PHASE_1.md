@@ -44,7 +44,7 @@ Fuera de esta entrega (Fase 3, tocan líneas que E7 modifica): `aria-current` de
 ## A4. Dependencias y CI
 
 - `.github/dependabot.yml`: npm y GitHub Actions, semanal, agrupado, máximo 5 y 3 PR abiertos; los mayores de `next`, `react` y `react-dom` quedan fuera (se revisan a mano).
-- `ci.yml`: nuevo trabajo `audit` (`npm audit --omit=dev --audit-level=high`) **informativo** (`continue-on-error`), porque hoy falla (ver abajo). Cuando quede limpio se quita `continue-on-error`.
+- `ci.yml`: nuevo trabajo `audit` (`npm audit --omit=dev --audit-level=high`) **informativo**: si encuentra avisos emite una anotación de advertencia en lugar de un check rojo (hoy los hay, ver abajo). Cuando quede limpio se quita el `|| echo`.
 - Hallazgo: `npm audit` de producción reporta `next` 16.3.4 como crítico (RCE en `next/og` `ImageResponse` y fuga de Draft Mode con `use cache`; corregido en 16.4.5, mismo menor). El código **no usa** `next/og`, `ImageResponse` ni `use cache`, así que no hay exposición hoy; aun así conviene subir a 16.4.5 en un PR propio con su Preview. También hay avisos altos en `zod` anidado dentro de `@vercel/blob` (la "corrección" propuesta por npm es bajar de versión; no se aplica) y en `source-map-js`.
 - **Pruebas de base de datos en CI: no se hizo.** Todos los `check-*-database.mjs` salvo `check-backup-recovery-database.mjs` (que ya corre en el simulacro semanal y en cada PR) exigen por aserción el host de Neon de QA, y esas aserciones son la protección contra tocar producción. Hacerlas correr contra el Postgres 17 del CI implica un guardián común (`scripts/qa-guard`) que acepte "QA de Neon" o "Postgres desechable local en CI" y migrar cada script a él. Se propone para la ventana de E7, cuando se revisan esos scripts de todos modos.
 
