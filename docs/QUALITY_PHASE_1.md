@@ -67,7 +67,7 @@ Hecho en esta rama: A1, A2, A3, A4 (Dependabot y auditoría), A5 (dependencias s
 Se aplaza porque colisiona con E7 (lo verifica `git merge-tree` contra `codex/daybook-evolution-07`):
 
 - **Textos y marca (B3):** la marca fija "Servicios Daybook" (`desk.tsx`, pie y metadatos del acceso) y el relleno de marketing. `desk.tsx` tiene cambios de E7 en esas mismas líneas y E7 introduce espacios con marca propia; se hace sobre la base E7 (Fase 3), donde además se decide el nombre de marca por espacio.
-- **Estado de publicación en los documentos:** `docs/EVOLUTION_PLAN.md` en `main` aún lista las entregas 1–6 como "en desarrollo"; la rama E7 ya reescribe esa tabla y añade `EVOLUTION_REVIEW.md`, cuya frase "El código no se ha fusionado ni publicado en producción" ya no es cierta (E1–E6 están en producción desde el 5 nov 2026, migraciones 0006–0012 aplicadas, flags apagados). Editar la tabla aquí produciría conflictos; se corrige al integrar `main` en E7 (Fase 2), con el estado real: E1–E6 publicadas, E7 pendiente, 0013 sin aplicar.
+- **Estado de publicación en los documentos:** `docs/EVOLUTION_PLAN.md` en `main` aún lista las entregas 1–6 como "en desarrollo"; la rama E7 ya reescribe esa tabla y añade `EVOLUTION_REVIEW.md`, cuya frase "El código no se ha fusionado ni publicado en producción" ya no es cierta (E1–E6 están en producción, migraciones 0006–0012 aplicadas, flags apagados). Editar la tabla aquí produciría conflictos; se corrige al integrar `main` en E7 (Fase 2), con el estado real: E1–E6 publicadas, E7 pendiente, 0013 sin aplicar.
 - **Pruebas de base de datos en CI:** requieren una guarda común (ver A4); se hacen con los scripts de E7.
 
 ## Verificación
