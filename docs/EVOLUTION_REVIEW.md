@@ -1,5 +1,7 @@
 # Daybook Ticket: revisión de la evolución E0–E7
 
+> **Actualización del 9 de noviembre de 2026:** el texto siguiente describe el estado del 5 de noviembre. Desde entonces E0–E6 se publicaron en producción (migraciones 0006–0012 aplicadas, funciones nuevas apagadas, sin MFA obligatorio ni pilotos). Solo E7 (migración 0013) sigue sin publicar ni migrar, a la espera de su propia orden.
+
 Revisión preparada el 5 de noviembre de 2026. Reúne la implementación, las evidencias locales y los pasos que siguen pendientes. **Producción permanece sin cambios:** no se han publicado estas entregas, migrado datos productivos, enrolado cuentas reales en MFA ni activado pilotos o trabajos nuevos.
 
 El alcance es exclusivamente `Domarchi/daybook-ticket`. Se conservan usuarios, contraseñas, sesiones, empresas, tickets, conversaciones, archivos y las reglas existentes de SLA. Consorcio C17 y otros proyectos quedan fuera. No se han contratado servicios, ampliado planes ni modificado DNS.

@@ -17,7 +17,7 @@ Plan aprobado: fortalecer primero el servicio de Joaquín y Mario y después hab
 
 Las ramas se apilan en orden de entrega antes de abrir sus PR. Cada trabajo se realiza en su worktree aislado. La revisión de seguridad empieza en cada bloque; una rama individual no autoriza su publicación productiva ni activar políticas, programadores o pilotos.
 
-La matriz de candidatos, pruebas, vistas previas y condiciones de publicación se conserva en [EVOLUTION_REVIEW.md](EVOLUTION_REVIEW.md). El código no se ha fusionado ni publicado en producción. Cada revisión usa cuentas ficticias de QA; las credenciales reales de Daybook no corresponden a esas vistas previas.
+La matriz de candidatos, pruebas, vistas previas y condiciones de publicación se conserva en [EVOLUTION_REVIEW.md](EVOLUTION_REVIEW.md). **Estado de publicación (9 nov 2026):** las entregas 0–6 están en producción (`main`, migraciones 0006–0012 aplicadas, funciones nuevas apagadas); la entrega 7 (PR #13, migración 0013) sigue sin publicar ni migrar y requiere su propia orden (ver `outputs/handoff-review/EXECUTION_CHECKLIST.md`, fase G). Cada revisión usa cuentas ficticias de QA; las credenciales reales de Daybook no corresponden a esas vistas previas.
 
 ## Reglas de conservación
 
