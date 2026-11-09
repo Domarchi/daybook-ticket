@@ -46,3 +46,23 @@ jobs:
         run: npm run typecheck
       - name: Build
         run: npm run build
+  # Informational until the framework patch release is adopted: production
+  # dependencies currently report advisories (see docs/QUALITY_PHASE_1.md). The
+  # step turns findings into a warning annotation instead of a red check, so a
+  # known, documented state does not train people to ignore CI. Remove the
+  # `|| ...` fallback once `npm audit --omit=dev --audit-level=high` is clean.
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high || echo "::warning title=npm audit::Production dependencies report advisories at high or above; see docs/QUALITY_PHASE_1.md"
