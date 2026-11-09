@@ -60,6 +60,16 @@ Se quitan `@hookform/resolvers` y `date-fns` (cero importaciones; `date-fns` sig
 
 `app/tokens.css` define tokens semánticos (`--color-bg|surface|text|text-muted|border|accent|accent-soft|focus|danger-*`, radios, espaciado, sombra, anillo de foco, objetivo táctil) con el modo oscuro **definido una sola vez**, y no renombra nada: `--ink`, `--paper`, `--blue`, `--lime` siguen funcionando (`--blue` y `--lime` son alias del dorado/marrón, pese al nombre). `scripts/design-tokens.test.ts` comprueba contraste WCAG AA en claro y oscuro para cada par texto/fondo, que el bloque `prefers-color-scheme` repite el oscuro explícito, que los tokens coinciden con la paleta heredada (sin deriva) y que todo token que usa `accessibility.css` existe. Hallazgo corregido: el texto del aviso de error en modo claro (#b46c60 sobre #fff0ed) estaba por debajo de 4,5:1; ahora usa `--color-danger-text` (#8f3f33). La migración de los ~410 colores fijos y la sustitución de las listas de selectores oscuros de `evolution-theme.css` por reglas que solo leen tokens queda para la Fase 3, con capturas antes/después.
 
+## Cierre de la Fase 1 y lo que se aplaza a propósito
+
+Hecho en esta rama: A1, A2, A3, A4 (Dependabot y auditoría), A5 (dependencias sin uso), A6, B1 (tokens aditivos) y B2. La actualización de `next` a 16.4.5 va en un PR aparte porque es un cambio de framework.
+
+Se aplaza porque colisiona con E7 (lo verifica `git merge-tree` contra `codex/daybook-evolution-07`):
+
+- **Textos y marca (B3):** la marca fija "Servicios Daybook" (`desk.tsx`, pie y metadatos del acceso) y el relleno de marketing. `desk.tsx` tiene cambios de E7 en esas mismas líneas y E7 introduce espacios con marca propia; se hace sobre la base E7 (Fase 3), donde además se decide el nombre de marca por espacio.
+- **Estado de publicación en los documentos:** `docs/EVOLUTION_PLAN.md` en `main` aún lista las entregas 1–6 como "en desarrollo"; la rama E7 ya reescribe esa tabla y añade `EVOLUTION_REVIEW.md`, cuya frase "El código no se ha fusionado ni publicado en producción" ya no es cierta (E1–E6 están en producción desde el 5 nov 2026, migraciones 0006–0012 aplicadas, flags apagados). Editar la tabla aquí produciría conflictos; se corrige al integrar `main` en E7 (Fase 2), con el estado real: E1–E6 publicadas, E7 pendiente, 0013 sin aplicar.
+- **Pruebas de base de datos en CI:** requieren una guarda común (ver A4); se hacen con los scripts de E7.
+
 ## Verificación
 
 `npm run check`: lint, 395 pruebas unitarias (21 nuevas), tipos y build correctos. Cabeceras comprobadas con `next start` en una respuesta HTML, una de API y el service worker; `/api/health` comprobado en vivo (la variante `deep` responde 503 sin base de datos). Una fusión simulada con `codex/daybook-evolution-07` no produce conflictos. Pendiente: Preview protegida y revisión manual en navegador (escritorio y 375 px) antes de pedir publicación.
