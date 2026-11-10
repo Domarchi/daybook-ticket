@@ -49,6 +49,20 @@ Los elementos del menú y las filas siguen siendo botones, no enlaces: no se pue
 ### No incluido
 Los botones del menú lateral siguen siendo botones, no enlaces. Convertirlos exige duplicar unas once reglas de `globals.css` y repasar su aspecto en claro y oscuro en escritorio; se hará aparte, si interesa abrir vistas en pestaña nueva.
 
+## C4. Cambios instantáneos, con deshacer
+
+Estado, prioridad, departamento y cuenta del cliente de un ticket se aplican en pantalla al elegirlos; el servidor confirma o el cambio se retira. Antes cada cambio bloqueaba toda la aplicación (`busy`), esperaba la respuesta y la recarga completa, y mostraba «Guardando…» por encima de todo.
+
+- **Lógica** (`lib/ticket-overlay.ts`): cada cambio recibe un número de secuencia por campo, de modo que una respuesta tardía de un cambio anterior no puede deshacer ni confirmar uno posterior; el último ticket devuelto por el servidor se conserva hasta que la recarga normal trae una versión igual o mayor, así la pantalla no vuelve un instante al valor antiguo y el siguiente cambio que necesita `expectedVersion` (asignación) manda la versión correcta. Solo se adoptan campos conocidos de la fila devuelta.
+- **Estado por campo**: solo el control que se está guardando queda inhabilitado (`aria-busy`); el resto del ticket y la navegación siguen utilizables.
+- **Si falla**: el valor vuelve al anterior y aparece el aviso de error; si la respuesta se perdió, se recarga lo que tiene el servidor.
+- **Deshacer**: el aviso de confirmación (10 s) incluye «Deshacer», que repite el cambio con los valores anteriores. No se ofrece al resolver un ticket ni al reabrir uno resuelto: resolver crea una solicitud de satisfacción que no se puede retirar, y volver a resolver la repetiría.
+- **Asignación** (`AssignmentControls`): conserva su confirmación explícita («Confirmar asignación», «Tomar ticket»); ahora solo espera ese bloque, informa de sus errores en el propio bloque, y entrega al resto de la pantalla el ticket devuelto (con su versión). Sin deshacer: ya exige confirmar y puede avisar a la persona asignada.
+- **Resolver selección** (acción masiva): se resuelven los tickets por separado y se informa el resultado por ticket («Se resolvieron 3 de 5. No se pudieron resolver: #0012, #0014»); los que fallaron quedan seleccionados para reintentar. Antes un fallo cortaba el aviso sin decir cuáles se habían resuelto.
+
+### No incluido
+Nuevas acciones masivas (asignar, prioridad) y deshacer para acciones masivas.
+
 ## Verificación
 `npm run check`: lint, pruebas, tipos y build correctos. La lógica de URL y de retorno está cubierta por pruebas unitarias con un historial simulado (`scripts/desk-url.test.ts`, `scripts/check-portal-return-path.test.ts`).
 

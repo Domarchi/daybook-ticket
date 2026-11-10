@@ -1,0 +1,7 @@
+/* Instant changes: only the field being saved waits; the undo button sits in the confirmation toast. */
+.detail-fields select[aria-busy="true"] { opacity: .65; cursor: progress; }
+.ticket-assignment-controls[aria-busy="true"] { cursor: progress; }
+.field-problem { margin: 6px 0 0; font-size: 12px; line-height: 1.4; color: var(--color-danger-text); }
+.toast-undo { margin-left: 14px; padding: 4px 10px; min-height: 28px; border: 1px solid currentColor; border-radius: var(--radius-sm); font-weight: 600; font-size: 12px; color: inherit; background: transparent; cursor: pointer; }
+.toast-undo:hover { text-decoration: underline; }
+@media (pointer: coarse) { .toast-undo { min-height: var(--touch-target); padding: 0 14px; } }
