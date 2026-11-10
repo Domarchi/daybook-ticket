@@ -19,7 +19,7 @@ export function validateEvolutionQaArguments(args, environment) {
   assert.ok(args.length >= 1 && args.length <= 2);
   assert.equal(new Set(args).size, args.length);
   const target = args.find(value => /^--through=/.test(value));
-  assert.ok(target && /^--through=(?:000[7-9]|001[0-3])$/.test(target));
+  assert.ok(target && /^--through=(?:000[7-9]|001[0-4])$/.test(target));
   assert.ok(args.every(value => value === target || value === '--apply'));
   const url = new URL(environment.DATABASE_URL);
   assert.equal(url.hostname, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');

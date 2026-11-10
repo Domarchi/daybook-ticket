@@ -101,6 +101,10 @@ export const tickets = pgTable(
     index('tickets_owner_page').on(t.ownerId, t.updatedAt.desc(), t.id.desc()),
     index('tickets_requester').on(t.ownerId, t.requesterMemberId),
     index('tickets_company').on(t.ownerId, t.customerCompanyId),
+    index('tickets_owner_assignee_page').on(t.ownerId, t.assigneeMemberId, t.updatedAt.desc(), t.id.desc()),
+    index('tickets_owner_active_page')
+      .on(t.ownerId, t.updatedAt.desc(), t.id.desc())
+      .where(sql`${t.status} <> 'resolved'`),
     uniqueIndex('tickets_creation_key').on(t.creationKey),
   ],
 );

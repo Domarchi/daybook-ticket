@@ -52,6 +52,11 @@ export const REVIEWED_EVOLUTION_MIGRATIONS = Object.freeze([
     when: 1793912006000,
     hash: '19a3cefe6a40c0d3be54acd7ad3e093b4e49ce46538b2abf0cfe0da69297dd0b',
   }),
+  Object.freeze({
+    tag: '0014_ticket_queue_indexes',
+    when: 1793912007000,
+    hash: '363f58fef41d709773a72f646b76514bde9e5bb5df3e55e75e4ed8fa132571af',
+  }),
 ]);
 export const EVOLUTION_PINNED_MIGRATIONS = Object.freeze([
   ...RELIABILITY_PINNED_MIGRATIONS,
@@ -68,7 +73,7 @@ export function evolutionConfirmTarget(through) {
   return `${BASE_TARGET}:through-${through}`;
 }
 function targetIndex(through) {
-  guard(typeof through === 'string' && /^(000[7-9]|001[0-3])$/.test(through), 'explicit_evolution_prefix_required');
+  guard(typeof through === 'string' && /^(000[7-9]|001[0-4])$/.test(through), 'explicit_evolution_prefix_required');
   return Number(through);
 }
 export function validateEvolutionCliArguments(args, environment) {
@@ -275,7 +280,7 @@ function safeDefaults(table, columns) {
 /** Reviewed hash validation is also mandatory. This additional grammar rejects data writes and destructive DDL. */
 export function analyzeEvolutionSql(index, sql) {
   guard(
-    Number.isInteger(index) && index >= 7 && index <= 13 && typeof sql === 'string' && !sql.includes('\0'),
+    Number.isInteger(index) && index >= 7 && index <= 14 && typeof sql === 'string' && !sql.includes('\0'),
     'invalid_evolution_sql',
   );
   const plan = { tables: [], additions: [], indexes: [], replacesPushEndpoint: false, replacesAttachmentKind: false };

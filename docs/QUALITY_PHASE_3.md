@@ -116,3 +116,41 @@ Recorrido de C1/C2 en producción con una sesión real (10 nov 2026, tras public
 
 ## Reversión
 Revertir el commit restaura el estado interno anterior; no hay datos ni migraciones.
+
+## C8. Migración 0014: índices de las colas
+
+**Preparada, no aplicada.** `drizzle-postgres/0014_ticket_queue_indexes.sql` crea dos índices sobre `tickets` y nada más (sin datos, columnas, restricciones ni extensiones):
+
+| Índice | Definición | Para qué |
+| --- | --- | --- |
+| `tickets_owner_assignee_page` | `("ownerId","assigneeMemberId","updatedAt" DESC, id DESC)` | «Mis tickets» y el filtro por agente: recorre ya ordenado en vez de revisar todos los del espacio. |
+| `tickets_owner_active_page` | `("ownerId","updatedAt" DESC, id DESC) WHERE status<>'resolved'` | «Sin asignar», «Vencidos» y las vistas de trabajo pendiente. Es parcial: los resueltos (la mayoría con el tiempo) no entran, así que el índice es pequeño. |
+
+### Cómo se decidió
+Se midió con PostgreSQL 17 desechable en local (nada de producción): un espacio de 40 000 tickets y otros 19 de 3 000 (97 000 tickets, 388 000 mensajes), con las consultas reales de `lib/ticket-search.ts`.
+
+| Consulta (espacio de 40 000 tickets) | Sin índice | Con 0014 |
+| --- | --- | --- |
+| Mis tickets, agente con 3 tickets antiguos | 7,6 ms | 0,06 ms |
+| Sin asignar (activos) | 6,5 ms | 2,7 ms |
+| Vencidos (activos), primera página | 0,11 ms | 0,03 ms |
+
+- **Hoy no se nota**: producción tiene unos pocos tickets, donde cualquier plan tarda microsegundos. Son índices para cuando un espacio crezca, y cuestan poco: 6,4 MB y 0,9 MB por 40 000 tickets, más un pequeño coste en cada escritura.
+- **Se probaron y se dejaron fuera**:
+  - `(ownerId, status, updatedAt DESC, id DESC)`: la cola por estado ya iba en 0,1 ms con el índice existente; la ganancia (0,1 → 0,03 ms) no justifica otro índice.
+  - `(ownerId, dueAt) WHERE status<>'resolved'`: el planificador no lo usó en ninguna consulta de la aplicación.
+  - **`pg_trgm` para la búsqueda de texto**: un índice GIN sobre `messages.body` bajó la búsqueda de 383 a 144 ms (con muchas coincidencias) y de 158 a 47 ms (sin coincidencias), pero ocupa 66 MB sobre una tabla de 64 MB —el doble de espacio, en una base con límite de tamaño— y no ayuda a la mitad de la consulta que busca en asunto, nombre y correo (`concat_ws` no es inmutable, no se puede indexar). Además exigiría `CREATE EXTENSION` en producción, que el operador no admite. Conviene revisarlo cuando los mensajes superen unos cientos de miles, y entonces junto con reescribir esa búsqueda para que pueda usar el índice.
+- **Snapshots de Drizzle**: no se regeneran. Se quedan en 0006 como las migraciones 0007–0013 (escritas a mano y fijadas por hash en el operador); `db/schema.ts` refleja los índices a mano y `drizzle-kit generate` no se usa.
+
+### Ensayo con el operador real
+Contra esa base desechable dejada en el estado de producción (hasta 0013, 79 tablas, 485 000 filas) se ejecutaron `runEvolutionMigrationOperator` en `audit`, `dry-run` y `apply` con `--through=0014`: las tres pasan; la simulación no deja índices ni fila de diario; la aplicación deja el diario en 15 filas, los dos índices, ninguna extensión y las huellas de las 79 tablas originales idénticas; una auditoría posterior responde `already_applied_no_changes`. Las consultas de arriba pasan a usar los índices nuevos.
+
+### Qué falta para aplicarla en producción
+Nada de esto está hecho; necesita una orden del usuario con ventana, igual que la 0013:
+1. Respaldo nuevo (`prod-run.sh backup`) y auditoría (`e-audit 14`).
+2. Subir el límite de `need_n()` a 14 en `outputs/handoff-review/prod-run.sh` (archivo ignorado por Git).
+3. Simulación (`e-dry 14`), que el usuario cree `~/.config/daybook-prod/ARMED` y aplicación (`e-apply 14`, confirmaciones `...:through-0014` y `evolution-through-0014`).
+4. Comprobar diario (15 filas), los dos índices y huellas, y retirar `ARMED`.
+
+Los índices no cambian ningún resultado ni lo que ve la aplicación, así que la fusión de este PR y la aplicación de la migración son independientes y pueden hacerse en cualquier orden. La creación toma un bloqueo breve de escritura sobre `tickets` (milisegundos con el volumen actual). No hay reversión automática: dejar los índices es inocuo y, si algún día hiciera falta quitarlos, sería un `DROP INDEX` manual aparte con orden expresa (el operador no admite `DROP`).
+
