@@ -12,7 +12,7 @@ import Brand from '../../brand';
 import '../../workspaces.css';
 export const dynamic='force-dynamic';
 export const metadata={title:'Daybook Ticket',robots:{index:false,follow:false},referrer:'no-referrer'};
-export default async function WorkspacePage({params,searchParams}:{params:Promise<{workspaceId:string}>;searchParams:Promise<{ticket?:string|string[];serviceContext?:string|string[];company?:string|string[]}>}){
+export default async function WorkspacePage({params,searchParams}:{params:Promise<{workspaceId:string}>;searchParams:Promise<{ticket?:string|string[];serviceContext?:string|string[];company?:string|string[];view?:string|string[]}>}){
  const parsed=workspaceIdSchema.safeParse((await params).workspaceId);
  if(!parsed.success)notFound();
  const id=parsed.data,destination=portalReturnPath(id,await searchParams);

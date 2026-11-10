@@ -9,7 +9,8 @@ import { currentWorkspaceId } from '@/lib/workspace-client';
 import { workspaceHome } from '@/lib/workspace-model';
 import { CheckCircle2, ChevronRight, LoaderCircle, Menu, Search, ShieldCheck, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { leaveTicket, navigateDesk, parseDeskLocation } from '@/lib/desk-url';
 import { type Ticket } from '../lib/types';
 import ClientPortal from './client-portal';
 import { ThemeControl } from './evolution-controls';
@@ -33,8 +34,10 @@ export default function Desk({ displayName, email }: {
     useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(timer); }, []);
     const { data, loading, loadError, connection, refresh } = useWorkspace(alerts.receive);
     const [busy, setBusy] = useState(false), [error, setError] = useState(''), [toast, setToast] = useState('');
-    const [requestedView, setView] = useState<View>(()=>searchParams.get('serviceContext')==='1'?'service':'inbox'), [search, setSearch] = useState(''), [showFilters, setShowFilters] = useState(false), [mobile, setMobile] = useState(false);
-    const [ticketId, setTicketId] = useState<number | null>(() => { const id = Number(searchParams.get('ticket')); return Number.isSafeInteger(id) && id > 0 ? id : null; }), [create, setCreate] = useState(false), [selected, setSelected] = useState<number[]>([]);
+    const location = useMemo(() => parseDeskLocation(searchParams), [searchParams]);
+    const requestedView = location.view, ticketId = location.ticketId;
+    const [search, setSearch] = useState(''), [showFilters, setShowFilters] = useState(false), [mobile, setMobile] = useState(false);
+    const [create, setCreate] = useState(false), [selected, setSelected] = useState<number[]>([]);
     const searchRef = useRef<HTMLInputElement>(null);
     const isAdmin = data.viewer?.role === 'owner' || data.viewer?.role === 'admin';
     const { filters: teamFilters, update: updateTeamFilters } = useTeamFilters(data.viewer?.id);
@@ -52,7 +55,7 @@ export default function Desk({ displayName, email }: {
     } }, [toast]);
     useEffect(() => { function key(e: KeyboardEvent) { if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        setView('inbox');
+        navigateDesk({ view: 'inbox' });
         searchRef.current?.focus();
     } } window.addEventListener('keydown', key); return () => window.removeEventListener('keydown', key); }, []);
     const run = async (fn: () => Promise<unknown>, message: string) => { setBusy(true); setError(''); try {
@@ -74,8 +77,8 @@ export default function Desk({ displayName, email }: {
         setBusy(false);
     } };
     const go = (v: View) => { if (busy || !isAdmin && (['team', 'settings', 'operations', 'metrics'].includes(v)))
-        return; setView(v); setTicketId(null); setSearch(''); setMobile(false); setSelected([]); };
-    const openTicket = (ticket: Ticket) => { if (!busy) setTicketId(ticket.id); };
+        return; navigateDesk({ view: v }); setSearch(''); setMobile(false); setSelected([]); };
+    const openTicket = (ticket: Ticket) => { if (!busy) navigateDesk({ ticketId: ticket.id }); };
     const tickets = data.tickets;
     const counts: Record<string, number> = { ...(data.ticketCounts ?? { all: tickets.length, open: 0, pending: 0, resolved: 0, mine: 0, unassigned: 0, overdue: 0 }) };
     const feedKey = data.alertsPage?.snapshotAt;
@@ -110,14 +113,13 @@ export default function Desk({ displayName, email }: {
    <div className="content">
    <div className="workspace-sync">{data.viewer&&<ThemeControl key={data.viewer.id} memberId={data.viewer.id} preferred={data.preferences?.theme||'system'}/>}<LiveStatus connection={connection} />{data.viewer && <TicketAlerts alerts={alerts} onOpen={openAlert} />}</div>
    {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => setError('')} aria-label="Cerrar aviso"><X size={17}/></button></div>}
-   {loading ? <div className="loading"><LoaderCircle className="spin"/><p>Preparando tu espacio…</p></div> : ticketId && !current ? <div className="panel ticket-search-feedback" role={conversation.error ? 'alert' : 'status'}>{conversation.error || 'Cargando conversación…'}<button className="text-button" onClick={() => setTicketId(null)}>Volver a la bandeja</button></div> : current ? <TicketView data={data} current={current} conversation={conversation} busy={busy} isAdmin={isAdmin} now={now} accessKey={accessKey} email={email} clientMembers={clientMembers} replyTarget={replyTarget} setReplyTarget={setReplyTarget} run={run} refresh={refresh} patch={patch} onBack={() => setTicketId(null)}/> : view === 'inbox' || view === 'overview' ? <InboxView view={view} data={data} busy={busy} isAdmin={isAdmin} now={now} counts={counts} search={search} setSearch={setSearch} teamFilters={teamFilters} updateTeamFilters={updateTeamFilters} queue={queue} priority={priority} department={department} setQueue={setQueue} setPriority={setPriority} setDepartment={setDepartment} showFilters={showFilters} setShowFilters={setShowFilters} selected={selected} setSelected={setSelected} visibleSelected={visibleSelected} filtered={filtered} searchResults={searchResults} searchRef={searchRef} staffMembers={staffMembers} run={run} exportCsv={exportCsv} loadDemo={loadDemo} setCreate={setCreate} openTicket={openTicket} go={go}/> : <SectionView view={view} data={data} isAdmin={isAdmin} accessKey={accessKey} feedKey={feedKey} busy={busy} companyParam={searchParams.get('company')} run={run} refresh={refresh} go={go} setQueue={setQueue} setSearch={setSearch}/>}
+   {loading ? <div className="loading"><LoaderCircle className="spin"/><p>Preparando tu espacio…</p></div> : ticketId && !current ? <div className="panel ticket-search-feedback" role={conversation.error ? 'alert' : 'status'}>{conversation.error || 'Cargando conversación…'}<button className="text-button" onClick={leaveTicket}>Volver a la bandeja</button></div> : current ? <TicketView data={data} current={current} conversation={conversation} busy={busy} isAdmin={isAdmin} now={now} accessKey={accessKey} email={email} clientMembers={clientMembers} replyTarget={replyTarget} setReplyTarget={setReplyTarget} run={run} refresh={refresh} patch={patch} onBack={leaveTicket}/> : view === 'inbox' || view === 'overview' ? <InboxView view={view} data={data} busy={busy} isAdmin={isAdmin} now={now} counts={counts} search={search} setSearch={setSearch} teamFilters={teamFilters} updateTeamFilters={updateTeamFilters} queue={queue} priority={priority} department={department} setQueue={setQueue} setPriority={setPriority} setDepartment={setDepartment} showFilters={showFilters} setShowFilters={setShowFilters} selected={selected} setSelected={setSelected} visibleSelected={visibleSelected} filtered={filtered} searchResults={searchResults} searchRef={searchRef} staffMembers={staffMembers} run={run} exportCsv={exportCsv} loadDemo={loadDemo} setCreate={setCreate} openTicket={openTicket} go={go}/> : <SectionView view={view} data={data} isAdmin={isAdmin} accessKey={accessKey} feedKey={feedKey} busy={busy} companyParam={searchParams.get('company')} run={run} refresh={refresh} go={go} setQueue={setQueue} setSearch={setSearch}/>}
    <footer className="page-footer"><span>{data.settings.brandName} <i /> {data.settings.tagline}</span><span>Parte de Servicios Daybook.</span></footer>
    </div>
   </main>
   {create && <Modal error={error} title="Una nueva conversación" onClose={() => setCreate(false)} wide><TicketForm knowledgeEnabled={Boolean(data.evolution?.features.knowledge)} organizationEnabled={Boolean(data.evolution?.features.organization)} viewer={data.viewer!} settings={data.settings} members={data.members} busy={busy} onCancel={() => setCreate(false)} onSubmit={async (body) => { let createdId: number | null = null; const ok = await run(async () => { const result = await request<{ ticket: Ticket }>('/api/tickets', 'POST', body); createdId = result.ticket.id; }, 'Ticket creado'); if (ok && createdId !== null) {
         setCreate(false);
-        setView('inbox');
-        setTicketId(createdId);
+        navigateDesk({ ticketId: createdId });
     } return ok; }}/></Modal>}
 
   {toast && <div className="toast" role="status"><CheckCircle2 size={18}/>{toast}</div>}

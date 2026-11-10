@@ -3,12 +3,13 @@ import { readDaybookJson } from '@/lib/browser-json';
 import { UNCERTAIN_SEND_MESSAGE, daybookFetch } from '@/lib/browser-request';
 import { domainResponseValidator } from '@/lib/domain-response';
 import { Inbox, X } from 'lucide-react';
+import { type View } from '@/lib/desk-url';
 import { type ReactNode, useEffect, useId, useRef, useSyncExternalStore } from 'react';
 import { type Message, type Ticket, type TicketPriority, type TicketStatus } from '../../lib/types';
 
 export const STATUS: Record<TicketStatus, string> = { open: 'Abierto', pending: 'En espera', resolved: 'Resuelto' };
 export const PRIORITY: Record<TicketPriority, string> = { urgent: 'Urgente', high: 'Alta', normal: 'Normal', low: 'Baja' };
-export type View = 'inbox' | 'overview' | 'contacts' | 'knowledge' | 'team' | 'settings' | 'portal' | 'operations' | 'metrics' | 'service' | 'reports' | 'security';
+export type { View };
 export const views: Record<View, string> = { inbox: 'Bandeja de entrada', overview: 'Resumen', contacts: 'Contactos', knowledge: 'Conocimiento', team: 'Equipo y clientes', settings: 'Configuración', portal: 'Centro de ayuda', operations: 'Atención y reparto', metrics: 'Métricas del equipo', service:'Empresas y servicios',reports:'Informes por empresa',security:'Seguridad de mi cuenta' };
 export function initials(name: string) { return name.split(' ').filter(Boolean).slice(0, 2).map(x => x[0]).join('').toUpperCase(); }
 export function fmtDate(s: string) { return new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(s)); }
