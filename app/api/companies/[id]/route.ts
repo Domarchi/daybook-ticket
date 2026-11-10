@@ -9,8 +9,12 @@ export async function PATCH(request: Request, context: RouteContext) {
     const id = (await context.params).id;
     await getCustomerCompany(access, id);
     const { name } = await parseBody(request, z.object({ name: shortText }).strict());
-    const company = await db().prepare('UPDATE "customerCompanies" SET name = $1, "updatedAt" = $2 WHERE id = $3 AND "ownerId" = $4 AND "organizationId" = $5 RETURNING id, name, "createdAt", "updatedAt"')
-      .bind(name, new Date().toISOString(), id, access.ownerId, access.organizationId).first<CustomerCompany>();
+    const company = await db()
+      .prepare(
+        'UPDATE "customerCompanies" SET name = $1, "updatedAt" = $2 WHERE id = $3 AND "ownerId" = $4 AND "organizationId" = $5 RETURNING id, name, "createdAt", "updatedAt"',
+      )
+      .bind(name, new Date().toISOString(), id, access.ownerId, access.organizationId)
+      .first<CustomerCompany>();
     if (!company) throw new ApiError(404, 'La empresa ya no está disponible.');
     return json({ company });
   });
@@ -21,7 +25,9 @@ export async function DELETE(request: Request, context: RouteContext) {
     const access = requireAdmin(await requireAccess(request));
     const id = (await context.params).id;
     await getCustomerCompany(access, id);
-    const removed = await db().prepare(`DELETE FROM "customerCompanies" c WHERE c.id = $1 AND c."ownerId" = $2 AND c."organizationId" = $3
+    const removed = await db()
+      .prepare(
+        `DELETE FROM "customerCompanies" c WHERE c.id = $1 AND c."ownerId" = $2 AND c."organizationId" = $3
       AND NOT EXISTS (SELECT 1 FROM members m WHERE m."customerCompanyId" = c.id)
       AND NOT EXISTS (SELECT 1 FROM tickets t WHERE t."customerCompanyId" = c.id)
       AND NOT EXISTS (SELECT 1 FROM "ticketSlaOutcomes" o WHERE o."customerCompanyId" = c.id)
@@ -31,9 +37,15 @@ export async function DELETE(request: Request, context: RouteContext) {
       AND NOT EXISTS (SELECT 1 FROM "customerServices" s WHERE s."companyId" = c.id)
       AND NOT EXISTS (SELECT 1 FROM "serviceContracts" s WHERE s."companyId" = c.id)
       AND NOT EXISTS (SELECT 1 FROM "knowledgeArticlePublications" p WHERE p."companyId" = c.id)
-      AND NOT EXISTS (SELECT 1 FROM "companyMonthlyReports" r WHERE r."companyId" = c.id) RETURNING c.id`)
-      .bind(id, access.ownerId, access.organizationId).first<{ id: string }>();
-    if (!removed) throw new ApiError(409, 'La empresa tiene contactos, tickets, fichas de servicio o mediciones; conserva su historial.');
+      AND NOT EXISTS (SELECT 1 FROM "companyMonthlyReports" r WHERE r."companyId" = c.id) RETURNING c.id`,
+      )
+      .bind(id, access.ownerId, access.organizationId)
+      .first<{ id: string }>();
+    if (!removed)
+      throw new ApiError(
+        409,
+        'La empresa tiene contactos, tickets, fichas de servicio o mediciones; conserva su historial.',
+      );
     return json({ ok: true });
   });
 }

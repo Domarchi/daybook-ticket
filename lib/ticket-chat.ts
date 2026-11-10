@@ -1,9 +1,25 @@
 import type { Message } from './types';
 
 export const CHAT_TIME_ZONE = 'America/Santiago';
-const dayParts = new Intl.DateTimeFormat('en-CA', { timeZone: CHAT_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' });
-const dayLabel = new Intl.DateTimeFormat('es-CL', { timeZone: CHAT_TIME_ZONE, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-const timeLabel = new Intl.DateTimeFormat('es-CL', { timeZone: CHAT_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const dayParts = new Intl.DateTimeFormat('en-CA', {
+  timeZone: CHAT_TIME_ZONE,
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+});
+const dayLabel = new Intl.DateTimeFormat('es-CL', {
+  timeZone: CHAT_TIME_ZONE,
+  weekday: 'long',
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+});
+const timeLabel = new Intl.DateTimeFormat('es-CL', {
+  timeZone: CHAT_TIME_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
 
 function timestamp(value: string): number {
   const valueOf = Date.parse(value);
@@ -16,7 +32,16 @@ export function compareChatMessages(left: Message, right: Message): number {
 
 /** Filtering precedes every display, search and new-message calculation. */
 export function visibleChatMessages(messages: Message[], staff: boolean): Message[] {
-  return messages.filter(message => staff || message.kind !== 'note').map(message=>{const privateQuote=message.quote?.kind==='note'&&(message.kind!=='note'||!staff);const privateMentions=!staff&&Boolean(message.mentions?.length);return privateQuote||privateMentions?{...message,...(privateQuote?{quote:null}:{}),...(privateMentions?{mentions:[]}: {})}:message;}).sort(compareChatMessages);
+  return messages
+    .filter(message => staff || message.kind !== 'note')
+    .map(message => {
+      const privateQuote = message.quote?.kind === 'note' && (message.kind !== 'note' || !staff);
+      const privateMentions = !staff && Boolean(message.mentions?.length);
+      return privateQuote || privateMentions
+        ? { ...message, ...(privateQuote ? { quote: null } : {}), ...(privateMentions ? { mentions: [] } : {}) }
+        : message;
+    })
+    .sort(compareChatMessages);
 }
 
 export function chatDayKey(createdAt: string): string {
@@ -45,29 +70,39 @@ export function groupChatMessages(messages: Message[]): { key: string; label: st
 }
 
 function searchText(value: string): string {
-  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es').replace(/\s+/g, ' ').trim();
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('es')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /** This deliberately searches only the already-authorized, loaded messages. */
 export function findChatMatches(messages: Message[], query: string, staff: boolean): number[] {
   const needle = searchText(query.slice(0, 160));
   if (!needle) return [];
-  return visibleChatMessages(messages, staff).filter(message => searchText([
-    message.author, message.body, ...message.attachments.map(attachment => attachment.name),
-  ].join('\n')).includes(needle)).map(message => message.id);
+  return visibleChatMessages(messages, staff)
+    .filter(message =>
+      searchText(
+        [message.author, message.body, ...message.attachments.map(attachment => attachment.name)].join('\n'),
+      ).includes(needle),
+    )
+    .map(message => message.id);
 }
 
 /** Older pagination and repeated snapshots must not count as incoming messages. */
 export function appendedChatMessages(previous: Message[], current: Message[]): Message[] {
   if (!previous.length) return [];
   const knownIds = new Set(previous.map(message => message.id));
-  const tail = previous.reduce((last, message) => compareChatMessages(last, message) < 0 ? message : last);
+  const tail = previous.reduce((last, message) => (compareChatMessages(last, message) < 0 ? message : last));
   return current.filter(message => !knownIds.has(message.id) && compareChatMessages(message, tail) > 0);
 }
 
 export function chatAuthorRole(message: Message): string {
   if (message.kind === 'note') return 'Nota interna';
   if (message.authorRole === 'client') return 'Cliente';
-  if (message.authorRole === 'owner' || message.authorRole === 'admin' || message.authorRole === 'agent') return 'Equipo Daybook';
+  if (message.authorRole === 'owner' || message.authorRole === 'admin' || message.authorRole === 'agent')
+    return 'Equipo Daybook';
   return message.kind === 'request' ? 'Solicitud' : 'Mensaje';
 }

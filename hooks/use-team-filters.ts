@@ -6,19 +6,26 @@ const EMPTY: TeamFilters = { company: 'all', agent: 'all', queue: 'all', priorit
 export function normalizeTeamFilters(value: unknown): TeamFilters {
   if (!value || typeof value !== 'object') return EMPTY;
   const saved = value as Record<string, unknown>;
-  const text = (key: string) => typeof saved[key] === 'string' && saved[key].length > 0 ? saved[key] : 'all';
-  const queue = text('queue'), priority = text('priority');
+  const text = (key: string) => (typeof saved[key] === 'string' && saved[key].length > 0 ? saved[key] : 'all');
+  const queue = text('queue'),
+    priority = text('priority');
   return {
-    company: text('company'), agent: text('agent'), department: text('department'),
+    company: text('company'),
+    agent: text('agent'),
+    department: text('department'),
     queue: ['all', 'open', 'pending', 'resolved', 'mine', 'unassigned', 'overdue'].includes(queue) ? queue : 'all',
     priority: ['all', 'low', 'normal', 'high', 'urgent'].includes(priority) ? priority : 'all',
   };
 }
 function read(memberId: string): TeamFilters {
   try {
-    const value: unknown = JSON.parse(localStorage.getItem(workspaceStorageKey(`daybook.ticket.filters.v1.${memberId}`)) || 'null');
+    const value: unknown = JSON.parse(
+      localStorage.getItem(workspaceStorageKey(`daybook.ticket.filters.v1.${memberId}`)) || 'null',
+    );
     return normalizeTeamFilters(value);
-  } catch { /* Filters work without browser storage. */ }
+  } catch {
+    /* Filters work without browser storage. */
+  }
   return EMPTY;
 }
 export function useTeamFilters(memberId?: string) {
@@ -27,7 +34,12 @@ export function useTeamFilters(memberId?: string) {
   const filters = state.memberId === memberId ? state.filters : EMPTY;
   const update = (next: TeamFilters) => {
     setState({ memberId, filters: next });
-    if (memberId) try { localStorage.setItem(workspaceStorageKey(`daybook.ticket.filters.v1.${memberId}`), JSON.stringify(next)); } catch { /* Keep current filters in memory. */ }
+    if (memberId)
+      try {
+        localStorage.setItem(workspaceStorageKey(`daybook.ticket.filters.v1.${memberId}`), JSON.stringify(next));
+      } catch {
+        /* Keep current filters in memory. */
+      }
   };
   return { filters, update };
 }

@@ -1,4 +1,4 @@
-import {workspaceStorageKey} from './workspace-client';
+import { workspaceStorageKey } from './workspace-client';
 type Channel = 'sound' | 'desktop';
 type DeliveryStorage = Pick<Storage, 'getItem' | 'setItem'>;
 export interface AlertDeliveryDependencies {
@@ -11,12 +11,20 @@ const localSeen = new Map<string, string[]>();
 
 function browserDependencies(): AlertDeliveryDependencies {
   const dependencies: AlertDeliveryDependencies = {};
-  try { if (typeof window !== 'undefined') dependencies.storage = window.localStorage; } catch { /* Storage can be blocked. */ }
+  try {
+    if (typeof window !== 'undefined') dependencies.storage = window.localStorage;
+  } catch {
+    /* Storage can be blocked. */
+  }
   try {
     if (typeof navigator !== 'undefined' && navigator.locks) {
-      dependencies.withLock = async (name, action) => { await navigator.locks.request(name, { mode: 'exclusive' }, action); };
+      dependencies.withLock = async (name, action) => {
+        await navigator.locks.request(name, { mode: 'exclusive' }, action);
+      };
     }
-  } catch { /* Older or restricted browsers can still alert in this tab. */ }
+  } catch {
+    /* Older or restricted browsers can still alert in this tab. */
+  }
   return dependencies;
 }
 
@@ -41,7 +49,9 @@ export async function deliverAlertOnce(
       try {
         const parsed: unknown = JSON.parse(dependencies.storage?.getItem(key) || '[]');
         if (Array.isArray(parsed)) stored = parsed.filter((id): id is string => typeof id === 'string').slice(-MAX_IDS);
-      } catch { /* Fall back to memory for this tab. */ }
+      } catch {
+        /* Fall back to memory for this tab. */
+      }
       const seen = new Set([...stored, ...(localSeen.get(key) || [])]);
       if (!ids.some(id => !seen.has(id))) return;
 
@@ -52,13 +62,22 @@ export async function deliverAlertOnce(
       localSeen.delete(key);
       localSeen.set(key, remembered);
       if (localSeen.size > 32) localSeen.delete(localSeen.keys().next().value!);
-      try { dependencies.storage?.setItem(key, JSON.stringify(remembered)); } catch { /* Memory still prevents repeats within this tab. */ }
-    } catch { /* Delivery errors must not interrupt the ticket conversation. */ }
+      try {
+        dependencies.storage?.setItem(key, JSON.stringify(remembered));
+      } catch {
+        /* Memory still prevents repeats within this tab. */
+      }
+    } catch {
+      /* Delivery errors must not interrupt the ticket conversation. */
+    }
   };
 
   if (dependencies.withLock) {
-    try { await dependencies.withLock(key, attempt); }
-    catch { if (!attempted) attempt(); }
+    try {
+      await dependencies.withLock(key, attempt);
+    } catch {
+      if (!attempted) attempt();
+    }
   } else {
     // Synchronous read/deliver/write is best effort across tabs without Web Locks.
     attempt();

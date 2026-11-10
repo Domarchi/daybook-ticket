@@ -6,14 +6,22 @@ import type { z } from 'zod';
 import type { AlertsPage } from './types';
 import type { DatabaseValue } from '../db/database';
 
-const events = "('ticket_created', 'agent_replied', 'client_replied', 'reminder', 'escalation', 'satisfaction_requested', 'member_mentioned', 'ticket_followed_update')";
+const events =
+  "('ticket_created', 'agent_replied', 'client_replied', 'reminder', 'escalation', 'satisfaction_requested', 'member_mentioned', 'ticket_followed_update')";
 
 function alertScope(access: AccessContext) {
   const scope = ticketAccessSql(access);
   const values: DatabaseValue[] = [...scope.values];
-  const bind = (value: DatabaseValue) => { values.push(value); return `$${values.length}`; };
-  const member = bind(access.member.id), role = bind(access.role), company = bind(access.member.customerCompanyId ?? null);
-  const permission = bind(access.member.companyAccess), organization = bind(access.organizationId), user = bind(access.userId);
+  const bind = (value: DatabaseValue) => {
+    values.push(value);
+    return `$${values.length}`;
+  };
+  const member = bind(access.member.id),
+    role = bind(access.role),
+    company = bind(access.member.customerCompanyId ?? null);
+  const permission = bind(access.member.companyAccess),
+    organization = bind(access.organizationId),
+    user = bind(access.userId);
   // requireAccess and the alert statement are separate snapshots. Reject an old
   // staff/company context if the membership changed between those two reads.
   const live = `EXISTS (SELECT 1 FROM members live WHERE live.id=${member} AND live."ownerId"=t."ownerId"
@@ -28,7 +36,10 @@ function alertScope(access: AccessContext) {
 }
 
 /** One SQL snapshot keeps the page, global badge and mark-all boundary consistent. */
-export async function getAlertsPage(access: AccessContext, query: AlertsQuery = { filter: 'all', limit: 20 }): Promise<AlertsPage> {
+export async function getAlertsPage(
+  access: AccessContext,
+  query: AlertsQuery = { filter: 'all', limit: 20 },
+): Promise<AlertsPage> {
   const config = await getNotificationConfig(access.ownerId);
   const scope = alertScope(access);
   const values = [...scope.values, config.alertsActivatedAt];
@@ -39,7 +50,9 @@ export async function getAlertsPage(access: AccessContext, query: AlertsQuery = 
     pageCondition += ` AND ("createdAt", id) < ($${values.length - 1}, $${values.length})`;
   }
   values.push(query.limit + 1);
-  const result = await db().prepare(`WITH visible AS MATERIALIZED (
+  const result = await db()
+    .prepare(
+      `WITH visible AS MATERIALIZED (
       SELECT o.id, o.event, o."ticketId", t.subject, o."createdAt", o."readAt", o."createdAt" < ${cutoff} AS historical
       FROM "mailOutbox" o JOIN tickets t ON t.id = o."ticketId" AND t."ownerId" = o."ownerId"
       WHERE ${scope.sql}
@@ -47,18 +60,28 @@ export async function getAlertsPage(access: AccessContext, query: AlertsQuery = 
       SELECT * FROM visible ${pageCondition} ORDER BY "createdAt" DESC, id DESC LIMIT $${values.length}
     ) SELECT COALESCE((SELECT jsonb_agg(p ORDER BY p."createdAt" DESC, p.id DESC) FROM page p), '[]'::jsonb) AS items,
       (SELECT count(*)::integer FROM visible WHERE NOT historical AND "readAt" IS NULL) AS "unreadCount",
-      to_char(statement_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "snapshotAt"`)
-    .bind(...values).first<AlertsPage>();
+      to_char(statement_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"') AS "snapshotAt"`,
+    )
+    .bind(...values)
+    .first<AlertsPage>();
   if (!result) throw new Error('Could not read alerts.');
   const items = result.items.slice(0, query.limit);
-  return { ...result, items, nextCursor: result.items.length > query.limit ? encodeAlertCursor(items[items.length - 1]) : null };
+  return {
+    ...result,
+    items,
+    nextCursor: result.items.length > query.limit ? encodeAlertCursor(items[items.length - 1]) : null,
+  };
 }
 
-export async function markAlertsRead(access: AccessContext, change: z.infer<typeof markAlertsSchema>): Promise<AlertsPage> {
+export async function markAlertsRead(
+  access: AccessContext,
+  change: z.infer<typeof markAlertsSchema>,
+): Promise<AlertsPage> {
   const config = await getNotificationConfig(access.ownerId);
   const scope = alertScope(access);
   const values = [...scope.values, new Date().toISOString(), config.alertsActivatedAt];
-  const readAt = `$${values.length - 1}`, cutoff = `$${values.length}`;
+  const readAt = `$${values.length - 1}`,
+    cutoff = `$${values.length}`;
   let selected: string;
   if ('ids' in change) {
     values.push(JSON.stringify([...new Set(change.ids)]));
@@ -67,8 +90,13 @@ export async function markAlertsRead(access: AccessContext, change: z.infer<type
     // The UPDATE's MVCC snapshot excludes concurrent, uncommitted arrivals.
     selected = 'TRUE';
   }
-  await db().prepare(`UPDATE "mailOutbox" o SET "readAt" = ${readAt}
+  await db()
+    .prepare(
+      `UPDATE "mailOutbox" o SET "readAt" = ${readAt}
     FROM tickets t WHERE t.id = o."ticketId" AND t."ownerId" = o."ownerId" AND ${scope.sql}
-      AND o."readAt" IS NULL AND o."createdAt" >= ${cutoff} AND ${selected} RETURNING o.id`).bind(...values).run();
+      AND o."readAt" IS NULL AND o."createdAt" >= ${cutoff} AND ${selected} RETURNING o.id`,
+    )
+    .bind(...values)
+    .run();
   return getAlertsPage(access);
 }

@@ -17,5 +17,6 @@ test('metrics omit tests by default and accept one exact explicit boolean', () =
   assert.equal(parseMetricsQuery(new URLSearchParams()).includeTests, undefined);
   assert.equal(parseMetricsQuery(new URLSearchParams('includeTests=true')).includeTests, true);
   assert.equal(parseMetricsQuery(new URLSearchParams('includeTests=false')).includeTests, false);
-  for (const params of ['includeTests=1', 'includeTests=TRUE', 'includeTests=true&includeTests=false']) assert.throws(() => parseMetricsQuery(new URLSearchParams(params)));
+  for (const params of ['includeTests=1', 'includeTests=TRUE', 'includeTests=true&includeTests=false'])
+    assert.throws(() => parseMetricsQuery(new URLSearchParams(params)));
 });

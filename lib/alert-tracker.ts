@@ -7,7 +7,9 @@ export class TicketAlertTracker {
   private readonly seen = new Set<string>();
 
   /** A saved read received ahead of an older poll must never announce again. */
-  acknowledge(ids: string[]): void { for (const id of ids) this.seen.add(id); }
+  acknowledge(ids: string[]): void {
+    for (const id of ids) this.seen.add(id);
+  }
 
   receive(viewerKey: string | null, items: TicketAlert[]): TicketAlert[] {
     if (viewerKey === null) {

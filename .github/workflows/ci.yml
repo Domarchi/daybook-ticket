@@ -36,6 +36,8 @@ jobs:
           cache: npm
       - name: Install locked dependencies
         run: npm ci
+      - name: Check formatting
+        run: npm run format:check
       - name: Lint
         run: npm run lint
       - name: Unit tests (no database or delivery)

@@ -1,10 +1,15 @@
-import {daybookFetch} from '@/lib/browser-request';
+import { daybookFetch } from '@/lib/browser-request';
 export const PUSH_CHANGED_EVENT = 'daybook-ticket-push-changed';
 export const PUSH_STORAGE_KEY = 'daybook.ticket.push.changed.v1';
 
 export function supportsWebPush() {
-  return typeof window !== 'undefined' && window.isSecureContext && 'Notification' in window
-    && 'serviceWorker' in navigator && 'PushManager' in window;
+  return (
+    typeof window !== 'undefined' &&
+    window.isSecureContext &&
+    'Notification' in window &&
+    'serviceWorker' in navigator &&
+    'PushManager' in window
+  );
 }
 
 export async function pushRequest<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
@@ -12,7 +17,10 @@ export async function pushRequest<T>(path: string, method = 'GET', body?: unknow
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
     const response = await daybookFetch(path, {
-      method, credentials: 'same-origin', cache: 'no-store', signal: controller.signal,
+      method,
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: controller.signal,
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -25,12 +33,18 @@ export async function pushRequest<T>(path: string, method = 'GET', body?: unknow
   } catch (failure) {
     if (controller.signal.aborted) throw new Error('La conexión tardó demasiado. Intenta de nuevo.');
     throw failure;
-  } finally { clearTimeout(timeout); }
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export function announcePushChange() {
   window.dispatchEvent(new Event(PUSH_CHANGED_EVENT));
-  try { localStorage.setItem(PUSH_STORAGE_KEY, String(Date.now())); } catch { /* Other tabs also refresh on focus. */ }
+  try {
+    localStorage.setItem(PUSH_STORAGE_KEY, String(Date.now()));
+  } catch {
+    /* Other tabs also refresh on focus. */
+  }
 }
 
 export function publicPushKey(value: string): Uint8Array<ArrayBuffer> {
@@ -45,9 +59,16 @@ export async function activePushRegistration() {
   try {
     return await Promise.race([
       navigator.serviceWorker.ready,
-      new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error('El navegador no pudo preparar los avisos. Vuelve a intentarlo.')), 15_000); }),
+      new Promise<never>((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error('El navegador no pudo preparar los avisos. Vuelve a intentarlo.')),
+          15_000,
+        );
+      }),
     ]);
-  } finally { clearTimeout(timeout); }
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 // Called only by the explicit sign-out action. Closing a tab must keep its subscription.
@@ -66,5 +87,7 @@ export async function disconnectPushOnSignOut() {
     const notifications = await registration?.getNotifications();
     notifications?.forEach(notification => notification.close());
     announcePushChange();
-  } catch { /* Signing out still invalidates the server receipt authorization. */ }
+  } catch {
+    /* Signing out still invalidates the server receipt authorization. */
+  }
 }

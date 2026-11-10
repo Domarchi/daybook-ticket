@@ -9,8 +9,12 @@ function storage() {
   return {
     values,
     getItem: (key: string) => values.get(key) ?? null,
-    setItem: (key: string, value: string) => { values.set(key, value); },
-    removeItem: (key: string) => { values.delete(key); },
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
+    },
+    removeItem: (key: string) => {
+      values.delete(key);
+    },
   };
 }
 
@@ -20,7 +24,10 @@ test('an internal note remains private after leaving and reopening its ticket', 
   store.selectKind(owner, 'note');
   store.edit(owner, 'Private diagnosis; never send to the customer');
   store = new TicketDraftStore(browser); // New editor/page, same browser session.
-  assert.deepEqual(draftMessage(store.read(owner)), { kind: 'note', body: 'Private diagnosis; never send to the customer' });
+  assert.deepEqual(draftMessage(store.read(owner)), {
+    kind: 'note',
+    body: 'Private diagnosis; never send to the customer',
+  });
   const publicMessage = draftMessage(store.selectKind(owner, 'reply'));
   assert.deepEqual(publicMessage, { kind: 'reply', body: '' }, 'Selecting public reply must not inherit private text.');
 });
@@ -46,7 +53,8 @@ test('drafts never cross account, ticket or role boundaries', () => {
     { ...owner, ticketId: 11 },
     { ...owner, role: 'client' },
     { ...owner, role: 'agent' },
-  ]) assert.deepEqual(draftMessage(store.read(scope)), { kind: 'reply', body: '' });
+  ])
+    assert.deepEqual(draftMessage(store.read(scope)), { kind: 'reply', body: '' });
   assert.equal(store.read(owner).note, 'Private owner draft');
 });
 
@@ -67,7 +75,12 @@ test('legacy text is not deleted when its safe migration cannot be persisted', (
   const browser = storage();
   const legacyKey = 'vexor.draft.v1.owner@example.test.10';
   browser.setItem(legacyKey, 'Keep me');
-  const store = new TicketDraftStore({ ...browser, setItem: () => { throw new Error('Quota exceeded'); } });
+  const store = new TicketDraftStore({
+    ...browser,
+    setItem: () => {
+      throw new Error('Quota exceeded');
+    },
+  });
   assert.deepEqual(draftMessage(store.read(owner, 'owner@example.test')), { kind: 'note', body: 'Keep me' });
   assert.equal(browser.getItem(legacyKey), 'Keep me');
   assert.equal(store.persistent, false);
@@ -82,10 +95,21 @@ test('clients restore only public reply drafts and never consume legacy staff dr
   const store = new TicketDraftStore(browser);
   assert.equal(store.read(client, 'owner@example.test').reply, '');
   store.edit(client, 'Customer additional details');
-  assert.deepEqual(draftMessage(new TicketDraftStore(browser).read(client)), { kind: 'reply', body: 'Customer additional details' });
+  assert.deepEqual(draftMessage(new TicketDraftStore(browser).read(client)), {
+    kind: 'reply',
+    body: 'Customer additional details',
+  });
   assert.equal(store.selectKind(client, 'note').kind, 'reply');
-  browser.setItem(ticketDraftKey(client), JSON.stringify({ kind: 'note', reply: 'Public only', note: 'Private', recoveredLegacy: true }));
-  assert.deepEqual(new TicketDraftStore(browser).read(client), { kind: 'reply', reply: 'Public only', note: '', recoveredLegacy: false });
+  browser.setItem(
+    ticketDraftKey(client),
+    JSON.stringify({ kind: 'note', reply: 'Public only', note: 'Private', recoveredLegacy: true }),
+  );
+  assert.deepEqual(new TicketDraftStore(browser).read(client), {
+    kind: 'reply',
+    reply: 'Public only',
+    note: '',
+    recoveredLegacy: false,
+  });
 });
 
 test('saving one draft never removes the other or an edit made while the save was pending', () => {
@@ -115,7 +139,11 @@ test('bulk resolution targets and count contain only visible selected tickets af
   const targets = visibleTicketSelection(selected, visible);
   assert.deepEqual(targets, [11, 12]);
   assert.equal(targets.length, 2);
-  assert.deepEqual(visibleTicketSelection(selected, [{ id: 12 }]), [12], 'A refresh removing ticket 11 must also remove it from action targets.');
+  assert.deepEqual(
+    visibleTicketSelection(selected, [{ id: 12 }]),
+    [12],
+    'A refresh removing ticket 11 must also remove it from action targets.',
+  );
   assert.deepEqual(visibleTicketSelection(selected, []), []);
   assert.deepEqual(selected, [10, 11, 12, 12], 'Reconciliation must not mutate React state.');
 });

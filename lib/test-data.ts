@@ -6,6 +6,9 @@ export function productionTicketSql(alias: string): string {
   return `(NOT ${alias}."isTest" AND NOT EXISTS (SELECT 1 FROM members test_requester WHERE test_requester.id=${alias}."requesterMemberId" AND test_requester."ownerId"=${alias}."ownerId" AND test_requester."isTest"))`;
 }
 
-export function isTestTicket(ticket: { isTest?: boolean; requesterMemberId: string | null }, members: { id: string; isTest?: boolean }[]): boolean {
+export function isTestTicket(
+  ticket: { isTest?: boolean; requesterMemberId: string | null },
+  members: { id: string; isTest?: boolean }[],
+): boolean {
   return Boolean(ticket.isTest || members.some(member => member.id === ticket.requesterMemberId && member.isTest));
 }

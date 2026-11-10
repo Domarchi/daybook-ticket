@@ -11,8 +11,12 @@ export async function GET(request: Request) {
   return handle(async () => {
     const access = requireAdmin(await requireAccess(request));
     let period;
-    try { period = parseMetricsQuery(new URL(request.url).searchParams); }
-    catch (error) { if (error instanceof MetricsQueryError) throw new ApiError(400, error.message); throw error; }
+    try {
+      period = parseMetricsQuery(new URL(request.url).searchParams);
+    } catch (error) {
+      if (error instanceof MetricsQueryError) throw new ApiError(400, error.message);
+      throw error;
+    }
     const report = await db().transaction(async tx => {
       await acquireTicketWorkLock(tx, access.ownerId);
       const fresh = requireAdmin(await lockAccess(tx, access));

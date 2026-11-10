@@ -10,7 +10,20 @@
  *
  * `?serviceContext=1[&company=]` is the older form of the service view; it is still read.
  */
-export const DESK_VIEWS = ['inbox', 'overview', 'contacts', 'knowledge', 'team', 'settings', 'portal', 'operations', 'metrics', 'service', 'reports', 'security'] as const;
+export const DESK_VIEWS = [
+  'inbox',
+  'overview',
+  'contacts',
+  'knowledge',
+  'team',
+  'settings',
+  'portal',
+  'operations',
+  'metrics',
+  'service',
+  'reports',
+  'security',
+] as const;
 export type View = (typeof DESK_VIEWS)[number];
 
 export const SETTINGS_SECTIONS = ['general', 'mail', 'organization', 'backups', 'features', 'workspace'] as const;
@@ -34,27 +47,50 @@ export function parseTicketId(value: string | null | undefined): number | null {
 
 type Params = { get(name: string): string | null };
 
-export function parseDeskLocation(params: Params): { view: View; ticketId: number | null; companyId: string | null; section: SettingsSection } {
+export function parseDeskLocation(params: Params): {
+  view: View;
+  ticketId: number | null;
+  companyId: string | null;
+  section: SettingsSection;
+} {
   const ticketId = parseTicketId(params.get('ticket'));
   const requested = params.get('view');
   const view: View = isDeskView(requested) ? requested : params.get('serviceContext') === '1' ? 'service' : 'inbox';
   const company = params.get('company');
   const section = params.get('section');
-  return { view, ticketId, companyId: company && COMPANY_ID.test(company) ? company.toLowerCase() : null, section: view === 'settings' && isSettingsSection(section) ? section : 'general' };
+  return {
+    view,
+    ticketId,
+    companyId: company && COMPANY_ID.test(company) ? company.toLowerCase() : null,
+    section: view === 'settings' && isSettingsSection(section) ? section : 'general',
+  };
 }
 
 /** The query string (with the leading "?", or "" for the inbox) that represents a desk location. */
-export function deskQuery(location: { view?: View; ticketId?: number | null; companyId?: string | null; section?: SettingsSection }): string {
-  if (location.ticketId && Number.isSafeInteger(location.ticketId) && location.ticketId > 0) return `?ticket=${location.ticketId}`;
+export function deskQuery(location: {
+  view?: View;
+  ticketId?: number | null;
+  companyId?: string | null;
+  section?: SettingsSection;
+}): string {
+  if (location.ticketId && Number.isSafeInteger(location.ticketId) && location.ticketId > 0)
+    return `?ticket=${location.ticketId}`;
   const view = location.view ?? 'inbox';
   if (view === 'inbox') return '';
   const params = new URLSearchParams({ view });
-  if (view === 'service' && location.companyId && COMPANY_ID.test(location.companyId)) params.set('company', location.companyId.toLowerCase());
-  if (view === 'settings' && location.section && location.section !== 'general' && isSettingsSection(location.section)) params.set('section', location.section);
+  if (view === 'service' && location.companyId && COMPANY_ID.test(location.companyId))
+    params.set('company', location.companyId.toLowerCase());
+  if (view === 'settings' && location.section && location.section !== 'general' && isSettingsSection(location.section))
+    params.set('section', location.section);
   return `?${params}`;
 }
 
-export type DeskTarget = { view?: View; ticketId?: number | null; companyId?: string | null; section?: SettingsSection };
+export type DeskTarget = {
+  view?: View;
+  ticketId?: number | null;
+  companyId?: string | null;
+  section?: SettingsSection;
+};
 
 /**
  * Changes the URL without a server round trip (Next.js syncs `useSearchParams` with the History API).

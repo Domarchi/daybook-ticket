@@ -97,6 +97,16 @@ Se borran los 61 archivos de `components/ui` (kit de shadcn que ninguna pantalla
 - `npm audit --omit=dev` sigue con los mismos 10 avisos (5 moderados, 5 altos): ninguno venía de lo borrado (`zod` anidado en `@vercel/blob`, `source-map-js`, `drizzle-kit`/`esbuild`).
 - Si algún día hace falta un componente de ese estilo, se puede volver a añadir con `shadcn add` o recuperar de este historial (`git show eab91f4:components/ui/<archivo>`).
 
+## C7. Formato único con Prettier y avisos de tamaño
+
+- **Prettier** (`.prettierrc.json`: ancho 120, comillas simples, comas finales, flechas sin paréntesis para un solo argumento): se aplica a todo el código TypeScript, JavaScript, JSON y YAML. Se excluyen lo generado o ajeno (`node_modules`, `.next`, `public`, `outputs`, `work`), las migraciones SQL y el diario de Drizzle (`drizzle-postgres`, cuyos hashes están fijados en los operadores de migración), la prosa (`*.md`) y, de momento, el CSS heredado (32 archivos de reglas en una línea que se reformatearán en otra pasada, con capturas).
+- **Cómo se comprobó que no cambia el comportamiento**: se compiló el árbol sin formatear y el formateado en el mismo directorio y se compararon los archivos que genera la compilación (llevan el hash de su contenido). 22 de 25 son idénticos byte a byte; los 3 restantes difieren solo en cómo se escribe un espacio de texto JSX («`Última pasada correcta: {x}`» pasa a «`Última pasada correcta:{' '}{x}`»), que se dibuja igual. El archivo ZIP del programador de avisos de Neon (`npm run build:notification-pinger`) tiene el **mismo SHA-256** antes y después. Las 484 pruebas pasan; solo hubo que hacer robusta a espacios una prueba que leía código fuente con una expresión regular.
+- **Que no se desvíe**: `npm run format` aplica el formato, `npm run format:check` lo comprueba, y ambos forman parte de `npm run check` y de CI (paso «Check formatting»). `.git-blame-ignore-revs` lista el commit de formato para que `git blame` y GitHub lo salten.
+- **Avisos de tamaño** (`eslint.config.mjs`): `max-lines` (800 líneas sin blancos ni comentarios) y `complexity` (40) en `app/`, `lib/` y `hooks/`, como **avisos**, no errores: nombran lo que conviene partir después. Hoy señalan 8 archivos (`app/operations-settings.tsx` 1323 líneas, `app/automation.tsx` 1273, `app/work-organization.tsx` 1249, `app/service-context.tsx` 1218, `app/knowledge.tsx` 1092, `lib/automation.ts` 1067, `app/client-portal.tsx` 943, `app/security-center.tsx` 836) y 12 funciones (`processOutboxBatch` en `lib/mail.ts`, complejidad 71; `ClientPortal`, 69; `validDomainResponse`, 65; `SecurityCenter`, 58; una función de `lib/ticket-mutations.ts`, 58; `Desk`, 55; `LoginForm`, 54; `validateBackup`, 53; una de `lib/inbound-email.ts`, 51; `AutomationPanel`, 49; una de `hooks/use-workspace.ts`, 44; `AutomationRuleEditor`, 42). Se convertirán en errores cuando esa lista se vacíe.
+
+### Nota sobre Prettier
+Con algunas cadenas de métodos, Prettier tarda dos pasadas en estabilizar su salida; `npm run format` se puede repetir sin riesgo y la comprobación pasa cuando el resultado ya no cambia.
+
 ## Verificación
 `npm run check`: lint, pruebas, tipos y build correctos. La lógica de URL y de retorno está cubierta por pruebas unitarias con un historial simulado (`scripts/desk-url.test.ts`, `scripts/check-portal-return-path.test.ts`).
 

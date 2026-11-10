@@ -1,9 +1,37 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { adoptConfirmed, applyOverlay, beginChange, canUndo, changeMessage, emptyOverlay, isSaving, previousValues, settleChange } from '../lib/ticket-overlay';
+import {
+  adoptConfirmed,
+  applyOverlay,
+  beginChange,
+  canUndo,
+  changeMessage,
+  emptyOverlay,
+  isSaving,
+  previousValues,
+  settleChange,
+} from '../lib/ticket-overlay';
 import type { Ticket } from '../lib/types';
 
-const ticket = (over: Partial<Ticket> = {}) => ({ id: 7, subject: 'Reparto', requesterName: 'Cliente', requesterEmail: 'c@x.test', requesterMemberId: null, customerCompanyId: null, version: 3, department: 'Soporte', assignee: '', assigneeMemberId: null, status: 'open', priority: 'normal', createdAt: '2026-11-10T08:00:00Z', updatedAt: '2026-11-10T09:00:00Z', dueAt: '2026-11-11T08:00:00Z', ...over }) as Ticket;
+const ticket = (over: Partial<Ticket> = {}) =>
+  ({
+    id: 7,
+    subject: 'Reparto',
+    requesterName: 'Cliente',
+    requesterEmail: 'c@x.test',
+    requesterMemberId: null,
+    customerCompanyId: null,
+    version: 3,
+    department: 'Soporte',
+    assignee: '',
+    assigneeMemberId: null,
+    status: 'open',
+    priority: 'normal',
+    createdAt: '2026-11-10T08:00:00Z',
+    updatedAt: '2026-11-10T09:00:00Z',
+    dueAt: '2026-11-11T08:00:00Z',
+    ...over,
+  }) as Ticket;
 const server = (over: Partial<Ticket>) => ({ ...ticket(), ownerId: 'secret-owner', ...over }) as Ticket;
 
 test('a change shows immediately and the loaded ticket is left alone', () => {
@@ -18,7 +46,12 @@ test('a change shows immediately and the loaded ticket is left alone', () => {
 test('a confirmed change keeps showing until the refresh catches up, with the server version', () => {
   const base = ticket();
   let overlay = beginChange(undefined, { status: 'pending' }, 1);
-  overlay = settleChange(overlay, ['status'], 1, server({ status: 'pending', version: 4, dueAt: '2026-11-12T08:00:00Z' }));
+  overlay = settleChange(
+    overlay,
+    ['status'],
+    1,
+    server({ status: 'pending', version: 4, dueAt: '2026-11-12T08:00:00Z' }),
+  );
   const shown = applyOverlay(base, overlay);
   assert.equal(shown.status, 'pending');
   assert.equal(shown.version, 4, 'the next change that needs expectedVersion must send the new one');
@@ -92,7 +125,11 @@ test('undo remembers the replaced values and is withheld around resolving', () =
   assert.deepEqual(previousValues(base, patch), { priority: 'normal', department: 'Soporte' });
   assert.equal(canUndo({ priority: 'urgent' }, { priority: 'normal' }), true);
   assert.equal(canUndo({ status: 'resolved' }, { status: 'open' }), false);
-  assert.equal(canUndo({ status: 'open' }, { status: 'resolved' }), false, 'reopening a resolved ticket is not undone back into resolved');
+  assert.equal(
+    canUndo({ status: 'open' }, { status: 'resolved' }),
+    false,
+    'reopening a resolved ticket is not undone back into resolved',
+  );
   assert.equal(canUndo({ status: 'pending' }, { status: 'open' }), true);
 });
 

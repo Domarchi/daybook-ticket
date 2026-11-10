@@ -15,7 +15,8 @@ export function filterOptions<T extends ComboboxOption>(options: readonly T[], q
   if (terms.length === 0) return [...options];
   const scored: { option: T; rank: number; index: number }[] = [];
   options.forEach((option, index) => {
-    const label = normalizeSearch(option.label), text = `${label} ${normalizeSearch(option.hint ?? '')}`;
+    const label = normalizeSearch(option.label),
+      text = `${label} ${normalizeSearch(option.hint ?? '')}`;
     if (!terms.every(term => text.includes(term))) return;
     scored.push({ option, rank: label.startsWith(terms[0]) ? 0 : label.includes(terms[0]) ? 1 : 2, index });
   });

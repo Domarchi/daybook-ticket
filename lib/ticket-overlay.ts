@@ -17,7 +17,24 @@ export type Overlay = { confirmed: Ticket | null; pending: Partial<Record<keyof 
 export const emptyOverlay: Overlay = { confirmed: null, pending: {} };
 
 /** The parts of a server-confirmed ticket that the screen adopts. */
-const CONFIRMED_FIELDS = ['isTest', 'subject', 'status', 'priority', 'department', 'requesterMemberId', 'requesterName', 'requesterEmail', 'customerCompanyId', 'assignee', 'assigneeMemberId', 'version', 'updatedAt', 'dueAt', 'slaStartedAt', 'slaPolicySnapshot'] as const;
+const CONFIRMED_FIELDS = [
+  'isTest',
+  'subject',
+  'status',
+  'priority',
+  'department',
+  'requesterMemberId',
+  'requesterName',
+  'requesterEmail',
+  'customerCompanyId',
+  'assignee',
+  'assigneeMemberId',
+  'version',
+  'updatedAt',
+  'dueAt',
+  'slaStartedAt',
+  'slaPolicySnapshot',
+] as const;
 
 export function confirmedView(base: Ticket, confirmed: Ticket): Ticket {
   const next: Record<string, unknown> = { ...base };
@@ -29,7 +46,8 @@ export function confirmedView(base: Ticket, confirmed: Ticket): Ticket {
 export function applyOverlay(base: Ticket, overlay: Overlay | undefined): Ticket {
   if (!overlay) return base;
   let ticket = base;
-  if (overlay.confirmed && overlay.confirmed.id === base.id && overlay.confirmed.version > base.version) ticket = confirmedView(base, overlay.confirmed);
+  if (overlay.confirmed && overlay.confirmed.id === base.id && overlay.confirmed.version > base.version)
+    ticket = confirmedView(base, overlay.confirmed);
   const entries = Object.entries(overlay.pending) as [keyof Ticket, PendingField][];
   if (entries.length === 0) return ticket;
   const next: Record<string, unknown> = { ...ticket };
@@ -49,7 +67,8 @@ export function settleChange(overlay: Overlay | undefined, keys: string[], seq: 
   const current = overlay ?? emptyOverlay;
   const pending = { ...current.pending };
   for (const key of keys) if (pending[key as keyof Ticket]?.seq === seq) delete pending[key as keyof Ticket];
-  const newest = confirmed && (!current.confirmed || confirmed.version > current.confirmed.version) ? confirmed : current.confirmed;
+  const newest =
+    confirmed && (!current.confirmed || confirmed.version > current.confirmed.version) ? confirmed : current.confirmed;
   return { confirmed: newest, pending };
 }
 
@@ -77,9 +96,14 @@ export function canUndo(patch: TicketPatch, previous: TicketPatch): boolean {
   return patch.status !== 'resolved' && previous.status !== 'resolved';
 }
 
-const FIELD_MESSAGES: Record<string, string> = { status: 'Estado actualizado', priority: 'Prioridad actualizada', department: 'Departamento actualizado', requesterMemberId: 'Cuenta del cliente actualizada' };
+const FIELD_MESSAGES: Record<string, string> = {
+  status: 'Estado actualizado',
+  priority: 'Prioridad actualizada',
+  department: 'Departamento actualizado',
+  requesterMemberId: 'Cuenta del cliente actualizada',
+};
 export function changeMessage(patch: TicketPatch): string {
   if (patch.status === 'resolved') return 'Ticket resuelto';
   const keys = Object.keys(patch);
-  return keys.length === 1 ? FIELD_MESSAGES[keys[0]] ?? 'Ticket actualizado' : 'Ticket actualizado';
+  return keys.length === 1 ? (FIELD_MESSAGES[keys[0]] ?? 'Ticket actualizado') : 'Ticket actualizado';
 }

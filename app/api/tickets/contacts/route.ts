@@ -9,6 +9,9 @@ export async function GET(request: Request) {
     try {
       const params = new URL(request.url).searchParams;
       return json(await getContactPage(access, parseSearchLimit(params.get('limit')), params.get('cursor')));
-    } catch (error) { if (error instanceof SearchQueryError) throw new ApiError(400, error.message); throw error; }
+    } catch (error) {
+      if (error instanceof SearchQueryError) throw new ApiError(400, error.message);
+      throw error;
+    }
   });
 }

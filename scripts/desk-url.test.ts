@@ -1,15 +1,45 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DESK_VIEWS, SETTINGS_SECTIONS, deskQuery, isDeskView, isSettingsSection, leaveTicket, navigateDesk, parseDeskLocation, parseTicketId } from '../lib/desk-url';
+import {
+  DESK_VIEWS,
+  SETTINGS_SECTIONS,
+  deskQuery,
+  isDeskView,
+  isSettingsSection,
+  leaveTicket,
+  navigateDesk,
+  parseDeskLocation,
+  parseTicketId,
+} from '../lib/desk-url';
 
 const company = 'af1aba5f-a6ba-4a09-98f1-fc39ccf1d172';
 const params = (query: string) => new URLSearchParams(query);
 
 test('the URL decides the view and the open ticket', () => {
-  assert.deepEqual(parseDeskLocation(params('')), { view: 'inbox', ticketId: null, companyId: null, section: 'general' });
-  assert.deepEqual(parseDeskLocation(params('view=overview')), { view: 'overview', ticketId: null, companyId: null, section: 'general' });
-  assert.deepEqual(parseDeskLocation(params('ticket=12')), { view: 'inbox', ticketId: 12, companyId: null, section: 'general' });
-  assert.deepEqual(parseDeskLocation(params(`view=service&company=${company.toUpperCase()}`)), { view: 'service', ticketId: null, companyId: company, section: 'general' });
+  assert.deepEqual(parseDeskLocation(params('')), {
+    view: 'inbox',
+    ticketId: null,
+    companyId: null,
+    section: 'general',
+  });
+  assert.deepEqual(parseDeskLocation(params('view=overview')), {
+    view: 'overview',
+    ticketId: null,
+    companyId: null,
+    section: 'general',
+  });
+  assert.deepEqual(parseDeskLocation(params('ticket=12')), {
+    view: 'inbox',
+    ticketId: 12,
+    companyId: null,
+    section: 'general',
+  });
+  assert.deepEqual(parseDeskLocation(params(`view=service&company=${company.toUpperCase()}`)), {
+    view: 'service',
+    ticketId: null,
+    companyId: company,
+    section: 'general',
+  });
 });
 
 test('the older service-context link still opens the service view', () => {
@@ -21,7 +51,8 @@ test('the older service-context link still opens the service view', () => {
 test('unknown views, bad ticket numbers and bad company ids fall back safely', () => {
   assert.equal(parseDeskLocation(params('view=../../etc')).view, 'inbox');
   assert.equal(parseDeskLocation(params('view=__proto__')).view, 'inbox');
-  for (const bad of ['0', '-3', '1.5', 'abc', '', '9007199254740992', '12abc', ' 12']) assert.equal(parseTicketId(bad), null, bad);
+  for (const bad of ['0', '-3', '1.5', 'abc', '', '9007199254740992', '12abc', ' 12'])
+    assert.equal(parseTicketId(bad), null, bad);
   assert.equal(parseTicketId('007'), 7);
   assert.equal(parseDeskLocation(params('view=service&company=not-a-uuid')).companyId, null);
 });
@@ -45,17 +76,35 @@ type FakeHistory = { entries: { state: unknown; url: string }[]; index: number; 
 function fakeBrowser(start: string, state: unknown = null) {
   const history: FakeHistory = { entries: [{ state, url: start }], index: 0, state };
   const location = { pathname: start.split('?')[0], search: start.includes('?') ? `?${start.split('?')[1]}` : '' };
-  const sync = () => { const url = history.entries[history.index].url; location.pathname = url.split('?')[0]; location.search = url.includes('?') ? `?${url.split('?')[1]}` : ''; history.state = history.entries[history.index].state; };
+  const sync = () => {
+    const url = history.entries[history.index].url;
+    location.pathname = url.split('?')[0];
+    location.search = url.includes('?') ? `?${url.split('?')[1]}` : '';
+    history.state = history.entries[history.index].state;
+  };
   const api = {
-    get state() { return history.state; },
-    pushState(next: unknown, _title: string, url: string) { history.entries.splice(history.index + 1); history.entries.push({ state: next, url }); history.index++; sync(); },
+    get state() {
+      return history.state;
+    },
+    pushState(next: unknown, _title: string, url: string) {
+      history.entries.splice(history.index + 1);
+      history.entries.push({ state: next, url });
+      history.index++;
+      sync();
+    },
     // Next.js ignores a call whose state already carries its internals (`__NA`): the URL changes but
     // `useSearchParams` does not. The fake reports that so the test can catch it.
     replaceState(next: unknown, _title: string, url: string) {
       if ((next as { __NA?: boolean } | null)?.__NA) ignoredByNext.push(url);
-      history.entries[history.index] = { state: next, url }; sync();
+      history.entries[history.index] = { state: next, url };
+      sync();
     },
-    back() { if (history.index > 0) { history.index--; sync(); } },
+    back() {
+      if (history.index > 0) {
+        history.index--;
+        sync();
+      }
+    },
   };
   (globalThis as unknown as { window: unknown }).window = { location, history: api };
   return { history, location };
@@ -102,7 +151,10 @@ test('replacing keeps the in-app marker without copying anything else', () => {
 
 test('with no window the helpers do nothing', () => {
   delete (globalThis as { window?: unknown }).window;
-  assert.doesNotThrow(() => { navigateDesk({ view: 'team' }); leaveTicket(); });
+  assert.doesNotThrow(() => {
+    navigateDesk({ view: 'team' });
+    leaveTicket();
+  });
 });
 
 test('a settings section lives in the URL and only counts for the settings view', () => {
@@ -116,7 +168,8 @@ test('a settings section lives in the URL and only counts for the settings view'
   assert.equal(deskQuery({ view: 'settings', section: 'backups' }), '?view=settings&section=backups');
   assert.equal(deskQuery({ view: 'team', section: 'mail' }), '?view=team');
   assert.equal(deskQuery({ ticketId: 3, view: 'settings', section: 'mail' }), '?ticket=3');
-  for (const section of SETTINGS_SECTIONS) assert.equal(parseDeskLocation(params(deskQuery({ view: 'settings', section }).slice(1))).section, section);
+  for (const section of SETTINGS_SECTIONS)
+    assert.equal(parseDeskLocation(params(deskQuery({ view: 'settings', section }).slice(1))).section, section);
   assert.equal(isSettingsSection('mail'), true);
   assert.equal(isSettingsSection('__proto__'), false);
 });

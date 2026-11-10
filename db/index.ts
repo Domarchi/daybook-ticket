@@ -12,7 +12,12 @@ export function getPool(): Pool {
   if (!pool) {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) throw new Error('Falta configurar DATABASE_URL.');
-    pool = new Pool({ connectionString: explicitSslMode(connectionString), max: 5, idleTimeoutMillis: 5000, connectionTimeoutMillis: 10000 });
+    pool = new Pool({
+      connectionString: explicitSslMode(connectionString),
+      max: 5,
+      idleTimeoutMillis: 5000,
+      connectionTimeoutMillis: 10000,
+    });
     attachDatabasePool(pool);
     pool.on('error', () => console.error('Daybook Ticket database connection unavailable'));
   }

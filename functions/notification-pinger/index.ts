@@ -6,7 +6,8 @@ const notificationPinger = {
     if (environment !== 'qa' && environment !== 'production') return new Response('Unconfigured', { status: 503 });
     try {
       return await createNotificationPinger({
-        enabled: process.env.DAYBOOK_PINGER_ENABLED === 'true', environment,
+        enabled: process.env.DAYBOOK_PINGER_ENABLED === 'true',
+        environment,
         targetOrigin: process.env.DAYBOOK_NOTIFICATION_TARGET_ORIGIN || '',
         expectedTriggerId: process.env.DAYBOOK_EXPECTED_TRIGGER_ID || '',
         jobSecret: process.env.DAYBOOK_NOTIFICATION_JOB_SECRET || '',
@@ -18,7 +19,9 @@ const notificationPinger = {
         automationEnabled: process.env.DAYBOOK_AUTOMATION_JOB_ENABLED === 'true',
         automationJobSecret: process.env.DAYBOOK_AUTOMATION_JOB_SECRET,
       })(request);
-    } catch { return new Response('Unconfigured', { status: 503 }); }
+    } catch {
+      return new Response('Unconfigured', { status: 503 });
+    }
   },
 };
 

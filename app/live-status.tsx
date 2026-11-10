@@ -9,5 +9,10 @@ const labels: Record<ConnectionStatus, string> = {
 };
 
 export function LiveStatus({ connection }: { connection: ConnectionStatus }) {
-  return <span className={`conversation-sync ${connection}`} role="status"><span aria-hidden="true" />{labels[connection]}</span>;
+  return (
+    <span className={`conversation-sync ${connection}`} role="status">
+      <span aria-hidden="true" />
+      {labels[connection]}
+    </span>
+  );
 }

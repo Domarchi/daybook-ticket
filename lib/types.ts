@@ -45,7 +45,13 @@ export interface Ticket {
   slaPolicySnapshot?: string | null;
   slaStartedAt?: string | null;
 }
-export interface MessageQuote { id: number; author: string; body: string; kind: MessageKind; createdAt: string }
+export interface MessageQuote {
+  id: number;
+  author: string;
+  body: string;
+  kind: MessageKind;
+  createdAt: string;
+}
 export interface Message {
   replyToMessageId?: number | null;
   quote?: MessageQuote | null;
@@ -61,13 +67,47 @@ export interface Message {
   createdAt: string;
   attachments: Attachment[];
 }
-export interface CustomerCompany { id: string; name: string; createdAt: string; updatedAt: string }
-export interface SavedReply { id: string; title: string; category: string; body: string; createdAt: string; updatedAt: string }
-export interface TicketEvent { id: string; ticketId: number; actorMemberId: string | null; actorName: string; action: string; beforeValue: string | null; afterValue: string | null; createdAt: string }
-export interface Attachment { id: string; name: string; size: number; contentType: string }
+export interface CustomerCompany {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface SavedReply {
+  id: string;
+  title: string;
+  category: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface TicketEvent {
+  id: string;
+  ticketId: number;
+  actorMemberId: string | null;
+  actorName: string;
+  action: string;
+  beforeValue: string | null;
+  afterValue: string | null;
+  createdAt: string;
+}
+export interface Attachment {
+  id: string;
+  name: string;
+  size: number;
+  contentType: string;
+}
 export interface TicketAlert {
   id: string;
-  event: 'ticket_created' | 'agent_replied' | 'client_replied' | 'reminder' | 'escalation' | 'satisfaction_requested' | 'member_mentioned' | 'ticket_followed_update';
+  event:
+    | 'ticket_created'
+    | 'agent_replied'
+    | 'client_replied'
+    | 'reminder'
+    | 'escalation'
+    | 'satisfaction_requested'
+    | 'member_mentioned'
+    | 'ticket_followed_update';
   ticketId: number;
   subject: string;
   createdAt: string;

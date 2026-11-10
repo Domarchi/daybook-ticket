@@ -17,7 +17,10 @@ test('another origin, a sibling subdomain or the literal null origin is rejected
 });
 
 test('Origin wins over Sec-Fetch-Site when both are present', () => {
-  assert.equal(mutationOriginAllowed(headers({ origin: 'https://evil.example', 'sec-fetch-site': 'same-origin' }), site), false);
+  assert.equal(
+    mutationOriginAllowed(headers({ origin: 'https://evil.example', 'sec-fetch-site': 'same-origin' }), site),
+    false,
+  );
 });
 
 test('without Origin a browser that reports a cross-site or same-site request is rejected', () => {

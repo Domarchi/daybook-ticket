@@ -43,7 +43,9 @@ export class PreparedStatement {
 export class Database {
   private readonly pool: Pool;
 
-  constructor(pool: Pool) { this.pool = pool; }
+  constructor(pool: Pool) {
+    this.pool = pool;
+  }
 
   prepare(sql: string): PreparedStatement {
     return new PreparedStatement(this, sql);
@@ -62,14 +64,21 @@ export class Database {
       await client.query('COMMIT');
       return value;
     } catch (error) {
-      try { await client.query('ROLLBACK'); } catch { /* Preserve original error. */ }
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* Preserve original error. */
+      }
       throw error;
-    } finally { client.release(); }
+    } finally {
+      client.release();
+    }
   }
 
   async batch<T = Record<string, unknown>>(statements: readonly PreparedStatement[]): Promise<DatabaseResult<T>[]> {
     if (statements.length === 0) return [];
-    if (statements.some(statement => statement.database !== this)) throw new Error('Statement belongs to another database.');
+    if (statements.some(statement => statement.database !== this))
+      throw new Error('Statement belongs to another database.');
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
@@ -79,7 +88,11 @@ export class Database {
       await client.query('COMMIT');
       return results;
     } catch (error) {
-      try { await client.query('ROLLBACK'); } catch { /* Preserve the original failure. */ }
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        /* Preserve the original failure. */
+      }
       throw error;
     } finally {
       client.release();

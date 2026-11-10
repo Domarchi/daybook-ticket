@@ -23,7 +23,11 @@ export function describeError(error: unknown): { errorName: string; errorCode?: 
   };
 }
 
-export function logEvent(level: LogLevel, event: string, fields: Record<string, string | number | boolean | null | undefined> = {}): void {
+export function logEvent(
+  level: LogLevel,
+  event: string,
+  fields: Record<string, string | number | boolean | null | undefined> = {},
+): void {
   const line = JSON.stringify({ level, event, at: new Date().toISOString(), ...fields });
   if (level === 'error') console.error(line);
   else if (level === 'warn') console.warn(line);

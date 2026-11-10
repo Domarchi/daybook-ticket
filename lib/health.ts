@@ -13,7 +13,12 @@ export function appVersion(env: Record<string, string | undefined> = process.env
   return (env.VERCEL_GIT_COMMIT_SHA || env.DAYBOOK_APP_VERSION || 'unknown').slice(0, 12);
 }
 
-export async function checkHealth(options: { deep: boolean; probe: () => Promise<unknown>; now?: number; version?: string }): Promise<HealthResult> {
+export async function checkHealth(options: {
+  deep: boolean;
+  probe: () => Promise<unknown>;
+  now?: number;
+  version?: string;
+}): Promise<HealthResult> {
   const version = options.version ?? appVersion();
   if (!options.deep) return { status: 'ok', version };
   const now = options.now ?? Date.now();
@@ -22,7 +27,9 @@ export async function checkHealth(options: { deep: boolean; probe: () => Promise
     try {
       await Promise.race([
         options.probe(),
-        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), PROBE_TIMEOUT_MS); }),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('timeout')), PROBE_TIMEOUT_MS);
+        }),
       ]);
       cached = { at: now, ok: true };
     } catch {
@@ -31,7 +38,11 @@ export async function checkHealth(options: { deep: boolean; probe: () => Promise
       if (timer) clearTimeout(timer);
     }
   }
-  return cached.ok ? { status: 'ok', version, database: 'ok' } : { status: 'degraded', version, database: 'unreachable' };
+  return cached.ok
+    ? { status: 'ok', version, database: 'ok' }
+    : { status: 'degraded', version, database: 'unreachable' };
 }
 
-export function resetHealthCacheForTests(): void { cached = null; }
+export function resetHealthCacheForTests(): void {
+  cached = null;
+}

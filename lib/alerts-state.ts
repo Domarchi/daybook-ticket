@@ -1,9 +1,13 @@
 import type { TicketAlert } from './types';
 
 export const ALERT_VIEWER_HEADER = 'X-Daybook-Member-Id';
-export function matchesAlertsViewer(expected: string | null, memberId: string): boolean { return expected === memberId; }
+export function matchesAlertsViewer(expected: string | null, memberId: string): boolean {
+  return expected === memberId;
+}
 
-export function isUnreadAlert(item: TicketAlert): boolean { return !item.historical && item.readAt === null; }
+export function isUnreadAlert(item: TicketAlert): boolean {
+  return !item.historical && item.readAt === null;
+}
 
 /** Read state only moves forward; delayed polling cannot resurrect an acknowledged event. */
 export function mergeAlertPages(current: TicketAlert[], incoming: TicketAlert[], append = false): TicketAlert[] {

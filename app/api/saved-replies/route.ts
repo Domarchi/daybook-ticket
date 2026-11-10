@@ -9,7 +9,12 @@ export async function POST(request: Request) {
     const access = requireAdmin(await requireAccess(request));
     const data = await parseBody(request, savedReplySchema);
     const now = new Date().toISOString();
-    const savedReply = await db().prepare('INSERT INTO "savedReplies" (id,"ownerId",title,category,body,"createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$6) RETURNING id,title,category,body,"createdAt","updatedAt"').bind(crypto.randomUUID(),access.ownerId,data.title,data.category,data.body,now).first();
-    return json({ savedReply },201);
+    const savedReply = await db()
+      .prepare(
+        'INSERT INTO "savedReplies" (id,"ownerId",title,category,body,"createdAt","updatedAt") VALUES ($1,$2,$3,$4,$5,$6,$6) RETURNING id,title,category,body,"createdAt","updatedAt"',
+      )
+      .bind(crypto.randomUUID(), access.ownerId, data.title, data.category, data.body, now)
+      .first();
+    return json({ savedReply }, 201);
   });
 }

@@ -1,13 +1,183 @@
 import assert from 'node:assert/strict';
-import {test} from 'node:test';
-import {createNotificationPinger,type PingerConfiguration} from '../functions/notification-pinger/handler';
-const config:PingerConfiguration={enabled:true,environment:'qa',targetOrigin:'https://daybook-ticket-qa-maintenance.vercel.app',expectedTriggerId:'qa-trigger',jobSecret:'fictitious-reminder-secret-'.repeat(3),inboundEnabled:true,backupsEnabled:true,serviceContextEnabled:true,serviceContextJobSecret:'fictitious-service-secret-'.repeat(3),automationEnabled:true,automationJobSecret:'fictitious-automation-secret-'.repeat(3),automationBypassSecret:'fictitious-private-qa-bypass'};
-const payload={version:1,invocation_id:'qa-evolution',trigger:{id:'qa-trigger',type:'schedule'},data:{scheduled_at:'2026-11-05T15:00:00.000Z'}};
-const request=()=>new Request('https://qa.compute.cell.us-east-1.aws.neon.tech/tick',{method:'POST',headers:{'x-neon-trigger-invocation-id':payload.invocation_id},body:JSON.stringify(payload)});
-const paths=['/api/internal/notification-tick','/api/internal/inbound-tick','/api/internal/service-context-tick','/api/internal/automation-tick','/api/internal/backup-tick'];
-test('one existing pinger invokes bounded workers in order with separate authorization on the pinned QA origin',async()=>{const seen:string[]=[];const response=await createNotificationPinger(config,{fetch:async(input,init)=>{const url=new URL(String(input));seen.push(url.pathname);assert.equal(url.origin,config.targetOrigin);assert.equal(init?.redirect,'manual');const headers=new Headers(init?.headers);assert.equal(headers.get('x-vercel-protection-bypass'),config.automationBypassSecret);const secret=url.pathname.includes('service-context')?config.serviceContextJobSecret:url.pathname.endsWith('/automation-tick')?config.automationJobSecret:config.jobSecret;assert.equal(headers.get('authorization'),`Bearer ${secret}`);assert.deepEqual(JSON.parse(String(init?.body)),{invocationId:payload.invocation_id,scheduledAt:payload.data.scheduled_at});assert.ok(init?.signal);return Response.json({ok:true});}})(request());assert.equal(response.status,200);assert.deepEqual(seen,paths);});
-test('each independent worker failure leaves subsequent jobs running once without retrying or leaking secrets',async()=>{for(const failed of paths){for(const mode of ['throw','unavailable','redirect']){const seen:string[]=[];const result=await createNotificationPinger(config,{fetch:async input=>{const path=new URL(String(input)).pathname;seen.push(path);if(path===failed){if(mode==='throw')throw new Error(config.automationJobSecret);return new Response(null,{status:mode==='redirect'?307:503,headers:mode==='redirect'?{location:'https://foreign.example.test/tick'}:{}});}return Response.json({ok:true});}})(request());assert.equal(result.status,503);assert.deepEqual(seen,paths);const text=await result.text();for(const secret of [config.jobSecret,config.serviceContextJobSecret!,config.automationJobSecret!,config.automationBypassSecret!])assert.equal(text.includes(secret),false);}}});
-test('disabled and unspecified evolution workers neither require their secrets nor send requests',async()=>{for(const flags of [{serviceContextEnabled:false,automationEnabled:false},{serviceContextEnabled:undefined,automationEnabled:undefined}]){const seen:string[]=[];const result=await createNotificationPinger({...config,...flags,serviceContextJobSecret:undefined,automationJobSecret:undefined},{fetch:async input=>{seen.push(new URL(String(input)).pathname);return Response.json({ok:true});}})(request());assert.equal(result.status,200);assert.deepEqual(seen,[paths[0],paths[1],paths[4]]);}});
-test('a required job with a missing or invalid secret fails before any worker fetch',()=>{for(const worker of ['jobSecret','serviceContextJobSecret','automationJobSecret'] as const)for(const secret of [undefined,'short',' '.repeat(40),'x'.repeat(32)+'\n']){let calls=0;assert.throws(()=>createNotificationPinger({...config,[worker]:secret},{fetch:async()=>{calls++;return Response.json({ok:true});}}),/private (?:worker|scheduler) configuration/);assert.equal(calls,0);}});
-test('production cannot carry a bypass; trusted production calls omit QA protection headers',async()=>{assert.throws(()=>createNotificationPinger({...config,environment:'production',targetOrigin:'https://daybook-ticket.vercel.app'}),/Environment target mismatch/);const seen:string[]=[];const result=await createNotificationPinger({...config,environment:'production',targetOrigin:'https://daybook-ticket.vercel.app',automationBypassSecret:undefined},{fetch:async(input,init)=>{const url=new URL(String(input));assert.equal(url.origin,'https://daybook-ticket.vercel.app');assert.equal(new Headers(init?.headers).has('x-vercel-protection-bypass'),false);seen.push(url.pathname);return Response.json({ok:true});}})(request());assert.equal(result.status,200);assert.deepEqual(seen,paths);});
-test('global pause or an untrusted invocation reaches no worker',async()=>{for(const enabled of [false,true]){let calls=0;const handler=createNotificationPinger({...config,enabled},{fetch:async()=>{calls++;return Response.json({ok:true});}});const input=enabled?new Request('https://qa.compute.cell.us-east-1.aws.neon.tech/tick',{method:'POST',body:'{}'}):request();assert.equal((await handler(input)).status,enabled?401:503);assert.equal(calls,0);}});
+import { test } from 'node:test';
+import { createNotificationPinger, type PingerConfiguration } from '../functions/notification-pinger/handler';
+const config: PingerConfiguration = {
+  enabled: true,
+  environment: 'qa',
+  targetOrigin: 'https://daybook-ticket-qa-maintenance.vercel.app',
+  expectedTriggerId: 'qa-trigger',
+  jobSecret: 'fictitious-reminder-secret-'.repeat(3),
+  inboundEnabled: true,
+  backupsEnabled: true,
+  serviceContextEnabled: true,
+  serviceContextJobSecret: 'fictitious-service-secret-'.repeat(3),
+  automationEnabled: true,
+  automationJobSecret: 'fictitious-automation-secret-'.repeat(3),
+  automationBypassSecret: 'fictitious-private-qa-bypass',
+};
+const payload = {
+  version: 1,
+  invocation_id: 'qa-evolution',
+  trigger: { id: 'qa-trigger', type: 'schedule' },
+  data: { scheduled_at: '2026-11-05T15:00:00.000Z' },
+};
+const request = () =>
+  new Request('https://qa.compute.cell.us-east-1.aws.neon.tech/tick', {
+    method: 'POST',
+    headers: { 'x-neon-trigger-invocation-id': payload.invocation_id },
+    body: JSON.stringify(payload),
+  });
+const paths = [
+  '/api/internal/notification-tick',
+  '/api/internal/inbound-tick',
+  '/api/internal/service-context-tick',
+  '/api/internal/automation-tick',
+  '/api/internal/backup-tick',
+];
+test('one existing pinger invokes bounded workers in order with separate authorization on the pinned QA origin', async () => {
+  const seen: string[] = [];
+  const response = await createNotificationPinger(config, {
+    fetch: async (input, init) => {
+      const url = new URL(String(input));
+      seen.push(url.pathname);
+      assert.equal(url.origin, config.targetOrigin);
+      assert.equal(init?.redirect, 'manual');
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get('x-vercel-protection-bypass'), config.automationBypassSecret);
+      const secret = url.pathname.includes('service-context')
+        ? config.serviceContextJobSecret
+        : url.pathname.endsWith('/automation-tick')
+          ? config.automationJobSecret
+          : config.jobSecret;
+      assert.equal(headers.get('authorization'), `Bearer ${secret}`);
+      assert.deepEqual(JSON.parse(String(init?.body)), {
+        invocationId: payload.invocation_id,
+        scheduledAt: payload.data.scheduled_at,
+      });
+      assert.ok(init?.signal);
+      return Response.json({ ok: true });
+    },
+  })(request());
+  assert.equal(response.status, 200);
+  assert.deepEqual(seen, paths);
+});
+test('each independent worker failure leaves subsequent jobs running once without retrying or leaking secrets', async () => {
+  for (const failed of paths) {
+    for (const mode of ['throw', 'unavailable', 'redirect']) {
+      const seen: string[] = [];
+      const result = await createNotificationPinger(config, {
+        fetch: async input => {
+          const path = new URL(String(input)).pathname;
+          seen.push(path);
+          if (path === failed) {
+            if (mode === 'throw') throw new Error(config.automationJobSecret);
+            return new Response(null, {
+              status: mode === 'redirect' ? 307 : 503,
+              headers: mode === 'redirect' ? { location: 'https://foreign.example.test/tick' } : {},
+            });
+          }
+          return Response.json({ ok: true });
+        },
+      })(request());
+      assert.equal(result.status, 503);
+      assert.deepEqual(seen, paths);
+      const text = await result.text();
+      for (const secret of [
+        config.jobSecret,
+        config.serviceContextJobSecret!,
+        config.automationJobSecret!,
+        config.automationBypassSecret!,
+      ])
+        assert.equal(text.includes(secret), false);
+    }
+  }
+});
+test('disabled and unspecified evolution workers neither require their secrets nor send requests', async () => {
+  for (const flags of [
+    { serviceContextEnabled: false, automationEnabled: false },
+    { serviceContextEnabled: undefined, automationEnabled: undefined },
+  ]) {
+    const seen: string[] = [];
+    const result = await createNotificationPinger(
+      { ...config, ...flags, serviceContextJobSecret: undefined, automationJobSecret: undefined },
+      {
+        fetch: async input => {
+          seen.push(new URL(String(input)).pathname);
+          return Response.json({ ok: true });
+        },
+      },
+    )(request());
+    assert.equal(result.status, 200);
+    assert.deepEqual(seen, [paths[0], paths[1], paths[4]]);
+  }
+});
+test('a required job with a missing or invalid secret fails before any worker fetch', () => {
+  for (const worker of ['jobSecret', 'serviceContextJobSecret', 'automationJobSecret'] as const)
+    for (const secret of [undefined, 'short', ' '.repeat(40), 'x'.repeat(32) + '\n']) {
+      let calls = 0;
+      assert.throws(
+        () =>
+          createNotificationPinger(
+            { ...config, [worker]: secret },
+            {
+              fetch: async () => {
+                calls++;
+                return Response.json({ ok: true });
+              },
+            },
+          ),
+        /private (?:worker|scheduler) configuration/,
+      );
+      assert.equal(calls, 0);
+    }
+});
+test('production cannot carry a bypass; trusted production calls omit QA protection headers', async () => {
+  assert.throws(
+    () =>
+      createNotificationPinger({
+        ...config,
+        environment: 'production',
+        targetOrigin: 'https://daybook-ticket.vercel.app',
+      }),
+    /Environment target mismatch/,
+  );
+  const seen: string[] = [];
+  const result = await createNotificationPinger(
+    {
+      ...config,
+      environment: 'production',
+      targetOrigin: 'https://daybook-ticket.vercel.app',
+      automationBypassSecret: undefined,
+    },
+    {
+      fetch: async (input, init) => {
+        const url = new URL(String(input));
+        assert.equal(url.origin, 'https://daybook-ticket.vercel.app');
+        assert.equal(new Headers(init?.headers).has('x-vercel-protection-bypass'), false);
+        seen.push(url.pathname);
+        return Response.json({ ok: true });
+      },
+    },
+  )(request());
+  assert.equal(result.status, 200);
+  assert.deepEqual(seen, paths);
+});
+test('global pause or an untrusted invocation reaches no worker', async () => {
+  for (const enabled of [false, true]) {
+    let calls = 0;
+    const handler = createNotificationPinger(
+      { ...config, enabled },
+      {
+        fetch: async () => {
+          calls++;
+          return Response.json({ ok: true });
+        },
+      },
+    );
+    const input = enabled
+      ? new Request('https://qa.compute.cell.us-east-1.aws.neon.tech/tick', { method: 'POST', body: '{}' })
+      : request();
+    assert.equal((await handler(input)).status, enabled ? 401 : 503);
+    assert.equal(calls, 0);
+  }
+});

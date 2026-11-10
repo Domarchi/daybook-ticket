@@ -6,10 +6,43 @@ import { TicketCards } from '../app/desk-parts/ticket-cards';
 import type { Ticket } from '../lib/types';
 
 const now = Date.parse('2026-11-10T12:00:00Z');
-const base = { requesterName: 'Cliente de prueba', requesterEmail: 'c@example.test', department: 'Soporte técnico', createdAt: '2026-11-10T08:00:00Z', version: 1 };
-const late = { ...base, id: 7, subject: 'Reparto y SLA', status: 'open', priority: 'high', assignee: 'Mario Pino', updatedAt: '2026-11-10T11:00:00Z', dueAt: '2026-11-10T10:00:00Z' } as unknown as Ticket;
-const done = { ...base, id: 12, subject: 'Factura duplicada', status: 'resolved', priority: 'low', assignee: '', updatedAt: '2026-11-10T11:59:50Z', dueAt: '2026-11-11T10:00:00Z' } as unknown as Ticket;
-const render = (selected: number[] = []) => renderToStaticMarkup(createElement(TicketCards, { tickets: [late, done], selected, setSelected: () => undefined, now, onOpen: () => undefined }));
+const base = {
+  requesterName: 'Cliente de prueba',
+  requesterEmail: 'c@example.test',
+  department: 'Soporte técnico',
+  createdAt: '2026-11-10T08:00:00Z',
+  version: 1,
+};
+const late = {
+  ...base,
+  id: 7,
+  subject: 'Reparto y SLA',
+  status: 'open',
+  priority: 'high',
+  assignee: 'Mario Pino',
+  updatedAt: '2026-11-10T11:00:00Z',
+  dueAt: '2026-11-10T10:00:00Z',
+} as unknown as Ticket;
+const done = {
+  ...base,
+  id: 12,
+  subject: 'Factura duplicada',
+  status: 'resolved',
+  priority: 'low',
+  assignee: '',
+  updatedAt: '2026-11-10T11:59:50Z',
+  dueAt: '2026-11-11T10:00:00Z',
+} as unknown as Ticket;
+const render = (selected: number[] = []) =>
+  renderToStaticMarkup(
+    createElement(TicketCards, {
+      tickets: [late, done],
+      selected,
+      setSelected: () => undefined,
+      now,
+      onOpen: () => undefined,
+    }),
+  );
 
 test('each ticket is a card with a real link, readable status and a labelled checkbox', () => {
   const html = render();

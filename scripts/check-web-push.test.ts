@@ -18,7 +18,8 @@ test('only HTTPS browser push providers are accepted as delivery destinations', 
     'https://updates.push.services.mozilla.com/wpush/v2/token',
     'https://web.push.apple.com/token',
     'https://wns2-bl2p.notify.windows.com/w/?token=example',
-  ]) assert.equal(isPushEndpoint(endpoint), true, endpoint);
+  ])
+    assert.equal(isPushEndpoint(endpoint), true, endpoint);
 
   for (const endpoint of [
     'http://fcm.googleapis.com/fcm/send/token',
@@ -40,7 +41,8 @@ test('only HTTPS browser push providers are accepted as delivery destinations', 
     'data:text/plain,test',
     '/relative/path',
     `https://fcm.googleapis.com/${'x'.repeat(2048)}`,
-  ]) assert.equal(isPushEndpoint(endpoint), false, endpoint);
+  ])
+    assert.equal(isPushEndpoint(endpoint), false, endpoint);
 });
 
 test('subscription keys must be canonical base64url and a valid uncompressed P-256 point', () => {
@@ -55,7 +57,8 @@ test('subscription keys must be canonical base64url and a valid uncompressed P-2
     { ...valid.keys, auth: randomBytes(15).toString('base64url') },
     { ...valid.keys, auth: '/'.repeat(22) },
     { ...valid.keys, unknown: 'unexpected' },
-  ]) assert.equal(pushSubscriptionSchema.safeParse({ ...valid, keys }).success, false);
+  ])
+    assert.equal(pushSubscriptionSchema.safeParse({ ...valid, keys }).success, false);
 });
 
 test('subscription input cannot supply an owner, recipient, or unexpected delivery metadata', () => {
@@ -65,13 +68,23 @@ test('subscription input cannot supply an owner, recipient, or unexpected delive
     { ownerId: 'someone-else' },
     { active: true },
     { expirationTime: Infinity },
-  ]) assert.equal(pushSubscriptionSchema.safeParse({ ...valid, ...additional }).success, false);
+  ])
+    assert.equal(pushSubscriptionSchema.safeParse({ ...valid, ...additional }).success, false);
 });
 
 test('provider failures expose only bounded classifications and distinguish expired endpoints', () => {
-  for (const statusCode of [404, 410]) assert.equal(classifyPushFailure({ statusCode, body: 'private-capability' }), 'expired_subscription');
-  for (const error of [undefined, new Error('secret endpoint'), { statusCode: 408 }, { statusCode: 429 }, { statusCode: 500 }, { statusCode: 503 }]) {
+  for (const statusCode of [404, 410])
+    assert.equal(classifyPushFailure({ statusCode, body: 'private-capability' }), 'expired_subscription');
+  for (const error of [
+    undefined,
+    new Error('secret endpoint'),
+    { statusCode: 408 },
+    { statusCode: 429 },
+    { statusCode: 500 },
+    { statusCode: 503 },
+  ]) {
     assert.equal(classifyPushFailure(error), 'provider_unavailable');
   }
-  for (const statusCode of [400, 401, 403, 413]) assert.equal(classifyPushFailure({ statusCode, body: 'private-capability' }), 'provider_rejected');
+  for (const statusCode of [400, 401, 403, 413])
+    assert.equal(classifyPushFailure({ statusCode, body: 'private-capability' }), 'provider_rejected');
 });
