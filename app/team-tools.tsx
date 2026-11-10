@@ -11,25 +11,28 @@ type Activity = { id: string; actorName: string; action: string; beforeValue: st
 const date = (value: string) => new Intl.DateTimeFormat('es-CL', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 const actionLabels: Record<string, string> = { automation_applied:'Regla interna aplicada',task_template_applied:'Plantilla de tareas aplicada',ticket_linked:'Caso vinculado',ticket_unlinked:'Vínculo retirado', service_context:'Contexto del servicio actualizado', organization:'Organización del ticket actualizada', task_created:'Tarea interna creada', task_updated:'Tarea interna actualizada', isTest: 'Marca de prueba', automatic_assignment: 'Asignación automática', status: 'Estado actualizado', priority: 'Prioridad actualizada', assigneeMemberId: 'Responsable actualizado', customerCompanyId: 'Empresa actualizada', requesterMemberId: 'Solicitante actualizado', subject: 'Asunto actualizado', department: 'Departamento actualizado', created: 'Ticket creado', ticket_created: 'Ticket creado', claimed: 'Ticket tomado', assigned: 'Responsable actualizado', reassigned: 'Responsable actualizado', assignment_changed: 'Responsable actualizado', status_changed: 'Estado actualizado', priority_changed: 'Prioridad actualizada', department_changed: 'Departamento actualizado', company_linked: 'Empresa vinculada', company_changed: 'Empresa actualizada', replied: 'Respuesta registrada', reply_created: 'Respuesta registrada', note_created: 'Nota interna registrada', reopened: 'Ticket reabierto', resolved: 'Ticket resuelto', updated: 'Ticket actualizado' };
 
-export function AssignmentControls({ ticket, members, viewerId, busy, run, refresh }: { ticket: Ticket; members: Member[]; viewerId: string; busy: boolean; run: RunAction; refresh: () => Promise<unknown> }) {
+export function AssignmentControls({ ticket, members, viewerId, busy, onSaved, onConflict }: { ticket: Ticket; members: Member[]; viewerId: string; busy: boolean; onSaved: (ticket: Ticket) => void; onConflict: () => void }) {
   const [assignee, setAssignee] = useState(ticket.assigneeMemberId || '');
+  const [saving, setSaving] = useState(false), [problem, setProblem] = useState('');
   const staff = members.filter(member => member.role !== 'client' && member.status === 'active');
-  const save = (claim: boolean) => run(async () => {
+  // Only the assignment controls wait while this saves; the rest of the ticket stays usable.
+  const save = async (claim: boolean) => {
+    setSaving(true); setProblem('');
     try {
-      await clientRequest(`/api/tickets/${ticket.id}${claim ? '/claim' : ''}`, claim ? 'POST' : 'PATCH', { expectedVersion: ticket.version, ...(claim ? {} : { assigneeMemberId: assignee || null }) });
+      const result = await clientRequest<{ ticket: Ticket }>(`/api/tickets/${ticket.id}${claim ? '/claim' : ''}`, claim ? 'POST' : 'PATCH', { expectedVersion: ticket.version, ...(claim ? {} : { assigneeMemberId: assignee || null }) });
+      if (result?.ticket) onSaved(result.ticket);
     } catch (error) {
-      if (error instanceof ClientRequestError && error.status === 409) {
-        await refresh();
-        throw new Error('Otra persona actualizó este ticket. Mostramos la asignación actual; revísala antes de volver a cambiarla.');
-      }
-      throw error;
-    }
-  }, 'Asignación actualizada');
-  return <div className="ticket-assignment-controls">
-    {!ticket.assigneeMemberId && <button className="secondary" type="button" disabled={busy} onClick={() => save(true)}><UserCheck size={16}/>Tomar ticket</button>}
+      if (error instanceof ClientRequestError && error.status === 409) { onConflict(); setProblem('Otra persona actualizó este ticket. Mostramos la asignación actual; revísala antes de volver a cambiarla.'); }
+      else setProblem(error instanceof Error ? error.message : 'No se pudo cambiar la asignación.');
+    } finally { setSaving(false); }
+  };
+  const wait = busy || saving;
+  return <div className="ticket-assignment-controls" aria-busy={wait}>
+    {!ticket.assigneeMemberId && <button className="secondary" type="button" disabled={wait} onClick={() => save(true)}><UserCheck size={16}/>Tomar ticket</button>}
     {ticket.assigneeMemberId === viewerId && <p className="assignment-note"><Check size={14}/>Tú eres responsable de este ticket.</p>}
-    <label>Responsable<select value={assignee} disabled={busy} onChange={event => setAssignee(event.target.value)}><option value="">Sin asignar</option>{ticket.assigneeMemberId && !staff.some(member => member.id === ticket.assigneeMemberId) && <option value={ticket.assigneeMemberId} disabled>{ticket.assignee} · sin acceso activo</option>}{staff.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>
-    {assignee !== (ticket.assigneeMemberId || '') && <button className="secondary" type="button" disabled={busy} onClick={() => save(false)}>Confirmar asignación</button>}
+    <label>Responsable<select value={assignee} disabled={wait} onChange={event => setAssignee(event.target.value)}><option value="">Sin asignar</option>{ticket.assigneeMemberId && !staff.some(member => member.id === ticket.assigneeMemberId) && <option value={ticket.assigneeMemberId} disabled>{ticket.assignee} · sin acceso activo</option>}{staff.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>
+    {assignee !== (ticket.assigneeMemberId || '') && <button className="secondary" type="button" disabled={wait} onClick={() => save(false)}>Confirmar asignación</button>}
+    {problem && <p className="field-problem" role="alert">{problem}</p>}
   </div>;
 }
 
