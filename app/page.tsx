@@ -7,7 +7,7 @@ import { requireAccess } from '@/lib/access';
 import { ApiError } from '@/lib/server';
 import { ticketLoginPath, portalReturnPath } from '../lib/return-path';
 export const dynamic = 'force-dynamic';
-export default async function Home({ searchParams }: { searchParams: Promise<{ ticket?: string | string[];serviceContext?:string|string[];company?:string|string[];view?:string|string[] }> }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ ticket?: string | string[];serviceContext?:string|string[];company?:string|string[];view?:string|string[];section?:string|string[] }> }) {
   const destination=portalReturnPath('daybook',await searchParams);
   const user = await getDaybookUser();
   if (!user) redirect(ticketLoginPath(destination));

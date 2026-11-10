@@ -77,6 +77,16 @@ Cliente, responsable y empresa se elegían en una lista desplegable nativa que o
 - **Formulario «Nuevo ticket»**: sus listas de cuenta y responsable se mantienen nativas. El borrador (`lib/new-ticket-draft.ts`) lee los valores del formulario y su reintento compara cargas con reglas delicadas (`__auto__`, recibos inciertos); cambiar esos controles exige reescribir esa lógica con pruebas propias y no se mezcla con este cambio.
 - **`components/ui` (61 archivos de shadcn, sin importar desde la app)**: no se adopta el `combobox` que traen porque depende de `@base-ui/react` y de variables de tema (`text-muted-foreground`…) que esta aplicación no define. Su borrado, con los paquetes que solo ellos usan, va en un PR aparte.
 
+## C6. Configuración por secciones y barra de avisos más corta
+
+- **Subnavegación** (`app/desk-parts/settings-view.tsx`, `lib/settings-sections.ts`, `app/settings-nav.css`): Configuración dejaba nueve paneles apilados en una página larguísima. Ahora muestra una sección cada vez: **General** (marca, departamentos, responsables de avisos), **Correo y avisos**, **Organización** (si esa función está activa), **Copias de seguridad** (si la plataforma las permite), **Funciones** y **Negocio** (solo en espacios de negocio). La sección va en la URL (`/?view=settings&section=mail`; General es `/?view=settings`), así que Atrás, recargar y los enlaces compartidos funcionan, y cada pestaña es un enlace real (clic central, nueva pestaña). Un enlace a una sección que ese espacio no tiene abre General. En móvil las secciones se desplazan en horizontal.
+- **Retorno tras iniciar sesión**: `lib/return-path.ts` acepta `section` solo con `view=settings` y un nombre conocido que no sea General.
+- **Lenguaje**: el título «Hazlo tuyo» pasa a «Configuración» y el panel de funciones deja de hablar de «entregas» («Activa o pausa partes de Daybook en este espacio. Pausar una función conserva sus datos…»); el aviso de base de datos pendiente se explica sin jerga.
+- **Barra de avisos** (`app/push-menu.tsx`): con los avisos de escritorio activos la barra mostraba cuatro controles seguidos («Avisos en este equipo», «Probar aviso», «Probar en este equipo», «Desactivar»), que en móvil se apilaban. Ahora es un solo botón «Avisos en este equipo» que abre un panel con esas tres acciones y su explicación; Escape o un clic fuera lo cierran y el foco vuelve al botón. El sonido y la campana siguen a la vista, el botón de sonido conserva su marca `data-sound-toggle` (la usa el desbloqueo del audio) y el resultado de una prueba sigue visible con el panel cerrado. Los demás estados (activar, bloqueado, error, no disponible) no cambian.
+
+### No incluido
+La barra de apariencia/estado/avisos no se reorganiza más allá de eso, y las vistas Equipo, Atención y Métricas siguen con sus paneles apilados.
+
 ## Verificación
 `npm run check`: lint, pruebas, tipos y build correctos. La lógica de URL y de retorno está cubierta por pruebas unitarias con un historial simulado (`scripts/desk-url.test.ts`, `scripts/check-portal-return-path.test.ts`).
 

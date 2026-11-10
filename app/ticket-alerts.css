@@ -70,3 +70,11 @@
   .ticket-alert-panel { max-height: min(480px, calc(100dvh - 180px)); }
   .ticket-alert-toast { right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); padding: 15px; }
 }
+
+/* Desktop-notification controls grouped in one panel (tokens only). The panel hangs from the whole row of controls, so it stays on screen when the button is not at the edge. */
+.ticket-alert-controls { position: relative; }
+.ticket-push-menu { position: static; }
+.ticket-push-menu-button { gap: 6px; }
+.ticket-push-panel { position: absolute; right: 0; top: calc(100% + 6px); z-index: 35; width: min(320px, calc(100vw - 32px)); display: grid; gap: 8px; padding: 14px; background: var(--color-surface); color: var(--color-text); border: 1px solid var(--color-border-strong); border-radius: 8px; box-shadow: 0 8px 24px #11120f26; }
+.ticket-push-panel p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--color-text-muted); }
+.ticket-push-panel .ticket-alert-control { justify-content: center; }
