@@ -40,6 +40,7 @@ test('every view survives a round trip and the inbox is the bare URL', () => {
   assert.equal(deskQuery({ view: 'service', companyId: 'nope' }), '?view=service');
 });
 
+const ignoredByNext: string[] = [];
 type FakeHistory = { entries: { state: unknown; url: string }[]; index: number; state: unknown };
 function fakeBrowser(start: string, state: unknown = null) {
   const history: FakeHistory = { entries: [{ state, url: start }], index: 0, state };
@@ -48,7 +49,12 @@ function fakeBrowser(start: string, state: unknown = null) {
   const api = {
     get state() { return history.state; },
     pushState(next: unknown, _title: string, url: string) { history.entries.splice(history.index + 1); history.entries.push({ state: next, url }); history.index++; sync(); },
-    replaceState(next: unknown, _title: string, url: string) { history.entries[history.index] = { state: next, url }; sync(); },
+    // Next.js ignores a call whose state already carries its internals (`__NA`): the URL changes but
+    // `useSearchParams` does not. The fake reports that so the test can catch it.
+    replaceState(next: unknown, _title: string, url: string) {
+      if ((next as { __NA?: boolean } | null)?.__NA) ignoredByNext.push(url);
+      history.entries[history.index] = { state: next, url }; sync();
+    },
     back() { if (history.index > 0) { history.index--; sync(); } },
   };
   (globalThis as unknown as { window: unknown }).window = { location, history: api };
@@ -80,10 +86,18 @@ test('leaving a ticket opened from the list goes back; a shared link goes to the
   assert.equal(opened.history.index, 0);
   assert.equal(opened.location.search, '');
 
-  const shared = fakeBrowser('/?ticket=4');
+  const shared = fakeBrowser('/?ticket=4', { __NA: true, __PRIVATE_NEXTJS_INTERNALS_TREE: [] });
   leaveTicket();
   assert.equal(shared.history.entries.length, 1, 'no extra entry and no trip out of the app');
   assert.equal(shared.location.search, '');
+  assert.deepEqual(ignoredByNext, [], 'Next.js internal state must not be passed back to replaceState');
+});
+
+test('replacing keeps the in-app marker without copying anything else', () => {
+  const { history } = fakeBrowser('/?ticket=4', { deskNav: true, __NA: true });
+  navigateDesk({ view: 'overview' }, 'replace');
+  assert.deepEqual(history.entries[0].state, { deskNav: true });
+  assert.deepEqual(ignoredByNext, []);
 });
 
 test('with no window the helpers do nothing', () => {

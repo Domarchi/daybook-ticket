@@ -41,7 +41,9 @@ En un espacio de negocio la ruta es la misma bajo `/w/<id>`. `?serviceContext=1`
 Los elementos del menú y las filas siguen siendo botones, no enlaces: no se puede abrir una vista en una pestaña nueva con clic central. Se hará junto con la bandeja móvil (C3), que toca esos mismos elementos.
 
 ## Verificación
-`npm run check`: lint, 455 pruebas, tipos y build correctos. La lógica de URL y de retorno está cubierta por pruebas unitarias con un historial simulado (`scripts/desk-url.test.ts`, `scripts/check-portal-return-path.test.ts`). **No se ha recorrido en un navegador con sesión**: los Preview no tienen base de datos, y probarlo exige iniciar sesión. Queda para la revisión manual (abrir un ticket, pulsar Atrás, recargar, abrir un enlace `?ticket=` y `?view=` en otra pestaña).
+`npm run check`: lint, pruebas, tipos y build correctos. La lógica de URL y de retorno está cubierta por pruebas unitarias con un historial simulado (`scripts/desk-url.test.ts`, `scripts/check-portal-return-path.test.ts`).
+
+Recorrido en producción con una sesión real (10 nov 2026, tras publicar `1a478e6`): abrir un ticket cambia la URL a `/?ticket=N`; Atrás vuelve a la bandeja y Adelante reabre el ticket; abrir `/?ticket=N` directamente muestra el ticket; Seguridad cambia a `/?view=security` y Atrás vuelve a la bandeja; `/?view=metrics` abre Métricas del equipo. Ese recorrido encontró un fallo: con un enlace directo, «Volver a la bandeja» cambiaba la URL pero dejaba el ticket en pantalla, porque `replaceState` recibía el estado interno de Next.js y Next lo trata como una llamada propia y no actualiza `useSearchParams`. Se corrige pasando un objeto nuevo, y la prueba simula ese comportamiento de Next para que no vuelva a pasar.
 
 ## Reversión
 Revertir el commit restaura el estado interno anterior; no hay datos ni migraciones.
