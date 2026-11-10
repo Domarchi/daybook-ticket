@@ -56,7 +56,12 @@ export function navigateDesk(next: DeskTarget, mode: 'push' | 'replace' = 'push'
   const target = `${window.location.pathname}${deskQuery(next)}`;
   if (target === `${window.location.pathname}${window.location.search}`) return;
   if (mode === 'push') window.history.pushState({ deskNav: true }, '', target);
-  else window.history.replaceState(window.history.state, '', target);
+  else {
+    // Never hand Next.js its own history state back: it treats that as an internal call and then
+    // leaves `useSearchParams` on the old URL. A fresh object lets it copy its internals itself.
+    const state = window.history.state as { deskNav?: boolean } | null;
+    window.history.replaceState(state?.deskNav ? { deskNav: true } : null, '', target);
+  }
 }
 
 /** Back to the list: a real "back" when the ticket was opened from inside the app, otherwise the inbox in place. */
