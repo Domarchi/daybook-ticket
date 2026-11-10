@@ -50,7 +50,7 @@ Fuera de esta entrega (Fase 3, tocan líneas que E7 modifica): `aria-current` de
 
 ## A5. Poda de dependencias
 
-Se quitan `@hookform/resolvers` y `date-fns` (cero importaciones; `date-fns` sigue llegando como dependencia de `react-day-picker`). Los 61 archivos de `components/ui` y sus paquetes (`radix-ui`, `recharts`, `cmdk`, `vaul`, `sonner`...) **no los importa ningún archivo de la aplicación**; su destino (adoptar o borrar) se decide en la Fase 3 con el resto de la interfaz.
+Se quitan `@hookform/resolvers` y `date-fns` (cero importaciones; `date-fns` sigue llegando como dependencia de `react-day-picker`). Los 61 archivos de `components/ui` y sus paquetes (`radix-ui`, `recharts`, `cmdk`, `vaul`, `sonner`...) **no los importa ningún archivo de la aplicación**; su destino se decidió en la Fase 3: se borraron con sus paquetes (ver `docs/QUALITY_PHASE_3.md`).
 
 ## A6. Límites de tasa por dominio
 

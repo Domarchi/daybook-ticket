@@ -87,6 +87,16 @@ Cliente, responsable y empresa se elegían en una lista desplegable nativa que o
 ### No incluido
 La barra de apariencia/estado/avisos no se reorganiza más allá de eso, y las vistas Equipo, Atención y Métricas siguen con sus paneles apilados.
 
+## Limpieza de `components/ui`
+
+Se borran los 61 archivos de `components/ui` (kit de shadcn que ninguna pantalla importaba, comprobado con `grep` y con `typecheck` y `build`), sus archivos de apoyo (`components.json`, `lib/utils.ts` con `cn`, `hooks/use-mobile.ts`) y la excepción de ESLint que existía para ellos. Con ellos salen 16 paquetes de producción que solo usaban esos archivos —`@base-ui/react`, `@shadcn/react`, `class-variance-authority`, `clsx`, `cmdk`, `embla-carousel-react`, `input-otp`, `next-themes`, `radix-ui`, `react-day-picker`, `react-hook-form`, `react-resizable-panels`, `recharts`, `sonner`, `tailwind-merge`, `vaul`— y `tw-animate-css` de desarrollo. Se conservan `tailwindcss` y `@tailwindcss/postcss` porque `app/globals.css` los importa (el reinicio de estilos y la clase `sr-only` salen de ahí).
+
+- Paquetes instalados: 782 → 615 en el lock; `node_modules` pasa de 755 MB a 642 MB y de 415 a 366 entradas.
+- El lock no cambia la versión de ningún paquete que se conserva.
+- Los chunks que genera la compilación no cambian de tamaño: ese código no se empaquetaba.
+- `npm audit --omit=dev` sigue con los mismos 10 avisos (5 moderados, 5 altos): ninguno venía de lo borrado (`zod` anidado en `@vercel/blob`, `source-map-js`, `drizzle-kit`/`esbuild`).
+- Si algún día hace falta un componente de ese estilo, se puede volver a añadir con `shadcn add` o recuperar de este historial (`git show eab91f4:components/ui/<archivo>`).
+
 ## Verificación
 `npm run check`: lint, pruebas, tipos y build correctos. La lógica de URL y de retorno está cubierta por pruebas unitarias con un historial simulado (`scripts/desk-url.test.ts`, `scripts/check-portal-return-path.test.ts`).
 
