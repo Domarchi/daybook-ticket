@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Building2, Check, Clock3, Edit3, Plus, RefreshCw, UserCheck } from 'lucide-react';
 import type { Member, Ticket } from '@/lib/types';
+import { Combobox } from './combobox';
 import { clientRequest, ClientRequestError } from '@/lib/client-request';
 
 export type CompanyItem = { id: string; name: string; createdAt: string; updatedAt: string };
@@ -30,7 +31,7 @@ export function AssignmentControls({ ticket, members, viewerId, busy, onSaved, o
   return <div className="ticket-assignment-controls" aria-busy={wait}>
     {!ticket.assigneeMemberId && <button className="secondary" type="button" disabled={wait} onClick={() => save(true)}><UserCheck size={16}/>Tomar ticket</button>}
     {ticket.assigneeMemberId === viewerId && <p className="assignment-note"><Check size={14}/>Tú eres responsable de este ticket.</p>}
-    <label>Responsable<select value={assignee} disabled={wait} onChange={event => setAssignee(event.target.value)}><option value="">Sin asignar</option>{ticket.assigneeMemberId && !staff.some(member => member.id === ticket.assigneeMemberId) && <option value={ticket.assigneeMemberId} disabled>{ticket.assignee} · sin acceso activo</option>}{staff.map(member => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>
+    <Combobox label="Responsable" value={assignee} disabled={wait} busy={wait} onChange={setAssignee} options={[{ value: '', label: 'Sin asignar' }, ...(ticket.assigneeMemberId && !staff.some(member => member.id === ticket.assigneeMemberId) ? [{ value: ticket.assigneeMemberId, label: `${ticket.assignee} · sin acceso activo`, disabled: true }] : []), ...staff.map(member => ({ value: member.id, label: member.name, hint: member.email }))]}/>
     {assignee !== (ticket.assigneeMemberId || '') && <button className="secondary" type="button" disabled={wait} onClick={() => save(false)}>Confirmar asignación</button>}
     {problem && <p className="field-problem" role="alert">{problem}</p>}
   </div>;
@@ -38,7 +39,7 @@ export function AssignmentControls({ ticket, members, viewerId, busy, onSaved, o
 
 export function TicketCompanyLink({ ticket, companies, busy, run }: { ticket: Ticket; companies: CompanyItem[]; busy: boolean; run: RunAction }) {
   const [companyId, setCompanyId] = useState(ticket.customerCompanyId || '');
-  return <div className="ticket-company-link"><label>Empresa del ticket<select value={companyId} disabled={busy} onChange={event => setCompanyId(event.target.value)}><option value="">Sin empresa</option>{companies.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}</select></label><small>Los contactos con acceso a toda esta empresa podrán ver este ticket y sus respuestas públicas. Este cambio conserva el vencimiento actual.</small>{companyId !== (ticket.customerCompanyId || '') && <button type="button" className="secondary" disabled={busy} onClick={() => run(() => clientRequest(`/api/tickets/${ticket.id}`, 'PATCH', { customerCompanyId: companyId || null, expectedVersion: ticket.version }), 'Empresa del ticket actualizada')}>Confirmar vínculo de empresa</button>}</div>;
+  return <div className="ticket-company-link"><Combobox label="Empresa del ticket" value={companyId} disabled={busy} busy={busy} onChange={setCompanyId} options={[{ value: '', label: 'Sin empresa' }, ...companies.map(company => ({ value: company.id, label: company.name }))]}/><small>Los contactos con acceso a toda esta empresa podrán ver este ticket y sus respuestas públicas. Este cambio conserva el vencimiento actual.</small>{companyId !== (ticket.customerCompanyId || '') && <button type="button" className="secondary" disabled={busy} onClick={() => run(() => clientRequest(`/api/tickets/${ticket.id}`, 'PATCH', { customerCompanyId: companyId || null, expectedVersion: ticket.version }), 'Empresa del ticket actualizada')}>Confirmar vínculo de empresa</button>}</div>;
 }
 
 export function TicketActivity({ ticketId, members, companies }: { ticketId: number; members: Member[]; companies: CompanyItem[] }) {

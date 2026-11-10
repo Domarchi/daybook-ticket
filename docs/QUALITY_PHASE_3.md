@@ -63,6 +63,20 @@ Estado, prioridad, departamento y cuenta del cliente de un ticket se aplican en 
 ### No incluido
 Nuevas acciones masivas (asignar, prioridad) y deshacer para acciones masivas.
 
+## C5. Combobox con búsqueda
+
+Cliente, responsable y empresa se elegían en una lista desplegable nativa que obliga a recorrerla entera. Ahora son un combobox con búsqueda (`app/combobox.tsx`, `lib/combobox.ts`, `app/combobox.css`):
+
+- **Dónde**: «Cuenta del cliente», «Responsable» y «Empresa del ticket» en el detalle del ticket, y los filtros de empresa y agente de la bandeja (versión compacta). Estado, prioridad y departamento siguen siendo listas nativas: son pocas opciones.
+- **Búsqueda**: se escribe para filtrar, sin distinguir mayúsculas ni acentos («joaquin» encuentra «Joaquín»), por nombre **o** por el texto de apoyo (el correo); deben coincidir todas las palabras y los nombres que empiezan por lo escrito salen primero. Las opciones deshabilitadas (p. ej. «· sin acceso activo») se muestran, pero no se pueden elegir.
+- **Teclado y lector de pantalla**: patrón ARIA 1.2 de «combobox editable con lista» (`role="combobox"`, `aria-expanded`, `aria-controls`, `aria-activedescendant`, `role="listbox"`/`option`). Flechas mueven (saltan las deshabilitadas y dan la vuelta), Inicio/Fin, Enter elige, Escape cierra sin cambiar, Tab cierra. Anuncia «N resultados» / «Sin resultados». Objetivos de 44 px.
+- **La lista se dibuja sobre la página** (portal), no dentro del panel: los paneles recortan su contenido y la lista se cortaba. Se coloca bajo el campo, o encima si abajo no hay sitio.
+- **Aspecto**: solo tokens de diseño (modo oscuro automático). Nuevo token `--color-border-strong` para el borde de los controles, con contraste de 3:1 como mínimo (WCAG 1.4.11) comprobado por `scripts/design-tokens.test.ts`; el borde nativo anterior (#b5b9b3) no llegaba a 2:1.
+
+### No incluido
+- **Formulario «Nuevo ticket»**: sus listas de cuenta y responsable se mantienen nativas. El borrador (`lib/new-ticket-draft.ts`) lee los valores del formulario y su reintento compara cargas con reglas delicadas (`__auto__`, recibos inciertos); cambiar esos controles exige reescribir esa lógica con pruebas propias y no se mezcla con este cambio.
+- **`components/ui` (61 archivos de shadcn, sin importar desde la app)**: no se adopta el `combobox` que traen porque depende de `@base-ui/react` y de variables de tema (`text-muted-foreground`…) que esta aplicación no define. Su borrado, con los paquetes que solo ellos usan, va en un PR aparte.
+
 ## Verificación
 `npm run check`: lint, pruebas, tipos y build correctos. La lógica de URL y de retorno está cubierta por pruebas unitarias con un historial simulado (`scripts/desk-url.test.ts`, `scripts/check-portal-return-path.test.ts`).
 

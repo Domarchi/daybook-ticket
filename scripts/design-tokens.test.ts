@@ -36,6 +36,7 @@ const pairs: Array<[string, string, number, string]> = [
   ['--color-text-muted', '--color-bg', 4.5, 'secondary text'], ['--color-text-muted', '--color-surface', 4.5, 'secondary text on cards'],
   ['--color-accent', '--color-surface', 4.5, 'accent text'], ['--color-accent', '--color-accent-soft', 4.5, 'tags'],
   ['--color-danger-text', '--color-danger-bg', 4.5, 'error banner'],
+  ['--color-border-strong', '--color-surface', 3, 'form control border'], ['--color-border-strong', '--color-bg', 3, 'form control border on the page'],
   ['--color-focus', '--color-bg', 3, 'focus ring'], ['--color-focus', '--color-surface', 3, 'focus ring on cards'],
 ];
 
@@ -63,7 +64,7 @@ test('semantic tokens match the legacy palette they alias (no silent drift)', ()
 });
 
 test('every token used by the token-based sheets is defined', () => {
-  for (const sheet of ['accessibility.css', 'mobile-inbox.css', 'optimistic.css']) {
+  for (const sheet of ['accessibility.css', 'mobile-inbox.css', 'optimistic.css', 'combobox.css']) {
     const used = [...read(sheet).matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
     assert.ok(used.length > 0, `${sheet} should use tokens`);
     for (const name of used) assert.ok(name in light, `${name} (used by ${sheet}) is not defined in tokens.css`);
