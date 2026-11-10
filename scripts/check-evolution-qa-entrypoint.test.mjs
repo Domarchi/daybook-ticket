@@ -15,10 +15,11 @@ test('QA migration entry point requires an exact reviewed prefix and isolated ho
   assert.equal(url.hostname, 'ep-falling-water-bbfa4ijl.c-15.us-east-1.aws.neon.tech');
   assert.equal(url.searchParams.get('sslmode'), 'verify-full');
   assert.equal(validateEvolutionQaArguments(['--through=0013', '--apply'], environment).mode, 'apply');
+  assert.equal(validateEvolutionQaArguments(['--through=0014'], environment).through, '0014');
   for (const args of [
     [],
     ['--apply'],
-    ['--through=0014'],
+    ['--through=0015'],
     ['--through=0013', '--through=0013'],
     ['--through=0013', '--force'],
     ['--audit', '--through=0013'],

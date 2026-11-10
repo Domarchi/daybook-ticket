@@ -322,13 +322,17 @@ test('evolution requires a single explicit reviewed prefix, exact confirmation a
     through,
   });
   assert.equal(validateEvolutionCliArguments(['--apply', '--through=0007'], environment).mode, 'apply');
+  assert.deepEqual(validateEvolutionCliArguments(['--audit', '--through=0014'], {}), {
+    mode: 'audit',
+    through: '0014',
+  });
   for (const args of [
     [],
     ['--audit'],
     ['--apply', '--audit'],
     ['--apply', '--through=0007', 'secret'],
     ['--audit', '--through=0006'],
-    ['--audit', '--through=0014'],
+    ['--audit', '--through=0015'],
     ['--audit', '--through=7'],
     ['--audit', '--through=0007,0009'],
     ['--audit', '--through=0007;SELECT 1'],
@@ -826,4 +830,30 @@ test('failure summaries never print credentials, arbitrary operator codes or row
     result: 'FAIL',
     code: '55P03',
   });
+});
+
+test('0014 adds only the two reviewed ticket-queue indexes: no extension, data, column or constraint change', async () => {
+  const artifacts = await loadEvolutionMigrationArtifacts('0014');
+  assert.equal(artifacts.files.length, 15);
+  const last = artifacts.files[14];
+  assert.equal(last.tag, '0014_ticket_queue_indexes');
+  assert.equal(last.when, 1793912007000);
+  const sql = last.content.toString('utf8'),
+    plan = analyzeEvolutionSql(14, sql);
+  assert.deepEqual(plan.indexes, [
+    { name: 'tickets_owner_assignee_page', table: 'tickets' },
+    { name: 'tickets_owner_active_page', table: 'tickets' },
+  ]);
+  assert.deepEqual([plan.tables, plan.additions], [[], []]);
+  assert.equal(plan.replacesPushEndpoint, false);
+  assert.equal(plan.replacesAttachmentKind, false);
+  // The grammar still refuses anything that is not an index: extensions (pg_trgm was measured and left out), data and drops.
+  for (const statement of [
+    'CREATE EXTENSION pg_trgm;',
+    'DROP INDEX tickets_owner_page;',
+    "UPDATE tickets SET status = 'open';",
+    'CREATE INDEX CONCURRENTLY x ON tickets (id) ; INSERT INTO tickets DEFAULT VALUES;',
+  ])
+    assert.throws(() => analyzeEvolutionSql(14, `${sql}\n${statement}`), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(15, sql), MigrationOperatorError);
 });
