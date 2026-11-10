@@ -6,13 +6,22 @@ import { TicketAlertTracker } from '../lib/alert-tracker';
 import type { TicketAlert } from '../lib/types';
 
 const item = (id: string, patch: Partial<TicketAlert> = {}): TicketAlert => ({
-  id, event: 'ticket_created', ticketId: 1, subject: 'Ficticio', createdAt: '2026-11-04T15:00:00.000Z',
-  readAt: null, historical: false, ...patch,
+  id,
+  event: 'ticket_created',
+  ticketId: 1,
+  subject: 'Ficticio',
+  createdAt: '2026-11-04T15:00:00.000Z',
+  readAt: null,
+  historical: false,
+  ...patch,
 });
 
 test('keyset cursor preserves the ID tie-breaker and validates untrusted input', () => {
   const cursor = { createdAt: '2026-11-04T15:00:00.000Z', id: '6ce7a8f9-82d6-4366-82ab-e4f132189138' };
-  assert.deepEqual(parseAlertsQuery(new URLSearchParams({ cursor: encodeAlertCursor(cursor), filter: 'unread', limit: '50' })), { cursor, filter: 'unread', limit: 50 });
+  assert.deepEqual(
+    parseAlertsQuery(new URLSearchParams({ cursor: encodeAlertCursor(cursor), filter: 'unread', limit: '50' })),
+    { cursor, filter: 'unread', limit: 50 },
+  );
   assert.throws(() => parseAlertsQuery(new URLSearchParams({ cursor: 'invalid' })));
   assert.throws(() => parseAlertsQuery(new URLSearchParams({ limit: '51' })));
   assert.throws(() => parseAlertsQuery(new URLSearchParams({ filter: 'other-account' })));
@@ -41,7 +50,11 @@ test('late poll and overlapping pages cannot undo acknowledged reading or duplic
   const read = item('one', { readAt: '2026-11-04T15:10:00.000Z' });
   assert.deepEqual(mergeAlertPages([read], [item('one')]), [read]);
   assert.deepEqual(mergeAlertPages([item('one')], [read, item('two')], true), [read, item('two')]);
-  assert.deepEqual(mergeAlertPages([read, item('gone')], [item('one')]), [read], 'A refreshed authorized page removes unavailable items.');
+  assert.deepEqual(
+    mergeAlertPages([read, item('gone')], [item('one')]),
+    [read],
+    'A refreshed authorized page removes unavailable items.',
+  );
 });
 
 test('historical, previously read and paginated history never replay chimes', () => {
@@ -50,7 +63,10 @@ test('historical, previously read and paginated history never replay chimes', ()
   const history = item('history', { historical: true });
   const read = item('read', { readAt: '2026-11-04T15:10:00.000Z' });
   assert.deepEqual(tracker.receive('account:agent', [history, read]), []);
-  assert.deepEqual(tracker.receive('account:agent', [history, read, item('fresh', { event: 'reminder' })]).map(alert => alert.id), ['fresh']);
+  assert.deepEqual(
+    tracker.receive('account:agent', [history, read, item('fresh', { event: 'reminder' })]).map(alert => alert.id),
+    ['fresh'],
+  );
   assert.deepEqual(tracker.receive('different:agent', [item('fresh')]), []);
 });
 
@@ -58,5 +74,8 @@ test('a saved read arriving before an old workspace poll suppresses its chime', 
   const tracker = new TicketAlertTracker();
   tracker.receive('account:agent', []);
   tracker.acknowledge(['already-read']);
-  assert.deepEqual(tracker.receive('account:agent', [item('already-read'), item('new')]).map(alert => alert.id), ['new']);
+  assert.deepEqual(
+    tracker.receive('account:agent', [item('already-read'), item('new')]).map(alert => alert.id),
+    ['new'],
+  );
 });

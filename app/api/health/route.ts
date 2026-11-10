@@ -8,5 +8,8 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   const deep = new URL(request.url).searchParams.get('deep') === '1';
   const result = await checkHealth({ deep, probe: () => db().prepare('SELECT 1 AS ok').first() });
-  return Response.json(result, { status: result.status === 'ok' ? 200 : 503, headers: { 'Cache-Control': 'no-store' } });
+  return Response.json(result, {
+    status: result.status === 'ok' ? 200 : 503,
+    headers: { 'Cache-Control': 'no-store' },
+  });
 }

@@ -1,4 +1,65 @@
 import type { CompanyMonthlyReport } from '../lib/knowledge-model';
-export function knowledgeReportFixture(long=false):CompanyMonthlyReport {
- return {id:'00000000-0000-4000-8000-000000000001',companyId:'00000000-0000-4000-8000-000000000002',month:'2026-10',createdAt:'2026-11-05T15:00:00.000Z',createdByMemberId:'00000000-0000-4000-8000-000000000003',report:{companyId:'00000000-0000-4000-8000-000000000002',companyName:long?'Empresa ficticia de ingeniería y servicios tecnológicos - pruebas de nombres extensos y contenido protegido':'Empresa de ejemplo',period:{companyId:'00000000-0000-4000-8000-000000000002',from:'2026-10-01',to:'2026-10-31',fromInstant:'2026-10-01T03:00:00.000Z',untilInstant:'2026-11-01T03:00:00.000Z',timeZone:'America/Santiago',includeTests:true},generatedAt:'2026-11-05T15:00:00.000Z',summary:{created:28,currentOpen:4,currentPending:3,currentOverdue:1,resolutions:21,slaMet:19,slaBreached:2,slaCompliancePercent:90.476190476,publicReplies:47,unknownResolved:2,untyped:3,withoutAsset:5},byType:long?Array.from({length:51},(_,i)=>({label:`Solicitud ${i+1}: conectividad, configuración de correo y estaciones de trabajo ${i%4===0?'con un nombre deliberadamente extenso para comprobar el ajuste de línea en el documento':''}`,count:52-i})):[{label:'Conectividad',count:12},{label:'Correo y cuentas',count:9},{label:'Equipos y aplicaciones',count:7}],byAsset:[{label:'Estación de trabajo - área de administración',count:8},{label:'Impresora principal',count:6},{label:'Equipo de red',count:4}],byDay:Array.from({length:31},(_,i)=>({label:`2026-10-${String(i+1).padStart(2,'0')}`,count:i%3})),coverageNotes:['La carga abierta, pendiente y vencida es actual; las entradas y respuestas corresponden al período seleccionado.','El SLA usa exclusivamente resoluciones registradas con su plazo congelado. No se reconstruyen mediciones históricas.','Los tipos usan el nombre guardado en el ticket. Los equipos reflejan vínculos actuales; un ticket puede relacionarse con varios equipos.','No incluye conversaciones, solicitantes, notas ni documentos.']}};
+export function knowledgeReportFixture(long = false): CompanyMonthlyReport {
+  return {
+    id: '00000000-0000-4000-8000-000000000001',
+    companyId: '00000000-0000-4000-8000-000000000002',
+    month: '2026-10',
+    createdAt: '2026-11-05T15:00:00.000Z',
+    createdByMemberId: '00000000-0000-4000-8000-000000000003',
+    report: {
+      companyId: '00000000-0000-4000-8000-000000000002',
+      companyName: long
+        ? 'Empresa ficticia de ingeniería y servicios tecnológicos - pruebas de nombres extensos y contenido protegido'
+        : 'Empresa de ejemplo',
+      period: {
+        companyId: '00000000-0000-4000-8000-000000000002',
+        from: '2026-10-01',
+        to: '2026-10-31',
+        fromInstant: '2026-10-01T03:00:00.000Z',
+        untilInstant: '2026-11-01T03:00:00.000Z',
+        timeZone: 'America/Santiago',
+        includeTests: true,
+      },
+      generatedAt: '2026-11-05T15:00:00.000Z',
+      summary: {
+        created: 28,
+        currentOpen: 4,
+        currentPending: 3,
+        currentOverdue: 1,
+        resolutions: 21,
+        slaMet: 19,
+        slaBreached: 2,
+        slaCompliancePercent: 90.476190476,
+        publicReplies: 47,
+        unknownResolved: 2,
+        untyped: 3,
+        withoutAsset: 5,
+      },
+      byType: long
+        ? Array.from({ length: 51 }, (_, i) => ({
+            label: `Solicitud ${i + 1}: conectividad, configuración de correo y estaciones de trabajo ${i % 4 === 0 ? 'con un nombre deliberadamente extenso para comprobar el ajuste de línea en el documento' : ''}`,
+            count: 52 - i,
+          }))
+        : [
+            { label: 'Conectividad', count: 12 },
+            { label: 'Correo y cuentas', count: 9 },
+            { label: 'Equipos y aplicaciones', count: 7 },
+          ],
+      byAsset: [
+        { label: 'Estación de trabajo - área de administración', count: 8 },
+        { label: 'Impresora principal', count: 6 },
+        { label: 'Equipo de red', count: 4 },
+      ],
+      byDay: Array.from({ length: 31 }, (_, i) => ({
+        label: `2026-10-${String(i + 1).padStart(2, '0')}`,
+        count: i % 3,
+      })),
+      coverageNotes: [
+        'La carga abierta, pendiente y vencida es actual; las entradas y respuestas corresponden al período seleccionado.',
+        'El SLA usa exclusivamente resoluciones registradas con su plazo congelado. No se reconstruyen mediciones históricas.',
+        'Los tipos usan el nombre guardado en el ticket. Los equipos reflejan vínculos actuales; un ticket puede relacionarse con varios equipos.',
+        'No incluye conversaciones, solicitantes, notas ni documentos.',
+      ],
+    },
+  };
 }

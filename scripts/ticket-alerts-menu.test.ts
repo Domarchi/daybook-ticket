@@ -6,7 +6,18 @@ import { PushMenu } from '../app/push-menu';
 import type { WebPushControls } from '../hooks/use-web-push';
 
 const noop = () => undefined;
-const push = (over: Partial<WebPushControls> = {}): WebPushControls => ({ status: 'active', busy: false, error: '', notice: '', enable: noop, disable: noop, test: noop, testLocal: noop, refresh: noop, ...over });
+const push = (over: Partial<WebPushControls> = {}): WebPushControls => ({
+  status: 'active',
+  busy: false,
+  error: '',
+  notice: '',
+  enable: noop,
+  disable: noop,
+  test: noop,
+  testLocal: noop,
+  refresh: noop,
+  ...over,
+});
 
 test('with desktop notifications active the bar shows one collapsed button, not four controls', () => {
   const html = renderToStaticMarkup(createElement(PushMenu, { push: push() }));
@@ -21,7 +32,8 @@ test('the alert bar keeps the sound toggle marker and the bell, and uses the men
   const { readFileSync } = await import('node:fs');
   const source = readFileSync(new URL('../app/ticket-alerts.tsx', import.meta.url), 'utf8');
   assert.match(source, /data-sound-toggle/, 'hooks/use-ticket-alerts.ts relies on this marker to unlock audio');
-  assert.match(source, /alerts\.push\.status === 'active' \? <PushMenu push=\{alerts\.push\} \/>/);
+  // Whitespace-insensitive on purpose: the formatter may wrap the conditional over several lines.
+  assert.match(source, /alerts\.push\.status === 'active'\s*\?\s*\(?\s*<PushMenu\s+push=\{alerts\.push\}\s*\/>/);
   assert.doesNotMatch(source, /Probar aviso/, 'the test buttons now live in the panel');
   assert.match(source, /alerts\.push\.notice && <p>/, 'a test result stays visible with the panel closed');
 });

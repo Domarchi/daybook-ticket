@@ -9,7 +9,10 @@ assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
 const pooledHost = 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech';
 const directHost = 'ep-falling-water-bbfa4ijl.c-15.us-east-1.aws.neon.tech';
 assert.equal(new URL(process.env.DATABASE_URL).hostname, pooledHost);
-assert.ok(!process.env.RESEND_API_KEY && !process.env.DAYBOOK_EMAIL_FROM, 'No real email configuration may enter QA migration.');
+assert.ok(
+  !process.env.RESEND_API_KEY && !process.env.DAYBOOK_EMAIL_FROM,
+  'No real email configuration may enter QA migration.',
+);
 const url = new URL(process.env.DIRECT_DATABASE_URL || process.env.DATABASE_URL);
 if (url.hostname === pooledHost) url.hostname = directHost;
 assert.equal(url.hostname, directHost);
@@ -30,9 +33,28 @@ try {
   const before = new Map();
   for (const [table, columns] of tables) before.set(table, await fingerprint(table, columns));
   await migrate(drizzle(pool), { migrationsFolder: './drizzle-postgres' });
-  for (const [table, columns] of tables) assert.deepEqual(await fingerprint(table, columns), before.get(table), `Existing data changed: ${table}`);
-  const columns = (await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name='mailOutbox' AND column_name IN ('readAt','reminderId','deliveryStatus','templateVersion')`)).rows;
+  for (const [table, columns] of tables)
+    assert.deepEqual(await fingerprint(table, columns), before.get(table), `Existing data changed: ${table}`);
+  const columns = (
+    await pool.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_name='mailOutbox' AND column_name IN ('readAt','reminderId','deliveryStatus','templateVersion')`,
+    )
+  ).rows;
   assert.equal(columns.length, 4);
-  assert.equal((await pool.query('SELECT count(*)::int AS n FROM "notificationSettings" WHERE "remindersEnabled"=true')).rows[0].n, 0, 'No reminder activation during migration.');
-  console.log(JSON.stringify({ result: 'PASS', preservedTables: tables.size, preservedRows: [...before.values()].reduce((sum, value) => sum + value.count, 0), migration: '0003_notification_center_delivery_reminders', remindersEnabled: false }));
-} finally { await pool.end(); }
+  assert.equal(
+    (await pool.query('SELECT count(*)::int AS n FROM "notificationSettings" WHERE "remindersEnabled"=true')).rows[0].n,
+    0,
+    'No reminder activation during migration.',
+  );
+  console.log(
+    JSON.stringify({
+      result: 'PASS',
+      preservedTables: tables.size,
+      preservedRows: [...before.values()].reduce((sum, value) => sum + value.count, 0),
+      migration: '0003_notification_center_delivery_reminders',
+      remindersEnabled: false,
+    }),
+  );
+} finally {
+  await pool.end();
+}

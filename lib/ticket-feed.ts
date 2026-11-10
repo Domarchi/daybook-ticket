@@ -7,7 +7,17 @@ import { parseTicketSearch } from './ticket-search-query';
 export async function getTicketFeed(access: AccessContext) {
   const [ticketPage, ticketCounts, ticketDepartments, alertsPage] = await Promise.all([
     getTicketPage(access, parseTicketSearch(new URLSearchParams())),
-    getTicketCounts(access), getTicketDepartments(access), getAlertsPage(access),
+    getTicketCounts(access),
+    getTicketDepartments(access),
+    getAlertsPage(access),
   ]);
-  return { tickets: ticketPage.items, messages: [], ticketPage, ticketCounts, ticketDepartments, alerts: alertsPage.items, alertsPage };
+  return {
+    tickets: ticketPage.items,
+    messages: [],
+    ticketPage,
+    ticketCounts,
+    ticketDepartments,
+    alerts: alertsPage.items,
+    alertsPage,
+  };
 }

@@ -1,0 +1,14 @@
+# Generated, vendored or deliberately untouched
+node_modules
+.next
+outputs
+work
+public
+drizzle-postgres
+package-lock.json
+*.sql
+*.svg
+*.png
+# Prose and tables are written by hand
+*.md
+*.css

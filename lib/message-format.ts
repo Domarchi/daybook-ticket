@@ -8,7 +8,9 @@ export function safeMessageLink(value: string): string | null {
     const url = new URL(value);
     if (!['https:', 'http:', 'mailto:'].includes(url.protocol) || url.username || url.password) return null;
     return url.href;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 export function messageInlineParts(text: string): InlinePart[] {
@@ -38,7 +40,8 @@ export function messageBlocks(body: string): MessageBlock[] {
   const lines = body.split(/\r?\n/);
   if (lines.length > 1000) return [{ type: 'paragraph', lines: [body] }];
   for (const line of lines) {
-    const unordered = /^\s*[-*] (.*)$/.exec(line), ordered = /^\s*\d{1,4}[.)] (.*)$/.exec(line);
+    const unordered = /^\s*[-*] (.*)$/.exec(line),
+      ordered = /^\s*\d{1,4}[.)] (.*)$/.exec(line);
     const type = unordered ? 'unordered' : ordered ? 'ordered' : 'paragraph';
     const content = unordered?.[1] ?? ordered?.[1] ?? line;
     const previous = blocks.at(-1);
@@ -48,16 +51,33 @@ export function messageBlocks(body: string): MessageBlock[] {
   return blocks;
 }
 
-export function formatSelection(body: string, start: number, end: number, action: 'bold' | 'italic' | 'code' | 'link' | 'list' | 'ordered') {
+export function formatSelection(
+  body: string,
+  start: number,
+  end: number,
+  action: 'bold' | 'italic' | 'code' | 'link' | 'list' | 'ordered',
+) {
   const selected = body.slice(start, end);
   const wrappers = { bold: ['**', '**'], italic: ['*', '*'], code: ['`', '`'], link: ['[', '](https://)'] } as const;
   if (action === 'list' || action === 'ordered') {
     const lineStart = start === 0 ? 0 : body.lastIndexOf('\n', start - 1) + 1;
     const lineEnd = body.indexOf('\n', end) === -1 ? body.length : body.indexOf('\n', end);
-    const replacement = body.slice(lineStart, lineEnd).split('\n').map((line, i) => `${action === 'list' ? '- ' : `${i + 1}. `}${line}`).join('\n');
-    return { body: body.slice(0, lineStart) + replacement + body.slice(lineEnd), start: lineStart, end: lineStart + replacement.length };
+    const replacement = body
+      .slice(lineStart, lineEnd)
+      .split('\n')
+      .map((line, i) => `${action === 'list' ? '- ' : `${i + 1}. `}${line}`)
+      .join('\n');
+    return {
+      body: body.slice(0, lineStart) + replacement + body.slice(lineEnd),
+      start: lineStart,
+      end: lineStart + replacement.length,
+    };
   }
   const [prefix, suffix] = wrappers[action];
   const value = selected || (action === 'link' ? 'texto del enlace' : 'texto');
-  return { body: body.slice(0, start) + prefix + value + suffix + body.slice(end), start: start + prefix.length, end: start + prefix.length + value.length };
+  return {
+    body: body.slice(0, start) + prefix + value + suffix + body.slice(end),
+    start: start + prefix.length,
+    end: start + prefix.length + value.length,
+  };
 }

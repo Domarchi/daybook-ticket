@@ -9,11 +9,17 @@ const rule: RateRule = { bucket: 'b', max: 2, windowMs: 1000, message: 'despacio
 
 function fakeDatabase(counts: number[] | Error) {
   const calls: unknown[][] = [];
-  const database = { prepare: () => ({ bind: (...values: unknown[]) => ({ first: async () => {
-    calls.push(values);
-    if (counts instanceof Error) throw counts;
-    return { count: counts.shift() };
-  } }) }) } as unknown as Database;
+  const database = {
+    prepare: () => ({
+      bind: (...values: unknown[]) => ({
+        first: async () => {
+          calls.push(values);
+          if (counts instanceof Error) throw counts;
+          return { count: counts.shift() };
+        },
+      }),
+    }),
+  } as unknown as Database;
   return { database, calls };
 }
 
@@ -26,7 +32,10 @@ test('allows up to the limit, then answers 429 with the rule message', async () 
   const { database, calls } = fakeDatabase([1, 2, 3]);
   await consumeRateLimit({ userId: 'u1' }, rule, database, 500);
   await consumeRateLimit({ userId: 'u1' }, rule, database, 501);
-  await assert.rejects(() => consumeRateLimit({ userId: 'u1' }, rule, database, 502), (error: { status?: number; message: string }) => error.status === 429 && error.message === 'despacio');
+  await assert.rejects(
+    () => consumeRateLimit({ userId: 'u1' }, rule, database, 502),
+    (error: { status?: number; message: string }) => error.status === 429 && error.message === 'despacio',
+  );
   assert.deepEqual(calls[0], ['daybook-rate:b:u1', 500, 1000]);
 });
 
@@ -48,13 +57,16 @@ test('every limit is generous enough for a person and bounded for a script', () 
 test('the expensive routes actually consume their limit after authenticating', () => {
   const root = join(import.meta.dirname, '..', 'app', 'api');
   const wired: Array<[string, string]> = [
-    ['tickets/search/route.ts', 'ticketSearch'], ['tickets/route.ts', 'ticketCreate'],
-    ['attachments/reserve/route.ts', 'attachmentReserve'], ['attachments/upload/route.ts', 'attachmentUpload'],
+    ['tickets/search/route.ts', 'ticketSearch'],
+    ['tickets/route.ts', 'ticketCreate'],
+    ['attachments/reserve/route.ts', 'attachmentReserve'],
+    ['attachments/upload/route.ts', 'attachmentUpload'],
     ['reports/monthly/route.ts', 'report'],
   ];
   for (const [file, ruleName] of wired) {
     const source = readFileSync(join(root, file), 'utf8');
-    const limit = source.indexOf(`RATE_RULES.${ruleName}`), guard = source.search(/requireAccess\(|requireKnowledgeAccess\(/);
+    const limit = source.indexOf(`RATE_RULES.${ruleName}`),
+      guard = source.search(/requireAccess\(|requireKnowledgeAccess\(/);
     assert.ok(limit > guard && guard >= 0, `${file} must limit after the access guard`);
   }
 });

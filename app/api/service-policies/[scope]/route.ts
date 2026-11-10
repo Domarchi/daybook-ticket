@@ -1,6 +1,12 @@
 import { requireAccess, requireAdmin } from '@/lib/access';
 import { db, handle, json, parseBody } from '@/lib/server';
-import { deleteServicePolicy, deleteServicePolicySchema, getServicePolicy, saveServicePolicy, saveServicePolicySchema } from '@/lib/service-policies';
+import {
+  deleteServicePolicy,
+  deleteServicePolicySchema,
+  getServicePolicy,
+  saveServicePolicy,
+  saveServicePolicySchema,
+} from '@/lib/service-policies';
 
 export const dynamic = 'force-dynamic';
 type PolicyContext = { params: Promise<{ scope: string }> };

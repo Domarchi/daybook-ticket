@@ -5,25 +5,45 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  SERVICE_PLUS_PINNED_MIGRATIONS, SERVICE_PLUS_CONFIRM_TARGET, MigrationOperatorError,
-  validateProductionConnectionTargets, validateServicePlusProductionTargets, validateServicePlusCliArguments, loadServicePlusMigrationArtifacts,
-  validateServicePlusMigrationJournal, runServicePlusMigrationOperator, servicePlusFailureReport,
+  SERVICE_PLUS_PINNED_MIGRATIONS,
+  SERVICE_PLUS_CONFIRM_TARGET,
+  MigrationOperatorError,
+  validateProductionConnectionTargets,
+  validateServicePlusProductionTargets,
+  validateServicePlusCliArguments,
+  loadServicePlusMigrationArtifacts,
+  validateServicePlusMigrationJournal,
+  runServicePlusMigrationOperator,
+  servicePlusFailureReport,
 } from './migrate-service-plus-production.mjs';
 
 const environment = {
-  DATABASE_URL: 'postgresql://fictional_operator:fictional_password@ep-dawn-moon-bbwpjcrp-pooler.c-15.us-east-1.aws.neon.tech/daybook_ticket?sslmode=require',
-  DIRECT_DATABASE_URL: 'postgresql://fictional_operator:fictional_password@ep-dawn-moon-bbwpjcrp.c-15.us-east-1.aws.neon.tech/daybook_ticket?sslmode=require&channel_binding=require',
+  DATABASE_URL:
+    'postgresql://fictional_operator:fictional_password@ep-dawn-moon-bbwpjcrp-pooler.c-15.us-east-1.aws.neon.tech/daybook_ticket?sslmode=require',
+  DIRECT_DATABASE_URL:
+    'postgresql://fictional_operator:fictional_password@ep-dawn-moon-bbwpjcrp.c-15.us-east-1.aws.neon.tech/daybook_ticket?sslmode=require&channel_binding=require',
   DAYBOOK_PRODUCTION_MIGRATION_CONFIRM_TARGET: SERVICE_PLUS_CONFIRM_TARGET,
   DAYBOOK_PRODUCTION_MIGRATION_ALLOW_APPLY: '0005',
 };
-const expectedJournal = SERVICE_PLUS_PINNED_MIGRATIONS.map((item, index) => ({ id: index + 1, hash: item.hash, created_at: String(item.when) }));
+const expectedJournal = SERVICE_PLUS_PINNED_MIGRATIONS.map((item, index) => ({
+  id: index + 1,
+  hash: item.hash,
+  created_at: String(item.when),
+}));
 const hash = value => createHash('sha256').update(value).digest('hex');
 const clone = value => structuredClone(value);
-const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
-const queryText = query => typeof query === 'string' ? query : query.text;
+const compare = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+const queryText = query => (typeof query === 'string' ? query : query.text);
 
 function column(table, name, position, type = 'text', nullable = false, defaultValue = null) {
-  return { table_name: table, column_name: name, position, data_type: type, not_null: !nullable, column_default: defaultValue };
+  return {
+    table_name: table,
+    column_name: name,
+    position,
+    data_type: type,
+    not_null: !nullable,
+    column_default: defaultValue,
+  };
 }
 
 /** No connection is created by this fixture. The ACTUAL installed Drizzle
@@ -52,31 +72,48 @@ class FixtureClient {
           rows: [{ ownerId: 'fictional-owner', data: '{"brandName":"Daybook","slaHours":{"normal":24}}' }],
         },
         tickets: {
-          columns: [column('tickets', 'id', 1, 'integer'), column('tickets', 'subject', 2), column('tickets', 'dueAt', 3)],
+          columns: [
+            column('tickets', 'id', 1, 'integer'),
+            column('tickets', 'subject', 2),
+            column('tickets', 'dueAt', 3),
+          ],
           rows: [{ id: 1, subject: 'FICTIONAL_PRIVATE_TICKET_TEXT', dueAt: '2026-11-05T15:00:00.000Z' }],
         },
         messages: {
-          columns: [column('messages', 'id', 1, 'integer'), column('messages', 'body', 2), column('messages', 'kind', 3)],
+          columns: [
+            column('messages', 'id', 1, 'integer'),
+            column('messages', 'body', 2),
+            column('messages', 'kind', 3),
+          ],
           rows: [{ id: 1, body: '**Literal old text must remain literal** FICTIONAL_PRIVATE_MESSAGE', kind: 'reply' }],
         },
         mailOutbox: {
-          columns: [column('mailOutbox', 'id', 1), column('mailOutbox', 'payloadJson', 2), column('mailOutbox', 'status', 3)],
+          columns: [
+            column('mailOutbox', 'id', 1),
+            column('mailOutbox', 'payloadJson', 2),
+            column('mailOutbox', 'status', 3),
+          ],
           rows: [{ id: 'fictional-mail', payloadJson: '{"text":"FICTIONAL_PRIVATE_FROZEN_MAIL"}', status: 'queued' }],
         },
         'unknown"table': {
-          columns: [column('unknown"table', 'strange"column', 1)], rows: [{ 'strange"column': 'preserve unknown data too' }],
+          columns: [column('unknown"table', 'strange"column', 1)],
+          rows: [{ 'strange"column': 'preserve unknown data too' }],
         },
       },
     };
     this.initial = clone(this.state);
   }
   catalog() {
-    return Object.keys(this.state.tables).sort(compare).flatMap(name => this.state.tables[name].columns);
+    return Object.keys(this.state.tables)
+      .sort(compare)
+      .flatMap(name => this.state.tables[name].columns);
   }
   async query(input, values = []) {
-    const sql = queryText(input), trimmed = sql.trim();
+    const sql = queryText(input),
+      trimmed = sql.trim();
     this.queries.push({ sql, values });
-    if (this.options.fail?.(sql)) throw Object.assign(new Error('Fictitious database error; no network call'), { code: '55P03' });
+    if (this.options.fail?.(sql))
+      throw Object.assign(new Error('Fictitious database error; no network call'), { code: '55P03' });
     const result = rows => ({ rows, rowCount: rows.length });
     if (/^BEGIN ISOLATION LEVEL /.test(trimmed)) {
       assert.equal(this.outerSnapshot, undefined, 'The migrator must never issue a second outer BEGIN');
@@ -85,32 +122,54 @@ class FixtureClient {
       return result([]);
     }
     if (/^SET LOCAL /.test(trimmed)) return result([]);
-    if (/current_database\(\)/.test(sql)) return result([{ name: this.options.database || 'daybook_ticket', version: '170005' }]);
+    if (/current_database\(\)/.test(sql))
+      return result([{ name: this.options.database || 'daybook_ticket', version: '170005' }]);
     if (/pg_try_advisory_xact_lock/.test(sql)) return result([{ locked: this.options.locked ?? true }]);
-    if (/^SELECT hash, created_at FROM drizzle\.__drizzle_migrations/.test(trimmed)) return result(clone(this.state.journal));
+    if (/^SELECT hash, created_at FROM drizzle\.__drizzle_migrations/.test(trimmed))
+      return result(clone(this.state.journal));
     if (/format_type\(a.atttypid/.test(sql)) return result(clone(this.catalog()));
     if (/^LOCK TABLE /.test(trimmed)) {
       if (trimmed.startsWith('LOCK TABLE public.')) this.options.afterTableLock?.(this.state);
       return result([]);
     }
     if (/all_fingerprints/.test(sql)) {
-      const fingerprints = [...sql.matchAll(/jsonb_build_array\((.*?)\)::text[\s\S]*?FROM public\."((?:""|[^"])*)"/g)].map(match => {
-        const names = [...match[1].matchAll(/"((?:""|[^"])*)"/g)].map(item => item[1].replaceAll('""', '"'));
-        const table = match[2].replaceAll('""', '"');
-        const rowHashes = this.state.tables[table].rows.map(row => hash(JSON.stringify(names.map(name => row[name] ?? null)))).sort(compare);
-        return { table, columns: names.length, rows: String(rowHashes.length), sha256: hash(rowHashes.join('')) };
-      }).sort((a, b) => compare(a.table, b.table));
-      assert.deepEqual(fingerprints.map(item => item.table), values, 'Every bound table label has one fingerprint, including unknown tables');
+      const fingerprints = [...sql.matchAll(/jsonb_build_array\((.*?)\)::text[\s\S]*?FROM public\."((?:""|[^"])*)"/g)]
+        .map(match => {
+          const names = [...match[1].matchAll(/"((?:""|[^"])*)"/g)].map(item => item[1].replaceAll('""', '"'));
+          const table = match[2].replaceAll('""', '"');
+          const rowHashes = this.state.tables[table].rows
+            .map(row => hash(JSON.stringify(names.map(name => row[name] ?? null))))
+            .sort(compare);
+          return { table, columns: names.length, rows: String(rowHashes.length), sha256: hash(rowHashes.join('')) };
+        })
+        .sort((a, b) => compare(a.table, b.table));
+      assert.deepEqual(
+        fingerprints.map(item => item.table),
+        values,
+        'Every bound table label has one fingerprint, including unknown tables',
+      );
       return result(fingerprints);
     }
-    if (/^CREATE SCHEMA IF NOT EXISTS "drizzle"/.test(trimmed) || /^CREATE TABLE IF NOT EXISTS "drizzle"\./.test(trimmed)) return result([]);
-    if (/^select id, hash, created_at from "drizzle"\./.test(trimmed)) return result([clone(this.state.journal.at(-1))]);
-    if (/^SAVEPOINT /.test(trimmed)) { this.savepointSnapshot = clone(this.state); return result([]); }
-    if (/^ROLLBACK TO SAVEPOINT /.test(trimmed)) { this.state = clone(this.savepointSnapshot); return result([]); }
+    if (
+      /^CREATE SCHEMA IF NOT EXISTS "drizzle"/.test(trimmed) ||
+      /^CREATE TABLE IF NOT EXISTS "drizzle"\./.test(trimmed)
+    )
+      return result([]);
+    if (/^select id, hash, created_at from "drizzle"\./.test(trimmed))
+      return result([clone(this.state.journal.at(-1))]);
+    if (/^SAVEPOINT /.test(trimmed)) {
+      this.savepointSnapshot = clone(this.state);
+      return result([]);
+    }
+    if (/^ROLLBACK TO SAVEPOINT /.test(trimmed)) {
+      this.state = clone(this.savepointSnapshot);
+      return result([]);
+    }
     if (/^RELEASE SAVEPOINT /.test(trimmed)) {
       this.savepointSnapshot = undefined;
       if (!this.injectedAfterMigration && this.state.journal.length === 6) {
-        this.options.afterMigration?.(this.state); this.injectedAfterMigration = true;
+        this.options.afterMigration?.(this.state);
+        this.injectedAfterMigration = true;
       }
       return result([]);
     }
@@ -119,40 +178,68 @@ class FixtureClient {
       const name = newTable[1];
       assert.equal(this.state.tables[name], undefined, 'Already-applied migrations must not recreate their tables');
       const definitions = [...sql.matchAll(/^\s*"([^"]+)" (text|integer|boolean)([^\n]*)/gm)];
-      this.state.tables[name] = { rows: [], columns: definitions.map((match, index) => {
-        const rawDefault = match[3].match(/DEFAULT ('[^']*'|true|false|\d+)/)?.[1] ?? null;
-        const defaultValue = rawDefault?.startsWith("'") ? `${rawDefault}::text` : rawDefault;
-        return column(name, match[1], index + 1, match[2], !match[3].includes('NOT NULL'), defaultValue);
-      }) };
+      this.state.tables[name] = {
+        rows: [],
+        columns: definitions.map((match, index) => {
+          const rawDefault = match[3].match(/DEFAULT ('[^']*'|true|false|\d+)/)?.[1] ?? null;
+          const defaultValue = rawDefault?.startsWith("'") ? `${rawDefault}::text` : rawDefault;
+          return column(name, match[1], index + 1, match[2], !match[3].includes('NOT NULL'), defaultValue);
+        }),
+      };
       return result([]);
     }
     const addedColumn = trimmed.match(/^ALTER TABLE "(messages|mailOutbox)" ADD COLUMN "([^"]+)" text([^;]*)/);
     if (addedColumn) {
-      const tableName = addedColumn[1], table = this.state.tables[tableName];
+      const tableName = addedColumn[1],
+        table = this.state.tables[tableName];
       const rawDefault = addedColumn[3].match(/DEFAULT ('[^']*'|true|false|\d+)/)?.[1] ?? null;
       const defaultValue = rawDefault?.startsWith("'") ? `${rawDefault}::text` : rawDefault;
-      table.columns.push(column(tableName, addedColumn[2], table.columns.length + 1, 'text', !addedColumn[3].includes('NOT NULL'), defaultValue));
-      table.rows.forEach(row => { row[addedColumn[2]] = rawDefault ? rawDefault.replace(/^'|'$/g, '') : null; });
+      table.columns.push(
+        column(
+          tableName,
+          addedColumn[2],
+          table.columns.length + 1,
+          'text',
+          !addedColumn[3].includes('NOT NULL'),
+          defaultValue,
+        ),
+      );
+      table.rows.forEach(row => {
+        row[addedColumn[2]] = rawDefault ? rawDefault.replace(/^'|'$/g, '') : null;
+      });
       return result([]);
     }
-    if (/^ALTER TABLE ".+" ADD CONSTRAINT /.test(trimmed) || /^CREATE (?:UNIQUE )?INDEX /.test(trimmed)) return result([]);
+    if (/^ALTER TABLE ".+" ADD CONSTRAINT /.test(trimmed) || /^CREATE (?:UNIQUE )?INDEX /.test(trimmed))
+      return result([]);
     if (/^insert into "drizzle"\."__drizzle_migrations"/.test(trimmed)) {
       this.state.journal.push({ id: this.state.journal.length + 1, hash: values[0], created_at: String(values[1]) });
       return result([]);
     }
-    if (/AS reformattedMessages/.test(sql)) return result([{
-      escalationsettings: String(this.state.tables.escalationSettings.rows.length), escalations: String(this.state.tables.escalationOccurrences.rows.length),
-      inbound: String(this.state.tables.inboundMailReceipts.rows.length), satisfaction: String(this.state.tables.ticketSatisfaction.rows.length),
-      reformattedmessages: String(this.state.tables.messages.rows.filter(row => row.bodyFormat !== 'plain').length),
-      linkedautomationmail: String(this.state.tables.mailOutbox.rows.filter(row => row.escalationId != null || row.satisfactionId != null).length),
-    }]);
+    if (/AS reformattedMessages/.test(sql))
+      return result([
+        {
+          escalationsettings: String(this.state.tables.escalationSettings.rows.length),
+          escalations: String(this.state.tables.escalationOccurrences.rows.length),
+          inbound: String(this.state.tables.inboundMailReceipts.rows.length),
+          satisfaction: String(this.state.tables.ticketSatisfaction.rows.length),
+          reformattedmessages: String(this.state.tables.messages.rows.filter(row => row.bodyFormat !== 'plain').length),
+          linkedautomationmail: String(
+            this.state.tables.mailOutbox.rows.filter(row => row.escalationId != null || row.satisfactionId != null)
+              .length,
+          ),
+        },
+      ]);
     if (trimmed === 'COMMIT') {
       assert.ok(this.outerSnapshot, 'A real outer transaction must exist');
-      this.commits++; this.outerSnapshot = undefined; return result([]);
+      this.commits++;
+      this.outerSnapshot = undefined;
+      return result([]);
     }
     if (trimmed === 'ROLLBACK') {
       assert.ok(this.outerSnapshot, 'The outer transaction must exist before rollback');
-      this.state = clone(this.outerSnapshot); this.outerSnapshot = undefined; return result([]);
+      this.state = clone(this.outerSnapshot);
+      this.outerSnapshot = undefined;
+      return result([]);
     }
     throw new Error(`Unexpected fixture SQL: ${sql}`);
   }
@@ -171,22 +258,62 @@ async function artifactFolder(t, transform = () => undefined) {
 
 test('0005 publication requires an exact mode, exact target confirmation and its own apply token', () => {
   assert.equal(validateServicePlusCliArguments(['--audit'], {}), 'audit');
-  assert.equal(validateServicePlusCliArguments(['--dry-run'], { DAYBOOK_PRODUCTION_MIGRATION_CONFIRM_TARGET: SERVICE_PLUS_CONFIRM_TARGET }), 'dry-run');
+  assert.equal(
+    validateServicePlusCliArguments(['--dry-run'], {
+      DAYBOOK_PRODUCTION_MIGRATION_CONFIRM_TARGET: SERVICE_PLUS_CONFIRM_TARGET,
+    }),
+    'dry-run',
+  );
   assert.equal(validateServicePlusCliArguments(['--apply'], environment), 'apply');
-  for (const args of [[], ['--apply', '--audit'], ['--apply=1'], ['--audit', 'DATABASE_URL=secret']]) assert.throws(() => validateServicePlusCliArguments(args, environment), MigrationOperatorError);
-  assert.throws(() => validateServicePlusCliArguments(['--dry-run'], {}), error => error.operatorCode === 'exact_target_confirmation_required');
-  for (const token of [undefined, '', '0004', 'true']) assert.throws(() => validateServicePlusCliArguments(['--apply'], { ...environment, DAYBOOK_PRODUCTION_MIGRATION_ALLOW_APPLY: token }), MigrationOperatorError);
-  for (const target of [undefined, SERVICE_PLUS_CONFIRM_TARGET.replace('0005', '0004'), SERVICE_PLUS_CONFIRM_TARGET.replace('daybook_ticket', 'other_database')]) assert.throws(() => validateServicePlusCliArguments(['--apply'], { ...environment, DAYBOOK_PRODUCTION_MIGRATION_CONFIRM_TARGET: target }), MigrationOperatorError);
+  for (const args of [[], ['--apply', '--audit'], ['--apply=1'], ['--audit', 'DATABASE_URL=secret']])
+    assert.throws(() => validateServicePlusCliArguments(args, environment), MigrationOperatorError);
+  assert.throws(
+    () => validateServicePlusCliArguments(['--dry-run'], {}),
+    error => error.operatorCode === 'exact_target_confirmation_required',
+  );
+  for (const token of [undefined, '', '0004', 'true'])
+    assert.throws(
+      () =>
+        validateServicePlusCliArguments(['--apply'], {
+          ...environment,
+          DAYBOOK_PRODUCTION_MIGRATION_ALLOW_APPLY: token,
+        }),
+      MigrationOperatorError,
+    );
+  for (const target of [
+    undefined,
+    SERVICE_PLUS_CONFIRM_TARGET.replace('0005', '0004'),
+    SERVICE_PLUS_CONFIRM_TARGET.replace('daybook_ticket', 'other_database'),
+  ])
+    assert.throws(
+      () =>
+        validateServicePlusCliArguments(['--apply'], {
+          ...environment,
+          DAYBOOK_PRODUCTION_MIGRATION_CONFIRM_TARGET: target,
+        }),
+      MigrationOperatorError,
+    );
 });
 
 test('0005 production CLI reuses strict direct/pooled host, database, TLS and connection-option guards', () => {
   assert.equal(validateProductionConnectionTargets(environment), environment.DIRECT_DATABASE_URL);
   const normalized = new URL(validateServicePlusProductionTargets(environment));
-  assert.equal(normalized.hostname, 'ep-dawn-moon-bbwpjcrp.c-15.us-east-1.aws.neon.tech'); assert.equal(normalized.searchParams.get('sslmode'), 'verify-full');
-  for (const direct of [environment.DATABASE_URL, environment.DIRECT_DATABASE_URL.replace('ep-dawn-moon-bbwpjcrp.', 'ep-falling-water-bbfa4ijl.'),
-    environment.DIRECT_DATABASE_URL.replace('/daybook_ticket?', '/other_database?'), environment.DIRECT_DATABASE_URL.replace('sslmode=require', 'sslmode=disable'),
-    `${environment.DIRECT_DATABASE_URL}&host=localhost`, `${environment.DIRECT_DATABASE_URL}&dbname=other`, `${environment.DIRECT_DATABASE_URL}&options=-c%20search_path=evil`, `${environment.DIRECT_DATABASE_URL}#fragment`]) {
-    assert.throws(() => validateProductionConnectionTargets({ ...environment, DIRECT_DATABASE_URL: direct }), MigrationOperatorError);
+  assert.equal(normalized.hostname, 'ep-dawn-moon-bbwpjcrp.c-15.us-east-1.aws.neon.tech');
+  assert.equal(normalized.searchParams.get('sslmode'), 'verify-full');
+  for (const direct of [
+    environment.DATABASE_URL,
+    environment.DIRECT_DATABASE_URL.replace('ep-dawn-moon-bbwpjcrp.', 'ep-falling-water-bbfa4ijl.'),
+    environment.DIRECT_DATABASE_URL.replace('/daybook_ticket?', '/other_database?'),
+    environment.DIRECT_DATABASE_URL.replace('sslmode=require', 'sslmode=disable'),
+    `${environment.DIRECT_DATABASE_URL}&host=localhost`,
+    `${environment.DIRECT_DATABASE_URL}&dbname=other`,
+    `${environment.DIRECT_DATABASE_URL}&options=-c%20search_path=evil`,
+    `${environment.DIRECT_DATABASE_URL}#fragment`,
+  ]) {
+    assert.throws(
+      () => validateProductionConnectionTargets({ ...environment, DIRECT_DATABASE_URL: direct }),
+      MigrationOperatorError,
+    );
   }
 });
 
@@ -207,33 +334,66 @@ test('all six reviewed SQL files have immutable hashes and future source migrati
 
 test('tampered SQL or source-journal metadata fails before any database action', async t => {
   for (const index of [0, 5]) {
-    const folder = await artifactFolder(t, source => { source.files[index].content = Buffer.from('SELECT 1;'); });
-    await assert.rejects(loadServicePlusMigrationArtifacts(folder), error => error.operatorCode === 'migration_source_hash_mismatch');
+    const folder = await artifactFolder(t, source => {
+      source.files[index].content = Buffer.from('SELECT 1;');
+    });
+    await assert.rejects(
+      loadServicePlusMigrationArtifacts(folder),
+      error => error.operatorCode === 'migration_source_hash_mismatch',
+    );
   }
   const folder = await artifactFolder(t, source => {
-    const journal = JSON.parse(source.journalText); journal.entries[4].when++; source.journalText = JSON.stringify(journal);
+    const journal = JSON.parse(source.journalText);
+    journal.entries[4].when++;
+    source.journalText = JSON.stringify(journal);
   });
-  await assert.rejects(loadServicePlusMigrationArtifacts(folder), error => error.operatorCode === 'unexpected_source_journal');
-  const client = new FixtureClient(), source = await loadServicePlusMigrationArtifacts();
+  await assert.rejects(
+    loadServicePlusMigrationArtifacts(folder),
+    error => error.operatorCode === 'unexpected_source_journal',
+  );
+  const client = new FixtureClient(),
+    source = await loadServicePlusMigrationArtifacts();
   source.files[5].content.fill(0);
-  await assert.rejects(runServicePlusMigrationOperator(client, { mode: 'apply', artifacts: source }), error => error.operatorCode === 'migration_source_hash_mismatch');
+  await assert.rejects(
+    runServicePlusMigrationOperator(client, { mode: 'apply', artifacts: source }),
+    error => error.operatorCode === 'migration_source_hash_mismatch',
+  );
   assert.equal(client.queries.length, 0);
 });
 
 test('only exact pre-0005 or already-0005 database journals are accepted', () => {
   assert.equal(validateServicePlusMigrationJournal(expectedJournal.slice(0, 5)), false);
   assert.equal(validateServicePlusMigrationJournal(expectedJournal), true);
-  for (const rows of [[], expectedJournal.slice(0, 4), [...expectedJournal, expectedJournal[5]], [...expectedJournal].reverse(), expectedJournal.map((row, index) => index === 1 ? { ...row, hash: 'unknown' } : row), expectedJournal.map((row, index) => index === 5 ? { ...row, created_at: '0' } : row)]) assert.throws(() => validateServicePlusMigrationJournal(rows), MigrationOperatorError);
+  for (const rows of [
+    [],
+    expectedJournal.slice(0, 4),
+    [...expectedJournal, expectedJournal[5]],
+    [...expectedJournal].reverse(),
+    expectedJournal.map((row, index) => (index === 1 ? { ...row, hash: 'unknown' } : row)),
+    expectedJournal.map((row, index) => (index === 5 ? { ...row, created_at: '0' } : row)),
+  ])
+    assert.throws(() => validateServicePlusMigrationJournal(rows), MigrationOperatorError);
 });
 
 test('audit uses one repeatable-read read-only snapshot, aggregate-only reports and no locks/DDL', async () => {
   const client = new FixtureClient();
   const report = await runServicePlusMigrationOperator(client);
-  assert.equal(report.mode, 'audit'); assert.equal(report.migration, '0005_pending'); assert.equal(report.committed, false); assert.equal(report.servicePlus, null);
+  assert.equal(report.mode, 'audit');
+  assert.equal(report.migration, '0005_pending');
+  assert.equal(report.committed, false);
+  assert.equal(report.servicePlus, null);
   assert.equal(client.queries[0].sql, 'BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
-  assert.equal(client.queries.at(-1).sql, 'ROLLBACK'); assert.equal(client.commits, 0); assert.deepEqual(client.state, client.initial);
-  assert.equal(client.queries.some(({ sql }) => /^\s*(LOCK|CREATE|ALTER|INSERT|UPDATE|DELETE|COMMIT)\b/i.test(sql)), false);
-  assert.equal(client.queries.some(({ sql }) => /pg_try_advisory_xact_lock/.test(sql)), false);
+  assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+  assert.equal(client.commits, 0);
+  assert.deepEqual(client.state, client.initial);
+  assert.equal(
+    client.queries.some(({ sql }) => /^\s*(LOCK|CREATE|ALTER|INSERT|UPDATE|DELETE|COMMIT)\b/i.test(sql)),
+    false,
+  );
+  assert.equal(
+    client.queries.some(({ sql }) => /pg_try_advisory_xact_lock/.test(sql)),
+    false,
+  );
   assert.ok(report.fingerprints.some(row => row.table === 'unknown"table' && row.columns === 1));
   assert.equal(/FICTIONAL_PRIVATE|fictional_password/.test(JSON.stringify(report)), false);
 });
@@ -241,35 +401,76 @@ test('audit uses one repeatable-read read-only snapshot, aggregate-only reports 
 test('dry-run drives the installed migrator through a savepoint and rolls back all schema/journal changes', async () => {
   const client = new FixtureClient();
   const report = await runServicePlusMigrationOperator(client, { mode: 'dry-run' });
-  assert.equal(report.migration, '0005_would_apply'); assert.equal(report.committed, false); assert.equal(report.originalColumnsUnchanged, true);
+  assert.equal(report.migration, '0005_would_apply');
+  assert.equal(report.committed, false);
+  assert.equal(report.originalColumnsUnchanged, true);
   assert.equal(client.queries.filter(({ sql }) => /^BEGIN /.test(sql)).length, 1);
   assert.equal(client.queries.filter(({ sql }) => /^SAVEPOINT /.test(sql)).length, 1);
   assert.equal(client.queries.filter(({ sql }) => /^RELEASE SAVEPOINT /.test(sql)).length, 1);
-  assert.equal(client.queries.at(-1).sql, 'ROLLBACK'); assert.equal(client.commits, 0); assert.deepEqual(client.state, client.initial);
-  assert.equal(client.queries.some(({ sql }) => /CREATE TABLE "ticketSatisfaction"/.test(sql)), true);
-  assert.equal(client.queries.some(({ sql }) => /CREATE TABLE "tickets"|CREATE TABLE "mailDeliveryEvents"|CREATE TABLE "servicePolicies"/.test(sql)), false, '0000–0004 cannot be replayed');
+  assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+  assert.equal(client.commits, 0);
+  assert.deepEqual(client.state, client.initial);
+  assert.equal(
+    client.queries.some(({ sql }) => /CREATE TABLE "ticketSatisfaction"/.test(sql)),
+    true,
+  );
+  assert.equal(
+    client.queries.some(({ sql }) =>
+      /CREATE TABLE "tickets"|CREATE TABLE "mailDeliveryEvents"|CREATE TABLE "servicePolicies"/.test(sql),
+    ),
+    false,
+    '0000–0004 cannot be replayed',
+  );
   const inserts = client.queries.filter(({ sql }) => /^\s*insert into\b/i.test(sql));
-  assert.equal(inserts.length, 1); assert.match(inserts[0].sql, /"drizzle"\."__drizzle_migrations"/);
+  assert.equal(inserts.length, 1);
+  assert.match(inserts[0].sql, /"drizzle"\."__drizzle_migrations"/);
   assert.equal(inserts[0].values[0], SERVICE_PLUS_PINNED_MIGRATIONS[5].hash);
 });
 
 test('apply commits once only after all original column fingerprints and zero backfill are verified', async () => {
   const client = new FixtureClient();
   const report = await runServicePlusMigrationOperator(client, { mode: 'apply' });
-  assert.equal(report.migration, '0005_applied'); assert.equal(report.committed, true); assert.equal(report.preservedTables, 7); assert.equal(report.preservedRows, '7');
-  assert.equal(client.commits, 1); assert.equal(client.queries.at(-1).sql, 'COMMIT'); assert.equal(client.state.journal.length, 6);
-  assert.deepEqual(report.servicePlus, { escalationsettings: '0', escalations: '0', inbound: '0', satisfaction: '0', reformattedmessages: '0', linkedautomationmail: '0' });
+  assert.equal(report.migration, '0005_applied');
+  assert.equal(report.committed, true);
+  assert.equal(report.preservedTables, 7);
+  assert.equal(report.preservedRows, '7');
+  assert.equal(client.commits, 1);
+  assert.equal(client.queries.at(-1).sql, 'COMMIT');
+  assert.equal(client.state.journal.length, 6);
+  assert.deepEqual(report.servicePlus, {
+    escalationsettings: '0',
+    escalations: '0',
+    inbound: '0',
+    satisfaction: '0',
+    reformattedmessages: '0',
+    linkedautomationmail: '0',
+  });
   assert.equal(client.state.tables.tickets.rows[0].dueAt, client.initial.tables.tickets.rows[0].dueAt);
   assert.equal(client.state.tables.members.rows[0].passwordHash, client.initial.tables.members.rows[0].passwordHash);
   assert.equal(client.state.tables.sessions.rows[0].token, client.initial.tables.sessions.rows[0].token);
   assert.deepEqual(client.state.tables.settings, client.initial.tables.settings);
-  const queries = client.queries.map(({ sql }) => sql), fingerprintQueries = queries.filter(sql => /all_fingerprints/.test(sql));
-  assert.equal(fingerprintQueries.length, 2); assert.ok(fingerprintQueries.every(sql => /"passwordHash"/.test(sql) && /"token"/.test(sql) && /"strange""column"/.test(sql)));
-  assert.ok(fingerprintQueries.every(sql => !sql.includes('bodyFormat') && !sql.includes('escalationId') && !sql.includes('satisfactionId')), 'Compare the exact original columns, not newly added fields');
+  const queries = client.queries.map(({ sql }) => sql),
+    fingerprintQueries = queries.filter(sql => /all_fingerprints/.test(sql));
+  assert.equal(fingerprintQueries.length, 2);
+  assert.ok(
+    fingerprintQueries.every(sql => /"passwordHash"/.test(sql) && /"token"/.test(sql) && /"strange""column"/.test(sql)),
+  );
+  assert.ok(
+    fingerprintQueries.every(
+      sql => !sql.includes('bodyFormat') && !sql.includes('escalationId') && !sql.includes('satisfactionId'),
+    ),
+    'Compare the exact original columns, not newly added fields',
+  );
   assert.equal(client.state.tables.messages.rows[0].bodyFormat, 'plain');
   assert.equal(client.state.tables.messages.rows[0].body, client.initial.tables.messages.rows[0].body);
-  assert.equal(client.state.tables.mailOutbox.rows[0].payloadJson, client.initial.tables.mailOutbox.rows[0].payloadJson);
-  assert.ok(queries.indexOf('LOCK TABLE drizzle.__drizzle_migrations IN SHARE ROW EXCLUSIVE MODE') < queries.findIndex(sql => /^CREATE SCHEMA /.test(sql)));
+  assert.equal(
+    client.state.tables.mailOutbox.rows[0].payloadJson,
+    client.initial.tables.mailOutbox.rows[0].payloadJson,
+  );
+  assert.ok(
+    queries.indexOf('LOCK TABLE drizzle.__drizzle_migrations IN SHARE ROW EXCLUSIVE MODE') <
+      queries.findIndex(sql => /^CREATE SCHEMA /.test(sql)),
+  );
   assert.equal(/FICTIONAL_PRIVATE|fictional_password/.test(JSON.stringify(report)), false);
 });
 
@@ -286,9 +487,14 @@ test('already-applied audit/apply preserves real feature data without rerunning 
   for (const mode of ['audit', 'dry-run', 'apply']) {
     client.queries = [];
     const report = await runServicePlusMigrationOperator(client, { mode });
-    assert.equal(report.servicePlus.escalationsettings, '1'); assert.equal(report.servicePlus.reformattedmessages, '1'); assert.deepEqual(client.state, preserved);
+    assert.equal(report.servicePlus.escalationsettings, '1');
+    assert.equal(report.servicePlus.reformattedmessages, '1');
+    assert.deepEqual(client.state, preserved);
     assert.ok(report.migration.startsWith('0005_already_applied'));
-    assert.equal(client.queries.some(({ sql }) => /^\s*(CREATE|ALTER|INSERT|UPDATE|DELETE|SAVEPOINT)\b/i.test(sql)), false);
+    assert.equal(
+      client.queries.some(({ sql }) => /^\s*(CREATE|ALTER|INSERT|UPDATE|DELETE|SAVEPOINT)\b/i.test(sql)),
+      false,
+    );
   }
 });
 
@@ -296,7 +502,8 @@ test('artifact bytes are copied before awaits so a concurrent caller cannot chan
   const source = await loadServicePlusMigrationArtifacts();
   const client = new FixtureClient({ onBegin: () => source.files[5].content.fill(0) });
   const report = await runServicePlusMigrationOperator(client, { mode: 'dry-run', artifacts: source });
-  assert.equal(report.migration, '0005_would_apply'); assert.deepEqual(client.state, client.initial);
+  assert.equal(report.migration, '0005_would_apply');
+  assert.deepEqual(client.state, client.initial);
 });
 
 test('wrong database, migration contention and lock timeout roll back without committing', async () => {
@@ -306,71 +513,226 @@ test('wrong database, migration contention and lock timeout roll back without co
     [{ fail: sql => sql.startsWith('LOCK TABLE public.') }, '55P03'],
   ]) {
     const client = new FixtureClient(options);
-    await assert.rejects(runServicePlusMigrationOperator(client, { mode: 'apply' }), error => (error.operatorCode || error.code) === expectedCode);
-    assert.equal(client.queries.at(-1).sql, 'ROLLBACK'); assert.equal(client.commits, 0); assert.deepEqual(client.state, client.initial);
+    await assert.rejects(
+      runServicePlusMigrationOperator(client, { mode: 'apply' }),
+      error => (error.operatorCode || error.code) === expectedCode,
+    );
+    assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+    assert.equal(client.commits, 0);
+    assert.deepEqual(client.state, client.initial);
   }
 });
 
 test('partial service-plus schema or unknown journal cannot run any migration DDL', async () => {
   for (const change of [
-    state => { state.journal[0].hash = 'unreviewed'; },
-    state => { state.tables.ticketSatisfaction = { rows: [], columns: [column('ticketSatisfaction', 'id', 1)] }; },
-    state => { state.tables.messages.columns.push(column('messages', 'bodyFormat', 4, 'text', false, "'plain'::text")); },
-    state => { state.tables.mailOutbox.columns.push(column('mailOutbox', 'escalationId', 4, 'text', true)); },
+    state => {
+      state.journal[0].hash = 'unreviewed';
+    },
+    state => {
+      state.tables.ticketSatisfaction = { rows: [], columns: [column('ticketSatisfaction', 'id', 1)] };
+    },
+    state => {
+      state.tables.messages.columns.push(column('messages', 'bodyFormat', 4, 'text', false, "'plain'::text"));
+    },
+    state => {
+      state.tables.mailOutbox.columns.push(column('mailOutbox', 'escalationId', 4, 'text', true));
+    },
   ]) {
-    const client = new FixtureClient(); change(client.state); const before = clone(client.state);
+    const client = new FixtureClient();
+    change(client.state);
+    const before = clone(client.state);
     await assert.rejects(runServicePlusMigrationOperator(client, { mode: 'apply' }), MigrationOperatorError);
-    assert.equal(client.queries.some(({ sql }) => /^\s*(CREATE|ALTER|INSERT)\b/i.test(sql)), false);
-    assert.equal(client.commits, 0); assert.deepEqual(client.state, before);
+    assert.equal(
+      client.queries.some(({ sql }) => /^\s*(CREATE|ALTER|INSERT)\b/i.test(sql)),
+      false,
+    );
+    assert.equal(client.commits, 0);
+    assert.deepEqual(client.state, before);
   }
 });
 
 test('DDL failure rolls back both the migrator savepoint and outer transaction', async () => {
   const client = new FixtureClient({ fail: sql => /ALTER TABLE "messages" ADD COLUMN "bodyFormat"/.test(sql) });
-  await assert.rejects(runServicePlusMigrationOperator(client, { mode: 'apply' }), error => error.cause?.code === '55P03');
+  await assert.rejects(
+    runServicePlusMigrationOperator(client, { mode: 'apply' }),
+    error => error.cause?.code === '55P03',
+  );
   assert.ok(client.queries.some(({ sql }) => /^ROLLBACK TO SAVEPOINT /.test(sql)));
-  assert.equal(client.queries.at(-1).sql, 'ROLLBACK'); assert.equal(client.commits, 0); assert.deepEqual(client.state, client.initial);
+  assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+  assert.equal(client.commits, 0);
+  assert.deepEqual(client.state, client.initial);
 });
 
 test('changed private data, original definitions, extra columns/tables, journal drift or any backfill aborts before commit', async () => {
   const cases = [
-    [state => { state.tables.members.rows[0].passwordHash = 'changed-private-data'; }, 'original_data_preservation_failed'],
-    [state => { state.tables.settings.rows[0].data = '{"brandName":"changed"}'; }, 'original_data_preservation_failed'],
-    [state => { state.tables.tickets.rows[0].dueAt = '2027-01-01T00:00:00.000Z'; }, 'original_data_preservation_failed'],
-    [state => { state.tables.messages.rows[0].body = 'rewritten-message'; }, 'original_data_preservation_failed'],
-    [state => { state.tables.mailOutbox.rows[0].payloadJson = '{"changed":true}'; }, 'original_data_preservation_failed'],
-    [state => { state.tables.sessions.columns[1].data_type = 'integer'; }, 'existing_column_definition_changed'],
-    [state => { state.tables.unexpected = { rows: [], columns: [column('unexpected', 'id', 1)] }; }, 'unexpected_public_schema_change'],
-    [state => { state.tables.members.columns.push(column('members', 'unexpected', 4)); }, 'unexpected_public_column_change'],
-    [state => { state.journal[5].hash = 'changed'; }, 'unexpected_database_journal'],
-    [state => { state.tables.escalationSettings.rows.push({ ownerId: 'invented-config' }); }, 'unexpected_service_plus_backfill'],
-    [state => { state.tables.escalationOccurrences.rows.push({ id: 'invented-escalation' }); }, 'unexpected_service_plus_backfill'],
-    [state => { state.tables.inboundMailReceipts.rows.push({ providerId: 'invented-receipt' }); }, 'unexpected_service_plus_backfill'],
-    [state => { state.tables.ticketSatisfaction.rows.push({ id: 'invented-survey' }); }, 'unexpected_service_plus_backfill'],
-    [state => { state.tables.messages.rows[0].bodyFormat = 'markdown'; }, 'unexpected_service_plus_backfill'],
-    [state => { state.tables.mailOutbox.rows[0].escalationId = 'invented-escalation'; }, 'unexpected_service_plus_backfill'],
-    [state => { state.tables.mailOutbox.rows[0].satisfactionId = 'invented-survey'; }, 'unexpected_service_plus_backfill'],
-    [state => { state.tables.messages.columns.find(column => column.column_name === 'bodyFormat').not_null = false; }, 'service_plus_message_format_schema_mismatch'],
-    [state => { state.tables.messages.columns.find(column => column.column_name === 'bodyFormat').column_default = "'markdown'::text"; }, 'service_plus_message_format_schema_mismatch'],
-    [state => { state.tables.mailOutbox.columns.find(column => column.column_name === 'escalationId').not_null = true; }, 'service_plus_mail_column_schema_mismatch'],
-    [state => { state.tables.escalationSettings.columns.find(column => column.column_name === 'enabled').column_default = 'true'; }, 'service_plus_table_schema_mismatch'],
+    [
+      state => {
+        state.tables.members.rows[0].passwordHash = 'changed-private-data';
+      },
+      'original_data_preservation_failed',
+    ],
+    [
+      state => {
+        state.tables.settings.rows[0].data = '{"brandName":"changed"}';
+      },
+      'original_data_preservation_failed',
+    ],
+    [
+      state => {
+        state.tables.tickets.rows[0].dueAt = '2027-01-01T00:00:00.000Z';
+      },
+      'original_data_preservation_failed',
+    ],
+    [
+      state => {
+        state.tables.messages.rows[0].body = 'rewritten-message';
+      },
+      'original_data_preservation_failed',
+    ],
+    [
+      state => {
+        state.tables.mailOutbox.rows[0].payloadJson = '{"changed":true}';
+      },
+      'original_data_preservation_failed',
+    ],
+    [
+      state => {
+        state.tables.sessions.columns[1].data_type = 'integer';
+      },
+      'existing_column_definition_changed',
+    ],
+    [
+      state => {
+        state.tables.unexpected = { rows: [], columns: [column('unexpected', 'id', 1)] };
+      },
+      'unexpected_public_schema_change',
+    ],
+    [
+      state => {
+        state.tables.members.columns.push(column('members', 'unexpected', 4));
+      },
+      'unexpected_public_column_change',
+    ],
+    [
+      state => {
+        state.journal[5].hash = 'changed';
+      },
+      'unexpected_database_journal',
+    ],
+    [
+      state => {
+        state.tables.escalationSettings.rows.push({ ownerId: 'invented-config' });
+      },
+      'unexpected_service_plus_backfill',
+    ],
+    [
+      state => {
+        state.tables.escalationOccurrences.rows.push({ id: 'invented-escalation' });
+      },
+      'unexpected_service_plus_backfill',
+    ],
+    [
+      state => {
+        state.tables.inboundMailReceipts.rows.push({ providerId: 'invented-receipt' });
+      },
+      'unexpected_service_plus_backfill',
+    ],
+    [
+      state => {
+        state.tables.ticketSatisfaction.rows.push({ id: 'invented-survey' });
+      },
+      'unexpected_service_plus_backfill',
+    ],
+    [
+      state => {
+        state.tables.messages.rows[0].bodyFormat = 'markdown';
+      },
+      'unexpected_service_plus_backfill',
+    ],
+    [
+      state => {
+        state.tables.mailOutbox.rows[0].escalationId = 'invented-escalation';
+      },
+      'unexpected_service_plus_backfill',
+    ],
+    [
+      state => {
+        state.tables.mailOutbox.rows[0].satisfactionId = 'invented-survey';
+      },
+      'unexpected_service_plus_backfill',
+    ],
+    [
+      state => {
+        state.tables.messages.columns.find(column => column.column_name === 'bodyFormat').not_null = false;
+      },
+      'service_plus_message_format_schema_mismatch',
+    ],
+    [
+      state => {
+        state.tables.messages.columns.find(column => column.column_name === 'bodyFormat').column_default =
+          "'markdown'::text";
+      },
+      'service_plus_message_format_schema_mismatch',
+    ],
+    [
+      state => {
+        state.tables.mailOutbox.columns.find(column => column.column_name === 'escalationId').not_null = true;
+      },
+      'service_plus_mail_column_schema_mismatch',
+    ],
+    [
+      state => {
+        state.tables.escalationSettings.columns.find(column => column.column_name === 'enabled').column_default =
+          'true';
+      },
+      'service_plus_table_schema_mismatch',
+    ],
   ];
   for (const [afterMigration, code] of cases) {
     const client = new FixtureClient({ afterMigration });
-    await assert.rejects(runServicePlusMigrationOperator(client, { mode: 'apply' }), error => error.operatorCode === code, code);
-    assert.equal(client.commits, 0); assert.equal(client.queries.at(-1).sql, 'ROLLBACK'); assert.deepEqual(client.state, client.initial);
+    await assert.rejects(
+      runServicePlusMigrationOperator(client, { mode: 'apply' }),
+      error => error.operatorCode === code,
+      code,
+    );
+    assert.equal(client.commits, 0);
+    assert.equal(client.queries.at(-1).sql, 'ROLLBACK');
+    assert.deepEqual(client.state, client.initial);
   }
 });
 
 test('catalog changes while acquiring table locks abort before hashing or migration', async () => {
-  const client = new FixtureClient({ afterTableLock: state => { state.tables.members.columns[1].column_default = "'changed'::text"; } });
-  await assert.rejects(runServicePlusMigrationOperator(client, { mode: 'apply' }), error => error.operatorCode === 'public_schema_changed_during_locking');
-  assert.equal(client.queries.some(({ sql }) => /all_fingerprints|CREATE TABLE/.test(sql)), false);
-  assert.equal(client.commits, 0); assert.deepEqual(client.state, client.initial);
+  const client = new FixtureClient({
+    afterTableLock: state => {
+      state.tables.members.columns[1].column_default = "'changed'::text";
+    },
+  });
+  await assert.rejects(
+    runServicePlusMigrationOperator(client, { mode: 'apply' }),
+    error => error.operatorCode === 'public_schema_changed_during_locking',
+  );
+  assert.equal(
+    client.queries.some(({ sql }) => /all_fingerprints|CREATE TABLE/.test(sql)),
+    false,
+  );
+  assert.equal(client.commits, 0);
+  assert.deepEqual(client.state, client.initial);
 });
 
 test('failure reports emit only safe operator or SQLSTATE codes and never exception details', () => {
-  for (const error of [new Error('postgresql://user:PRIVATE_PASSWORD@host/private'), { message: 'PRIVATE_PASSWORD', detail: 'PRIVATE_TICKET_TEXT', code: 'bad connection PRIVATE_PASSWORD' }, { operatorCode: 'postgresql://user:PRIVATE_PASSWORD@host' }, { operatorCode: 'fictional_private_password' }]) assert.deepEqual(servicePlusFailureReport(error), { result: 'FAIL', code: 'operator_failed' });
-  assert.deepEqual(servicePlusFailureReport(new MigrationOperatorError('original_data_preservation_failed')), { result: 'FAIL', code: 'original_data_preservation_failed' });
-  assert.deepEqual(servicePlusFailureReport({ cause: { code: '55P03', detail: 'PRIVATE_PASSWORD' } }), { result: 'FAIL', code: '55P03' });
+  for (const error of [
+    new Error('postgresql://user:PRIVATE_PASSWORD@host/private'),
+    { message: 'PRIVATE_PASSWORD', detail: 'PRIVATE_TICKET_TEXT', code: 'bad connection PRIVATE_PASSWORD' },
+    { operatorCode: 'postgresql://user:PRIVATE_PASSWORD@host' },
+    { operatorCode: 'fictional_private_password' },
+  ])
+    assert.deepEqual(servicePlusFailureReport(error), { result: 'FAIL', code: 'operator_failed' });
+  assert.deepEqual(servicePlusFailureReport(new MigrationOperatorError('original_data_preservation_failed')), {
+    result: 'FAIL',
+    code: 'original_data_preservation_failed',
+  });
+  assert.deepEqual(servicePlusFailureReport({ cause: { code: '55P03', detail: 'PRIVATE_PASSWORD' } }), {
+    result: 'FAIL',
+    code: '55P03',
+  });
 });

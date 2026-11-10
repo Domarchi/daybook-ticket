@@ -10,7 +10,8 @@ export async function GET(request: Request) {
   return handle(async () => {
     const access = await requireAccess(request);
     const expected = request.headers.get(ALERT_VIEWER_HEADER);
-    if (expected !== null && !matchesAlertsViewer(expected, access.member.id)) throw new ApiError(409, 'Tu cuenta cambió. Actualiza Daybook Ticket antes de continuar.');
+    if (expected !== null && !matchesAlertsViewer(expected, access.member.id))
+      throw new ApiError(409, 'Tu cuenta cambió. Actualiza Daybook Ticket antes de continuar.');
     return json(await getAlertsPage(access, parseAlertsQuery(new URL(request.url).searchParams)));
   });
 }
@@ -18,7 +19,8 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   return handle(async () => {
     const access = await requireAccess(request);
-    if (!matchesAlertsViewer(request.headers.get(ALERT_VIEWER_HEADER), access.member.id)) throw new ApiError(409, 'Tu cuenta cambió. Actualiza Daybook Ticket antes de guardar la lectura.');
+    if (!matchesAlertsViewer(request.headers.get(ALERT_VIEWER_HEADER), access.member.id))
+      throw new ApiError(409, 'Tu cuenta cambió. Actualiza Daybook Ticket antes de guardar la lectura.');
     return json(await markAlertsRead(access, await parseBody(request, markAlertsSchema)));
   });
 }

@@ -7,7 +7,10 @@ export async function GET(request: Request) {
   return handle(async () => {
     const context = await requireAccess(request);
     requireAdmin(context);
-    const [mailStatus, notifications] = await Promise.all([getMailStatus(context.ownerId), listNotifications(context.ownerId)]);
+    const [mailStatus, notifications] = await Promise.all([
+      getMailStatus(context.ownerId),
+      listNotifications(context.ownerId),
+    ]);
     return json({ mailStatus, notifications });
   });
 }

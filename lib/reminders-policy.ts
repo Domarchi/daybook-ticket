@@ -1,7 +1,7 @@
 export const REMINDER_GRACE_MS = 30 * 60_000;
 export const REMINDER_DAILY_MS = 24 * 60 * 60_000;
 export const REMINDER_REASONS = ['unanswered', 'due_soon', 'overdue'] as const;
-export type ReminderReason = typeof REMINDER_REASONS[number];
+export type ReminderReason = (typeof REMINDER_REASONS)[number];
 
 export interface ReminderClock {
   status: string;
@@ -23,7 +23,8 @@ export function activeReminderReasons(ticket: ReminderClock, now: Date): Reminde
   const due = Date.parse(ticket.dueAt);
   const waiting = Date.parse(ticket.unansweredSince || '');
   const reasons: ReminderReason[] = [];
-  if (ticket.unansweredMessageId && Number.isFinite(waiting) && at >= waiting + 2 * 60 * 60_000) reasons.push('unanswered');
+  if (ticket.unansweredMessageId && Number.isFinite(waiting) && at >= waiting + 2 * 60 * 60_000)
+    reasons.push('unanswered');
   if (Number.isFinite(due) && at >= due - 60 * 60_000 && at < due) reasons.push('due_soon');
   if (Number.isFinite(due) && at >= due) reasons.push('overdue');
   return reasons;
@@ -31,18 +32,29 @@ export function activeReminderReasons(ticket: ReminderClock, now: Date): Reminde
 
 export function nextReminderReasons(ticket: ReminderClock, history: ReminderHistory, now: Date): ReminderReason[] {
   const active = activeReminderReasons(ticket, now);
-  const first = active.some(reason => reason === 'unanswered' ? !history.unansweredSent
-    : reason === 'due_soon' ? !history.dueSoonSent : !history.overdueSent);
+  const first = active.some(reason =>
+    reason === 'unanswered'
+      ? !history.unansweredSent
+      : reason === 'due_soon'
+        ? !history.dueSoonSent
+        : !history.overdueSent,
+  );
   const last = Date.parse(history.lastEnqueuedAt || '');
   const daily = Number.isFinite(last) && now.getTime() >= last + REMINDER_DAILY_MS;
   // A single grouped escalation or daily reminder, never one for each missed day.
   return first || daily ? active : [];
 }
 
-export interface ReminderStaff { id: string; role: string; status: string; userId?: string | null }
+export interface ReminderStaff {
+  id: string;
+  role: string;
+  status: string;
+  userId?: string | null;
+}
 export function reminderRecipients(staff: ReminderStaff[], assigneeId: string | null, configured: string[]): string[] {
-  const active = staff.filter(member => member.status === 'active' && Boolean(member.userId)
-    && ['owner', 'admin', 'agent'].includes(member.role));
+  const active = staff.filter(
+    member => member.status === 'active' && Boolean(member.userId) && ['owner', 'admin', 'agent'].includes(member.role),
+  );
   const assigned = active.find(member => member.id === assigneeId);
   if (assigned) return [assigned.id];
   const selected = new Set(configured);
@@ -53,7 +65,9 @@ export function parseReminderReasons(value: string): ReminderReason[] {
   try {
     const parsed: unknown = JSON.parse(value);
     return Array.isArray(parsed) ? REMINDER_REASONS.filter(reason => parsed.includes(reason)) : [];
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 export const REMINDER_REASON_LABELS: Record<ReminderReason, string> = {

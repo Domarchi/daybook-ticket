@@ -1,8 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  ACTIVE_POLL_MS, DEEP_IDLE_AFTER_MS, DEEP_IDLE_POLL_MS, HIDDEN_POLL_MS, IDLE_AFTER_MS, IDLE_POLL_MS,
-  MAX_POLL_DELAY_MS, SUSPEND_HIDDEN_AFTER_MS, pollDelay, type PollState,
+  ACTIVE_POLL_MS,
+  DEEP_IDLE_AFTER_MS,
+  DEEP_IDLE_POLL_MS,
+  HIDDEN_POLL_MS,
+  IDLE_AFTER_MS,
+  IDLE_POLL_MS,
+  MAX_POLL_DELAY_MS,
+  SUSPEND_HIDDEN_AFTER_MS,
+  pollDelay,
+  type PollState,
 } from '../lib/poll-schedule';
 
 const base: PollState = { hidden: false, sinceInteractionMs: 0, hiddenForMs: 0, failures: 0 };

@@ -22,15 +22,34 @@ export interface SlaOutcomeInput {
  * rewrite a completed measurement. Historical resolutions are never backfilled.
  */
 export async function recordSlaOutcome(tx: PoolClient, input: SlaOutcomeInput): Promise<string> {
-  const resolved = Date.parse(input.resolvedAt), due = Date.parse(input.dueAt);
+  const resolved = Date.parse(input.resolvedAt),
+    due = Date.parse(input.dueAt);
   const start = input.startedAt ? Date.parse(input.startedAt) : null;
-  if (!Number.isFinite(resolved) || !Number.isFinite(due) || (start !== null && (!Number.isFinite(start) || start > resolved))) throw new ApiError(400, 'La medición del plazo no es válida.');
-  const saved = await tx.query(`INSERT INTO "ticketSlaOutcomes"
+  if (
+    !Number.isFinite(resolved) ||
+    !Number.isFinite(due) ||
+    (start !== null && (!Number.isFinite(start) || start > resolved))
+  )
+    throw new ApiError(400, 'La medición del plazo no es válida.');
+  const saved = await tx.query(
+    `INSERT INTO "ticketSlaOutcomes"
     (id,"ownerId","ticketId","actorMemberId","startedAt","dueAt","resolvedAt","customerCompanyId","policySnapshot")
     SELECT $1,$2,t.id,$4,$5,$6,$7,$8,$9 FROM tickets t WHERE t.id=$3 AND t."ownerId"=$2
       AND ($4::text IS NULL OR EXISTS (SELECT 1 FROM members m WHERE m.id=$4 AND m."ownerId"=$2 AND m.status='active' AND m.role IN ('owner','admin','agent')))
       AND ($8::text IS NULL OR EXISTS (SELECT 1 FROM "customerCompanies" c WHERE c.id=$8 AND c."ownerId"=$2))
-    RETURNING id`, [randomUUID(), input.ownerId, input.ticketId, input.actorMemberId, input.startedAt, input.dueAt, input.resolvedAt, input.customerCompanyId, input.policySnapshot]);
+    RETURNING id`,
+    [
+      randomUUID(),
+      input.ownerId,
+      input.ticketId,
+      input.actorMemberId,
+      input.startedAt,
+      input.dueAt,
+      input.resolvedAt,
+      input.customerCompanyId,
+      input.policySnapshot,
+    ],
+  );
   if (saved.rowCount !== 1) throw new ApiError(400, 'No se pudo vincular la medición al ticket y al equipo correctos.');
   return saved.rows[0].id as string;
 }
@@ -39,14 +58,30 @@ export async function recordSlaOutcome(tx: PoolClient, input: SlaOutcomeInput): 
  * of the chosen historical period. Completion metrics use outcome snapshots;
  * response metrics use immutable public-message author roles, never note text.
  */
-export async function getAgentMetrics(tx: PoolClient, access: AccessContext, period: MetricsQuery, now = new Date()): Promise<AgentMetricsReport> {
+export async function getAgentMetrics(
+  tx: PoolClient,
+  access: AccessContext,
+  period: MetricsQuery,
+  now = new Date(),
+): Promise<AgentMetricsReport> {
   requireAdmin(access);
   if (period.companyId) {
-    const company = await tx.query('SELECT id FROM "customerCompanies" WHERE id=$1 AND "ownerId"=$2 AND "organizationId"=$3 FOR SHARE', [period.companyId, access.ownerId, access.organizationId]);
+    const company = await tx.query(
+      'SELECT id FROM "customerCompanies" WHERE id=$1 AND "ownerId"=$2 AND "organizationId"=$3 FOR SHARE',
+      [period.companyId, access.ownerId, access.organizationId],
+    );
     if (!company.rowCount) throw new ApiError(400, 'Selecciona una empresa de este espacio.');
   }
-  const values = [access.ownerId, access.organizationId, period.fromInstant, period.untilInstant, period.companyId, period.includeTests === true];
-  const { rows } = await tx.query<AgentMetric>(`WITH scoped_tickets AS (
+  const values = [
+    access.ownerId,
+    access.organizationId,
+    period.fromInstant,
+    period.untilInstant,
+    period.companyId,
+    period.includeTests === true,
+  ];
+  const { rows } = await tx.query<AgentMetric>(
+    `WITH scoped_tickets AS (
       SELECT t.id,t."createdAt",t."assigneeMemberId",t.status FROM tickets t
       WHERE ($6::boolean OR ${productionTicketSql('t')}) AND t."ownerId"=$1 AND ($5::text IS NULL OR "customerCompanyId"=$5)
     ), first_replies AS (
@@ -87,8 +122,12 @@ export async function getAgentMetrics(tx: PoolClient, access: AccessContext, per
       LEFT JOIN response f ON f.member_id=m.id LEFT JOIN resolution r ON r.member_id=m.id
     WHERE m."ownerId"=$1 AND m."organizationId"=$2
       AND (m.role IN ('owner','admin','agent') OR p.total>0 OR f.total>0 OR r.total>0)
-    ORDER BY m.name COLLATE "C",m.id`, values);
-  const coverage = (await tx.query<AgentMetricsReport['coverage']>(`WITH scoped AS (
+    ORDER BY m.name COLLATE "C",m.id`,
+    values,
+  );
+  const coverage = (
+    await tx.query<AgentMetricsReport['coverage']>(
+      `WITH scoped AS (
       SELECT t.id,t."createdAt",t.status FROM tickets t WHERE ($6::boolean OR ${productionTicketSql('t')}) AND t."ownerId"=$1 AND ($5::text IS NULL OR "customerCompanyId"=$5)
         AND EXISTS (SELECT 1 FROM organizations WHERE "ownerId"=$1 AND id=$2)
     ), first_replies AS (
@@ -102,6 +141,9 @@ export async function getAgentMetrics(tx: PoolClient, access: AccessContext, per
       (SELECT count(*)::int FROM first_replies WHERE (COALESCE("authorRole",'') NOT IN ('owner','admin','agent') OR "authorMemberId" IS NULL) AND "createdAt">=$3 AND "createdAt"<$4) AS "unknownFirstResponseTickets",
       (SELECT count(*)::int FROM "ticketSlaOutcomes" o JOIN tickets t ON t.id=o."ticketId" AND t."ownerId"=o."ownerId" WHERE o."ownerId"=$1 AND ($6::boolean OR ${productionTicketSql('t')}) AND o."actorMemberId" IS NULL
         AND ($5::text IS NULL OR o."customerCompanyId"=$5) AND o."resolvedAt">=$3 AND o."resolvedAt"<$4) AS "unattributedResolutions",
-      (SELECT count(*)::int FROM scoped t WHERE t.status='resolved' AND NOT EXISTS (SELECT 1 FROM "ticketSlaOutcomes" o WHERE o."ticketId"=t.id AND o."ownerId"=$1)) AS "historicalResolvedWithoutMeasurement"`, values)).rows[0];
+      (SELECT count(*)::int FROM scoped t WHERE t.status='resolved' AND NOT EXISTS (SELECT 1 FROM "ticketSlaOutcomes" o WHERE o."ticketId"=t.id AND o."ownerId"=$1)) AS "historicalResolvedWithoutMeasurement"`,
+      values,
+    )
+  ).rows[0];
   return { period: { ...period, timeZone: METRICS_TIME_ZONE }, generatedAt: now.toISOString(), agents: rows, coverage };
 }

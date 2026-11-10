@@ -1,28 +1,377 @@
 'use client';
-import { useEffect,useRef,useState } from 'react';
-import { BarChart3,CalendarClock,Download,FileText,LoaderCircle,RefreshCw,ShieldCheck } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { BarChart3, CalendarClock, Download, FileText, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react';
 import type { CustomerCompany } from '@/lib/types';
-import type { CompanyOperationalReport,CompanyMonthlyReport,CompanyTrend } from '@/lib/knowledge-model';
-import { metricsDate,shiftMetricsDate } from '@/lib/agent-metrics-model';
-import {daybookFetch} from '@/lib/browser-request';
+import type { CompanyOperationalReport, CompanyMonthlyReport, CompanyTrend } from '@/lib/knowledge-model';
+import { metricsDate, shiftMetricsDate } from '@/lib/agent-metrics-model';
+import { daybookFetch } from '@/lib/browser-request';
 import { getDraftOperations } from '@/lib/draft-operations';
-import {knowledgeRequest} from '@/lib/knowledge-request';
+import { knowledgeRequest } from '@/lib/knowledge-request';
 import './knowledge-reports.css';
 
-type ReportListItem=Omit<CompanyMonthlyReport,'report'>;
-function Feedback({error}:{error:string}){return error?<p role="alert" className="kr-error">{error}</p>:null;}
-function Trend({title,values}:{title:string;values:CompanyTrend[]}){const maximum=Math.max(1,...values.map(row=>row.count));return <section className="kr-trend"><h3>{title}</h3>{!values.length?<p>Sin registros en este período.</p>:<ul>{values.map((row,index)=><li key={`${row.label}:${index}`}><div><span>{row.label}</span><strong>{row.count}</strong></div><span className="kr-bar" aria-hidden="true"><i style={{width:`${100*row.count/maximum}%`}}/></span></li>)}</ul>}</section>;}
-export function CompanyReportsPanel({memberId,companies}:{memberId:string;companies:CustomerCompany[]}) {
- const today=metricsDate(new Date()),[companyId,setCompanyId]=useState(companies[0]?.id||''),[from,setFrom]=useState(shiftMetricsDate(today,-29)),[to,setTo]=useState(today),[includeTests,setTests]=useState(false),[revision,setRevision]=useState(0),key=`${memberId}:${companyId}:${from}:${to}:${includeTests}:${revision}`;
- const [state,setState]=useState<{key:string;report:CompanyOperationalReport|null;error:string}>({key:'',report:null,error:''});
- useEffect(()=>{if(!companyId||!from||!to)return;const controller=new AbortController();void knowledgeRequest<CompanyOperationalReport>(memberId,`/api/reports/company?${new URLSearchParams({companyId,from,to,includeTests:String(includeTests)})}`,'GET',undefined,controller.signal).then(report=>{if(!controller.signal.aborted)setState({key,report,error:''});}).catch(reason=>{if(!controller.signal.aborted)setState({key,report:null,error:reason instanceof Error?reason.message:'No se pudo consultar el informe.'});});return()=>controller.abort();},[memberId,companyId,from,to,includeTests,key]);
- const current=state.key===key?state:null,s=current?.report?.summary;
- return <section className="kr-panel panel"><header className="section-head"><div><h2><BarChart3 size={20}/>Servicio por empresa</h2><p>Situación actual, tendencias y mediciones registradas.</p></div><span className="kr-private"><ShieldCheck size={14}/>Solo equipo</span></header><div className="kr-controls"><label>Empresa<select value={companyId} onChange={event=>setCompanyId(event.target.value)}>{companies.map(company=><option value={company.id} key={company.id}>{company.name}</option>)}</select></label><label>Desde<input type="date" value={from} max={to} onChange={event=>setFrom(event.target.value)}/></label><label>Hasta<input type="date" value={to} min={from} max={today} onChange={event=>setTo(event.target.value)}/></label><label className="kr-check"><input type="checkbox" checked={includeTests} onChange={event=>setTests(event.target.checked)}/>Incluir pruebas</label><button className="secondary" type="button" onClick={()=>setRevision(value=>value+1)}><RefreshCw size={15}/>Actualizar</button></div><Feedback error={current?.error||''}/>{!companies.length?<p className="kr-empty">Registra una empresa para consultar sus indicadores.</p>:!from||!to?<p className="kr-empty">Selecciona ambas fechas para consultar los indicadores.</p>:!current?<p className="kr-empty" role="status"><LoaderCircle size={16} className="spin"/>Consultando indicadores…</p>:s&&current.report&&<><div className="kr-metrics">{[['Creados (empresa actual)',s.created],['Abiertos actuales',s.currentOpen],['Pendientes actuales',s.currentPending],['Vencidos actuales',s.currentOverdue],['Resoluciones registradas',s.resolutions],['Cumplimiento SLA',s.slaCompliancePercent===null?'Sin medición':`${s.slaCompliancePercent.toLocaleString('es-CL',{maximumFractionDigits:1})}%`]].map(([label,value])=><article key={label}><span>{label}</span><strong>{value}</strong></article>)}</div><div className="kr-trends"><Trend title="Tipos verificables al cierre" values={current.report.byType}/><Trend title="Equipos verificables al cierre" values={current.report.byAsset}/><Trend title="Entradas por día" values={current.report.byDay}/></div><details className="kr-coverage"><summary>Alcance y cobertura de los datos</summary><p>{s.publicReplies} respuestas públicas del equipo. {s.untyped} entradas sin tipo histórico verificable y {s.withoutAsset} sin equipo histórico verificable. {s.unknownResolved} tickets resueltos históricos sin medición de SLA.</p>{current.report.coverageNotes.map(note=><p key={note}>{note}</p>)}</details></>}{companyId&&<MonthlyReports key={`${memberId}:${companyId}`} memberId={memberId} companyId={companyId} includeTests={includeTests}/>}</section>;
+type ReportListItem = Omit<CompanyMonthlyReport, 'report'>;
+function Feedback({ error }: { error: string }) {
+  return error ? (
+    <p role="alert" className="kr-error">
+      {error}
+    </p>
+  ) : null;
 }
-function MonthlyReports({memberId,companyId,includeTests}:{memberId:string;companyId:string;includeTests:boolean}) {
- const [month,setMonth]=useState(metricsDate(new Date()).slice(0,7)),[revision,setRevision]=useState(0),[cursor,setCursor]=useState<string|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[state,setState]=useState<{key:string;items:ReportListItem[];nextCursor:string|null;error:string}>({key:'',items:[],nextCursor:null,error:''}),sending=useRef(false),key=`${memberId}:${companyId}:${cursor}:${revision}`;
- useEffect(()=>{const controller=new AbortController();void knowledgeRequest<{items:ReportListItem[];nextCursor:string|null}>(memberId,`/api/reports/monthly?companyId=${companyId}${cursor?`&cursor=${cursor}`:''}`,'GET',undefined,controller.signal).then(page=>{if(!controller.signal.aborted)setState({key,...page,error:''});}).catch(reason=>{if(!controller.signal.aborted)setState({key,items:[],nextCursor:null,error:reason instanceof Error?reason.message:'No se pudieron cargar los informes mensuales.'});});return()=>controller.abort();},[memberId,companyId,cursor,key]);
- const download=async(id:string,format:'pdf'|'csv',month:string)=>{if(sending.current)return;sending.current=true;setBusy(true);setError('');try{const response=await daybookFetch(`/api/reports/monthly/${id}/download?format=${format}`,{cache:'no-store',headers:{'X-Daybook-Member-Id':memberId}});if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(typeof data.error==='string'?data.error:'No se pudo descargar el informe.');}const url=URL.createObjectURL(await response.blob().catch(()=>{throw new Error('La descarga se interrumpió. Vuelve a intentarlo.');})),link=document.createElement('a');link.href=url;link.download=`daybook-informe-${/^20\d{2}-\d{2}$/.test(month)?month:'mensual'}.${format}`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(reason){setError(reason instanceof Error?reason.message:'No se pudo descargar.');}finally{sending.current=false;setBusy(false);}};
- const current=state.key===key?state:null;
- return <section className="kr-monthly"><header><div><h3><CalendarClock size={18}/>Informes mensuales privados</h3><p>Cada captura se conserva sin cambiar cuando evoluciona el ticket. Genera otra para guardar una actualización.</p></div></header><Feedback error={error||current?.error||''}/><form className="kr-controls" onSubmit={async event=>{event.preventDefault();if(sending.current)return;sending.current=true;setBusy(true);setError('');try{const payload={companyId,month,includeTests},scope=`${memberId}:company-report:${companyId}`,operations=getDraftOperations();await knowledgeRequest(memberId,'/api/reports/monthly','POST',{...payload,operationId:operations.forPayload(scope,payload)});operations.clear(scope);setCursor(null);setRevision(value=>value+1);}catch(reason){setError(reason instanceof Error?reason.message:'No se pudo guardar el informe.');}finally{sending.current=false;setBusy(false);}}}><label>Mes<input type="month" required value={month} max={metricsDate(new Date()).slice(0,7)} disabled={busy} onChange={event=>setMonth(event.target.value)}/></label><button className="primary" disabled={busy}><FileText size={15}/>Guardar captura mensual</button></form>{!current?<p role="status">Cargando capturas…</p>:current.error?null:!current.items.length?<p className="kr-empty">No hay capturas guardadas para esta empresa.</p>:<ul className="kr-report-list">{current.items.map(item=><li key={item.id}><div><strong>{item.month}</strong><p>{new Date(item.createdAt).toLocaleString('es-CL')}</p></div><button className="secondary" type="button" disabled={busy} onClick={()=>void download(item.id,'pdf',item.month)}><Download size={14}/>PDF</button><button className="secondary" type="button" disabled={busy} onClick={()=>void download(item.id,'csv',item.month)}><Download size={14}/>CSV</button></li>)}</ul>}<div className="kr-actions"><button className="secondary" type="button" disabled={busy} onClick={()=>setRevision(value=>value+1)}><RefreshCw size={14}/>Actualizar capturas</button>{cursor&&<button className="secondary" type="button" onClick={()=>setCursor(null)}>Más recientes</button>}{current?.nextCursor&&<button className="secondary" type="button" onClick={()=>setCursor(current.nextCursor)}>Capturas anteriores</button>}</div></section>;
+function Trend({ title, values }: { title: string; values: CompanyTrend[] }) {
+  const maximum = Math.max(1, ...values.map(row => row.count));
+  return (
+    <section className="kr-trend">
+      <h3>{title}</h3>
+      {!values.length ? (
+        <p>Sin registros en este período.</p>
+      ) : (
+        <ul>
+          {values.map((row, index) => (
+            <li key={`${row.label}:${index}`}>
+              <div>
+                <span>{row.label}</span>
+                <strong>{row.count}</strong>
+              </div>
+              <span className="kr-bar" aria-hidden="true">
+                <i style={{ width: `${(100 * row.count) / maximum}%` }} />
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+export function CompanyReportsPanel({ memberId, companies }: { memberId: string; companies: CustomerCompany[] }) {
+  const today = metricsDate(new Date()),
+    [companyId, setCompanyId] = useState(companies[0]?.id || ''),
+    [from, setFrom] = useState(shiftMetricsDate(today, -29)),
+    [to, setTo] = useState(today),
+    [includeTests, setTests] = useState(false),
+    [revision, setRevision] = useState(0),
+    key = `${memberId}:${companyId}:${from}:${to}:${includeTests}:${revision}`;
+  const [state, setState] = useState<{ key: string; report: CompanyOperationalReport | null; error: string }>({
+    key: '',
+    report: null,
+    error: '',
+  });
+  useEffect(() => {
+    if (!companyId || !from || !to) return;
+    const controller = new AbortController();
+    void knowledgeRequest<CompanyOperationalReport>(
+      memberId,
+      `/api/reports/company?${new URLSearchParams({ companyId, from, to, includeTests: String(includeTests) })}`,
+      'GET',
+      undefined,
+      controller.signal,
+    )
+      .then(report => {
+        if (!controller.signal.aborted) setState({ key, report, error: '' });
+      })
+      .catch(reason => {
+        if (!controller.signal.aborted)
+          setState({
+            key,
+            report: null,
+            error: reason instanceof Error ? reason.message : 'No se pudo consultar el informe.',
+          });
+      });
+    return () => controller.abort();
+  }, [memberId, companyId, from, to, includeTests, key]);
+  const current = state.key === key ? state : null,
+    s = current?.report?.summary;
+  return (
+    <section className="kr-panel panel">
+      <header className="section-head">
+        <div>
+          <h2>
+            <BarChart3 size={20} />
+            Servicio por empresa
+          </h2>
+          <p>Situación actual, tendencias y mediciones registradas.</p>
+        </div>
+        <span className="kr-private">
+          <ShieldCheck size={14} />
+          Solo equipo
+        </span>
+      </header>
+      <div className="kr-controls">
+        <label>
+          Empresa
+          <select value={companyId} onChange={event => setCompanyId(event.target.value)}>
+            {companies.map(company => (
+              <option value={company.id} key={company.id}>
+                {company.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Desde
+          <input type="date" value={from} max={to} onChange={event => setFrom(event.target.value)} />
+        </label>
+        <label>
+          Hasta
+          <input type="date" value={to} min={from} max={today} onChange={event => setTo(event.target.value)} />
+        </label>
+        <label className="kr-check">
+          <input type="checkbox" checked={includeTests} onChange={event => setTests(event.target.checked)} />
+          Incluir pruebas
+        </label>
+        <button className="secondary" type="button" onClick={() => setRevision(value => value + 1)}>
+          <RefreshCw size={15} />
+          Actualizar
+        </button>
+      </div>
+      <Feedback error={current?.error || ''} />
+      {!companies.length ? (
+        <p className="kr-empty">Registra una empresa para consultar sus indicadores.</p>
+      ) : !from || !to ? (
+        <p className="kr-empty">Selecciona ambas fechas para consultar los indicadores.</p>
+      ) : !current ? (
+        <p className="kr-empty" role="status">
+          <LoaderCircle size={16} className="spin" />
+          Consultando indicadores…
+        </p>
+      ) : (
+        s &&
+        current.report && (
+          <>
+            <div className="kr-metrics">
+              {[
+                ['Creados (empresa actual)', s.created],
+                ['Abiertos actuales', s.currentOpen],
+                ['Pendientes actuales', s.currentPending],
+                ['Vencidos actuales', s.currentOverdue],
+                ['Resoluciones registradas', s.resolutions],
+                [
+                  'Cumplimiento SLA',
+                  s.slaCompliancePercent === null
+                    ? 'Sin medición'
+                    : `${s.slaCompliancePercent.toLocaleString('es-CL', { maximumFractionDigits: 1 })}%`,
+                ],
+              ].map(([label, value]) => (
+                <article key={label}>
+                  <span>{label}</span>
+                  <strong>{value}</strong>
+                </article>
+              ))}
+            </div>
+            <div className="kr-trends">
+              <Trend title="Tipos verificables al cierre" values={current.report.byType} />
+              <Trend title="Equipos verificables al cierre" values={current.report.byAsset} />
+              <Trend title="Entradas por día" values={current.report.byDay} />
+            </div>
+            <details className="kr-coverage">
+              <summary>Alcance y cobertura de los datos</summary>
+              <p>
+                {s.publicReplies} respuestas públicas del equipo. {s.untyped} entradas sin tipo histórico verificable y{' '}
+                {s.withoutAsset} sin equipo histórico verificable. {s.unknownResolved} tickets resueltos históricos sin
+                medición de SLA.
+              </p>
+              {current.report.coverageNotes.map(note => (
+                <p key={note}>{note}</p>
+              ))}
+            </details>
+          </>
+        )
+      )}
+      {companyId && (
+        <MonthlyReports
+          key={`${memberId}:${companyId}`}
+          memberId={memberId}
+          companyId={companyId}
+          includeTests={includeTests}
+        />
+      )}
+    </section>
+  );
+}
+function MonthlyReports({
+  memberId,
+  companyId,
+  includeTests,
+}: {
+  memberId: string;
+  companyId: string;
+  includeTests: boolean;
+}) {
+  const [month, setMonth] = useState(metricsDate(new Date()).slice(0, 7)),
+    [revision, setRevision] = useState(0),
+    [cursor, setCursor] = useState<string | null>(null),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(''),
+    [state, setState] = useState<{ key: string; items: ReportListItem[]; nextCursor: string | null; error: string }>({
+      key: '',
+      items: [],
+      nextCursor: null,
+      error: '',
+    }),
+    sending = useRef(false),
+    key = `${memberId}:${companyId}:${cursor}:${revision}`;
+  useEffect(() => {
+    const controller = new AbortController();
+    void knowledgeRequest<{ items: ReportListItem[]; nextCursor: string | null }>(
+      memberId,
+      `/api/reports/monthly?companyId=${companyId}${cursor ? `&cursor=${cursor}` : ''}`,
+      'GET',
+      undefined,
+      controller.signal,
+    )
+      .then(page => {
+        if (!controller.signal.aborted) setState({ key, ...page, error: '' });
+      })
+      .catch(reason => {
+        if (!controller.signal.aborted)
+          setState({
+            key,
+            items: [],
+            nextCursor: null,
+            error: reason instanceof Error ? reason.message : 'No se pudieron cargar los informes mensuales.',
+          });
+      });
+    return () => controller.abort();
+  }, [memberId, companyId, cursor, key]);
+  const download = async (id: string, format: 'pdf' | 'csv', month: string) => {
+    if (sending.current) return;
+    sending.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const response = await daybookFetch(`/api/reports/monthly/${id}/download?format=${format}`, {
+        cache: 'no-store',
+        headers: { 'X-Daybook-Member-Id': memberId },
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(typeof data.error === 'string' ? data.error : 'No se pudo descargar el informe.');
+      }
+      const url = URL.createObjectURL(
+          await response.blob().catch(() => {
+            throw new Error('La descarga se interrumpió. Vuelve a intentarlo.');
+          }),
+        ),
+        link = document.createElement('a');
+      link.href = url;
+      link.download = `daybook-informe-${/^20\d{2}-\d{2}$/.test(month) ? month : 'mensual'}.${format}`;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'No se pudo descargar.');
+    } finally {
+      sending.current = false;
+      setBusy(false);
+    }
+  };
+  const current = state.key === key ? state : null;
+  return (
+    <section className="kr-monthly">
+      <header>
+        <div>
+          <h3>
+            <CalendarClock size={18} />
+            Informes mensuales privados
+          </h3>
+          <p>
+            Cada captura se conserva sin cambiar cuando evoluciona el ticket. Genera otra para guardar una
+            actualización.
+          </p>
+        </div>
+      </header>
+      <Feedback error={error || current?.error || ''} />
+      <form
+        className="kr-controls"
+        onSubmit={async event => {
+          event.preventDefault();
+          if (sending.current) return;
+          sending.current = true;
+          setBusy(true);
+          setError('');
+          try {
+            const payload = { companyId, month, includeTests },
+              scope = `${memberId}:company-report:${companyId}`,
+              operations = getDraftOperations();
+            await knowledgeRequest(memberId, '/api/reports/monthly', 'POST', {
+              ...payload,
+              operationId: operations.forPayload(scope, payload),
+            });
+            operations.clear(scope);
+            setCursor(null);
+            setRevision(value => value + 1);
+          } catch (reason) {
+            setError(reason instanceof Error ? reason.message : 'No se pudo guardar el informe.');
+          } finally {
+            sending.current = false;
+            setBusy(false);
+          }
+        }}
+      >
+        <label>
+          Mes
+          <input
+            type="month"
+            required
+            value={month}
+            max={metricsDate(new Date()).slice(0, 7)}
+            disabled={busy}
+            onChange={event => setMonth(event.target.value)}
+          />
+        </label>
+        <button className="primary" disabled={busy}>
+          <FileText size={15} />
+          Guardar captura mensual
+        </button>
+      </form>
+      {!current ? (
+        <p role="status">Cargando capturas…</p>
+      ) : current.error ? null : !current.items.length ? (
+        <p className="kr-empty">No hay capturas guardadas para esta empresa.</p>
+      ) : (
+        <ul className="kr-report-list">
+          {current.items.map(item => (
+            <li key={item.id}>
+              <div>
+                <strong>{item.month}</strong>
+                <p>{new Date(item.createdAt).toLocaleString('es-CL')}</p>
+              </div>
+              <button
+                className="secondary"
+                type="button"
+                disabled={busy}
+                onClick={() => void download(item.id, 'pdf', item.month)}
+              >
+                <Download size={14} />
+                PDF
+              </button>
+              <button
+                className="secondary"
+                type="button"
+                disabled={busy}
+                onClick={() => void download(item.id, 'csv', item.month)}
+              >
+                <Download size={14} />
+                CSV
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="kr-actions">
+        <button className="secondary" type="button" disabled={busy} onClick={() => setRevision(value => value + 1)}>
+          <RefreshCw size={14} />
+          Actualizar capturas
+        </button>
+        {cursor && (
+          <button className="secondary" type="button" onClick={() => setCursor(null)}>
+            Más recientes
+          </button>
+        )}
+        {current?.nextCursor && (
+          <button className="secondary" type="button" onClick={() => setCursor(current.nextCursor)}>
+            Capturas anteriores
+          </button>
+        )}
+      </div>
+    </section>
+  );
 }

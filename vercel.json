@@ -1,7 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "regions": [
-    "iad1"
-  ]
+  "regions": ["iad1"]
 }

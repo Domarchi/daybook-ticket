@@ -24,7 +24,10 @@ test('only sslmode changes: credentials, host, database and other parameters are
 test('verify-full, a missing sslmode, libpq compatibility and lookalikes are left untouched', () => {
   assert.equal(explicitSslMode(`${base}?sslmode=verify-full`), `${base}?sslmode=verify-full`);
   assert.equal(explicitSslMode(base), base);
-  assert.equal(explicitSslMode(`${base}?uselibpqcompat=true&sslmode=require`), `${base}?uselibpqcompat=true&sslmode=require`);
+  assert.equal(
+    explicitSslMode(`${base}?uselibpqcompat=true&sslmode=require`),
+    `${base}?uselibpqcompat=true&sslmode=require`,
+  );
   assert.equal(explicitSslMode(`${base}?sslmode=disable`), `${base}?sslmode=disable`);
   assert.equal(explicitSslMode(`${base}?xsslmode=require`), `${base}?xsslmode=require`);
   assert.equal(explicitSslMode(`${base}?sslmode=required`), `${base}?sslmode=required`);

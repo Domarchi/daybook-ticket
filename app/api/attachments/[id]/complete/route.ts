@@ -7,7 +7,10 @@ export const maxDuration = 60;
 export async function POST(request: Request, context: RouteContext) {
   return handle(async () => {
     const access = await requireAccess(request);
-    const id = z.string().uuid().parse((await context.params).id);
+    const id = z
+      .string()
+      .uuid()
+      .parse((await context.params).id);
     await parseBody(request, z.object({}).strict());
     return json(await completeAttachment(access, id));
   });
