@@ -6,6 +6,7 @@ import "./collaboration.css";
 import "./evolution-theme.css";
 import "./tokens.css";
 import "./accessibility.css";
+import "./mobile-inbox.css";
 import {ThemeBootstrap} from "./evolution-controls";
 
 export const metadata: Metadata = {

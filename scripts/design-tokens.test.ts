@@ -62,7 +62,10 @@ test('semantic tokens match the legacy palette they alias (no silent drift)', ()
   }
 });
 
-test('every token used by the accessibility sheet is defined', () => {
-  const used = [...read('accessibility.css').matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
-  for (const name of used) assert.ok(name in light, `${name} is not defined in tokens.css`);
+test('every token used by the token-based sheets is defined', () => {
+  for (const sheet of ['accessibility.css', 'mobile-inbox.css']) {
+    const used = [...read(sheet).matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
+    assert.ok(used.length > 0, `${sheet} should use tokens`);
+    for (const name of used) assert.ok(name in light, `${name} (used by ${sheet}) is not defined in tokens.css`);
+  }
 });

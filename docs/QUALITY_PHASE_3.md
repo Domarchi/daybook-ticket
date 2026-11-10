@@ -40,10 +40,21 @@ En un espacio de negocio la ruta es la misma bajo `/w/<id>`. `?serviceContext=1`
 ### No incluido
 Los elementos del menú y las filas siguen siendo botones, no enlaces: no se puede abrir una vista en una pestaña nueva con clic central. Se hará junto con la bandeja móvil (C3), que toca esos mismos elementos.
 
+## C3. Bandeja móvil y enlaces reales
+
+- **Tarjetas bajo 750 px** (`app/desk-parts/ticket-cards.tsx`, `app/mobile-inbox.css`): en pantallas estrechas la bandeja deja de ser una tabla con scroll horizontal y muestra una tarjeta por ticket: número, estado y prioridad con texto, asunto (hasta 3 líneas), solicitante y departamento, responsable, «Actualizado hace…» y plazo (vencido en rojo). Casilla de 44 px, «Seleccionar tickets de esta vista» y las mismas acciones masivas. De 751 px en adelante sigue la tabla. Usa los tokens de diseño: el modo oscuro sale de sus valores, sin lista de selectores.
+- **Asunto como enlace** (`DeskLink` en `app/desk-parts/shared.tsx`): el asunto de cada fila y de cada tarjeta es un `<a href="?ticket=N">`. Un clic normal abre el ticket en el sitio; clic central, Ctrl/⌘+clic o «abrir en pestaña nueva» usan el navegador y funcionan gracias a la URL de C1.
+- **Menú móvil como cajón accesible** (`app/desk-parts/sidebar.tsx`): al abrirse toma el foco, mantiene Tab dentro, se cierra con Escape, bloquea el scroll de la página, inhabilita el contenido de detrás (`inert`) y devuelve el foco al botón que lo abrió; se anuncia como diálogo modal. Si la ventana deja de ser estrecha mientras está abierto, se cierra y no reaparece al volver a encogerla.
+
+### No incluido
+Los botones del menú lateral siguen siendo botones, no enlaces. Convertirlos exige duplicar unas once reglas de `globals.css` y repasar su aspecto en claro y oscuro en escritorio; se hará aparte, si interesa abrir vistas en pestaña nueva.
+
 ## Verificación
 `npm run check`: lint, pruebas, tipos y build correctos. La lógica de URL y de retorno está cubierta por pruebas unitarias con un historial simulado (`scripts/desk-url.test.ts`, `scripts/check-portal-return-path.test.ts`).
 
-Recorrido en producción con una sesión real (10 nov 2026, tras publicar `1a478e6`): abrir un ticket cambia la URL a `/?ticket=N`; Atrás vuelve a la bandeja y Adelante reabre el ticket; abrir `/?ticket=N` directamente muestra el ticket; Seguridad cambia a `/?view=security` y Atrás vuelve a la bandeja; `/?view=metrics` abre Métricas del equipo. Ese recorrido encontró un fallo: con un enlace directo, «Volver a la bandeja» cambiaba la URL pero dejaba el ticket en pantalla, porque `replaceState` recibía el estado interno de Next.js y Next lo trata como una llamada propia y no actualiza `useSearchParams`. Se corrige pasando un objeto nuevo, y la prueba simula ese comportamiento de Next para que no vuelva a pasar.
+C3 (antes de publicar): `scripts/ticket-cards.test.ts` renderiza las tarjetas (enlaces, etiquetas, estado, plazo vencido, «ahora», selección) y `scripts/design-tokens.test.ts` exige que `mobile-inbox.css` solo use tokens definidos. El aspecto a 375 px, claro y oscuro, se comprobó con el componente real y el CSS de la aplicación en una página estática (no con datos reales).
+
+Recorrido de C1/C2 en producción con una sesión real (10 nov 2026, tras publicar `1a478e6`): abrir un ticket cambia la URL a `/?ticket=N`; Atrás vuelve a la bandeja y Adelante reabre el ticket; abrir `/?ticket=N` directamente muestra el ticket; Seguridad cambia a `/?view=security` y Atrás vuelve a la bandeja; `/?view=metrics` abre Métricas del equipo. Ese recorrido encontró un fallo: con un enlace directo, «Volver a la bandeja» cambiaba la URL pero dejaba el ticket en pantalla, porque `replaceState` recibía el estado interno de Next.js y Next lo trata como una llamada propia y no actualiza `useSearchParams`. Se corrige pasando un objeto nuevo, y la prueba simula ese comportamiento de Next para que no vuelva a pasar.
 
 ## Reversión
 Revertir el commit restaura el estado interno anterior; no hay datos ni migraciones.
