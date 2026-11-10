@@ -7,6 +7,7 @@ test('old Daybook and scoped ticket/service links survive the validated login ro
   ['daybook',{ticket:'6'},'/?ticket=6'],['alpha',{ticket:'6'},'/w/alpha?ticket=6'],
   ['daybook',{view:'security'},'/?view=security'],['alpha',{view:'overview'},'/w/alpha?view=overview'],
   ['daybook',{view:'service',company},`/?view=service&company=${company}`],
+  ['daybook',{view:'settings',section:'mail'},'/?view=settings&section=mail'],['alpha',{view:'settings',section:'backups'},'/w/alpha?view=settings&section=backups'],
   ['daybook',{serviceContext:'1',company},`/?serviceContext=1&company=${company}`],['alpha',{serviceContext:'1',company},`/w/alpha?serviceContext=1&company=${company}`],
  ] as const){const target=portalReturnPath(workspace,query);assert.equal(target,expected);const login=new URL(ticketLoginPath(target),'https://qa.example.test');assert.equal(login.pathname,'/login');assert.equal(safeTicketReturnPath(login.searchParams.get('return_to')),expected);}
  assert.equal(safeTicketReturnPath('/w/daybook?ticket=6'),'/?ticket=6');
@@ -22,6 +23,13 @@ test('a view link is valid only for a known non-default view, optionally with a 
  for(const value of ['/?view=inbox','/?view=nope','/?view=security&ticket=6','/?view=security&serviceContext=1',`/?view=security&company=${company}`,'/?view=service&company=zzz','/?view=team&view=settings','/w/alpha?view=%2e%2e'])assert.equal(safeTicketReturnPath(value),'/',value);
  assert.equal(safeTicketReturnPath('/?view=team'),'/?view=team');
  assert.equal(safeTicketReturnPath(`/w/alpha?view=service&company=${company}`),`/w/alpha?view=service&company=${company}`);
+});
+test('a settings section is valid only with the settings view and a known, non-default name',()=>{
+ assert.equal(portalReturnPath('daybook',{view:'settings',section:'general'}),'/?view=settings');
+ assert.equal(portalReturnPath('daybook',{view:'settings',section:'nope'}),'/?view=settings');
+ assert.equal(portalReturnPath('daybook',{view:'team',section:'mail'}),'/?view=team');
+ for(const value of ['/?view=settings&section=general','/?view=settings&section=nope','/?view=team&section=mail','/?section=mail','/?view=settings&section=mail&section=backups','/?view=settings&section=mail&ticket=3','/?view=settings&section=mail&company='+company])assert.equal(safeTicketReturnPath(value),'/',value);
+ assert.equal(safeTicketReturnPath('/?view=settings&section=features'),'/?view=settings&section=features');
 });
 test('only exact known local destinations and one known parameter set can pass through login',()=>{
  for(const value of ['https://outside.test/w/alpha?ticket=6','//outside.test','/w/alpha/../beta?ticket=6','/w/alpha?ticket=6&redirect=https://outside.test',`/w/alpha?serviceContext=1&company=${company}&company=${company}`,'/?ticket=6&serviceContext=1','/operator','/w/alpha/security','/w/alpha?serviceContext=0','/w/alpha?company='+company,'/w/%2f?ticket=6','/w/alpha?ticket=9007199254740992'])assert.equal(safeTicketReturnPath(value),'/',value);

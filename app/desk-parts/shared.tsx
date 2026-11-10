@@ -3,7 +3,7 @@ import { readDaybookJson } from '@/lib/browser-json';
 import { UNCERTAIN_SEND_MESSAGE, daybookFetch } from '@/lib/browser-request';
 import { domainResponseValidator } from '@/lib/domain-response';
 import { Inbox, X } from 'lucide-react';
-import { deskQuery, type View } from '@/lib/desk-url';
+import { deskQuery, type DeskTarget, type View } from '@/lib/desk-url';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useId, useRef, useSyncExternalStore } from 'react';
 import { type Message, type Ticket, type TicketPriority, type TicketStatus } from '../../lib/types';
@@ -77,7 +77,7 @@ export type ReplyTarget = { memberId: string; ticketId: number; message: Message
  * (new tab, new window, download) keep the browser's own behavior, which the old buttons did not allow.
  */
 export function DeskLink({ to, onNavigate, className, children, ...rest }: {
-    to: { view?: View; ticketId?: number | null };
+    to: DeskTarget;
     onNavigate: () => void;
     className?: string;
     children: ReactNode;

@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { AlarmClock, Bell, Check, CheckCheck, ChevronRight, LoaderCircle, MessageSquare, Monitor, Ticket, Volume2, VolumeX, X } from 'lucide-react';
+import { AlarmClock, Bell, CheckCheck, ChevronRight, LoaderCircle, MessageSquare, Monitor, Ticket, Volume2, VolumeX, X } from 'lucide-react';
 import type { AlertControls } from '@/hooks/use-ticket-alerts';
 import type { TicketAlert } from '@/lib/types';
 import { SUPPORT_EVENT_LABELS } from '@/lib/notification-event-labels';
+import { PushMenu } from './push-menu';
 import './ticket-alerts.css';
 
 const alertTitle = (item: TicketAlert) => item.event === 'ticket_created' ? 'Nuevo ticket' : item.event === 'reminder' ? 'Recordatorio' : item.event === 'escalation' || item.event === 'satisfaction_requested' || item.event === 'member_mentioned' || item.event === 'ticket_followed_update' ? SUPPORT_EVENT_LABELS[item.event] : 'Nuevo mensaje';
@@ -66,12 +67,8 @@ export function TicketAlerts({ alerts, onOpen, disabled = false }: {
         {alerts.soundPending ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : alerts.soundEnabled ? <Volume2 size={16} aria-hidden="true" /> : <VolumeX size={16} aria-hidden="true" />}
         {alerts.soundPending ? 'Activando…' : alerts.soundEnabled ? 'Silenciar' : 'Activar sonido'}
       </button>
-      {alerts.push.status === 'active' ? <>
-        <span className="ticket-alert-desktop"><Check size={14} aria-hidden="true" />Avisos en este equipo</span>
-        <button type="button" className="ticket-alert-control" disabled={alerts.push.busy} onClick={alerts.push.test} aria-busy={alerts.push.busy}>{alerts.push.busy ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : <Monitor size={16} aria-hidden="true" />}Probar aviso</button>
-        <button type="button" className="ticket-alert-control" disabled={alerts.push.busy} onClick={alerts.push.testLocal} aria-busy={alerts.push.busy} title="Comprobar que este computador puede mostrar notificaciones">Probar en este equipo</button>
-        <button type="button" className="ticket-alert-control ticket-push-disable" disabled={alerts.push.busy} onClick={alerts.push.disable} aria-label="Desactivar avisos con la página cerrada">Desactivar</button>
-      </> : alerts.push.status === 'inactive' ? <button type="button" className="ticket-alert-control ticket-push-enable" onClick={alerts.push.enable} disabled={alerts.push.busy} aria-busy={alerts.push.busy}>{alerts.push.busy ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : <Monitor size={16} aria-hidden="true" />}{alerts.push.busy ? 'Activando avisos…' : 'Activar avisos con la página cerrada'}</button>
+      {alerts.push.status === 'active' ? <PushMenu push={alerts.push} /> : alerts.push.status === 'inactive'
+ ? <button type="button" className="ticket-alert-control ticket-push-enable" onClick={alerts.push.enable} disabled={alerts.push.busy} aria-busy={alerts.push.busy}>{alerts.push.busy ? <LoaderCircle size={16} className="spin" aria-hidden="true" /> : <Monitor size={16} aria-hidden="true" />}{alerts.push.busy ? 'Activando avisos…' : 'Activar avisos con la página cerrada'}</button>
         : alerts.push.status === 'loading' ? <span className="ticket-alert-desktop"><LoaderCircle size={14} className="spin" aria-hidden="true" />Preparando avisos…</span>
           : alerts.push.status === 'blocked' ? <span className="ticket-alert-desktop is-blocked"><Monitor size={15} aria-hidden="true" />Avisos bloqueados</span>
             : alerts.push.status === 'error' ? <button type="button" className="ticket-alert-control" disabled={alerts.push.busy} onClick={alerts.push.refresh}><Monitor size={16} aria-hidden="true" />Reintentar avisos</button> : null}
@@ -84,7 +81,6 @@ export function TicketAlerts({ alerts, onOpen, disabled = false }: {
       {alerts.push.status === 'unsupported' && <p>Este navegador no permite avisos con la página cerrada. Abre Daybook Ticket en Chrome, Edge, Firefox o Safari de tu computador.</p>}
       {alerts.push.status === 'unconfigured' && <p>Los avisos con la página cerrada aún no están disponibles. Los avisos dentro de Daybook siguen activos.</p>}
       {alerts.push.status === 'blocked' && <p>Permite las notificaciones en los ajustes de este sitio en tu navegador y vuelve a esta página.</p>}
-      {alerts.push.status === 'active' && !alerts.push.notice && <p>Activos con la pestaña cerrada mientras mantengas tu sesión iniciada. El sonido depende de los ajustes de tu computador.</p>}
       {alerts.push.notice && <p>{alerts.push.notice}</p>}
     </div>
     {alerts.push.error && <p className="ticket-alert-audio-error" role="alert">{alerts.push.error}</p>}
