@@ -3,7 +3,8 @@ import { readDaybookJson } from '@/lib/browser-json';
 import { UNCERTAIN_SEND_MESSAGE, daybookFetch } from '@/lib/browser-request';
 import { domainResponseValidator } from '@/lib/domain-response';
 import { Inbox, X } from 'lucide-react';
-import { type View } from '@/lib/desk-url';
+import { deskQuery, type View } from '@/lib/desk-url';
+import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useId, useRef, useSyncExternalStore } from 'react';
 import { type Message, type Ticket, type TicketPriority, type TicketStatus } from '../../lib/types';
 
@@ -70,3 +71,21 @@ export function PageTitle({ title, subtitle, action }: {
 }) { return <div className="page-heading"><div><span className="eyebrow"><span className="tiny-line"/> TU ESPACIO, BIEN ORGANIZADO</span><h1>{title}</h1><p>{subtitle}</p></div>{action}</div>; }
 export type DeskRun = (fn: () => Promise<unknown>, message: string) => Promise<boolean>;
 export type ReplyTarget = { memberId: string; ticketId: number; message: Message } | null;
+
+/**
+ * A real link to a desk location. A plain click is handled in place (no page load); modified clicks
+ * (new tab, new window, download) keep the browser's own behavior, which the old buttons did not allow.
+ */
+export function DeskLink({ to, onNavigate, className, children, ...rest }: {
+    to: { view?: View; ticketId?: number | null };
+    onNavigate: () => void;
+    className?: string;
+    children: ReactNode;
+} & Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href' | 'onClick' | 'className' | 'children'>) {
+    const pathname = usePathname() ?? '';
+    return <a {...rest} className={className} href={`${pathname}${deskQuery(to)}`} onClick={event => {
+        if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        onNavigate();
+    }}>{children}</a>;
+}

@@ -9,7 +9,8 @@ import { currentWorkspaceId } from '@/lib/workspace-client';
 import { workspaceHome } from '@/lib/workspace-model';
 import { CheckCircle2, ChevronRight, LoaderCircle, Menu, Search, ShieldCheck, X } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useMediaQuery } from '@/hooks/use-media-query';
 import { leaveTicket, navigateDesk, parseDeskLocation } from '@/lib/desk-url';
 import { type Ticket } from '../lib/types';
 import ClientPortal from './client-portal';
@@ -37,6 +38,12 @@ export default function Desk({ displayName, email }: {
     const location = useMemo(() => parseDeskLocation(searchParams), [searchParams]);
     const requestedView = location.view, ticketId = location.ticketId;
     const [search, setSearch] = useState(''), [showFilters, setShowFilters] = useState(false), [mobile, setMobile] = useState(false);
+    const narrow = useMediaQuery('(max-width: 750px)');
+    const drawerOpen = mobile && narrow;
+    const closeMenu = useCallback(() => setMobile(false), []);
+    // Leaving the narrow layout closes the drawer, so it does not reopen by itself when the window shrinks again.
+    const [wasNarrow, setWasNarrow] = useState(narrow);
+    if (narrow !== wasNarrow) { setWasNarrow(narrow); if (!narrow) setMobile(false); }
     const [create, setCreate] = useState(false), [selected, setSelected] = useState<number[]>([]);
     const searchRef = useRef<HTMLInputElement>(null);
     const isAdmin = data.viewer?.role === 'owner' || data.viewer?.role === 'admin';
@@ -107,9 +114,9 @@ export default function Desk({ displayName, email }: {
     if (!loading && data.viewer?.role === 'client') return <ClientPortal key={`${data.viewer.id}:${data.viewer.role}`} data={data} displayName={viewerName} email={data.viewer.email} onRefresh={refresh} connection={connection} alerts={alerts} />;
     if (!loading && !data.viewer) return <main className="staff-denied"><ShieldCheck size={35} /><h1>Tu acceso a Daybook Ticket</h1><p role="alert">{loadError || error || 'Tu cuenta necesita una invitación activa para entrar a este espacio.'}</p><div><button className="secondary" onClick={() => window.location.reload()}>Volver a intentar</button><button className="primary" disabled={busy} onClick={signOut}>Cambiar de cuenta</button></div></main>;
     return <div className="app-shell">
-   <Sidebar view={view} mobile={mobile} go={go} counts={counts} setQueue={setQueue} isAdmin={isAdmin} data={data} busy={busy} signOut={signOut} viewerName={viewerName}/>
-  {mobile && <button className="sidebar-scrim" aria-label="Cerrar menú" onClick={() => setMobile(false)}/>}
-  <main className="main"><header className="topbar"><div className="breadcrumbs"><button className="icon-button menu-toggle" onClick={() => setMobile(!mobile)} aria-label="Abrir menú" aria-expanded={mobile} aria-controls="daybook-navigation"><Menu size={20}/></button><span>Espacio de trabajo</span><ChevronRight size={13}/><strong>{views[view]}</strong></div><div className="top-actions"><span className="live-dot"/>{busy ? 'Guardando cambios…' : error ? 'Revisa el aviso' : 'Equipo Daybook'} <span className="top-separator"/><button className="icon-button" onClick={() => { go('inbox'); searchRef.current?.focus(); }} aria-label="Buscar tickets"><Search size={18}/></button><Avatar name={viewerName} small/></div></header>
+   <Sidebar view={view} mobile={drawerOpen} onClose={closeMenu} go={go} counts={counts} setQueue={setQueue} isAdmin={isAdmin} data={data} busy={busy} signOut={signOut} viewerName={viewerName}/>
+  {drawerOpen && <button className="sidebar-scrim" aria-label="Cerrar menú" tabIndex={-1} onClick={closeMenu}/>}
+  <main className="main" inert={drawerOpen || undefined}><header className="topbar"><div className="breadcrumbs"><button className="icon-button menu-toggle" onClick={() => setMobile(!drawerOpen)} aria-label="Abrir menú" aria-expanded={drawerOpen} aria-controls="daybook-navigation"><Menu size={20}/></button><span>Espacio de trabajo</span><ChevronRight size={13}/><strong>{views[view]}</strong></div><div className="top-actions"><span className="live-dot"/>{busy ? 'Guardando cambios…' : error ? 'Revisa el aviso' : 'Equipo Daybook'} <span className="top-separator"/><button className="icon-button" onClick={() => { go('inbox'); searchRef.current?.focus(); }} aria-label="Buscar tickets"><Search size={18}/></button><Avatar name={viewerName} small/></div></header>
    <div className="content">
    <div className="workspace-sync">{data.viewer&&<ThemeControl key={data.viewer.id} memberId={data.viewer.id} preferred={data.preferences?.theme||'system'}/>}<LiveStatus connection={connection} />{data.viewer && <TicketAlerts alerts={alerts} onOpen={openAlert} />}</div>
    {error && <div className="error-banner" role="alert"><span>{error}</span><button onClick={() => setError('')} aria-label="Cerrar aviso"><X size={17}/></button></div>}
