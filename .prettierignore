@@ -3,6 +3,8 @@ node_modules
 .next
 outputs
 work
+test-results
+playwright-report
 public
 drizzle-postgres
 package-lock.json
