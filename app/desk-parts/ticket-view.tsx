@@ -18,6 +18,8 @@ import { TicketPresence } from '../ticket-presence';
 import { TicketOrganizationPanel } from '../work-organization';
 import { PRIORITY, fmtDate, sla, Avatar, Status, Priority, request, DeskRun, ReplyTarget } from './shared';
 import { StaffComposer } from './staff-composer';
+import { BitaSuggestions } from '../bita-suggestions';
+import { navigateDesk } from '@/lib/desk-url';
 
 export function TicketView({
   data,
@@ -37,6 +39,7 @@ export function TicketView({
   savingField,
   onAssigned,
   onBack,
+  onAskBita,
 }: {
   data: Workspace;
   current: Ticket;
@@ -55,6 +58,8 @@ export function TicketView({
   savingField: (key: keyof Ticket) => boolean;
   onAssigned: (ticket: Ticket) => void;
   onBack: () => void;
+  /** Present only when Bita is available for this person. */
+  onAskBita?: (text: string) => void;
 }) {
   return (
     <>
@@ -136,6 +141,14 @@ export function TicketView({
               : ''}
           </small>
         </div>
+      )}
+      {onAskBita && (
+        <BitaSuggestions
+          key={current.id}
+          ticketId={current.id}
+          onAsk={onAskBita}
+          onOpenTicket={id => navigateDesk({ ticketId: id })}
+        />
       )}
       <div className="detail-grid">
         <section className="conversation ticket-chat-panel" aria-label="Conversación del ticket">

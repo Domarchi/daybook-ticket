@@ -8,6 +8,7 @@ import { visibleTicketSelection } from '@/lib/ticket-selection';
 import { currentWorkspaceId } from '@/lib/workspace-client';
 import { workspaceHome } from '@/lib/workspace-model';
 import { CheckCircle2, ChevronRight, LoaderCircle, Menu, Search, ShieldCheck, X } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMediaQuery } from '@/hooks/use-media-query';
@@ -37,8 +38,21 @@ import { InboxView } from './desk-parts/inbox-view';
 import { SectionView } from './desk-parts/section-view';
 import { Sidebar } from './desk-parts/sidebar';
 import { TicketForm } from './desk-parts/ticket-form';
+import type { BitaRequest } from './bita';
 
-export default function Desk({ displayName, email }: { displayName: string; email: string }) {
+// Bita's chat is only downloaded when the server offers it to this person.
+const Bita = dynamic(() => import('./bita'), { ssr: false });
+
+export default function Desk({
+  displayName,
+  email,
+  assistant = false,
+}: {
+  displayName: string;
+  email: string;
+  /** Bita, the staff assistant: decided on the server (flag, key, owner/admin of the main space). */
+  assistant?: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const alerts = useTicketAlerts();
@@ -70,6 +84,12 @@ export default function Desk({ displayName, email }: { displayName: string; emai
     [selected, setSelected] = useState<number[]>([]);
   const searchRef = useRef<HTMLInputElement>(null);
   const isAdmin = data.viewer?.role === 'owner' || data.viewer?.role === 'admin';
+  const bita = assistant && isAdmin;
+  const [bitaRequest, setBitaRequest] = useState<BitaRequest>(null);
+  const askBita = useCallback(
+    (text: string) => setBitaRequest(previous => ({ id: (previous?.id ?? 0) + 1, text })),
+    [],
+  );
   const { filters: teamFilters, update: updateTeamFilters } = useTeamFilters(data.viewer?.id);
   const { queue, priority, department } = teamFilters;
   const setQueue = (queue: string) => {
@@ -403,6 +423,14 @@ export default function Desk({ displayName, email }: { displayName: string; emai
             >
               <Search size={18} />
             </button>
+            {bita && (
+              <Bita
+                name={viewerName}
+                request={bitaRequest}
+                onOpenTicket={id => navigateDesk({ ticketId: id })}
+                onOpenKnowledge={() => go('knowledge')}
+              />
+            )}
             <Avatar name={viewerName} small />
           </div>
         </header>
@@ -459,6 +487,7 @@ export default function Desk({ displayName, email }: { displayName: string; emai
                 setOverlays(all => ({ ...all, [ticket.id]: adoptConfirmed(all[ticket.id], ticket) }))
               }
               onBack={leaveTicket}
+              onAskBita={bita ? askBita : undefined}
             />
           ) : view === 'inbox' || view === 'overview' ? (
             <InboxView
