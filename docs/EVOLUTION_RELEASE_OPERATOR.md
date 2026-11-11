@@ -1,10 +1,10 @@
 # Operador de publicación y reversión de la evolución
 
-El operador `scripts/migrate-evolution-production.mjs` migra únicamente un prefijo explícito, contiguo y revisado de 0007 a 0014. No publica una aplicación, activa funciones, crea pilotos, exige MFA, cambia planes ni envía correo o push. No carga archivos de entorno. Las credenciales deben existir previamente como `DATABASE_URL` y `DIRECT_DATABASE_URL` en el entorno privado del proceso autorizado; nunca se pasan como argumentos ni se muestran en los informes.
+El operador `scripts/migrate-evolution-production.mjs` migra únicamente un prefijo explícito, contiguo y revisado de 0007 a 0015. No publica una aplicación, activa funciones, crea pilotos, exige MFA, cambia planes ni envía correo o push. No carga archivos de entorno. Las credenciales deben existir previamente como `DATABASE_URL` y `DIRECT_DATABASE_URL` en el entorno privado del proceso autorizado; nunca se pasan como argumentos ni se muestran en los informes.
 
 ## Estado revisado de esta entrega
 
-`REVIEWED_EVOLUTION_MIGRATIONS` contiene las migraciones `0007_collaboration` a `0014_ticket_queue_indexes`, con sus fechas de diario (`1793912000000` para 0007, +1000 por índice hasta `1793912007000` para 0014) y sus SHA-256 fijados en `scripts/migrate-evolution-production.mjs`. Los archivos 0000 hasta el prefijo solicitado con `--through` se comprueban contra esas constantes antes de consultar la base. Los hashes y fechas 0000–0006 reutilizan el operador de fiabilidad ya revisado, que sigue siendo el único que aplica 0006: este operador exige 0000–0006 ya aplicadas.
+`REVIEWED_EVOLUTION_MIGRATIONS` contiene las migraciones `0007_collaboration` a `0015_ticket_categories`, con sus fechas de diario (`1793912000000` para 0007, +1000 por índice hasta `1793912008000` para 0015) y sus SHA-256 fijados en `scripts/migrate-evolution-production.mjs`. Los archivos 0000 hasta el prefijo solicitado con `--through` se comprueban contra esas constantes antes de consultar la base. Los hashes y fechas 0000–0006 reutilizan el operador de fiabilidad ya revisado, que sigue siendo el único que aplica 0006: este operador exige 0000–0006 ya aplicadas.
 
 Un objetivo superior falla con `evolution_prefix_not_reviewed` antes de crear una conexión. Cada entrega posterior debe añadir su propia constante revisada a continuación de la anterior, después de integrar y probar su SQL en QA. No se calculan constantes nuevas automáticamente a partir de los archivos locales. La fecha de 0007 es `1793912000000`; las siguientes aumentan exactamente 1000 por índice. Una migración registrada en la base es inmutable: no se corrige su archivo ni su fecha. Una corrección necesita otra migración y revisión.
 
@@ -67,6 +67,8 @@ Se utiliza el adaptador de transacción revisado: el `BEGIN/COMMIT` interno del 
 La gramática adicional rechaza escrituras de datos en la migración, `DO`, consultas ejecutables, reemplazos de objetos, `DROP`, `TRUNCATE` y cambios o eliminación de columnas originales. Los cuerpos de las funciones de seguridad/cuotas de 0012/0013 solo se admiten bajo nombres y formas revisados y hash de archivo fijado; no se ejecutan ni se crean filas que activen esas funciones durante la migración.
 
 0014 solo crea dos índices sobre `tickets` (sin extensiones, datos, columnas ni restricciones); la gramática sigue rechazando `CREATE EXTENSION` y todo lo que no sea un índice.
+
+0015 solo añade cinco columnas `text` nulas, sin valor por defecto ni restricción, a `tickets` (`faultGroup`, `faultElement`, `requirement`, `categorySource`, `categoryConfidence`). El operador verifica que ninguna fila existente quede con valor (sin relleno) y que las columnas originales no cambien. Los respaldos anteriores a 0015 siguen restaurándose porque esas columnas figuran en `ADDED_BACKUP_COLUMNS`.
 
 Las dos excepciones estructurales estrechas son:
 

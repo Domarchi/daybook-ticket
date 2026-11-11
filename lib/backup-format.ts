@@ -144,7 +144,7 @@ export const ADDED_BACKUP_COLUMNS: Readonly<Record<string, readonly string[]>> =
   authUser: ['twoFactorEnabled'],
   invitations: ['acceptedAt', 'acceptedUserId'],
   members: ['isTest'],
-  tickets: ['isTest'],
+  tickets: ['isTest', 'faultGroup', 'faultElement', 'requirement', 'categorySource', 'categoryConfidence'],
   messages: ['replyToMessageId'],
   mailOutbox: ['sourceMessageId', 'serviceReminderId'],
   attachments: ['contractId'],

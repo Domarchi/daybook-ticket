@@ -1,0 +1,2 @@
+-- Additive only: five nullable text columns on tickets for the automatic classification (F5). No default, no backfill and no constraint: the allowed values live in lib/ticket-category-model.ts, so the list can change without destructive DDL.
+ALTER TABLE "tickets" ADD COLUMN "faultGroup" text, ADD COLUMN "faultElement" text, ADD COLUMN "requirement" text, ADD COLUMN "categorySource" text, ADD COLUMN "categoryConfidence" text;
