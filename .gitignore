@@ -48,3 +48,8 @@ yarn-error.log*
 .vercel/
 .env*.local
 owner-activation*.json
+
+# Browser test output and the disposable run state (fictitious invitation and password)
+/e2e/.state/
+/test-results/
+/playwright-report/
