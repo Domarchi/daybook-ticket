@@ -45,6 +45,12 @@ export interface Ticket {
   dueAt: string;
   slaPolicySnapshot?: string | null;
   slaStartedAt?: string | null;
+  /** Classification (migration 0015); null on tickets created before it. See lib/ticket-category-model.ts. */
+  faultGroup?: string | null;
+  faultElement?: string | null;
+  requirement?: string | null;
+  categorySource?: string | null;
+  categoryConfidence?: string | null;
 }
 export interface MessageQuote {
   id: number;

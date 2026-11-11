@@ -81,3 +81,54 @@ export function faultLabel(fault: FaultCategory | null): string {
 export function requirementLabel(requirement: RequirementId | null): string {
   return REQUIREMENTS.find(item => item.id === requirement)?.label ?? 'Sin requerimiento';
 }
+
+/** How a category was set: suggested by the classifier, or chosen by a person (which the classifier never overwrites). */
+export type CategorySource = 'bot' | 'manual';
+export type StoredCategory = {
+  faultGroup: string | null;
+  faultElement: string | null;
+  requirement: string | null;
+  categorySource: string | null;
+  categoryConfidence: string | null;
+};
+export type CategoryCorrection = {
+  faultGroup: FaultGroupId | null;
+  faultElement: FaultElementId | null;
+  requirement: RequirementId | null;
+};
+
+/** A person's correction: the element must belong to its group, and nothing outside the agreed lists is accepted. */
+export function validateCategoryCorrection(input: {
+  faultGroup: unknown;
+  faultElement: unknown;
+  requirement: unknown;
+}): CategoryCorrection | null {
+  const { faultGroup, faultElement, requirement } = input;
+  if (faultGroup === null) {
+    if (faultElement !== null) return null;
+  } else if (!isValidFault(faultGroup, faultElement)) return null;
+  if (requirement !== null && !isRequirement(requirement)) return null;
+  return {
+    faultGroup: faultGroup as FaultGroupId | null,
+    faultElement: faultElement as FaultElementId | null,
+    requirement: requirement as RequirementId | null,
+  };
+}
+
+/** The stored columns read back as a category, or null if the ticket was never classified. */
+export function storedCategory(row: Partial<StoredCategory>): TicketCategory | null {
+  if (!row.categorySource) return null;
+  return {
+    fault:
+      row.faultGroup && isValidFault(row.faultGroup, row.faultElement ?? null)
+        ? { group: row.faultGroup, element: (row.faultElement ?? null) as FaultElementId | null }
+        : null,
+    requirement: isRequirement(row.requirement) ? row.requirement : null,
+  };
+}
+
+/** Inbox filter values: every fault group, plus plain requests and tickets nobody classified (older ones). */
+export const CATEGORY_FILTERS = ['all', ...FAULT_GROUPS.map(group => group.id), 'requests', 'unclassified'] as const;
+export function isCategoryFilter(value: unknown): boolean {
+  return typeof value === 'string' && (CATEGORY_FILTERS as readonly string[]).includes(value);
+}

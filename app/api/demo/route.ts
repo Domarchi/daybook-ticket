@@ -2,6 +2,7 @@ import type { PreparedStatement } from '@/db/database';
 import { requireAccess, requireAdmin } from '@/lib/access';
 import { db, handle, json, getSettings } from '@/lib/server';
 import { DEMO_TICKETS, DEMO_ARTICLES } from '@/lib/demo';
+import { CATEGORY_INSERT_COLUMNS, suggestedCategoryValues } from '@/lib/ticket-category';
 export async function POST(request: Request) {
   return handle(async () => {
     const access = requireAdmin(await requireAccess(request));
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
       statements.push(
         database
           .prepare(
-            'INSERT INTO tickets ("ownerId", "creationKey", subject, "requesterName", "requesterEmail", department, assignee, status, priority, "createdAt", "updatedAt", "dueAt") SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12 WHERE NOT EXISTS (SELECT 1 FROM "demoImports" WHERE "ownerId" = $13)',
+            `INSERT INTO tickets ("ownerId", "creationKey", subject, "requesterName", "requesterEmail", department, assignee, status, priority, "createdAt", "updatedAt", "dueAt", ${CATEGORY_INSERT_COLUMNS}) SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17 WHERE NOT EXISTS (SELECT 1 FROM "demoImports" WHERE "ownerId" = $18)`,
           )
           .bind(
             access.ownerId,
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
             createdAt,
             updatedAt,
             dueAt,
+            ...suggestedCategoryValues({ subject: entry.subject, body: entry.body }),
             access.ownerId,
           ),
       );

@@ -5,3 +5,9 @@
 .toast-undo { margin-left: 14px; padding: 4px 10px; min-height: 28px; border: 1px solid currentColor; border-radius: var(--radius-sm); font-weight: 600; font-size: 12px; color: inherit; background: transparent; cursor: pointer; }
 .toast-undo:hover { text-decoration: underline; }
 @media (pointer: coarse) { .toast-undo { min-height: var(--touch-target); padding: 0 14px; } }
+/* Clasificación del ticket (F5-D) */
+.ticket-category { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; min-width: 0; }
+.ticket-category legend { font-size: 12px; font-weight: 600; color: var(--muted, #69717c); padding: 0; margin-bottom: 4px; }
+.ticket-category .ticket-category-note { font-size: 12px; color: var(--muted, #69717c); line-height: 1.5; }
+.ticket-category .text-button { justify-self: start; }
+

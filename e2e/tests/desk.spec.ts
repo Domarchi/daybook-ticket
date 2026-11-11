@@ -98,6 +98,39 @@ test.describe('the support desk', () => {
     await expect(page.getByRole('link', { name: SUBJECT })).toHaveCount(0);
   });
 
+  test('the classifier suggests a category, a person corrects it, and the inbox filters by it', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('link', { name: SUBJECT }).click();
+    const panel = page.getByRole('group', { name: 'Clasificación' });
+    const fault = panel.getByRole('combobox', { name: 'Elemento fallado' });
+    const requirement = panel.getByRole('combobox', { name: 'Requerimiento' });
+    // "No puedo imprimir…" / "La impresora muestra un error…" → a printer failure, suggested at creation.
+    await expect(fault).toHaveValue('equipment:printer');
+    await expect(requirement).toHaveValue('');
+    await expect(panel).toContainText('Sugerida automáticamente');
+
+    await requirement.selectOption({ label: 'Aplicaciones' });
+    await expect(panel).toContainText('Revisada por el equipo');
+    await page.reload();
+    await expect(page.getByRole('group', { name: 'Clasificación' })).toContainText('Revisada por el equipo');
+    await expect(
+      page.getByRole('group', { name: 'Clasificación' }).getByRole('combobox', { name: 'Requerimiento' }),
+    ).toHaveValue('applications');
+    await expect(
+      page.getByRole('group', { name: 'Clasificación' }).getByRole('combobox', { name: 'Elemento fallado' }),
+    ).toHaveValue('equipment:printer');
+
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Filtros' }).click();
+    const filter = page.getByLabel('Filtrar por categoría');
+    await filter.selectOption({ label: 'Equipos y periféricos' });
+    await expect(page.getByRole('link', { name: SUBJECT })).toBeVisible();
+    await filter.selectOption({ label: 'Acceso y contraseñas' });
+    await expect(page.getByRole('link', { name: SUBJECT })).toHaveCount(0);
+    await filter.selectOption({ value: 'all' });
+    await expect(page.getByRole('link', { name: SUBJECT })).toBeVisible();
+  });
+
   test('the four states: unassigned, in progress, solved, closed and reopened', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('link', { name: SUBJECT }).click();

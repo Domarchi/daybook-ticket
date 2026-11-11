@@ -13,6 +13,7 @@ test('search defaults to a bounded page and validates every supported filter', (
     queue: 'all',
     priority: 'all',
     department: 'all',
+    category: 'all',
     company: 'all',
     agent: 'all',
     limit: 50,

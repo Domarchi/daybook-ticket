@@ -230,6 +230,7 @@ export const savedViewFiltersSchema = z
     queue: z.enum(TICKET_QUEUES).default('all'),
     priority: z.enum(['all', 'urgent', 'high', 'normal', 'low']).default('all'),
     department: z.string().min(1).max(160).default('all'),
+    category: z.string().min(1).max(40).default('all'),
     company: z.string().min(1).max(160).default('all'),
     agent: z.string().min(1).max(160).default('all'),
   })

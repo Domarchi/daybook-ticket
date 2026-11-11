@@ -1,9 +1,24 @@
 'use client';
 import { workspaceStorageKey } from '@/lib/workspace-client';
 import { isTicketQueue } from '@/lib/ticket-status';
+import { isCategoryFilter } from '@/lib/ticket-category-model';
 import { useState } from 'react';
-export type TeamFilters = { company: string; agent: string; queue: string; priority: string; department: string };
-const EMPTY: TeamFilters = { company: 'all', agent: 'all', queue: 'all', priority: 'all', department: 'all' };
+export type TeamFilters = {
+  company: string;
+  agent: string;
+  queue: string;
+  priority: string;
+  department: string;
+  category: string;
+};
+const EMPTY: TeamFilters = {
+  company: 'all',
+  agent: 'all',
+  queue: 'all',
+  priority: 'all',
+  department: 'all',
+  category: 'all',
+};
 export function normalizeTeamFilters(value: unknown): TeamFilters {
   if (!value || typeof value !== 'object') return EMPTY;
   const saved = value as Record<string, unknown>;
@@ -14,6 +29,7 @@ export function normalizeTeamFilters(value: unknown): TeamFilters {
     company: text('company'),
     agent: text('agent'),
     department: text('department'),
+    category: isCategoryFilter(text('category')) ? text('category') : 'all',
     // "open" and "pending" belonged to the old three states; "all" shows every state.
     queue: isTicketQueue(queue) && queue !== 'open' && queue !== 'pending' ? queue : 'all',
     priority: ['all', 'low', 'normal', 'high', 'urgent'].includes(priority) ? priority : 'all',

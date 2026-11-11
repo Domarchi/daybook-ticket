@@ -31,6 +31,7 @@ import { LiveStatus } from './live-status';
 import { TicketAlerts } from './ticket-alerts';
 import { View, request, Modal, PRIORITY, views, Avatar, ReplyTarget } from './desk-parts/shared';
 import { statusLabel } from '../lib/ticket-status';
+import { faultLabel, requirementLabel, storedCategory } from '../lib/ticket-category-model';
 import { TicketView } from './desk-parts/ticket-view';
 import { InboxView } from './desk-parts/inbox-view';
 import { SectionView } from './desk-parts/section-view';
@@ -161,6 +162,7 @@ export default function Desk({ displayName, email }: { displayName: string; emai
       queue: queue as TicketFilters['queue'],
       priority: priority as TicketFilters['priority'],
       department,
+      category: teamFilters.category,
       company: teamFilters.company,
       agent: teamFilters.agent,
     },
@@ -261,6 +263,9 @@ export default function Desk({ displayName, email }: { displayName: string; emai
           'Responsable',
           'Creación',
           'Vencimiento',
+          'Elemento fallado',
+          'Requerimiento',
+          'Clasificación',
         ],
         ...results.map(t => [
           t.id,
@@ -273,6 +278,9 @@ export default function Desk({ displayName, email }: { displayName: string; emai
           t.assignee,
           t.createdAt,
           t.dueAt,
+          t.categorySource ? faultLabel(storedCategory(t)?.fault ?? null) : '',
+          t.categorySource ? requirementLabel(storedCategory(t)?.requirement ?? null) : '',
+          t.categorySource === 'manual' ? 'Revisada' : t.categorySource === 'bot' ? 'Sugerida' : 'Sin clasificar',
         ]),
       ];
       const csv = rows

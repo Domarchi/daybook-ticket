@@ -1,4 +1,5 @@
 import { verifiedWorkspaceSender } from './workspace-model';
+import { CATEGORY_INSERT_COLUMNS, suggestedCategoryValues } from './ticket-category';
 import { workspaceDeliveryContext } from './workspace-delivery';
 import { assertWorkspaceOperational } from './workspaces';
 import { enqueueAutomationEvent } from './automation';
@@ -297,8 +298,8 @@ export async function ingestInboundEmail(
       const subject = email.subject.trim().slice(0, 160) || 'Solicitud recibida por correo';
       ticket = (
         await tx.query(
-          `INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail","requesterMemberId","customerCompanyId",department,assignee,"assigneeMemberId",status,priority,"createdAt","updatedAt","dueAt","slaPolicySnapshot","slaStartedAt","isTest")
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'open','normal',$11,$11,$12,$13,$11,$14) RETURNING *`,
+          `INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail","requesterMemberId","customerCompanyId",department,assignee,"assigneeMemberId",status,priority,"createdAt","updatedAt","dueAt","slaPolicySnapshot","slaStartedAt","isTest",${CATEGORY_INSERT_COLUMNS})
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'open','normal',$11,$11,$12,$13,$11,$14,$15,$16,$17,$18,$19) RETURNING *`,
           [
             access.ownerId,
             `inbound:${config.environment}:${envelope.providerId}`,
@@ -314,6 +315,7 @@ export async function ingestInboundEmail(
             resolutionDeadline(timestamp, 'normal', policy),
             JSON.stringify(policy),
             Boolean(row.isTest),
+            ...suggestedCategoryValues({ subject, body: email.text }),
           ],
         )
       ).rows[0];

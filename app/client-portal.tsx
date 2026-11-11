@@ -158,6 +158,7 @@ export default function ClientPortal({
       queue: filter as TicketFilters['queue'],
       priority: 'all',
       department: 'all',
+      category: 'all',
       company: 'all',
       agent: 'all',
     },
@@ -715,6 +716,7 @@ export default function ClientPortal({
                   queue: filter as TicketFilters['queue'],
                   priority: 'all',
                   department: 'all',
+                  category: 'all',
                   company: 'all',
                   agent: 'all',
                 }}

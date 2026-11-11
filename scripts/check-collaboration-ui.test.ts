@@ -22,6 +22,7 @@ test('existing company/agent preferences survive adding persisted inbox, priorit
     queue: 'all',
     priority: 'all',
     department: 'all',
+    category: 'all',
   });
   const chosen = {
     company: 'none',
@@ -29,6 +30,7 @@ test('existing company/agent preferences survive adding persisted inbox, priorit
     queue: 'overdue',
     priority: 'urgent',
     department: 'Soporte técnico',
+    category: 'access',
   };
   assert.deepEqual(normalizeTeamFilters(JSON.parse(JSON.stringify(chosen))), chosen);
   assert.deepEqual(normalizeTeamFilters({ ...chosen, queue: 'invalid-view', priority: false }), {
@@ -42,6 +44,7 @@ test('existing company/agent preferences survive adding persisted inbox, priorit
     queue: 'all',
     priority: 'all',
     department: 'all',
+    category: 'all',
   });
 });
 test('a lost response and page reload retry the original operation and payload, including consumed attachment IDs', () => {

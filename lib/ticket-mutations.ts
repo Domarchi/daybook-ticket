@@ -12,6 +12,7 @@ import { canAccessTicket, publicMember, type AccessContext, type MemberRecord } 
 import type { Settings, Ticket, TicketEvent } from './types';
 import { assertSecurityAccess } from './security';
 import { isFinished, statusChangeProblem } from './ticket-status';
+import { faultLabel, requirementLabel, storedCategory, validateCategoryCorrection } from './ticket-category-model';
 import { assertWorkspaceOperational, lockWorkspaceState } from './workspaces';
 
 function canonical(value: unknown): string {
@@ -226,6 +227,31 @@ export async function patchTicket(access: AccessContext, id: number, data: Recor
       const problem = statusChangeProblem(old.status, String(changes.status));
       if (problem) throw new ApiError(409, problem);
     }
+    let categoryEvent: [string, string] | null = null;
+    if (data.category !== undefined) {
+      if (data.expectedVersion !== old.version)
+        throw new ApiError(409, 'El ticket cambió. Actualiza antes de corregir la clasificación.');
+      const category = validateCategoryCorrection(data.category as Parameters<typeof validateCategoryCorrection>[0]);
+      if (!category) throw new ApiError(400, 'Selecciona una clasificación válida.');
+      const same =
+        old.categorySource === 'manual' &&
+        (old.faultGroup ?? null) === category.faultGroup &&
+        (old.faultElement ?? null) === category.faultElement &&
+        (old.requirement ?? null) === category.requirement;
+      // Confirming the suggestion as it is also counts: it becomes a person's choice the classifier will not touch.
+      if (!same) {
+        Object.assign(changes, { ...category, categorySource: 'manual', categoryConfidence: null });
+        const describe = (row: {
+          faultGroup?: string | null;
+          faultElement?: string | null;
+          requirement?: string | null;
+        }) =>
+          `${faultLabel(storedCategory({ ...row, categorySource: 'manual' })?.fault ?? null)} / ${requirementLabel(
+            storedCategory({ ...row, categorySource: 'manual' })?.requirement ?? null,
+          )}`;
+        categoryEvent = [old.categorySource ? describe(old) : 'Sin clasificar', describe(category)];
+      }
+    }
     if (data.department !== undefined && !settings.departments.includes(String(data.department)))
       throw new ApiError(400, 'Selecciona un departamento válido.');
     if (assigning) {
@@ -334,6 +360,7 @@ export async function patchTicket(access: AccessContext, id: number, data: Recor
       'department',
     ])
       if (key in changes) await recordEvent(tx, fresh, id, key, old[key as keyof Ticket], changes[key]);
+    if (categoryEvent) await recordEvent(tx, fresh, id, 'category', categoryEvent[0], categoryEvent[1]);
     await enqueueAutomationEvent(tx, fresh, id, `ticket:${id}:version:${rows[0].version}`, 'ticket_updated');
     return { ticket: rows[0] as Ticket };
   });
