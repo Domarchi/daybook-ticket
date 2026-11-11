@@ -43,6 +43,10 @@ Cada pantalla pasa por axe (WCAG 2.0/2.1 A y AA) en claro, oscuro y móvil. **Un
 
 Siguiente paso natural: corregir esos dos grupos y pasar «grave» a fallo. Es un cambio visual, por eso no va mezclado con esta fase.
 
+## Observación de la primera corrida en CI
+
+En GitHub, más lento que un portátil, la prueba de respuesta y nota falló una vez: la nota ya aparece en la conversación **un instante antes** de que el compositor termine de limpiar su borrador, y recargar justo en ese hueco devuelve el texto enviado al cuadro de redacción como borrador. Reenviarlo no duplica nada (la operación es idempotente), así que no se tocó la aplicación; la prueba ahora espera a que el cuadro se vacíe, que es la señal visible de «envío terminado». Esta suite no usa reintentos: sus pruebas se apoyan en los datos de las anteriores y repetir un paso sobre una base ya cambiada daría falsos fallos (un reintento creó un segundo ticket idéntico).
+
 ## Lo que todavía no cubren
 
 - **MFA, recuperación y reautenticación** (ya validadas contra QA con helpers HTTP privados).

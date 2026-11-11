@@ -11,7 +11,8 @@ export default defineConfig({
   globalSetup: './e2e/global-setup.ts',
   fullyParallel: false,
   workers: 1,
-  retries: process.env.CI ? 1 : 0,
+  // The desk tests build on each other's data, so a retry would repeat steps on a changed database: fail honestly.
+  retries: 0,
   timeout: 45_000,
   expect: { timeout: 10_000 },
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],

@@ -59,14 +59,16 @@ test.describe('the support desk', () => {
     const composer = page.getByPlaceholder('Escribe una respuesta clara y cercana…');
     await composer.fill('Hola Andrea, ya revisamos tu impresora y te enviamos los pasos.');
     await page.getByRole('button', { name: 'Enviar respuesta' }).click();
+    // The composer empties only once the send has fully finished; reloading before that would restore the draft.
+    await expect(composer).toHaveValue('');
     const conversation = page.getByRole('region', { name: 'Conversación del ticket' });
     await expect(conversation.getByText('ya revisamos tu impresora')).toBeVisible();
 
     await page.getByRole('button', { name: 'Nota interna' }).click();
-    await page
-      .getByPlaceholder('Añade contexto para el seguimiento del caso…')
-      .fill('Revisar el controlador antes de visitar.');
+    const noteBox = page.getByPlaceholder('Añade contexto para el seguimiento del caso…');
+    await noteBox.fill('Revisar el controlador antes de visitar.');
     await page.getByRole('button', { name: 'Guardar nota' }).click();
+    await expect(noteBox).toHaveValue('');
     await expect(conversation.getByText('Revisar el controlador antes de visitar.')).toBeVisible();
 
     await page.reload();
