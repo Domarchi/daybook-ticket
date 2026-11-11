@@ -1,5 +1,6 @@
 'use client';
 import { useTicketConversation } from '@/hooks/use-ticket-search';
+import { TicketCategoryPanel } from './ticket-category';
 import { statusOptions } from '../../lib/ticket-status';
 import { isTestTicket } from '@/lib/test-data';
 import { ticketDraftKey } from '@/lib/ticket-drafts';
@@ -238,6 +239,17 @@ export function TicketView({
                 }}
               />
             )}
+            <TicketCategoryPanel
+              key={`${current.id}:${current.version}`}
+              ticket={current}
+              disabled={busy}
+              onSave={category => {
+                void run(
+                  () => request(`/api/tickets/${current.id}`, 'PATCH', { category, expectedVersion: current.version }),
+                  'Clasificación actualizada',
+                );
+              }}
+            />
             <Combobox
               label="Cuenta del cliente"
               value={current.requesterMemberId || ''}

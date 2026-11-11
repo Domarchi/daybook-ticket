@@ -1,9 +1,11 @@
+import { isCategoryFilter } from './ticket-category-model';
 import { isTicketQueue, type TicketQueue } from './ticket-status';
 export interface TicketSearchQuery {
   q: string;
   queue: TicketQueue;
   priority: 'all' | 'urgent' | 'high' | 'normal' | 'low';
   department: string;
+  category: string;
   company: string;
   agent: string;
   limit: number;
@@ -59,6 +61,8 @@ export function parseTicketSearch(params: URLSearchParams): TicketSearchQuery {
       throw new SearchQueryError('Uno de los filtros no es válido.');
     return value;
   };
+  const category = params.get('category') ?? 'all';
+  if (!isCategoryFilter(category)) throw new SearchQueryError('Selecciona una categoría válida.');
   const cursor = params.get('cursor');
   decodeTicketCursor(cursor);
   return {
@@ -66,6 +70,7 @@ export function parseTicketSearch(params: URLSearchParams): TicketSearchQuery {
     queue: queue as TicketSearchQuery['queue'],
     priority: priority as TicketSearchQuery['priority'],
     department: field('department'),
+    category,
     company: field('company'),
     agent: field('agent'),
     limit: parseSearchLimit(params.get('limit')),

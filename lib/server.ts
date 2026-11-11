@@ -74,6 +74,14 @@ export const patchTicketSchema = z
     requesterMemberId: memberId.optional(),
     priority: ticketPriority.optional(),
     status: ticketStatus.optional(),
+    category: z
+      .object({
+        faultGroup: z.string().max(40).nullable(),
+        faultElement: z.string().max(40).nullable(),
+        requirement: z.string().max(40).nullable(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .refine(v => Object.keys(v).length > 0, 'No hay cambios para guardar.');
@@ -285,7 +293,7 @@ export function checkAssignment(data: { department?: string; assignee?: string }
     throw new ApiError(400, 'Selecciona un departamento válido.');
 }
 export const ticketColumns =
-  '"isTest", id, subject, "requesterName", "requesterEmail", "requesterMemberId", "customerCompanyId", version, department, assignee, "assigneeMemberId", status, priority, "createdAt", "updatedAt", "dueAt"';
+  '"isTest", id, subject, "requesterName", "requesterEmail", "requesterMemberId", "customerCompanyId", version, department, assignee, "assigneeMemberId", status, priority, "createdAt", "updatedAt", "dueAt", "faultGroup", "faultElement", "requirement", "categorySource", "categoryConfidence"';
 export const messageColumns =
   'id, "ticketId", author, "authorMemberId", "authorRole", body, "bodyFormat", kind, "createdAt", \'[]\'::jsonb AS attachments';
 export const articleColumns = 'id, title, category, body, published, "createdAt", "updatedAt"';

@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import type { TicketPage } from '@/lib/ticket-search';
 import type { TicketSearchQuery } from '@/lib/ticket-search-query';
 
-export type TicketFilters = Pick<TicketSearchQuery, 'q' | 'queue' | 'priority' | 'department' | 'company' | 'agent'>;
+export type TicketFilters = Pick<
+  TicketSearchQuery,
+  'q' | 'queue' | 'priority' | 'department' | 'category' | 'company' | 'agent'
+>;
 const EMPTY: TicketPage = { items: [], total: 0, nextCursor: null };
 export function ticketSearchParams(filters: TicketFilters, cursor: string | null = null, limit = 50): URLSearchParams {
   const params = new URLSearchParams({ ...filters, limit: String(limit) });

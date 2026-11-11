@@ -77,6 +77,7 @@ export async function runTool(name: string, input: unknown, context: ToolContext
     const page = await getTicketPage(access, {
       ...search.value,
       department: 'all',
+      category: 'all',
       company: 'all',
       agent: 'all',
       cursor: null,

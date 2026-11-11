@@ -28,6 +28,7 @@ const actionLabels: Record<string, string> = {
   task_created: 'Tarea interna creada',
   task_updated: 'Tarea interna actualizada',
   isTest: 'Marca de prueba',
+  category: 'Clasificación actualizada',
   automatic_assignment: 'Asignación automática',
   status: 'Estado actualizado',
   priority: 'Prioridad actualizada',

@@ -1,6 +1,6 @@
 # Clasificación automática de tickets (Fase 5-C, 11 nov 2026)
 
-El clasificador es código puro. Sus columnas llegan con la migración 0015 (F5-B, más abajo); la integración (guardar la categoría al crear el ticket, mostrarla, corregirla, filtrar) es F5-D.
+El clasificador es código puro; sus columnas llegaron con la migración 0015 (F5-B, aplicada en producción el 11 nov 2026) y la integración es F5-D (más abajo).
 
 ## Categorías (`lib/ticket-category-model.ts`)
 
@@ -67,3 +67,14 @@ PostgreSQL 17 desechable en Docker, migrado hasta 0014 con 97 000 tickets y 388 
 6. Verificar diario (16 filas), las cinco columnas y las huellas; borrar `ARMED`.
 
 No hay reversión automática: quitar las columnas sería DDL destructivo con orden expresa. No hace falta para volver atrás el código, porque nada las exige.
+
+## Integración en la aplicación (F5-D)
+
+- **Al crear un ticket** se guarda la sugerencia en la misma transacción, por las tres vías que crean tickets: formulario del equipo y portal del cliente (`app/api/tickets/route.ts`), correo entrante (`lib/inbound-email.ts`) y datos de demostración (`app/api/demo/route.ts`). La petición no cambia, así que la idempotencia de la creación tampoco. Una prueba recorre el código y falla si aparece otro `INSERT INTO tickets` que no guarde la sugerencia.
+- **En el ticket** (solo el equipo) aparece el bloque «Clasificación» con *Elemento fallado* y *Requerimiento*, y su origen: «Sugerida automáticamente…» (con aviso si la certeza es baja), «Revisada por el equipo» o «Ticket anterior a la clasificación automática». Cambiar cualquiera de los dos, o pulsar «Confirmar clasificación», la guarda como **revisada** (`categorySource='manual'`); el bot nunca la vuelve a tocar.
+- **API**: `PATCH /api/tickets/:id` con `{ category: { faultGroup, faultElement, requirement }, expectedVersion }`. Exige la versión vigente (409 si el ticket cambió), valida contra la lista (400 si el elemento no es de su grupo o el valor no existe), registra el evento «Clasificación actualizada» con el antes y el después, y no permite fijar el origen desde la petición.
+- **Bandeja**: filtro «Filtrar por categoría» (cada grupo, «Solo requerimientos» y «Sin clasificar»), guardado con los demás filtros y en las vistas guardadas. Un filtro guardado sin categoría sigue cargando.
+- **Exportación CSV**: tres columnas nuevas, *Elemento fallado*, *Requerimiento* y *Clasificación* (Sugerida / Revisada / Sin clasificar).
+- **Tickets anteriores**: quedan «Sin clasificar». Clasificarlos sería una acción aparte y explícita.
+
+Pruebas: `scripts/ticket-category-integration.test.ts` (validación, forma de la API, orden de columnas, todas las vías de alta, filtros y panel) y la prueba de navegador «the classifier suggests a category…», que crea un ticket de impresora, comprueba la sugerencia, la corrige, recarga y filtra la bandeja.

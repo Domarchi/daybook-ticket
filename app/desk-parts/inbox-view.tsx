@@ -1,5 +1,6 @@
 'use client';
 import { normalizeTeamFilters, useTeamFilters } from '@/hooks/use-team-filters';
+import { FAULT_GROUPS } from '../../lib/ticket-category-model';
 import { isActive } from '../../lib/ticket-status';
 import { type TicketFilters, useTicketSearch } from '@/hooks/use-ticket-search';
 import {
@@ -165,6 +166,7 @@ export function InboxView({
                   queue: queue as TicketFilters['queue'],
                   priority: priority as TicketFilters['priority'],
                   department,
+                  category: teamFilters.category,
                   company: teamFilters.company,
                   agent: teamFilters.agent,
                 }}
@@ -228,6 +230,7 @@ export function InboxView({
                 Filtros
                 {(priority !== 'all' ||
                   department !== 'all' ||
+                  teamFilters.category !== 'all' ||
                   teamFilters.company !== 'all' ||
                   teamFilters.agent !== 'all') && <span className="filter-dot" />}
               </button>
@@ -235,6 +238,7 @@ export function InboxView({
             {(showFilters ||
               priority !== 'all' ||
               department !== 'all' ||
+              teamFilters.category !== 'all' ||
               teamFilters.company !== 'all' ||
               teamFilters.agent !== 'all') && (
               <div className="filter-row">
@@ -265,6 +269,23 @@ export function InboxView({
                   {data.settings.departments.map(a => (
                     <option key={a}>{a}</option>
                   ))}
+                </select>
+                <select
+                  aria-label="Filtrar por categoría"
+                  value={teamFilters.category}
+                  onChange={e => {
+                    updateTeamFilters({ ...teamFilters, category: e.target.value });
+                    setSelected([]);
+                  }}
+                >
+                  <option value="all">Todas las categorías</option>
+                  {FAULT_GROUPS.map(group => (
+                    <option key={group.id} value={group.id}>
+                      {group.label}
+                    </option>
+                  ))}
+                  <option value="requests">Solo requerimientos</option>
+                  <option value="unclassified">Sin clasificar</option>
                 </select>
                 <Combobox
                   compact
@@ -304,6 +325,7 @@ export function InboxView({
                       agent: 'all',
                       priority: 'all',
                       department: 'all',
+                      category: 'all',
                     });
                     setSelected([]);
                   }}

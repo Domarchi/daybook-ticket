@@ -1,4 +1,5 @@
 import { enqueueAutomationEvent, drainAutomationBestEffort } from '@/lib/automation';
+import { CATEGORY_INSERT_COLUMNS, suggestedCategoryValues } from '@/lib/ticket-category';
 import { prepareTicketOrganization, saveTicketOrganization } from '@/lib/work-organization';
 import { getEvolutionFeatures, requireEvolutionFeature } from '@/lib/evolution-features';
 import { ApiError, db, handle, json, parseBody, createTicketSchema, checkAssignment } from '@/lib/server';
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
       );
       const dueAt = resolutionDeadline(now, data.priority, policy);
       const { rows } = await tx.query(
-        'INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail","requesterMemberId","customerCompanyId",department,assignee,"assigneeMemberId",status,priority,"createdAt","updatedAt","dueAt","slaPolicySnapshot","slaStartedAt") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,\'open\',$11,$12,$12,$13,$14,$12) RETURNING *',
+        `INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail","requesterMemberId","customerCompanyId",department,assignee,"assigneeMemberId",status,priority,"createdAt","updatedAt","dueAt","slaPolicySnapshot","slaStartedAt",${CATEGORY_INSERT_COLUMNS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'open',$11,$12,$12,$13,$14,$12,$15,$16,$17,$18,$19) RETURNING *`,
         [
           access.ownerId,
           data.operationId,
@@ -117,6 +118,7 @@ export async function POST(request: Request) {
           now,
           dueAt,
           JSON.stringify(policy),
+          ...suggestedCategoryValues({ subject: data.subject, body: data.body }),
         ],
       );
       const ticket = rows[0];

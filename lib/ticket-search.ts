@@ -96,6 +96,9 @@ export async function getTicketPage(access: AccessContext, query: TicketSearchQu
   else if (query.queue !== 'all') filters.push(`t.status=${scope.bind(query.queue)}`);
   if (query.priority !== 'all') filters.push(`t.priority=${scope.bind(query.priority)}`);
   if (query.department !== 'all') filters.push(`t.department=${scope.bind(query.department)}`);
+  if (query.category === 'unclassified') filters.push(`t."categorySource" IS NULL`);
+  else if (query.category === 'requests') filters.push(`t."faultGroup" IS NULL AND t.requirement IS NOT NULL`);
+  else if (query.category !== 'all') filters.push(`t."faultGroup"=${scope.bind(query.category)}`);
   if (query.company !== 'all')
     filters.push(
       query.company === 'none' ? `t."customerCompanyId" IS NULL` : `t."customerCompanyId"=${scope.bind(query.company)}`,
