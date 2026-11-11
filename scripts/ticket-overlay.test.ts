@@ -131,10 +131,13 @@ test('undo remembers the replaced values and is withheld around resolving', () =
     'reopening a resolved ticket is not undone back into resolved',
   );
   assert.equal(canUndo({ status: 'pending' }, { status: 'open' }), true);
+  assert.equal(canUndo({ status: 'closed' }, { status: 'resolved' }), false, 'closing is not undone');
+  assert.equal(canUndo({ status: 'open' }, { status: 'closed' }), false, 'reopening a closed ticket is not undone');
 });
 
 test('toast messages name the field', () => {
-  assert.equal(changeMessage({ status: 'resolved' }), 'Ticket resuelto');
+  assert.equal(changeMessage({ status: 'resolved' }), 'Ticket solucionado');
+  assert.equal(changeMessage({ status: 'closed' }), 'Ticket cerrado');
   assert.equal(changeMessage({ priority: 'high' }), 'Prioridad actualizada');
   assert.equal(changeMessage({ department: 'Ventas' }), 'Departamento actualizado');
   assert.equal(changeMessage({ requesterMemberId: null }), 'Cuenta del cliente actualizada');

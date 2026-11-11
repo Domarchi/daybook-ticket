@@ -1,5 +1,6 @@
 'use client';
 import { daybookFetch } from '@/lib/browser-request';
+import { isFinished } from '@/lib/ticket-status';
 
 import { useEffect, useState } from 'react';
 import { Check, Clock3, UserRound } from 'lucide-react';
@@ -57,7 +58,7 @@ export function PublicTicketProgress({
   const milestones = [
     { label: 'Solicitud recibida', at: progress.receivedAt, done: true },
     { label: 'Primera respuesta', at: progress.firstResponseAt, done: Boolean(progress.firstResponseAt) },
-    { label: 'Caso resuelto', at: progress.resolvedAt, done: progress.status === 'resolved' },
+    { label: 'Caso solucionado', at: progress.resolvedAt, done: isFinished(progress.status) },
   ];
   return (
     <section className="public-ticket-progress" aria-label="Seguimiento de tu caso">

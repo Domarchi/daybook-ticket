@@ -127,6 +127,7 @@ kbd{font-family:inherit;border:1px solid #d9dbdc;border-radius:3px;color:#69675f
 .status.open{color:#5d79b7;background:#edf2fc}
 .status.pending{color:#aa8747;background:#fbf4e5}
 .status.resolved{color:#5f9773;background:#eef5ed}
+.status.closed{color:#5b6470;background:#eef0f2}
 .priority{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-size:12px;color:#69675f}
 .bars{display:inline-flex;align-items:flex-end;gap:2px;height:10px}
 .bars i{width:2px;background:#eef0f1;border-radius:1px;height:4px}

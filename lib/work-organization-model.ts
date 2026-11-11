@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { TICKET_QUEUES } from './ticket-status';
 
 const name = z.string().trim().min(1).max(100);
 export const catalogKinds = ['tag', 'requestType', 'field', 'form'] as const;
@@ -226,7 +227,7 @@ export interface TicketTask {
 export const savedViewFiltersSchema = z
   .object({
     q: z.string().max(200).default(''),
-    queue: z.enum(['all', 'open', 'pending', 'resolved', 'mine', 'unassigned', 'overdue']).default('all'),
+    queue: z.enum(TICKET_QUEUES).default('all'),
     priority: z.enum(['all', 'urgent', 'high', 'normal', 'low']).default('all'),
     department: z.string().min(1).max(160).default('all'),
     company: z.string().min(1).max(160).default('all'),

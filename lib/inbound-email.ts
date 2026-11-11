@@ -28,6 +28,7 @@ import {
   type InboundLease,
 } from './inbound-email-imports';
 import type { InboundAttachmentStorage } from './inbound-email-storage';
+import { isFinished } from './ticket-status';
 import { InboundRetryError } from './inbound-email-errors';
 import {
   InvalidInboundEmail,
@@ -330,7 +331,9 @@ export async function ingestInboundEmail(
         }
         throw error;
       }
-      const reopen = ticket.status === 'resolved';
+      // A reply by e-mail reopens even a closed ticket: unlike the portal there is no way to answer the sender, and
+      // silently filing the message under a ticket nobody is watching would lose it.
+      const reopen = isFinished(ticket.status);
       const policy = reopen
         ? await getEffectiveServicePolicy(tx, access.ownerId, ticket.customerCompanyId, settings.slaHours)
         : null;
@@ -346,7 +349,7 @@ export async function ingestInboundEmail(
           access.ownerId,
         ],
       );
-      if (reopen) await recordEvent(tx, access, ticket.id, 'status', 'resolved', 'open');
+      if (reopen) await recordEvent(tx, access, ticket.id, 'status', ticket.status, 'open');
     }
     const message = (
       await tx.query(

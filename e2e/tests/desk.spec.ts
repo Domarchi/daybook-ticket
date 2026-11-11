@@ -98,6 +98,40 @@ test.describe('the support desk', () => {
     await expect(page.getByRole('link', { name: SUBJECT })).toHaveCount(0);
   });
 
+  test('the four states: unassigned, in progress, solved, closed and reopened', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('link', { name: SUBJECT }).click();
+    const badge = page.locator('.ticket-meta .status');
+    await expect(badge).toHaveText('Sin asignar');
+
+    // Closing before solving is refused by the server itself, not only absent from the screen.
+    const id = new URL(page.url()).searchParams.get('ticket');
+    const refused = await page.request.patch(`/api/tickets/${id}`, {
+      data: { status: 'closed' },
+      headers: { Origin: new URL(page.url()).origin },
+    });
+    expect(refused.status()).toBe(409);
+
+    await page.getByRole('button', { name: 'Tomar ticket' }).click();
+    await expect(badge).toHaveText('En proceso');
+    await page.getByRole('button', { name: 'Marcar solucionado' }).click();
+    await expect(badge).toHaveText('Solucionado');
+    await page.getByRole('button', { name: 'Cerrar ticket' }).click();
+    await expect(badge).toHaveText('Cerrado');
+    await page.reload();
+    await expect(page.locator('.ticket-meta .status')).toHaveText('Cerrado');
+
+    await page.goto('/');
+    await page.getByRole('button', { name: /^Cerrados/ }).click();
+    await expect(page.getByRole('link', { name: SUBJECT })).toBeVisible();
+    await page.getByRole('button', { name: /^En proceso/ }).click();
+    await expect(page.getByRole('link', { name: SUBJECT })).toHaveCount(0);
+    await page.getByRole('button', { name: /^Todos/ }).click();
+    await page.getByRole('link', { name: SUBJECT }).click();
+    await page.getByRole('button', { name: 'Reabrir ticket' }).click();
+    await expect(page.locator('.ticket-meta .status')).toHaveText('En proceso');
+  });
+
   test('settings opens by section and the section stays in the address', async ({ page }) => {
     await page.goto('/');
     const settings = page.getByRole('button', { name: 'Configuración', exact: true });

@@ -227,7 +227,7 @@ test('public progress uses actual active assignee name and public aggregates onl
   );
 });
 
-test('resolved progress removes deadline, pending makes no request-for-information claim', () => {
+test('finished progress removes the deadline; a retired "pending" ticket reads as open work', () => {
   const input = {
     ticket,
     responsibleName: null,
@@ -239,7 +239,12 @@ test('resolved progress removes deadline, pending makes no request-for-informati
   assert.equal(resolved.deadlineAt, null);
   assert.equal(resolved.resolvedAt, null);
   assert.match(resolved.nextStep, /retomarlo/);
+  const closed = publicTicketProgress({ ...input, ticket: { ...ticket, status: 'closed' } });
+  assert.equal(closed.deadlineAt, null);
+  assert.match(closed.nextStep, /cerrado/);
+  assert.match(closed.nextStep, /ticket nuevo/);
   const pending = publicTicketProgress({ ...input, ticket: { ...ticket, status: 'pending' } });
-  assert.match(pending.nextStep, /seguimiento/);
+  const open = publicTicketProgress({ ...input, ticket: { ...ticket, status: 'open' } });
+  assert.equal(pending.nextStep, open.nextStep);
   assert.doesNotMatch(pending.nextStep, /esperamos tu/);
 });

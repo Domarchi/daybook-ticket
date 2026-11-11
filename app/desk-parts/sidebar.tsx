@@ -124,7 +124,7 @@ export function Sidebar({
           onClick={() => go('inbox')}
         >
           <Inbox size={18} />
-          Bandeja de entrada<span className="nav-count">{counts.open + counts.pending}</span>
+          Bandeja de entrada<span className="nav-count">{counts.active}</span>
         </button>
         <button
           className={view === 'contacts' ? 'active' : ''}

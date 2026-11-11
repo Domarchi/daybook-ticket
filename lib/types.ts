@@ -1,4 +1,5 @@
-export type TicketStatus = 'open' | 'pending' | 'resolved';
+import type { TicketStatus } from './ticket-status';
+export type { TicketStatus };
 export type TicketPriority = 'low' | 'normal' | 'high' | 'urgent';
 export type MessageKind = 'request' | 'reply' | 'note';
 export type MemberRole = 'owner' | 'admin' | 'agent' | 'client';
