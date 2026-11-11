@@ -6,9 +6,9 @@ import { Inbox, X } from 'lucide-react';
 import { deskQuery, type DeskTarget, type View } from '@/lib/desk-url';
 import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useId, useRef, useSyncExternalStore } from 'react';
-import { type Message, type Ticket, type TicketPriority, type TicketStatus } from '../../lib/types';
+import { type Message, type Ticket, type TicketPriority } from '../../lib/types';
+import { isFinished, statusLabel, statusView, STATUS_VIEW_CLASS } from '../../lib/ticket-status';
 
-export const STATUS: Record<TicketStatus, string> = { open: 'Abierto', pending: 'En espera', resolved: 'Resuelto' };
 export const PRIORITY: Record<TicketPriority, string> = {
   urgent: 'Urgente',
   high: 'Alta',
@@ -56,7 +56,7 @@ export function since(s: string, now: number) {
 }
 export function sla(t: Ticket, now: number) {
   const mins = Math.round((Date.parse(t.dueAt) - now) / 60000);
-  return t.status === 'resolved'
+  return isFinished(t.status)
     ? 'Completado'
     : mins < 0
       ? 'Vencido'
@@ -74,11 +74,11 @@ export function Avatar({ name, small = false }: { name: string; small?: boolean 
     </span>
   );
 }
-export function Status({ status }: { status: TicketStatus }) {
+export function Status({ ticket }: { ticket: Pick<Ticket, 'status' | 'assigneeMemberId'> }) {
   return (
-    <span className={`status ${status}`}>
+    <span className={`status ${STATUS_VIEW_CLASS[statusView(ticket)]}`}>
       <span />
-      {STATUS[status]}
+      {statusLabel(ticket)}
     </span>
   );
 }

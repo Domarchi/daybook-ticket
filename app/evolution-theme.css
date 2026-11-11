@@ -58,3 +58,6 @@
 :root:not([data-color-scheme="light"]) .message-editor-toolbar button:hover{background:#222;color:var(--ink)}
 :root:not([data-color-scheme="light"]) .message-content-rich a{color:#edc879}
 :root:not([data-color-scheme="light"]) .message-content-rich code{background:#222;color:var(--ink)}}
+/* Cerrado (closed) in dark mode */
+@media (prefers-color-scheme: dark){:root:not([data-color-scheme="light"]) .status.closed{background:#262b31;color:#c6ccd4}}
+:root[data-color-scheme="dark"] .status.closed{background:#262b31;color:#c6ccd4}

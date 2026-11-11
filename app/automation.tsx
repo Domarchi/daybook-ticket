@@ -1,5 +1,6 @@
 'use client';
 import { currentWorkspaceId } from '@/lib/workspace-client';
+import { statusLabelCoarse } from '@/lib/ticket-status';
 import { workspaceHome } from '@/lib/workspace-model';
 import { useRef, useState, type FormEvent } from 'react';
 import {
@@ -651,12 +652,12 @@ function AutomationRuleEditor({
         <Checks
           legend="Estados · vacío significa cualquiera"
           items={[
-            { id: 'open', name: 'Abierto' },
-            { id: 'pending', name: 'En espera' },
-            { id: 'resolved', name: 'Resuelto' },
+            { id: 'open', name: 'Abierto (sin asignar o en proceso)' },
+            { id: 'resolved', name: 'Solucionado' },
+            { id: 'closed', name: 'Cerrado' },
           ]}
           selected={draft.conditions.statuses}
-          max={3}
+          max={4}
           disabled={busy || simulating}
           onChange={ids => conditions({ statuses: ids as AutomationRuleDefinition['conditions']['statuses'] })}
         />
@@ -1121,12 +1122,7 @@ export function TicketRelationsPanel({
                   : relation.isPrincipal
                     ? 'Este es el caso principal'
                     : 'Duplicado del caso indicado'}{' '}
-                ·{' '}
-                {relation.otherTicket.status === 'resolved'
-                  ? 'Resuelto'
-                  : relation.otherTicket.status === 'pending'
-                    ? 'En espera'
-                    : 'Abierto'}
+                · {statusLabelCoarse(relation.otherTicket.status)}
               </small>
             </div>
             <button

@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS, type Settings, type Ticket, type Article } from './ty
 import { ticketAccessSql, type AccessContext } from './access';
 import { mutationOriginAllowed } from './request-origin';
 import { describeError, logEvent, newRequestId } from './log';
+import type { WritableTicketStatus } from './ticket-status';
 
 export class ApiError extends Error {
   constructor(
@@ -28,7 +29,10 @@ export const messageBody = z
   .trim()
   .min(1, 'Escribe un mensaje.')
   .max(20000, 'El mensaje no puede superar 20.000 caracteres.');
-export const ticketStatus = z.enum(['open', 'pending', 'resolved']);
+// "pending" (En espera) was retired: a tab opened before the change may still send it, and it now means open.
+export const ticketStatus = z
+  .enum(['open', 'pending', 'resolved', 'closed'])
+  .transform((status): WritableTicketStatus => (status === 'pending' ? 'open' : status));
 export const ticketPriority = z.enum(['low', 'normal', 'high', 'urgent']);
 export const emailAddress = z
   .string()

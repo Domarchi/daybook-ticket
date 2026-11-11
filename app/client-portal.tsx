@@ -1,5 +1,6 @@
 'use client';
 import { readDaybookJson } from '@/lib/browser-json';
+import { STATUS_VIEW_CLASS, STATUS_VIEW_LABELS, statusLabel, statusView } from '@/lib/ticket-status';
 import { domainResponseValidator } from '@/lib/domain-response';
 import { WorkspaceSwitcher } from './workspace-navigation';
 import { currentWorkspaceId } from '@/lib/workspace-client';
@@ -40,7 +41,7 @@ import {
   Ticket as TicketIcon,
   X,
 } from 'lucide-react';
-import type { Message, Ticket, TicketPriority, TicketStatus, Workspace } from '../lib/types';
+import type { Message, Ticket, TicketPriority, Workspace } from '../lib/types';
 import Brand from './brand';
 import { SecurityCenter } from './security-center';
 import { ThemeControl } from './evolution-controls';
@@ -66,7 +67,6 @@ import './client-portal.css';
 import { useTicketSearch, useTicketConversation, type TicketFilters } from '@/hooks/use-ticket-search';
 import { TicketPagination } from './ticket-pagination';
 
-const STATUS: Record<TicketStatus, string> = { open: 'Abierto', pending: 'En espera', resolved: 'Resuelto' };
 const PRIORITY: Record<TicketPriority, string> = { low: 'Baja', normal: 'Normal', high: 'Alta', urgent: 'Urgente' };
 const date = (value: string) =>
   new Intl.DateTimeFormat('es', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(
@@ -83,11 +83,11 @@ async function post<T = unknown>(path: string, body: unknown): Promise<T> {
   return readDaybookJson(response, { mutation: true, validate: domainResponseValidator<T>(path, 'POST') });
 }
 
-function Badge({ status }: { status: TicketStatus }) {
+function Badge({ ticket }: { ticket: Pick<Ticket, 'status' | 'assigneeMemberId'> }) {
   return (
-    <span className={`status ${status}`}>
+    <span className={`status ${STATUS_VIEW_CLASS[statusView(ticket)]}`}>
       <span />
-      {STATUS[status]}
+      {statusLabel(ticket)}
     </span>
   );
 }
@@ -165,8 +165,8 @@ export default function ClientPortal({
     section === 'tickets' && !creating && selectedId === null,
   );
   const visibleTickets = searchResults.items;
-  const counts = data.ticketCounts ?? { all: data.tickets.length, open: 0, pending: 0, resolved: 0 };
-  const openCount = counts.open + counts.pending;
+  const counts = data.ticketCounts ?? { all: data.tickets.length, active: 0, resolved: 0, closed: 0 };
+  const openCount = counts.active;
 
   useEffect(() => {
     if (!notice) return;
@@ -531,7 +531,7 @@ export default function ClientPortal({
               <div>
                 <div className="client-ticket-meta">
                   <span>{number(current.id)}</span>
-                  <Badge status={current.status} />
+                  <Badge ticket={current} />
                 </div>
                 <h1 ref={headingRef} tabIndex={-1}>
                   {current.subject}
@@ -607,7 +607,7 @@ export default function ClientPortal({
                   <div>
                     <dt>Estado</dt>
                     <dd>
-                      <Badge status={current.status} />
+                      <Badge ticket={current} />
                     </dd>
                   </div>
                   <div>
@@ -691,7 +691,7 @@ export default function ClientPortal({
                 </span>
                 <span>
                   <strong>{counts.resolved}</strong>
-                  <small>Solicitudes resueltas</small>
+                  <small>Solicitudes solucionadas</small>
                 </span>
               </div>
               <div className="client-overview-help">
@@ -753,11 +753,10 @@ export default function ClientPortal({
                   onChange={event => setFilter(event.target.value)}
                 >
                   <option value="all">Todos los estados</option>
-                  {Object.entries(STATUS).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
+                  <option value="unassigned">{STATUS_VIEW_LABELS.unassigned}</option>
+                  <option value="inprogress">{STATUS_VIEW_LABELS.in_progress}</option>
+                  <option value="resolved">{STATUS_VIEW_LABELS.resolved}</option>
+                  <option value="closed">{STATUS_VIEW_LABELS.closed}</option>
                 </select>
               </div>
               {searchResults.error ? (
@@ -805,7 +804,7 @@ export default function ClientPortal({
                           {date(ticket.updatedAt)}
                         </small>
                       </span>
-                      <Badge status={ticket.status} />
+                      <Badge ticket={ticket} />
                       <ChevronRight size={18} />
                     </button>
                   ))}

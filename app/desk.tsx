@@ -29,7 +29,8 @@ import ClientPortal from './client-portal';
 import { ThemeControl } from './evolution-controls';
 import { LiveStatus } from './live-status';
 import { TicketAlerts } from './ticket-alerts';
-import { View, request, Modal, STATUS, PRIORITY, views, Avatar, ReplyTarget } from './desk-parts/shared';
+import { View, request, Modal, PRIORITY, views, Avatar, ReplyTarget } from './desk-parts/shared';
+import { statusLabel } from '../lib/ticket-status';
 import { TicketView } from './desk-parts/ticket-view';
 import { InboxView } from './desk-parts/inbox-view';
 import { SectionView } from './desk-parts/section-view';
@@ -143,11 +144,12 @@ export default function Desk({ displayName, email }: { displayName: string; emai
   const counts: Record<string, number> = {
     ...(data.ticketCounts ?? {
       all: tickets.length,
-      open: 0,
-      pending: 0,
-      resolved: 0,
-      mine: 0,
+      active: 0,
       unassigned: 0,
+      inProgress: 0,
+      resolved: 0,
+      closed: 0,
+      mine: 0,
       overdue: 0,
     }),
   };
@@ -233,11 +235,11 @@ export default function Desk({ displayName, email }: { displayName: string; emai
     }
     setBusy(false);
     if (failed.length === 0) {
-      notify(ids.length === 1 ? 'Ticket resuelto' : `${ids.length} tickets resueltos`);
+      notify(ids.length === 1 ? 'Ticket solucionado' : `${ids.length} tickets solucionados`);
       setSelected([]);
     } else {
       setError(
-        `Se resolvieron ${ids.length - failed.length} de ${ids.length}. No se pudieron resolver: ${failed.map(id => `#${String(id).padStart(4, '0')}`).join(', ')}.`,
+        `Se solucionaron ${ids.length - failed.length} de ${ids.length}. No se pudieron solucionar: ${failed.map(id => `#${String(id).padStart(4, '0')}`).join(', ')}.`,
       );
       setSelected(failed);
     }
@@ -265,7 +267,7 @@ export default function Desk({ displayName, email }: { displayName: string; emai
           t.subject,
           t.requesterName,
           t.requesterEmail,
-          STATUS[t.status],
+          statusLabel(t),
           PRIORITY[t.priority],
           t.department,
           t.assignee,

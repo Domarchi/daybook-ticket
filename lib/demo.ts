@@ -39,7 +39,7 @@ export const DEMO_TICKETS: DemoTicket[] = [
     department: 'Facturación',
     assignee: 'Valentina Soto',
     priority: 'normal',
-    status: 'pending',
+    status: 'open',
     ageHours: 3,
     body: 'Necesitamos actualizar la razón social de nuestra última factura. ¿Qué información debemos enviar para solicitar la corrección?',
     followup: {
@@ -92,7 +92,7 @@ export const DEMO_TICKETS: DemoTicket[] = [
     department: 'Soporte técnico',
     assignee: 'Diego Rojas',
     priority: 'high',
-    status: 'pending',
+    status: 'open',
     ageHours: 7,
     body: 'Dejé de recibir las notificaciones de actividad. Revisé la carpeta de spam y no hay mensajes nuevos.',
     followup: {

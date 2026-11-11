@@ -11,6 +11,7 @@ import { createSatisfactionForResolution } from './satisfaction';
 import { canAccessTicket, publicMember, type AccessContext, type MemberRecord } from './access';
 import type { Settings, Ticket, TicketEvent } from './types';
 import { assertSecurityAccess } from './security';
+import { isFinished, statusChangeProblem } from './ticket-status';
 import { assertWorkspaceOperational, lockWorkspaceState } from './workspaces';
 
 function canonical(value: unknown): string {
@@ -221,6 +222,10 @@ export async function patchTicket(access: AccessContext, id: number, data: Recor
     }
     for (const key of ['subject', 'department', 'priority', 'status'])
       if (data[key] !== undefined && data[key] !== old[key as keyof Ticket]) changes[key] = data[key];
+    if (changes.status) {
+      const problem = statusChangeProblem(old.status, String(changes.status));
+      if (problem) throw new ApiError(409, problem);
+    }
     if (data.department !== undefined && !settings.departments.includes(String(data.department)))
       throw new ApiError(400, 'Selecciona un departamento válido.');
     if (assigning) {
@@ -275,7 +280,7 @@ export async function patchTicket(access: AccessContext, id: number, data: Recor
             Date.parse(old.createdAt) + settings.slaHours[changes.priority as keyof typeof settings.slaHours] * 3600000,
           ).toISOString();
     }
-    if (changes.status && changes.status !== 'resolved' && old.status === 'resolved') {
+    if (changes.status === 'open' && isFinished(old.status)) {
       const snapshot = await getEffectiveServicePolicy(
         tx,
         access.ownerId,

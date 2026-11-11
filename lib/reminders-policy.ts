@@ -1,3 +1,4 @@
+import { isFinished } from './ticket-status';
 export const REMINDER_GRACE_MS = 30 * 60_000;
 export const REMINDER_DAILY_MS = 24 * 60 * 60_000;
 export const REMINDER_REASONS = ['unanswered', 'due_soon', 'overdue'] as const;
@@ -18,7 +19,7 @@ export interface ReminderHistory {
 
 /** Reasons describe current conditions, never the number of missed scheduler runs. */
 export function activeReminderReasons(ticket: ReminderClock, now: Date): ReminderReason[] {
-  if (ticket.status === 'resolved') return [];
+  if (isFinished(ticket.status)) return [];
   const at = now.getTime();
   const due = Date.parse(ticket.dueAt);
   const waiting = Date.parse(ticket.unansweredSince || '');

@@ -1,4 +1,5 @@
 import type { Database } from '../db/database';
+import { isFinished } from './ticket-status';
 import type { AccessContext } from './access';
 import { lockAccess, lockTicket } from './ticket-mutations';
 import { acquireTicketWorkLock } from './work-lock';
@@ -38,16 +39,15 @@ export async function readPublicTicketProgress(
           [fresh.ownerId, ticketId],
         )
       ).rows[0]?.authorRole || null;
-    const resolvedAt =
-      ticket.status === 'resolved'
-        ? (
-            await tx.query<{ resolvedAt: string }>(
-              `SELECT "resolvedAt" FROM "ticketSlaOutcomes"
+    const resolvedAt = isFinished(ticket.status)
+      ? (
+          await tx.query<{ resolvedAt: string }>(
+            `SELECT "resolvedAt" FROM "ticketSlaOutcomes"
       WHERE "ownerId"=$1 AND "ticketId"=$2 ORDER BY "resolvedAt" DESC,id DESC LIMIT 1`,
-              [fresh.ownerId, ticketId],
-            )
-          ).rows[0]?.resolvedAt || null
-        : null;
+            [fresh.ownerId, ticketId],
+          )
+        ).rows[0]?.resolvedAt || null
+      : null;
     return publicTicketProgress({
       ticket,
       responsibleName: responsible,

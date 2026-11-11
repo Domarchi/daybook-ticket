@@ -39,6 +39,9 @@ export async function POST(request: Request, context: RouteContext) {
         // current-membership readers and all owner-serialized ticket writers.
         const collaboration = await validateMessageCollaboration(tx, fresh, id, data);
         const ticket = await lockTicket(tx, fresh, id);
+        // A closed ticket is final for the customer: their next request is a new ticket. The team can still write.
+        if (client && ticket.status === 'closed')
+          throw new ApiError(409, 'Este ticket está cerrado. Crea un ticket nuevo para continuar la conversación.');
         const now = new Date().toISOString();
         const { rows } = await tx.query(
           'INSERT INTO messages ("ownerId","ticketId",author,"authorMemberId","authorRole",body,kind,"createdAt","bodyFormat") VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,"ticketId",author,"authorMemberId","authorRole",body,"bodyFormat",kind,"createdAt"',

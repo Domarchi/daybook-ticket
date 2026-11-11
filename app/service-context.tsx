@@ -1,5 +1,6 @@
 'use client';
 import { readDaybookJson } from '@/lib/browser-json';
+import { statusLabelCoarse } from '@/lib/ticket-status';
 import { domainResponseValidator } from '@/lib/domain-response';
 import { currentWorkspaceId } from '@/lib/workspace-client';
 import { workspaceHome } from '@/lib/workspace-model';
@@ -756,11 +757,7 @@ function AssetHistory({ memberId, asset, onClose }: { memberId: string; asset: E
               <a href={workspaceHome(currentWorkspaceId(), ticket.id)}>
                 #{ticket.id} · {ticket.subject}
               </a>
-              <small>
-                {({ open: 'Abierto', pending: 'En espera', resolved: 'Resuelto' } as Record<string, string>)[
-                  ticket.status
-                ] || 'Estado no disponible'}
-              </small>
+              <small>{statusLabelCoarse(ticket.status)}</small>
             </li>
           ))}
         </ul>

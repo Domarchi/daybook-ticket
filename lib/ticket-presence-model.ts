@@ -1,4 +1,5 @@
 import type { Ticket, TicketStatus } from './types';
+import { isFinished } from './ticket-status';
 
 export const PRESENCE_HEARTBEAT_MS = 20_000;
 export const PRESENCE_TTL_MS = 45_000;
@@ -84,10 +85,10 @@ const validTime = (value: string | null) => (value && Number.isFinite(Date.parse
 export function publicTicketProgress(input: PublicProgressInput): PublicTicketProgress {
   const { ticket } = input;
   const nextStep =
-    ticket.status === 'resolved'
-      ? 'Tu caso está resuelto. Si necesitas más ayuda, responde aquí para retomarlo.'
-      : ticket.status === 'pending'
-        ? 'Tu caso sigue en seguimiento. Puedes añadir información a la conversación.'
+    ticket.status === 'closed'
+      ? 'Tu caso está cerrado. Si necesitas más ayuda, crea un ticket nuevo.'
+      : ticket.status === 'resolved'
+        ? 'Tu caso está solucionado. Si necesitas más ayuda, responde aquí para retomarlo.'
         : input.lastPublicAuthorRole === 'client' || !input.firstResponseAt
           ? 'El equipo revisará tu último mensaje y continuará la atención aquí.'
           : 'Revisa la respuesta del equipo y cuéntanos si necesitas algo más.';
@@ -97,8 +98,8 @@ export function publicTicketProgress(input: PublicProgressInput): PublicTicketPr
     responsibleName: input.responsibleName?.trim() || null,
     receivedAt: ticket.createdAt,
     firstResponseAt: validTime(input.firstResponseAt),
-    resolvedAt: ticket.status === 'resolved' ? validTime(input.resolvedAt) : null,
-    deadlineAt: ticket.status === 'resolved' ? null : validTime(ticket.dueAt),
+    resolvedAt: isFinished(ticket.status) ? validTime(input.resolvedAt) : null,
+    deadlineAt: isFinished(ticket.status) ? null : validTime(ticket.dueAt),
     nextStep,
   };
 }

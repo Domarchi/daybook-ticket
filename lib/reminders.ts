@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { getDatabase } from '../db';
 import type { Database } from '../db/database';
+import { FINISHED_SQL, isFinished } from './ticket-status';
 import { enqueueTicketEscalation } from './escalations';
 import {
   activeReminderReasons,
@@ -129,7 +130,7 @@ export async function enqueueTicketReminder(
         [ticketId, ownerId],
       )
     ).rows[0];
-    if (!ticket || ticket.status === 'resolved') return 0;
+    if (!ticket || isFinished(ticket.status)) return 0;
     const config = await activation(tx, ownerId);
     if (!config?.remindersEnabled || !config.remindersActivatedAt) return 0;
     const clock = await episode(tx, ticket, config.remindersActivatedAt);
@@ -224,7 +225,7 @@ export async function isReminderEligibleForDelivery(
         [input.ticketId, input.ownerId],
       )
     ).rows[0];
-    if (!ticket || ticket.status === 'resolved') return false;
+    if (!ticket || isFinished(ticket.status)) return false;
     const config = await activation(tx, input.ownerId);
     if (!config?.remindersEnabled || !config.remindersActivatedAt) return false;
     const occurrence = (
@@ -343,7 +344,9 @@ async function runWorkspaceNotificationTick(
   try {
     let ids = (
       await database
-        .prepare(`SELECT id FROM tickets WHERE "ownerId"=$1 AND status<>'resolved' AND id>$2 ORDER BY id LIMIT $3`)
+        .prepare(
+          `SELECT id FROM tickets WHERE "ownerId"=$1 AND status NOT IN ${FINISHED_SQL} AND id>$2 ORDER BY id LIMIT $3`,
+        )
         .bind(ownerId, cursor, maxTickets + 1)
         .all<{ id: number }>()
     ).results;
@@ -351,7 +354,7 @@ async function runWorkspaceNotificationTick(
       cursor = 0;
       ids = (
         await database
-          .prepare(`SELECT id FROM tickets WHERE "ownerId"=$1 AND status<>'resolved' ORDER BY id LIMIT $2`)
+          .prepare(`SELECT id FROM tickets WHERE "ownerId"=$1 AND status NOT IN ${FINISHED_SQL} ORDER BY id LIMIT $2`)
           .bind(ownerId, maxTickets + 1)
           .all<{ id: number }>()
       ).results;

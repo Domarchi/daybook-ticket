@@ -89,11 +89,12 @@ export function previousValues(ticket: Ticket, patch: TicketPatch): TicketPatch 
 }
 
 /**
- * Undo is offered for everything except resolving or reopening a resolved ticket: resolving creates a
- * satisfaction request that cannot be recalled, and putting it back would repeat that.
+ * Undo is offered for everything except moving into or out of Solucionado or Cerrado: resolving creates a
+ * satisfaction request that cannot be recalled, putting it back would repeat that, and a closed ticket may only
+ * be reopened.
  */
 export function canUndo(patch: TicketPatch, previous: TicketPatch): boolean {
-  return patch.status !== 'resolved' && previous.status !== 'resolved';
+  return ![patch.status, previous.status].some(status => status === 'resolved' || status === 'closed');
 }
 
 const FIELD_MESSAGES: Record<string, string> = {
@@ -103,7 +104,8 @@ const FIELD_MESSAGES: Record<string, string> = {
   requesterMemberId: 'Cuenta del cliente actualizada',
 };
 export function changeMessage(patch: TicketPatch): string {
-  if (patch.status === 'resolved') return 'Ticket resuelto';
+  if (patch.status === 'resolved') return 'Ticket solucionado';
+  if (patch.status === 'closed') return 'Ticket cerrado';
   const keys = Object.keys(patch);
   return keys.length === 1 ? (FIELD_MESSAGES[keys[0]] ?? 'Ticket actualizado') : 'Ticket actualizado';
 }

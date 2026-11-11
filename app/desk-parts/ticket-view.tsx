@@ -1,5 +1,6 @@
 'use client';
 import { useTicketConversation } from '@/hooks/use-ticket-search';
+import { statusOptions } from '../../lib/ticket-status';
 import { isTestTicket } from '@/lib/test-data';
 import { ticketDraftKey } from '@/lib/ticket-drafts';
 import { ArrowLeft, CheckCheck, Clock3 } from 'lucide-react';
@@ -14,7 +15,7 @@ import { TicketChat } from '../ticket-chat';
 import { TicketDetails } from '../ticket-details';
 import { TicketPresence } from '../ticket-presence';
 import { TicketOrganizationPanel } from '../work-organization';
-import { STATUS, PRIORITY, fmtDate, sla, Avatar, Status, Priority, request, DeskRun, ReplyTarget } from './shared';
+import { PRIORITY, fmtDate, sla, Avatar, Status, Priority, request, DeskRun, ReplyTarget } from './shared';
 import { StaffComposer } from './staff-composer';
 
 export function TicketView({
@@ -64,7 +65,7 @@ export function TicketView({
         <div>
           <div className="ticket-meta">
             <span>#{String(current.id).padStart(4, '0')}</span>
-            <Status status={current.status} />
+            <Status ticket={current} />
             <Priority priority={current.priority} />
           </div>
           <h1 className="ticket-title">{current.subject}</h1>
@@ -72,16 +73,35 @@ export function TicketView({
             Creado el {fmtDate(current.createdAt)} · {current.department}
           </p>
         </div>
-        <button
-          className="primary"
-          disabled={savingField('status')}
-          onClick={() => {
-            void change(current, { status: current.status === 'resolved' ? 'open' : 'resolved' });
-          }}
-        >
-          <CheckCheck size={17} />
-          {current.status === 'resolved' ? 'Reabrir ticket' : 'Marcar resuelto'}
-        </button>
+        <div className="heading-actions">
+          {current.status === 'resolved' && (
+            <button
+              className="secondary"
+              disabled={savingField('status')}
+              onClick={() => {
+                void change(current, { status: 'open' });
+              }}
+            >
+              Reabrir ticket
+            </button>
+          )}
+          <button
+            className="primary"
+            disabled={savingField('status')}
+            onClick={() => {
+              void change(current, {
+                status: current.status === 'resolved' ? 'closed' : current.status === 'closed' ? 'open' : 'resolved',
+              });
+            }}
+          >
+            <CheckCheck size={17} />
+            {current.status === 'resolved'
+              ? 'Cerrar ticket'
+              : current.status === 'closed'
+                ? 'Reabrir ticket'
+                : 'Marcar solucionado'}
+          </button>
+        </div>
       </div>
       {data.viewer && (
         <TicketPresence key={`${data.viewer.id}:${current.id}`} ticketId={current.id} memberId={data.viewer.id} />
@@ -161,16 +181,16 @@ export function TicketView({
             <label>
               Estado
               <select
-                value={current.status}
+                value={current.status === 'pending' ? 'open' : current.status}
                 disabled={savingField('status')}
                 aria-busy={savingField('status')}
                 onChange={e => {
                   void change(current, { status: e.target.value as TicketStatus });
                 }}
               >
-                {Object.entries(STATUS).map(([k, v]) => (
-                  <option key={k} value={k}>
-                    {v}
+                {statusOptions(current).map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
                   </option>
                 ))}
               </select>

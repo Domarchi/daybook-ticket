@@ -1,3 +1,4 @@
+import { isFinished } from './ticket-status';
 export interface TicketSatisfaction {
   id: string;
   ticketId: number;
@@ -48,7 +49,7 @@ export function canSubmitSatisfaction(input: {
     input.viewerRole === 'client' &&
     input.viewerMemberId === input.requesterMemberId &&
     input.viewerMemberId === input.invitationRequesterId &&
-    input.status === 'resolved' &&
+    isFinished(input.status) &&
     input.latestResolutionKey === input.resolutionKey &&
     input.submittedAt === null
   );

@@ -20,6 +20,7 @@ const late = {
   status: 'open',
   priority: 'high',
   assignee: 'Mario Pino',
+  assigneeMemberId: 'member-mario',
   updatedAt: '2026-11-10T11:00:00Z',
   dueAt: '2026-11-10T10:00:00Z',
 } as unknown as Ticket;
@@ -51,8 +52,9 @@ test('each ticket is a card with a real link, readable status and a labelled che
   assert.match(html, /href="\?ticket=12"/);
   assert.match(html, /aria-label="Seleccionar ticket 7"/);
   assert.match(html, /Seleccionar tickets de esta vista/);
-  assert.match(html, /Abierto/);
-  assert.match(html, /Resuelto/);
+  assert.match(html, /En proceso/);
+  assert.match(html, /Solucionado/);
+  assert.doesNotMatch(html, /Abierto|Resuelto|En espera/);
   assert.match(html, /#0007/);
 });
 

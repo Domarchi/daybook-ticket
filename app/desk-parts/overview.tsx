@@ -50,7 +50,7 @@ export function Overview({ data, now, onOpen }: { data: Workspace; now: number; 
           >
             <div>
               <strong>{total ? Math.round((resolved / total) * 100) : 0}%</strong>
-              <span>resueltos</span>
+              <span>solucionados</span>
             </div>
           </div>
           <p>
@@ -77,7 +77,7 @@ export function Overview({ data, now, onOpen }: { data: Workspace; now: number; 
                   {t.requesterName} · {since(t.updatedAt, now)}
                 </small>
               </div>
-              <Status status={t.status} />
+              <Status ticket={t} />
               <ChevronRight size={17} />
             </button>
           ))

@@ -225,8 +225,9 @@ export function TicketActivity({
       return value ? companies.find(company => company.id === value)?.name || 'Empresa anterior' : 'Sin empresa';
     const labels: Record<string, string> = {
       open: 'Abierto',
-      pending: 'En espera',
-      resolved: 'Resuelto',
+      pending: 'En espera (retirado)',
+      resolved: 'Solucionado',
+      closed: 'Cerrado',
       low: 'Baja',
       normal: 'Normal',
       high: 'Alta',

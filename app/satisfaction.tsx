@@ -1,5 +1,6 @@
 'use client';
 import { daybookFetch } from '@/lib/browser-request';
+import { isFinished } from '@/lib/ticket-status';
 
 import { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, LoaderCircle, Star } from 'lucide-react';
@@ -36,7 +37,7 @@ export function TicketSatisfactionPanel({
   const current = result?.key === key ? result : null;
   useEffect(() => {
     mounted.current = true;
-    if (status !== 'resolved')
+    if (!isFinished(status))
       return () => {
         mounted.current = false;
       };
@@ -64,7 +65,7 @@ export function TicketSatisfactionPanel({
       mounted.current = false;
     };
   }, [key, memberId, status, ticketId]);
-  if (status !== 'resolved') return null;
+  if (!isFinished(status)) return null;
   if (!current)
     return (
       <section className="ticket-satisfaction" role="status">

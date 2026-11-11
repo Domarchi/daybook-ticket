@@ -1,5 +1,6 @@
 'use client';
 import { normalizeTeamFilters, useTeamFilters } from '@/hooks/use-team-filters';
+import { isActive } from '../../lib/ticket-status';
 import { type TicketFilters, useTicketSearch } from '@/hooks/use-ticket-search';
 import {
   Activity,
@@ -119,21 +120,21 @@ export function InboxView({
       </div>
       <div className="stats">
         <Stat
-          label="Tickets abiertos"
-          value={counts.open}
-          icon={<Inbox size={19} />}
-          detail="Listos para una respuesta"
-          color="blue"
-        />
-        <Stat
-          label="En espera"
-          value={counts.pending}
+          label="Sin asignar"
+          value={counts.unassigned}
           icon={<Clock3 size={19} />}
-          detail="A un paso de continuar"
+          detail={counts.unassigned ? 'Esperan un responsable' : 'Todo tiene responsable'}
           color="amber"
         />
         <Stat
-          label="Resueltos"
+          label="En proceso"
+          value={counts.inProgress}
+          icon={<Inbox size={19} />}
+          detail="Con alguien trabajando en ellos"
+          color="blue"
+        />
+        <Stat
+          label="Solucionados"
           value={counts.resolved}
           icon={<CheckCircle2 size={19} />}
           detail="Conversaciones completadas"
@@ -175,12 +176,15 @@ export function InboxView({
               />
             )}
             <div className="queue-tabs">
-              {[
-                ['all', 'Todos'],
-                ['open', 'Abiertos'],
-                ['pending', 'En espera'],
-                ['resolved', 'Resueltos'],
-              ].map(([k, v]) => (
+              {(
+                [
+                  ['all', 'Todos', counts.all],
+                  ['unassigned', 'Sin asignar', counts.unassigned],
+                  ['inprogress', 'En proceso', counts.inProgress],
+                  ['resolved', 'Solucionados', counts.resolved],
+                  ['closed', 'Cerrados', counts.closed],
+                ] as [string, string, number][]
+              ).map(([k, v, count]) => (
                 <button
                   key={k}
                   className={queue === k ? 'active' : ''}
@@ -191,13 +195,13 @@ export function InboxView({
                   }}
                 >
                   {v}
-                  <span>{counts[k]}</span>
+                  <span>{count}</span>
                 </button>
               ))}
-              {['mine', 'unassigned', 'overdue'].includes(queue) && (
+              {['mine', 'overdue'].includes(queue) && (
                 <button className="active" aria-pressed="true">
-                  {queue === 'mine' ? 'Mis tickets' : queue === 'unassigned' ? 'Sin asignar' : 'SLA vencido'}
-                  <span>{counts[queue]}</span>
+                  {queue === 'mine' ? 'Mis tickets' : 'SLA vencido'}
+                  <span>{counts[queue as 'mine' | 'overdue']}</span>
                 </button>
               )}
             </div>
@@ -318,7 +322,7 @@ export function InboxView({
                   }}
                 >
                   <CheckCheck size={16} />
-                  Resolver selección
+                  Marcar como solucionados
                 </button>
                 <button onClick={() => setSelected([])}>Cancelar</button>
               </div>
@@ -430,7 +434,7 @@ export function InboxView({
                           </DeskLink>
                         </td>
                         <td>
-                          <Status status={t.status} />
+                          <Status ticket={t} />
                         </td>
                         <td>
                           <Priority priority={t.priority} />
@@ -449,7 +453,7 @@ export function InboxView({
                         </td>
                         <td className="time-cell">
                           <span>{since(t.updatedAt, now)}</span>
-                          {t.status !== 'resolved' && (
+                          {isActive(t.status) && (
                             <small className={sla(t, now) === 'Vencido' ? 'late-text' : ''}>{sla(t, now)}</small>
                           )}
                         </td>

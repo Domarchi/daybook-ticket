@@ -3,6 +3,7 @@ import { ApiError, db, getTicket, ticketColumns } from './server';
 import { ticketReadScope as scopeFor } from './ticket-read-scope';
 import { hydrateMessageReferences } from './ticket-collaboration';
 import type { Message, Ticket } from './types';
+import { FINISHED_SQL } from './ticket-status';
 import {
   decodeTicketCursor,
   encodeTicketCursor,
@@ -12,11 +13,13 @@ import {
 
 export interface TicketCounts {
   all: number;
-  open: number;
-  pending: number;
-  resolved: number;
-  mine: number;
+  /** Not finished: Sin asignar + En proceso. */
+  active: number;
   unassigned: number;
+  inProgress: number;
+  resolved: number;
+  closed: number;
+  mine: number;
   overdue: number;
 }
 export interface TicketPage {
@@ -52,17 +55,18 @@ export async function getTicketCounts(access: AccessContext, now = new Date().to
   const result = await db()
     .prepare(
       `SELECT count(*)::int AS "all",
-    count(*) FILTER (WHERE t.status='open')::int AS open,
-    count(*) FILTER (WHERE t.status='pending')::int AS pending,
+    count(*) FILTER (WHERE t.status NOT IN ${FINISHED_SQL})::int AS active,
+    count(*) FILTER (WHERE t.status NOT IN ${FINISHED_SQL} AND t."assigneeMemberId" IS NULL)::int AS unassigned,
+    count(*) FILTER (WHERE t.status NOT IN ${FINISHED_SQL} AND t."assigneeMemberId" IS NOT NULL)::int AS "inProgress",
     count(*) FILTER (WHERE t.status='resolved')::int AS resolved,
+    count(*) FILTER (WHERE t.status='closed')::int AS closed,
     count(*) FILTER (WHERE t."assigneeMemberId"=${member})::int AS mine,
-    count(*) FILTER (WHERE t.status<>'resolved' AND t."assigneeMemberId" IS NULL)::int AS unassigned,
-    count(*) FILTER (WHERE t.status<>'resolved' AND t."dueAt"<${time})::int AS overdue
+    count(*) FILTER (WHERE t.status NOT IN ${FINISHED_SQL} AND t."dueAt"<${time})::int AS overdue
     FROM tickets t WHERE ${scope.sql}`,
     )
     .bind(...scope.values)
     .first<TicketCounts>();
-  return result ?? { all: 0, open: 0, pending: 0, resolved: 0, mine: 0, unassigned: 0, overdue: 0 };
+  return result ?? { all: 0, active: 0, unassigned: 0, inProgress: 0, resolved: 0, closed: 0, mine: 0, overdue: 0 };
 }
 
 export async function getTicketDepartments(access: AccessContext): Promise<TicketDepartmentCount[]> {
@@ -81,9 +85,14 @@ export async function getTicketPage(access: AccessContext, query: TicketSearchQu
   const scope = scopeFor(access);
   const filters = [scope.sql];
   if (query.queue === 'mine') filters.push(`t."assigneeMemberId"=${scope.bind(access.member.id)}`);
-  else if (query.queue === 'unassigned') filters.push(`t."assigneeMemberId" IS NULL AND t.status<>'resolved'`);
+  else if (query.queue === 'unassigned')
+    filters.push(`t."assigneeMemberId" IS NULL AND t.status NOT IN ${FINISHED_SQL}`);
+  else if (query.queue === 'inprogress')
+    filters.push(`t."assigneeMemberId" IS NOT NULL AND t.status NOT IN ${FINISHED_SQL}`);
+  // "open" and "pending" survive in saved filters from before the four states; both mean work still under way.
+  else if (query.queue === 'open' || query.queue === 'pending') filters.push(`t.status NOT IN ${FINISHED_SQL}`);
   else if (query.queue === 'overdue')
-    filters.push(`t.status<>'resolved' AND t."dueAt"<${scope.bind(new Date().toISOString())}`);
+    filters.push(`t.status NOT IN ${FINISHED_SQL} AND t."dueAt"<${scope.bind(new Date().toISOString())}`);
   else if (query.queue !== 'all') filters.push(`t.status=${scope.bind(query.queue)}`);
   if (query.priority !== 'all') filters.push(`t.priority=${scope.bind(query.priority)}`);
   if (query.department !== 'all') filters.push(`t.department=${scope.bind(query.department)}`);
@@ -188,7 +197,7 @@ export async function getContactPage(
   const [result, count] = await Promise.all([
     db()
       .prepare(
-        `SELECT t."requesterEmail" AS email,min(t."requesterName") AS name,count(*)::int AS total,count(*) FILTER (WHERE t.status<>'resolved')::int AS active
+        `SELECT t."requesterEmail" AS email,min(t."requesterName") AS name,count(*)::int AS total,count(*) FILTER (WHERE t.status NOT IN ${FINISHED_SQL})::int AS active
       FROM tickets t WHERE ${scope.sql} GROUP BY t."requesterEmail"${boundary} ORDER BY t."requesterEmail" LIMIT ${size}`,
       )
       .bind(...scope.values)

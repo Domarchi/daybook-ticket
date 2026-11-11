@@ -1,6 +1,7 @@
+import { isTicketQueue, type TicketQueue } from './ticket-status';
 export interface TicketSearchQuery {
   q: string;
-  queue: 'all' | 'open' | 'pending' | 'resolved' | 'mine' | 'unassigned' | 'overdue';
+  queue: TicketQueue;
   priority: 'all' | 'urgent' | 'high' | 'normal' | 'low';
   department: string;
   company: string;
@@ -49,8 +50,7 @@ export function parseTicketSearch(params: URLSearchParams): TicketSearchQuery {
   if (q.length > 200) throw new SearchQueryError('La búsqueda admite hasta 200 caracteres.');
   const queue = params.get('queue') ?? 'all';
   const priority = params.get('priority') ?? 'all';
-  if (!['all', 'open', 'pending', 'resolved', 'mine', 'unassigned', 'overdue'].includes(queue))
-    throw new SearchQueryError('Selecciona una vista válida.');
+  if (!isTicketQueue(queue)) throw new SearchQueryError('Selecciona una vista válida.');
   if (!['all', 'urgent', 'high', 'normal', 'low'].includes(priority))
     throw new SearchQueryError('Selecciona una prioridad válida.');
   const field = (name: string) => {

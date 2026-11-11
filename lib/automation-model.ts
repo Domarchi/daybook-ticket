@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isFinished } from './ticket-status';
 import type { TicketPriority, TicketStatus } from './types';
 import { selectAutomaticAssignee, type AssignmentCandidate } from './automatic-assignment';
 
@@ -60,8 +61,8 @@ export const automationRuleSchema = z
           .max(4)
           .default([]),
         statuses: z
-          .array(z.enum(['open', 'pending', 'resolved']))
-          .max(3)
+          .array(z.enum(['open', 'pending', 'resolved', 'closed']))
+          .max(4)
           .default(['open', 'pending']),
         requestTypeIds: ids.default([]),
         allTagIds: ids.default([]),
@@ -228,7 +229,7 @@ export function planAutomation(
   if (actions.assignMemberIds.length) {
     if (ticket.assigneeMemberId || ticket.assignee?.trim())
       assignmentReason = 'El ticket ya tiene responsable; se conserva.';
-    else if (ticket.status === 'resolved') assignmentReason = 'El ticket está resuelto; no se asignará.';
+    else if (isFinished(ticket.status)) assignmentReason = 'El ticket ya está solucionado o cerrado; no se asignará.';
     else {
       const chosen = selectAutomaticAssignee(
         [

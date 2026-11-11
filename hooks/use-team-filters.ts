@@ -1,5 +1,6 @@
 'use client';
 import { workspaceStorageKey } from '@/lib/workspace-client';
+import { isTicketQueue } from '@/lib/ticket-status';
 import { useState } from 'react';
 export type TeamFilters = { company: string; agent: string; queue: string; priority: string; department: string };
 const EMPTY: TeamFilters = { company: 'all', agent: 'all', queue: 'all', priority: 'all', department: 'all' };
@@ -13,7 +14,8 @@ export function normalizeTeamFilters(value: unknown): TeamFilters {
     company: text('company'),
     agent: text('agent'),
     department: text('department'),
-    queue: ['all', 'open', 'pending', 'resolved', 'mine', 'unassigned', 'overdue'].includes(queue) ? queue : 'all',
+    // "open" and "pending" belonged to the old three states; "all" shows every state.
+    queue: isTicketQueue(queue) && queue !== 'open' && queue !== 'pending' ? queue : 'all',
     priority: ['all', 'low', 'normal', 'high', 'urgent'].includes(priority) ? priority : 'all',
   };
 }

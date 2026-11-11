@@ -1,5 +1,6 @@
 'use client';
 import { type Ticket } from '../../lib/types';
+import { isActive } from '../../lib/ticket-status';
 import { Avatar, DeskLink, Priority, Status, since, sla } from './shared';
 
 /**
@@ -33,7 +34,7 @@ export function TicketCards({
       <ul className="ticket-cards" aria-label="Tickets">
         {tickets.map(ticket => {
           const checked = selected.includes(ticket.id);
-          const late = ticket.status !== 'resolved' && sla(ticket, now) === 'Vencido';
+          const late = isActive(ticket.status) && sla(ticket, now) === 'Vencido';
           return (
             <li key={ticket.id} className={`ticket-card${checked ? ' is-selected' : ''}`}>
               <label className="ticket-card-check">
@@ -51,7 +52,7 @@ export function TicketCards({
               <DeskLink className="ticket-card-main" to={{ ticketId: ticket.id }} onNavigate={() => onOpen(ticket)}>
                 <span className="ticket-card-top">
                   <span className="ticket-number">#{String(ticket.id).padStart(4, '0')}</span>
-                  <Status status={ticket.status} />
+                  <Status ticket={ticket} />
                   <Priority priority={ticket.priority} />
                 </span>
                 <span className="ticket-card-subject">{ticket.subject}</span>
@@ -73,7 +74,7 @@ export function TicketCards({
                     {since(ticket.updatedAt, now) === 'Ahora'
                       ? 'Actualizado ahora'
                       : `Actualizado hace ${since(ticket.updatedAt, now)}`}
-                    {ticket.status !== 'resolved' && (
+                    {isActive(ticket.status) && (
                       <>
                         {' '}
                         · <span className={late ? 'late-text' : ''}>{sla(ticket, now)}</span>
