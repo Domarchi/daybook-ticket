@@ -4,6 +4,7 @@ import { workspaceHome } from '@/lib/workspace-model';
 import { getDaybookUser } from '../lib/daybook-auth';
 import { redirect } from 'next/navigation';
 import { requireAccess } from '@/lib/access';
+import { assistantAvailableFor } from '@/lib/assistant-config';
 import { ApiError } from '@/lib/server';
 import { ticketLoginPath, portalReturnPath } from '../lib/return-path';
 export const dynamic = 'force-dynamic';
@@ -31,12 +32,14 @@ export default async function Home({
   ).results;
   if (!spaces.some(item => item.organizationId === 'daybook'))
     redirect(spaces.length ? workspaceHome(spaces[0].organizationId) : '/workspaces');
+  // Bita is offered only when the flag and key are set and this person is owner/admin of this space.
+  let assistant = false;
   try {
-    await requireAccess();
+    assistant = assistantAvailableFor(await requireAccess());
   } catch (error) {
     if (error instanceof ApiError && error.status === 428)
       redirect(`/security?return_to=${encodeURIComponent(destination)}`);
     if (!(error instanceof ApiError) || ![401, 403].includes(error.status)) throw error;
   }
-  return <Desk displayName={user.fullName || 'Mi espacio'} email={user.email} />;
+  return <Desk displayName={user.fullName || 'Mi espacio'} email={user.email} assistant={assistant} />;
 }

@@ -45,6 +45,7 @@
     "test:workspaces:invitation-race:qa": "node --env-file=.env.test.local --import tsx scripts/check-workspace-invitation-race-database.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.4.0",
     "@vercel/blob": "2.8.2",
     "@vercel/functions": "^3.3.0",
     "better-auth": "1.7.15",

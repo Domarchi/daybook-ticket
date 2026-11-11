@@ -1,0 +1,153 @@
+/*
+ * Bita, the staff assistant. Uses only the semantic tokens of tokens.css, so it follows light and dark without rules
+ * of its own. The launcher sits in the top bar (not floating) so it never covers the composer's send button; the
+ * panel floats on the right, above the page (z 70) and below the toast (100).
+ */
+.bita-launcher {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-3) 0 var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.bita-launcher:hover { border-color: var(--color-border-strong); }
+.bita-launcher:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+.bita-avatar { flex: 0 0 auto; display: block; }
+
+.bita-panel {
+  position: fixed;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  width: min(420px, calc(100vw - var(--space-6)));
+  height: min(640px, calc(100dvh - 110px));
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 18px 48px #11120f2e;
+  overflow: hidden;
+}
+.bita-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+.bita-identity { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.bita-header h2 { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.2; }
+.bita-header small { display: block; margin-top: 2px; color: var(--color-text-muted); font-size: 12px; }
+.bita-close {
+  display: inline-flex; align-items: center; justify-content: center; width: var(--touch-target); height: var(--touch-target);
+  border: 0; border-radius: var(--radius-md); background: none; color: var(--color-text-muted); cursor: pointer;
+}
+.bita-close:hover { background: var(--color-bg); color: var(--color-text); }
+.bita-close:focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
+
+.bita-log {
+  display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-3); min-height: 0; padding: var(--space-4);
+  overflow-y: auto; overscroll-behavior: contain;
+}
+.bita-message {
+  max-width: 88%; padding: var(--space-2) var(--space-3); border-radius: 10px; font-size: 14px; line-height: 1.55;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.bita-message.mine { align-self: flex-end; background: var(--color-accent); color: var(--color-surface); border-bottom-right-radius: 4px; }
+.bita-message.hers { align-self: flex-start; background: var(--color-bg); border: 1px solid var(--color-border); border-bottom-left-radius: 4px; }
+.bita-row { display: flex; align-items: flex-start; gap: var(--space-2); align-self: flex-start; max-width: 94%; }
+.bita-row .bita-message { max-width: 100%; }
+.bita-status { display: flex; align-items: center; gap: 2px; align-self: flex-start; color: var(--color-text-muted); font-size: 13px; }
+.bita-dots { display: inline-flex; gap: 3px; margin-left: 4px; }
+.bita-dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.5; }
+
+/* Ticket numbers and articles in an answer: buttons that look like links. */
+.bita-link {
+  display: inline; margin: 0; padding: 0; border: 0; background: none; color: var(--color-accent); font: inherit; font-weight: 650;
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
+.bita-link:hover { text-decoration-thickness: 2px; }
+.bita-link:focus-visible { outline: var(--focus-ring); outline-offset: 2px; border-radius: 2px; }
+
+.bita-welcome { color: var(--color-text); font-size: 14px; line-height: 1.55; }
+.bita-welcome p { margin: 0 0 var(--space-3); }
+.bita-summary { display: flex; flex-direction: column; gap: var(--space-2); margin: 0 0 var(--space-3); padding: 0; list-style: none; }
+.bita-summary li {
+  padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-accent-soft); font-size: 13px; line-height: 1.5;
+}
+.bita-summary li .bita-link { margin-left: 6px; }
+.bita-summary-loading { margin: 0 0 var(--space-3); color: var(--color-text-muted); font-size: 13px; }
+.bita-questions { display: flex; flex-direction: column; gap: var(--space-2); }
+.bita-questions button {
+  min-height: var(--touch-target); padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  background: var(--color-surface); color: var(--color-text); font-size: 13px; text-align: left; cursor: pointer;
+}
+.bita-questions button:hover { border-color: var(--color-border-strong); }
+.bita-questions button:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+
+.bita-error {
+  align-self: stretch; padding: var(--space-2) var(--space-3); border: 1px solid var(--color-danger-border); border-radius: var(--radius-md);
+  background: var(--color-danger-bg); color: var(--color-danger-text); font-size: 13px;
+}
+.bita-form { display: flex; align-items: flex-end; gap: var(--space-2); padding: var(--space-3); border-top: 1px solid var(--color-border); }
+.bita-form textarea {
+  flex: 1 1 auto; min-width: 0; min-height: var(--touch-target); max-height: 120px; padding: 11px var(--space-3); resize: none;
+  border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text);
+  font: inherit; font-size: 14px; line-height: 1.4;
+}
+.bita-form textarea:focus-visible { outline: var(--focus-ring); outline-offset: 0; }
+.bita-form .primary { min-height: var(--touch-target); }
+.bita-footer { padding: 0 var(--space-4) var(--space-3); color: var(--color-text-muted); font-size: 12px; line-height: 1.5; }
+
+/* "Sugerir solución" inside a ticket. */
+.bita-suggestions {
+  margin: 0 0 var(--space-4); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+.bita-suggestions-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.bita-suggestions-head > div { display: flex; align-items: center; gap: var(--space-2); }
+.bita-suggestions-head strong { font-size: 14px; }
+.bita-suggestions-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.bita-suggestions-body { margin-top: var(--space-3); font-size: 13px; line-height: 1.55; }
+.bita-suggestions-body h3 { margin: var(--space-3) 0 var(--space-2); font-size: 13px; font-weight: 650; }
+.bita-suggestions-body ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: var(--space-2); }
+.bita-suggestions-body li { padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md); }
+.bita-suggestions-body li p { margin: 4px 0 0; color: var(--color-text-muted); }
+.bita-suggestions-body .bita-tag {
+  display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--color-accent-soft); font-size: 11px;
+}
+.bita-suggestions-note { margin: var(--space-2) 0 0; color: var(--color-text-muted); font-size: 12px; }
+
+@media (max-width: 750px) {
+  .bita-launcher { padding: 0 var(--space-1); }
+  .bita-launcher span { display: none; }
+  .bita-panel { inset: 0; width: 100%; height: 100dvh; border: 0; border-radius: 0; }
+  .bita-header { padding-top: max(var(--space-3), env(safe-area-inset-top)); }
+  .bita-form { padding-bottom: max(var(--space-3), env(safe-area-inset-bottom)); }
+  /* 16 px keeps iOS from zooming in on focus. */
+  .bita-form textarea { font-size: 16px; }
+  .bita-message { max-width: 92%; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .bita-avatar.thinking .bita-hat { animation: bita-hat 900ms ease-in-out infinite; }
+  .bita-avatar .bita-eyes { transform-box: fill-box; transform-origin: center; animation: bita-blink 5s infinite; }
+  .bita-dots i { animation: bita-dot 1.2s ease-in-out infinite; }
+  .bita-dots i:nth-child(2) { animation-delay: 0.15s; }
+  .bita-dots i:nth-child(3) { animation-delay: 0.3s; }
+  .bita-panel { animation: bita-enter 160ms ease-out both; }
+  @keyframes bita-hat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+  @keyframes bita-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
+  @keyframes bita-dot { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+  @keyframes bita-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+}
