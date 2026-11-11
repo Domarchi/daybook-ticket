@@ -1,5 +1,13 @@
 import { defineConfig, devices } from '@playwright/test';
-import { BASE_URL, DATABASE_URL, E2E_PORT, OWNER_EMAIL, OWNER_SESSION } from './e2e/support/env';
+import {
+  ASSISTANT_DAILY_LIMIT,
+  BASE_URL,
+  DATABASE_URL,
+  E2E_PORT,
+  FAKE_ANTHROPIC_URL,
+  OWNER_EMAIL,
+  OWNER_SESSION,
+} from './e2e/support/env';
 
 /**
  * Browser tests against a built app (`next start`) and a disposable local PostgreSQL. No provider, mail or push
@@ -46,9 +54,16 @@ export default defineConfig({
       },
     },
     {
+      // Bita, the staff assistant, against a local fake of the Anthropic API (see e2e/tests/bita.spec.ts).
+      name: 'bita',
+      testMatch: /bita\.spec\.ts/,
+      dependencies: ['mobile'],
+      use: { ...devices['Desktop Chrome'], channel: 'chrome', storageState: OWNER_SESSION },
+    },
+    {
       name: 'session',
       testMatch: /session\.spec\.ts/,
-      dependencies: ['mobile'],
+      dependencies: ['bita'],
       use: { ...devices['Desktop Chrome'], channel: 'chrome' },
     },
   ],
@@ -64,6 +79,11 @@ export default defineConfig({
       BETTER_AUTH_SECRET: 'daybook-e2e-disposable-secret-not-for-production',
       DAYBOOK_SITE_URL: BASE_URL,
       DAYBOOK_OWNER_EMAIL: OWNER_EMAIL,
+      // Bita is on for the browser tests only, pointed at a local fake: no real key and no real API call exist here.
+      ASSISTANT_ENABLED: '1',
+      ANTHROPIC_API_KEY: 'e2e-fake-key-not-a-real-credential',
+      ANTHROPIC_BASE_URL: FAKE_ANTHROPIC_URL,
+      ASSISTANT_DAILY_LIMIT: String(ASSISTANT_DAILY_LIMIT),
     },
   },
 });

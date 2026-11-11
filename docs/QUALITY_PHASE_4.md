@@ -30,6 +30,7 @@ npm run test:e2e
 | `setup` | activar la cuenta desde la invitación |
 | `desktop` | bandeja vacía; crear un ticket; abrirlo pone `?ticket=N` en la URL y **Atrás, Adelante, recarga y enlace compartido** vuelven a él; respuesta y nota interna se guardan y sobreviven a la recarga; cambio de prioridad inmediato, con «Deshacer» y confirmado por el servidor; búsqueda; Configuración por secciones en la URL; modo oscuro |
 | `mobile` (375 px) | la bandeja es una lista de tarjetas sin tabla ni desplazamiento lateral; el menú es un diálogo que se cierra con Escape y devuelve el foco; el ticket cabe en pantalla |
+| `bita` | Bita, el asistente, contra un Anthropic **falso** local: resumen y sugerencias sin modelo, lista blanca y enmascarado de lo que saldría, origen y sesión, devolución del cupo ante una caída, clics reales (resumen, «Sugerir solución», «Pedir pasos a Bita», enlaces), móvil oscuro y tope diario. Ver `docs/BITA.md` |
 | `session` | inicio de sesión con contraseña y cierre de sesión que revoca el acceso (corre al final: cerrar sesión invalida la sesión del servidor) |
 
 Cada pantalla pasa por axe (WCAG 2.0/2.1 A y AA) en claro, oscuro y móvil. **Una violación crítica falla la corrida.** Las graves no fallan todavía: quedan como anotaciones del informe para decidir cuándo endurecer la puerta.
