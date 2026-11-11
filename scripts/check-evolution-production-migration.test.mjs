@@ -326,13 +326,17 @@ test('evolution requires a single explicit reviewed prefix, exact confirmation a
     mode: 'audit',
     through: '0014',
   });
+  assert.deepEqual(validateEvolutionCliArguments(['--audit', '--through=0015'], {}), {
+    mode: 'audit',
+    through: '0015',
+  });
   for (const args of [
     [],
     ['--audit'],
     ['--apply', '--audit'],
     ['--apply', '--through=0007', 'secret'],
     ['--audit', '--through=0006'],
-    ['--audit', '--through=0015'],
+    ['--audit', '--through=0016'],
     ['--audit', '--through=7'],
     ['--audit', '--through=0007,0009'],
     ['--audit', '--through=0007;SELECT 1'],
@@ -855,5 +859,38 @@ test('0014 adds only the two reviewed ticket-queue indexes: no extension, data, 
     'CREATE INDEX CONCURRENTLY x ON tickets (id) ; INSERT INTO tickets DEFAULT VALUES;',
   ])
     assert.throws(() => analyzeEvolutionSql(14, `${sql}\n${statement}`), MigrationOperatorError);
-  assert.throws(() => analyzeEvolutionSql(15, sql), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(16, sql), MigrationOperatorError);
+});
+
+test('0015 adds only five nullable ticket columns: no default, backfill, constraint, index or data change', async () => {
+  const artifacts = await loadEvolutionMigrationArtifacts('0015');
+  assert.equal(artifacts.files.length, 16);
+  const last = artifacts.files[15];
+  assert.equal(last.tag, '0015_ticket_categories');
+  assert.equal(last.when, 1793912008000);
+  const sql = last.content.toString('utf8'),
+    plan = analyzeEvolutionSql(15, sql);
+  assert.deepEqual(
+    plan.additions,
+    ['faultGroup', 'faultElement', 'requirement', 'categorySource', 'categoryConfidence'].map(column_name => ({
+      table: 'tickets',
+      column_name,
+      data_type: 'text',
+      not_null: false,
+      column_default: null,
+      defaultValue: null,
+    })),
+  );
+  assert.deepEqual([plan.tables, plan.indexes], [[], []]);
+  assert.equal(plan.replacesPushEndpoint, false);
+  assert.equal(plan.replacesAttachmentKind, false);
+  // Still refused: a backfill, a NOT NULL column without default, dropping or changing anything.
+  for (const statement of [
+    'UPDATE tickets SET "faultGroup" = \'other\';',
+    'ALTER TABLE tickets ADD COLUMN "extra" text NOT NULL;',
+    'ALTER TABLE tickets DROP COLUMN "faultGroup";',
+    'DROP INDEX tickets_owner_page;',
+  ])
+    assert.throws(() => analyzeEvolutionSql(15, `${sql}\n${statement}`), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(16, sql), MigrationOperatorError);
 });

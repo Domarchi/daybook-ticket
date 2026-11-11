@@ -95,6 +95,12 @@ export const tickets = pgTable(
     dueAt: text('dueAt').notNull(),
     slaPolicySnapshot: text('slaPolicySnapshot'),
     slaStartedAt: text('slaStartedAt'),
+    // 0015: classification (F5). Values are checked in code against lib/ticket-category-model.ts, not by the database.
+    faultGroup: text('faultGroup'),
+    faultElement: text('faultElement'),
+    requirement: text('requirement'),
+    categorySource: text('categorySource'),
+    categoryConfidence: text('categoryConfidence'),
   },
   t => [
     index('tickets_owner_updated').on(t.ownerId, t.updatedAt),

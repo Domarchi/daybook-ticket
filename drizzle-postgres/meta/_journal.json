@@ -106,6 +106,13 @@
       "when": 1793912007000,
       "tag": "0014_ticket_queue_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793912008000,
+      "tag": "0015_ticket_categories",
+      "breakpoints": true
     }
   ]
 }
