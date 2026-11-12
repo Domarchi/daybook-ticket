@@ -178,3 +178,23 @@ export function isSuggestionsResponse(value: unknown): value is { suggestions: S
     s.articulos.every(item => isObject(item) && isInteger(item.articulo) && typeof item.titulo === 'string')
   );
 }
+
+/** What the draft route answers: a draft for the composer, or a notice when Bita declined or wrote nothing. */
+export type DraftResponse = { draft: string | null; notice?: string; cut?: boolean; remaining: number; limit: number };
+
+export function isDraftResponse(value: unknown): value is DraftResponse {
+  return (
+    isObject(value) &&
+    (typeof value.draft === 'string' || (value.draft === null && typeof value.notice === 'string')) &&
+    isInteger(value.remaining) &&
+    isInteger(value.limit)
+  );
+}
+
+/** The draft goes below what the person already wrote, never over it. */
+export function withDraft(current: string, draft: string): string {
+  return current.trim() ? `${current.trimEnd()}\n\n${draft}` : draft;
+}
+
+/** Bita leaves `[completar: …]` where it lacked a fact; a reply must not reach the customer with one still in it. */
+export const PENDING_PLACEHOLDER = /\[completar\b[^\]]*\]/i;
