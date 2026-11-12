@@ -224,21 +224,22 @@ export default function Bita({
 
   return (
     <>
-      <button
-        ref={launcher}
-        type="button"
-        className="bita-launcher"
-        aria-expanded={open}
-        aria-controls={open ? panelId : undefined}
-        aria-label={open ? `Cerrar el chat con ${ASSISTANT_NAME}` : `Abrir el chat con ${ASSISTANT_NAME}`}
-        onClick={() => {
-          setError(null);
-          setOpen(value => !value);
-        }}
-      >
-        <BitaAvatar size={28} thinking={sending} />
-        <span>{ASSISTANT_NAME}</span>
-      </button>
+      {!open && (
+        <button
+          ref={launcher}
+          type="button"
+          className="bita-launcher"
+          aria-expanded={false}
+          aria-label={`Abrir el chat con ${ASSISTANT_NAME}`}
+          onClick={() => {
+            setError(null);
+            setOpen(true);
+          }}
+        >
+          <BitaAvatar size={30} thinking={sending} />
+          <span>{ASSISTANT_NAME}</span>
+        </button>
+      )}
       {open && (
         <section
           id={panelId}
