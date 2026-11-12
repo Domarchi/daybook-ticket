@@ -35,7 +35,8 @@ function contrast(a: string, b: string): number {
 // Shared colors come from @daybook/design as var(--db-*). Resolve them against the
 // package for each scheme so the contrast checks compare real colors.
 type Scheme = 'light' | 'dark';
-const shared: Record<Scheme, Record<string, string>> = JSON.parse(
+// Colors change per scheme; `escala` (type, radius, spacing) is one for both.
+const shared: Record<Scheme | 'escala', Record<string, string>> = JSON.parse(
   readFileSync(createRequire(import.meta.url).resolve('@daybook/design/tokens.json'), 'utf8'),
 );
 const resolve = (values: Record<string, string>, scheme: Scheme) =>
@@ -43,8 +44,9 @@ const resolve = (values: Record<string, string>, scheme: Scheme) =>
     Object.entries(values).map(([name, value]) => [
       name,
       value.replace(/var\(--db-([\w-]+)\)/g, (_, key: string) => {
-        assert.ok(shared[scheme][key], `@daybook/design does not define --db-${key}`);
-        return shared[scheme][key];
+        const value = shared[scheme][key] ?? shared.escala?.[key];
+        assert.ok(value, `@daybook/design does not define --db-${key}`);
+        return value;
       }),
     ]),
   );

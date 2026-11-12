@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { Geist, Geist_Mono } from 'next/font/google';
 import '@daybook/design/tokens.css';
 import './globals.css';
 import './service-plus.css';
@@ -12,6 +13,11 @@ import './optimistic.css';
 import './combobox.css';
 import './settings-nav.css';
 import { ThemeBootstrap } from './evolution-controls';
+
+// Geist, the Daybook family typeface (see @daybook/design). The variables go on
+// <html>: the package builds --db-font-sans on :root, which only sees <html>.
+const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
+const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Daybook Ticket — Servicios Daybook',
@@ -32,7 +38,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body className="antialiased">
         <ThemeBootstrap />
         {children}
