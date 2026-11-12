@@ -113,6 +113,7 @@ test('a draft is one call without tools, low effort and cached, with the name pu
   assert.equal(call.max_tokens, DRAFT_MAX_OUTPUT_TOKENS);
   assert.deepEqual(call.output_config, { effort: 'low' });
   assert.deepEqual(call.cache_control, { type: 'ephemeral' });
+  assert.deepEqual(call.thinking, { type: 'disabled' });
   assert.match(String(call.system), /Hoy es 2026-11-12/);
   assert.ok(!JSON.stringify(call).includes('Ana'), 'the requester name never reaches the API');
   assert.equal(result.outcome, 'ok');
