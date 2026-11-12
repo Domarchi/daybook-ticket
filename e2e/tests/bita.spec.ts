@@ -285,6 +285,44 @@ test.describe('Bita, the staff assistant', () => {
     await expect(panel).toBeHidden();
   });
 
+  test('the launcher floats in the bottom-right corner and never covers the reply button', async ({
+    page,
+  }, testInfo) => {
+    for (const [width, height] of [
+      [1440, 900],
+      [1024, 768],
+      [375, 812],
+    ]) {
+      await page.setViewportSize({ width, height });
+      await page.goto(`/?ticket=${targetId}`);
+      const launcher = page.getByRole('button', { name: 'Abrir el chat con Bita' });
+      await expect(launcher).toBeVisible();
+      expect(await launcher.evaluate(node => getComputedStyle(node).position)).toBe('fixed');
+      const box = (await launcher.boundingBox())!;
+      const gap = width <= 750 ? 16 : 24;
+      expect(Math.round(width - box.x - box.width)).toBe(gap);
+      expect(Math.round(height - box.y - box.height)).toBe(gap);
+      // Wherever the reply button lands while the page scrolls, the person can still click it.
+      const send = page.getByRole('button', { name: 'Enviar respuesta' });
+      await send.scrollIntoViewIfNeeded();
+      const sendBox = (await send.boundingBox())!;
+      const point = { x: sendBox.x + sendBox.width / 2, y: sendBox.y + sendBox.height / 2 };
+      expect(
+        await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('button')?.textContent ?? '', point),
+      ).toContain('Enviar respuesta');
+      await page.screenshot({ path: testInfo.outputPath(`bita-flotante-${width}.png`) });
+    }
+    // On a phone the open menu covers the launcher instead of the other way round.
+    await page.getByRole('button', { name: 'Abrir menú' }).click();
+    const launcherBox = (await page.getByRole('button', { name: 'Abrir el chat con Bita' }).boundingBox())!;
+    expect(
+      await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.closest('.bita-launcher') === null, {
+        x: launcherBox.x + launcherBox.width / 2,
+        y: launcherBox.y + launcherBox.height / 2,
+      }),
+    ).toBe(true);
+  });
+
   test('the daily limit holds and says so', async ({ request }) => {
     let last = 200;
     for (let index = 0; index < ASSISTANT_DAILY_LIMIT; index += 1)

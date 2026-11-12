@@ -16,7 +16,7 @@ Bita es la misma asistente de Daybook Parte Diario (mismo nombre, mismo casco do
 
 ### 1. Bandeja y SLA, sin IA y sin costo
 
-Al abrir el chat (botón «Bita» en la barra superior), Bita saluda por el primer nombre y según la hora de Chile, y muestra un resumen con enlaces a los tickets:
+Al abrir el chat (botón flotante «Bita» en la esquina inferior derecha, igual que en Parte Diario; la página deja espacio debajo para que nunca tape el botón «Enviar respuesta», y en el teléfono el menú lo cubre), Bita saluda por el primer nombre y según la hora de Chile, y muestra un resumen con enlaces a los tickets:
 
 - activos, sin asignar y en proceso;
 - vencidos y que **vencen hoy** (hasta la medianoche de Santiago, con cambio de hora incluido);

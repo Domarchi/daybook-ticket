@@ -423,14 +423,6 @@ export default function Desk({
             >
               <Search size={18} />
             </button>
-            {bita && (
-              <Bita
-                name={viewerName}
-                request={bitaRequest}
-                onOpenTicket={id => navigateDesk({ ticketId: id })}
-                onOpenKnowledge={() => go('knowledge')}
-              />
-            )}
             <Avatar name={viewerName} small />
           </div>
         </header>
@@ -547,6 +539,15 @@ export default function Desk({
           </footer>
         </div>
       </main>
+      {/* Bita floats over the page (bottom right), outside `main` so the open menu's scrim covers it on a phone. */}
+      {bita && (
+        <Bita
+          name={viewerName}
+          request={bitaRequest}
+          onOpenTicket={id => navigateDesk({ ticketId: id })}
+          onOpenKnowledge={() => go('knowledge')}
+        />
+      )}
       {create && (
         <Modal error={error} title="Una nueva conversación" onClose={() => setCreate(false)} wide>
           <TicketForm
