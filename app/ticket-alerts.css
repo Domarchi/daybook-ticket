@@ -13,12 +13,12 @@
 .ticket-push-enable { white-space: normal; text-align: left; }
 .ticket-push-enable > svg { flex-shrink: 0; }
 .ticket-push-disable { color: #77736a; }
-.ticket-push-feedback { max-width: 480px; margin-left: auto; color: #70766c; font-size: 11px; line-height: 1.6; text-align: right; }
+.ticket-push-feedback { max-width: 480px; margin-left: auto; color: var(--muted); font-size: 11px; line-height: 1.6; text-align: right; }
 .ticket-push-feedback p { margin: 8px 0 0; }
 .ticket-alert-panel { position: absolute; right: 0; top: calc(100% + 10px); z-index: 60; width: min(390px, calc(100vw - 32px)); max-height: min(560px, calc(100dvh - 150px)); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #dbdfd7; border-radius: 12px; background: #fff; box-shadow: 0 14px 45px #11120f1c; text-align: left; }
 .ticket-alert-panel-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 18px 18px 15px; border-bottom: 1px solid #eceee9; }
 .ticket-alert-panel-heading h2 { margin: 0; color: #11120f; font-size: 16px; line-height: 1.5; font-weight: 650; }
-.ticket-alert-panel-heading p { margin: 4px 0 0; color: #70766c; font-size: 12px; line-height: 1.5; }
+.ticket-alert-panel-heading p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .ticket-alert-icon-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 36px; width: 36px; min-height: 36px; border-radius: 7px; color: #687060; }
 .ticket-alert-icon-button:hover { color: #11120f; background: #f1f3ef; }
 .ticket-alert-read-all { display: flex; align-items: center; justify-content: flex-start; gap: 7px; min-height: 40px; padding: 10px 18px; border-bottom: 1px solid #eceee9; color: #805a0e; font-size: 12px; text-align: left; }

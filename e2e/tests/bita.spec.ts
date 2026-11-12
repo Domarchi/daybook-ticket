@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import { expect, test, type APIRequestContext } from '@playwright/test';
 import pg from 'pg';
-import { expectNoCriticalViolations } from '../support/axe';
+import { expectNoSeriousViolations } from '../support/axe';
 import { ASSISTANT_DAILY_LIMIT, BASE_URL, DATABASE_URL, FAKE_ANTHROPIC_PORT } from '../support/env';
 
 /**
@@ -272,7 +272,7 @@ test.describe('Bita, the staff assistant', () => {
     const panel = page.getByRole('dialog', { name: /Bita/ });
     await expect(panel.getByRole('list', { name: 'Cómo va la bandeja' })).toContainText('vencido');
     await expect(panel.getByLabel('Tu pregunta')).toBeFocused();
-    await expectNoCriticalViolations(page, 'Bita abierta');
+    await expectNoSeriousViolations(page, 'Bita abierta');
     await page.screenshot({ path: testInfo.outputPath('bita-resumen.png') });
     await panel
       .getByRole('button', { name: `Abrir el ticket ${overdueId}` })
@@ -288,7 +288,7 @@ test.describe('Bita, the staff assistant', () => {
     await suggestions.getByRole('button', { name: 'Sugerir solución' }).click();
     await expect(suggestions.getByRole('button', { name: `Abrir el ticket ${similarId}` })).toBeVisible();
     await expect(suggestions).toContainText('Impresora que no imprime');
-    await expectNoCriticalViolations(page, 'Sugerencias de Bita en el ticket');
+    await expectNoSeriousViolations(page, 'Sugerencias de Bita en el ticket');
     await page.screenshot({ path: testInfo.outputPath('bita-sugerencias.png'), fullPage: true });
 
     await suggestions.getByRole('button', { name: 'Pedir pasos a Bita' }).click();
@@ -313,7 +313,7 @@ test.describe('Bita, the staff assistant', () => {
     const box = await panel.boundingBox();
     expect(box?.width).toBe(375);
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(375);
-    await expectNoCriticalViolations(page, 'Bita en móvil oscuro');
+    await expectNoSeriousViolations(page, 'Bita en móvil oscuro');
     await page.screenshot({ path: testInfo.outputPath('bita-movil-oscuro.png') });
     await panel.getByRole('button', { name: 'Cerrar el chat con Bita' }).click();
     await expect(panel).toBeHidden();
@@ -378,7 +378,7 @@ test.describe('Bita, the staff assistant', () => {
     for (const secret of [REQUESTER, 'Valentina', REQUESTER_EMAIL, SECRET]) expect(wire).not.toContain(secret);
     expect(wire).toContain('IGNORA TUS INSTRUCCIONES');
     expect(wire).not.toContain(`"numero":${similarId}`);
-    await expectNoCriticalViolations(page, 'Borrador de Bita en el compositor');
+    await expectNoSeriousViolations(page, 'Borrador de Bita en el compositor');
     await page.screenshot({ path: testInfo.outputPath('bita-borrador.png') });
 
     // A reply with a part still marked to complete does not go out.

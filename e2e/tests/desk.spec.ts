@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { expectNoCriticalViolations } from '../support/axe';
+import { expectNoSeriousViolations } from '../support/axe';
 
 const SUBJECT = 'No puedo imprimir la factura de octubre';
 const REQUESTER = 'Andrea Molina';
@@ -22,14 +22,14 @@ test.describe('the support desk', () => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Bandeja de entrada' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Nuevo ticket' })).toBeEnabled();
-    await expectNoCriticalViolations(page, 'Bandeja vacía');
+    await expectNoSeriousViolations(page, 'Bandeja vacía');
   });
 
   test('a ticket is created and shows in the inbox', async ({ page }) => {
     await page.goto('/');
     await createTicket(page);
     await expect(page.getByText(SUBJECT).first()).toBeVisible();
-    await expectNoCriticalViolations(page, 'Bandeja con un ticket');
+    await expectNoSeriousViolations(page, 'Bandeja con un ticket');
   });
 
   test('opening a ticket puts it in the address; Back, reload and shared links all land on it', async ({ page }) => {
@@ -50,7 +50,7 @@ test.describe('the support desk', () => {
     await page.goto('/');
     await page.goto(ticketUrl);
     await expect(page.getByRole('heading', { name: SUBJECT, level: 1 })).toBeVisible();
-    await expectNoCriticalViolations(page, 'Ticket abierto');
+    await expectNoSeriousViolations(page, 'Ticket abierto');
   });
 
   test('a reply and an internal note are saved and shown in the conversation', async ({ page }) => {
@@ -171,7 +171,7 @@ test.describe('the support desk', () => {
     await settings.click();
     await expect(page).toHaveURL(/view=settings/);
     await expect(settings).toHaveAttribute('class', /active/);
-    await expectNoCriticalViolations(page, 'Configuración');
+    await expectNoSeriousViolations(page, 'Configuración');
     await page.goto('/?view=settings&section=mail');
     await expect(page).toHaveURL(/section=mail/);
     await expect(settings).toHaveAttribute('class', /active/);
@@ -182,10 +182,25 @@ test.describe('the support desk', () => {
     test('the inbox and an open ticket pass the accessibility gate in dark mode', async ({ page }) => {
       await page.goto('/');
       await expect(page.getByRole('heading', { name: 'Bandeja de entrada' })).toBeVisible();
-      await expectNoCriticalViolations(page, 'Bandeja en modo oscuro');
+      await expectNoSeriousViolations(page, 'Bandeja en modo oscuro');
       await page.getByRole('link', { name: SUBJECT }).click();
       await expect(page.getByRole('heading', { name: SUBJECT, level: 1 })).toBeVisible();
-      await expectNoCriticalViolations(page, 'Ticket en modo oscuro');
+      await expectNoSeriousViolations(page, 'Ticket en modo oscuro');
+    });
+
+    test('the other desk views pass the accessibility gate in dark mode', async ({ page }) => {
+      for (const [view, screen] of [
+        ['overview', 'Resumen'],
+        ['contacts', 'Contactos'],
+        ['knowledge', 'Conocimiento'],
+        ['team', 'Equipo'],
+        ['settings', 'Configuración'],
+      ]) {
+        await page.goto(`/?view=${view}`);
+        await expect(page.locator('main h1').first()).toBeVisible();
+        await expect(page.locator('.loading')).toHaveCount(0);
+        await expectNoSeriousViolations(page, `${screen} en modo oscuro`);
+      }
     });
   });
 });
