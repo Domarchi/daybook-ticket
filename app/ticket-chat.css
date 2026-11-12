@@ -99,8 +99,8 @@
 .ticket-chat .attachment-list small { color: var(--chat-muted); }
 .ticket-chat .ticket-chat-composer .composer-footer { display: flex; flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: nowrap; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--chat-line); background: var(--chat-surface); position: sticky; bottom: 0; z-index: 1; }
 .ticket-chat .composer-footer > small, .ticket-chat .composer-footer > span { font-size: var(--db-text-overline); line-height: 1.5; max-width: 310px; width: auto; color: var(--chat-muted); }
-.ticket-chat .composer-footer .primary { flex-shrink: 0; min-height: 38px; padding: 8px 13px; background: #edc879; border-color: #edc879; color: #19160f; border-radius: var(--db-radius-card); font-size: var(--db-text-caption); }
-.ticket-chat .composer-footer .primary:hover:not(:disabled) { background: #f5d795; }
+.ticket-chat .composer-footer .primary { flex-shrink: 0; min-height: 38px; padding: 8px 13px; background: var(--db-action); border-color: var(--db-action); color: var(--db-action-text); border-radius: var(--db-radius-card); font-size: var(--db-text-caption); }
+.ticket-chat .composer-footer .primary:hover:not(:disabled) { background: var(--db-action-hover); }
 .ticket-chat .composer.note .composer-footer .primary { background: #f1dba4; border-color: #b38b3f; }
 .ticket-chat .message-attachments { gap: 6px; }
 .ticket-chat .message-attachments a, .ticket-chat .attachment-preview-button { font-size: var(--db-text-overline); background: var(--chat-soft); color: var(--chat-ink); border-color: var(--chat-control); border-radius: var(--db-radius-control); }

@@ -6,16 +6,16 @@
 :root[data-color-scheme="dark"]{color-scheme:dark;--navy:#0a0a0a}
 :root[data-color-scheme="dark"] body,:root[data-color-scheme="dark"] .main,:root[data-color-scheme="dark"] .content{background:#000;color:var(--ink)}
 :root[data-color-scheme="dark"] :is(.topbar,.panel,.ticket-panel,.conversation,.detail-aside,.article-card,.contact-card,.team-card,.settings-section,.modal,.form,.stat-card,.knowledge-banner,.welcome,.requester,.modal-head,.modal-footer,.empty,.portal-hero,.portal-cta,.contact-list,.company-form,.member-company-editor,.mail-panel,.filter-row,.queue-tabs,.table-tools,.table-footer,.bulk-bar,.ticket-activity,.mail-tracking,.access-panel){background:var(--surface);border-color:var(--line);color:var(--ink)}
-:root[data-color-scheme="dark"] :is(input,select,textarea){background:#101010;color:var(--ink);border-color:#686868}
+:root[data-color-scheme="dark"] :is(input,select,textarea){background:#101010;color:var(--ink);border-color:var(--db-border-strong)}
 :root[data-color-scheme="dark"] :is(input,textarea)::placeholder{color:#a1a1a1}
 :root[data-color-scheme="dark"] :is(.secondary,.icon-button,.attachment-preview-button){background:#151515;color:var(--ink);border-color:#686868}
 :root[data-color-scheme="dark"] :is(.secondary,.icon-button,.article-card,.contact-card):hover{background:#222;color:var(--ink)}
-:root[data-color-scheme="dark"] :is(.primary,button.primary){background:#edc879;border-color:#edc879;color:#19160f}
-:root[data-color-scheme="dark"] :is(.primary,button.primary):hover{background:#f5d795}
+:root[data-color-scheme="dark"] :is(.primary,button.primary){background:var(--db-action);border-color:var(--db-action);color:var(--db-action-text)}
+:root[data-color-scheme="dark"] :is(.primary,button.primary):hover{background:var(--db-action-hover)}
 :root[data-color-scheme="dark"] :is(h1,h2,h3,h4,.subject-cell strong,.contact-card h3,.team-card h3,.message-heading strong,.detail-fields label,.form label,.settings-section label,.article-card h3){color:var(--ink)}
 :root[data-color-scheme="dark"] :is(.page-heading p,.stat-card>small,.subject-cell small,.time-cell,.table-footer,.page-footer,.article-card p,.contact-card>a,.team-card p,.composer-footer small,.top-actions,.breadcrumbs,.ticket-meta,.message-heading>span,.client-link-note,.assignment-note,.panel-help){color:var(--muted)}
 :root[data-color-scheme="dark"] :is(table,thead,tbody,tr,th,td,.section-head,.settings-section,.contact-card,.requester,.company-list li,.saved-reply-list li,.ticket-activity li){border-color:var(--line)}
-:root[data-color-scheme="dark"] :is(thead,th){background:#141414;color:#bcbcbc}
+:root[data-color-scheme="dark"] :is(thead,th){background:transparent;color:var(--muted)}
 :root[data-color-scheme="dark"] tbody tr:hover{background:#171717}
 :root[data-color-scheme="dark"] :is(.info-note,.portal-note,.sla-card,.backup-result,.saved-reply-picker,.client-identity){background:#171717;color:#c7c7c7;border-color:var(--line)}
 :root[data-color-scheme="dark"] .sla-card.late,:root[data-color-scheme="dark"] .error-banner{background:#291716;color:#ffb4aa;border-color:#91483f}
@@ -36,16 +36,16 @@
 :root:not([data-color-scheme="light"]){color-scheme:dark;--navy:#0a0a0a}
 :root:not([data-color-scheme="light"]) body,:root:not([data-color-scheme="light"]) .main,:root:not([data-color-scheme="light"]) .content{background:#000;color:var(--ink)}
 :root:not([data-color-scheme="light"]) :is(.topbar,.panel,.ticket-panel,.conversation,.detail-aside,.article-card,.contact-card,.team-card,.settings-section,.modal,.form,.stat-card,.knowledge-banner,.welcome,.requester,.modal-head,.modal-footer,.empty,.portal-hero,.portal-cta,.contact-list,.company-form,.member-company-editor,.mail-panel,.filter-row,.queue-tabs,.table-tools,.table-footer,.bulk-bar,.ticket-activity,.mail-tracking,.access-panel){background:var(--surface);border-color:var(--line);color:var(--ink)}
-:root:not([data-color-scheme="light"]) :is(input,select,textarea){background:#101010;color:var(--ink);border-color:#686868}
+:root:not([data-color-scheme="light"]) :is(input,select,textarea){background:#101010;color:var(--ink);border-color:var(--db-border-strong)}
 :root:not([data-color-scheme="light"]) :is(input,textarea)::placeholder{color:#a1a1a1}
 :root:not([data-color-scheme="light"]) :is(.secondary,.icon-button,.attachment-preview-button){background:#151515;color:var(--ink);border-color:#686868}
 :root:not([data-color-scheme="light"]) :is(.secondary,.icon-button,.article-card,.contact-card):hover{background:#222;color:var(--ink)}
-:root:not([data-color-scheme="light"]) :is(.primary,button.primary){background:#edc879;border-color:#edc879;color:#19160f}
-:root:not([data-color-scheme="light"]) :is(.primary,button.primary):hover{background:#f5d795}
+:root:not([data-color-scheme="light"]) :is(.primary,button.primary){background:var(--db-action);border-color:var(--db-action);color:var(--db-action-text)}
+:root:not([data-color-scheme="light"]) :is(.primary,button.primary):hover{background:var(--db-action-hover)}
 :root:not([data-color-scheme="light"]) :is(h1,h2,h3,h4,.subject-cell strong,.contact-card h3,.team-card h3,.message-heading strong,.detail-fields label,.form label,.settings-section label,.article-card h3){color:var(--ink)}
 :root:not([data-color-scheme="light"]) :is(.page-heading p,.stat-card>small,.subject-cell small,.time-cell,.table-footer,.page-footer,.article-card p,.contact-card>a,.team-card p,.composer-footer small,.top-actions,.breadcrumbs,.ticket-meta,.message-heading>span,.client-link-note,.assignment-note,.panel-help){color:var(--muted)}
 :root:not([data-color-scheme="light"]) :is(table,thead,tbody,tr,th,td,.section-head,.settings-section,.contact-card,.requester,.company-list li,.saved-reply-list li,.ticket-activity li){border-color:var(--line)}
-:root:not([data-color-scheme="light"]) :is(thead,th){background:#141414;color:#bcbcbc}
+:root:not([data-color-scheme="light"]) :is(thead,th){background:transparent;color:var(--muted)}
 :root:not([data-color-scheme="light"]) tbody tr:hover{background:#171717}
 :root:not([data-color-scheme="light"]) :is(.info-note,.portal-note,.sla-card,.backup-result,.saved-reply-picker,.client-identity){background:#171717;color:#c7c7c7;border-color:var(--line)}
 :root:not([data-color-scheme="light"]) .sla-card.late,:root:not([data-color-scheme="light"]) .error-banner{background:#291716;color:#ffb4aa;border-color:#91483f}

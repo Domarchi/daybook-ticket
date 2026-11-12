@@ -1,9 +1,11 @@
 .ticket-alerts { position: relative; color: var(--ink, #11120f); }
 .ticket-alert-controls { display: flex; justify-content: flex-end; align-items: center; flex-wrap: wrap; gap: 8px; }
-.ticket-alert-control { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 9px 12px; border: 1px solid var(--line, #dfe2df); border-radius: var(--db-radius-control); background: #fff; color: #52594f; font-size: var(--db-text-caption); line-height: 1.4; white-space: nowrap; }
-.ticket-alert-control:hover { border-color: #b8bdb4; background: #fafbf9; color: #11120f; }
-.ticket-alert-control.is-enabled { color: #805a0e; background: #fff9eb; border-color: #e5d6b5; }
-.ticket-alert-control.is-open { color: #11120f; border-color: #bb8b30; background: #fff9eb; }
+.ticket-alert-control { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 40px; padding: 9px 12px; border: 1px solid var(--db-border); border-radius: var(--db-button-radius); background: var(--surface); color: var(--db-text-soft); font-size: var(--db-text-caption); line-height: 1.4; white-space: nowrap; }
+/* Colores del tema (Fase 3): antes eran blancos fijos y en oscuro quedaban como
+   botones blancos sobre negro. */
+.ticket-alert-control:hover { border-color: var(--db-border-strong); background: var(--db-surface-subtle); color: var(--db-text); }
+.ticket-alert-control.is-enabled { color: var(--db-brand); background: var(--db-brand-soft); border-color: color-mix(in srgb, var(--db-brand) 35%, var(--db-border)); }
+.ticket-alert-control.is-open { color: var(--db-text); border-color: var(--db-brand); background: var(--db-brand-soft); }
 .ticket-alerts button:disabled { opacity: .55; cursor: not-allowed; }
 .ticket-alerts button:focus-visible { outline: 3px solid #bb8b30; outline-offset: 3px; }
 .ticket-alert-desktop { display: inline-flex; align-items: center; gap: 5px; padding: 8px 3px; color: #54624e; font-size: var(--db-text-caption); line-height: 1.5; }
