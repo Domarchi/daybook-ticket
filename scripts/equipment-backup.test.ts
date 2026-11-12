@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BACKUP_TABLES, compatibleBackupColumns } from '../lib/backup-format';
+import { BACKUP_TABLES, BACKUP_TABLE_PROFILES, compatibleBackupColumns } from '../lib/backup-format';
+import { BUSINESS_EXPORT_TABLES } from '../lib/business-export';
 
 const before0016 = ['id', 'ownerId', 'companyId', 'name', 'category', 'vendor', 'model', 'serial', 'siteId'];
 
@@ -14,8 +15,16 @@ test('a backup taken before migration 0016 still restores into customerAssets wi
   assert.equal(compatibleBackupColumns('customerAssets', [...before0016, 'assetTag', 'unknown'], before0016), false);
 });
 
-test('ticketFulfillment joins the backup with the code that writes it (F6-B2), not with the migration', () => {
-  // Until F6-B2 nothing writes the table, so a backup without it is complete. When this assertion starts failing
-  // because the table was added, also add it to the backup profiles, the export, the restore and the drill.
-  assert.equal((BACKUP_TABLES as readonly string[]).includes('ticketFulfillment'), false);
+test('ticketFulfillment is backed up and restored after tickets, members and equipment (F6-B2)', () => {
+  const tables = BACKUP_TABLES as readonly string[];
+  assert.ok(tables.includes('ticketFulfillment'));
+  for (const before of ['tickets', 'members', 'customerAssets'])
+    assert.ok(tables.indexOf(before) < tables.indexOf('ticketFulfillment'), `${before} is restored first`);
+  // Backups taken before this change have one table less and must still be accepted.
+  assert.ok(
+    BACKUP_TABLE_PROFILES.some(
+      profile => profile.length === BACKUP_TABLES.length - 1 && !profile.includes('ticketFulfillment'),
+    ),
+  );
+  assert.ok((BUSINESS_EXPORT_TABLES as readonly string[]).includes('ticketFulfillment'));
 });

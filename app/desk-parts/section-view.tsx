@@ -16,6 +16,7 @@ import { SecurityCenter, SecurityHealthPanel } from '../security-center';
 import { ServiceContextPanel } from '../service-context';
 import { ContactDirectory } from '../ticket-pagination';
 import { EquipmentPanel } from '../equipment-panel';
+import { RequirementsPanel } from '../requirements-panel';
 import { PageTitle, DeskRun, View } from './shared';
 import { SettingsView } from './settings-view';
 
@@ -111,6 +112,14 @@ export function SectionView({
             busy={busy}
             run={run}
           />
+        </>
+      ) : view === 'requirements' ? (
+        <>
+          <PageTitle
+            title="Requerimientos"
+            subtitle="Lo que piden los clientes, etapa por etapa, con su fecha comprometida."
+          />
+          <RequirementsPanel key={`${accessKey}:requirements`} memberId={data.viewer!.id} refreshKey={feedKey} />
         </>
       ) : view === 'knowledge' ? (
         <>

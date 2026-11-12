@@ -9,6 +9,7 @@ import {
   Inbox,
   Layers3,
   Laptop,
+  PackageCheck,
   LayoutDashboard,
   LifeBuoy,
   Settings2,
@@ -142,6 +143,14 @@ export function Sidebar({
         >
           <Laptop size={18} />
           Equipos
+        </button>
+        <button
+          className={view === 'requirements' ? 'active' : ''}
+          aria-current={view === 'requirements' ? 'page' : undefined}
+          onClick={() => go('requirements')}
+        >
+          <PackageCheck size={18} />
+          Requerimientos
         </button>
         {data.evolution?.features.serviceContext && (
           <button

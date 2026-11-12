@@ -51,3 +51,25 @@ Los motivos y notas admiten hasta 500 caracteres.
 ## Pruebas
 
 `scripts/fulfillment-model.test.ts` recorre los 25 cambios de etapa posibles, los motivos, las fechas (incluido el cambio de día en Santiago), el atraso, los retrasos, la entrega con y sin equipo, la confirmación de recepción, la línea de seguimiento y el ID del equipo.
+
+## F6-B2: seguimiento en el ticket y sección «Requerimientos»
+
+- **Seguir como requerimiento:** el panel aparece en un ticket abierto que tiene un requerimiento en «Clasificación». Crea la fila en `ticketFulfillment` en «Solicitado», con fecha comprometida opcional.
+- **Mover de etapa:**
+  - las reglas son las de `stageChangeProblem`;
+  - «Entregado» no se ofrece aquí, porque registra el equipo (F6-B4);
+  - cada cambio controla la versión (409) y bloquea la fila.
+- **Fecha comprometida:**
+  - la primera se fija libremente;
+  - para cambiarla después hay que pasar por «Informar retraso», así el cliente siempre ve el motivo.
+- **Informar retraso:** guarda el motivo, la nota y la nueva fecha. «Atrasado» se calcula al leer, con la fecha de hoy en America/Santiago.
+- **Historial:**
+  - cada paso queda en `ticketEvents`, con las acciones `fulfillment`, `fulfillment_delay` y `fulfillment_date`;
+  - los valores se guardan en JSON para que el portal (F6-B3) arme su línea de tiempo;
+  - `lib/fulfillment-display.ts` los convierte en texto.
+- **Sección «Requerimientos»:** listas En curso, Solicitados, En gestión, Listos para entregar, Atrasados y Cerrados. Cada lista muestra su conteo, y cada fila lleva al ticket.
+- **Respaldo y exportación de negocio:** incluyen `ticketFulfillment`. Los respaldos anteriores, que tienen una tabla menos, siguen validándose y restaurándose.
+- **API:**
+  - `GET` para quien puede abrir el ticket;
+  - `POST` y `PATCH /api/tickets/[id]/fulfillment` solo para el equipo de soporte;
+  - `GET /api/fulfillments?filter=` para la sección.

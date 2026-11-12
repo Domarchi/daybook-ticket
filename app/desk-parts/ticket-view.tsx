@@ -11,6 +11,7 @@ import { type Member, type Ticket, type TicketPriority, type TicketStatus, type 
 import { TicketRelationsPanel } from '../automation';
 import { MailTracking } from '../mail-tracking';
 import { TicketEquipment } from '../own-equipment';
+import { FulfillmentPanel } from '../fulfillment-panel';
 import { TicketServiceContextPanel } from '../service-context';
 import { AssignmentControls, TicketActivity, TicketCompanyLink } from '../team-tools';
 import { TicketChat } from '../ticket-chat';
@@ -252,6 +253,16 @@ export function TicketView({
                 );
               }}
             />
+            {data.viewer && (
+              <FulfillmentPanel
+                key={`${data.viewer.id}:${current.id}:fulfillment`}
+                memberId={data.viewer.id}
+                ticketId={current.id}
+                refreshKey={current.version}
+                busy={busy}
+                run={run}
+              />
+            )}
             <Combobox
               label="Cuenta del cliente"
               value={current.requesterMemberId || ''}
