@@ -140,8 +140,8 @@ El enmascarado es una red de seguridad, no una garantía. No reconoce el nombre 
 
 - **Caché del prompt.** El prompt de sistema y las herramientas son idénticos entre mensajes: lo único que cambia es la fecha, una vez al día. Se marcan con `cache_control` para que las vueltas siguientes se lean desde la caché, a un décimo del precio de la entrada.
 - **Estimación.** Un mensaje de «Pedir pasos a Bita» son unas dos llamadas y unos 15.000–25.000 tokens de entrada, o sea, del orden de USD 0,003–0,005. Con 2 personas, 20 mensajes y 22 días hábiles serían unos USD 3–5 al mes en el peor caso. Un tope de gasto de USD 10 en la Console deja margen.
-- **Un borrador** es una sola llamada de hasta 1024 tokens de salida, con unos 3.000–8.000 tokens de entrada: del orden de USD 0,001.
-- **Un resumen** es una sola llamada de hasta 700 tokens de salida, con unos 3.000–12.000 tokens de entrada según el largo: del orden de USD 0,001–0,002.
+- **Un borrador** es una sola llamada de hasta 1500 tokens de salida (incluye el razonamiento del modelo, que cuenta en ese tope), con unos 3.000–8.000 tokens de entrada: del orden de USD 0,001.
+- **Un resumen** es una sola llamada de hasta 1500 tokens de salida (con 700, un resumen real de 6 mensajes salió cortado el 12 nov 2026, porque el razonamiento del modelo también cuenta), con unos 3.000–12.000 tokens de entrada según el largo: del orden de USD 0,001–0,002.
 - **Si la API falla sin haber cobrado nada** (caída, límite de Anthropic, presupuesto agotado), el mensaje vuelve al cupo de la persona. Si falla en una vuelta posterior, las anteriores ya se cobraron y el mensaje cuenta.
 - **Si se acaba el presupuesto,** Bita responde «no está disponible por hoy» y el resto de la app sigue igual. El texto exacto con que la API avisa del límite de gasto del workspace **no está verificado contra la API real**; si no coincide, la persona ve «Bita tuvo un problema».
 

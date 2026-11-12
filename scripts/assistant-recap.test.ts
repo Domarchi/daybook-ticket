@@ -122,3 +122,12 @@ test('the panel splits the labels and accepts only well-formed answers', () => {
   assert.equal(isRecapResponse({ recap: null, remaining: 3, limit: 20 }), false);
   assert.equal(isRecapResponse({ recap: 'x', remaining: 'tres', limit: 20 }), false);
 });
+
+test('the output cap leaves room for the model thinking (a real recap was cut at 700) and lines stay short', async () => {
+  const { DRAFT_MAX_OUTPUT_TOKENS } = await import('../lib/assistant-draft');
+  assert.ok(RECAP_MAX_OUTPUT_TOKENS >= 1500);
+  assert.ok(DRAFT_MAX_OUTPUT_TOKENS >= 1500);
+  const prompt = recapSystemPrompt('2026-11-12');
+  assert.match(prompt, /no más de 20 palabras/);
+  assert.match(prompt, /Como máximo 6 pasos/);
+});

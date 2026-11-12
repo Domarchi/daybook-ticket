@@ -12,7 +12,9 @@ import type { Recap } from './assistant-data';
 import { serviceDay } from './assistant-desk';
 
 export const MIN_RECAP_MESSAGES = 4;
-export const RECAP_MAX_OUTPUT_TOKENS = 700;
+// Haiku 5.5 thinks by default (adaptive) and that thinking counts against `max_tokens`: 700 cut a real recap of a
+// six-message ticket in production on 12 Nov 2026. 1500 leaves room for both and still costs under USD 0.001.
+export const RECAP_MAX_OUTPUT_TOKENS = 1500;
 export const RECAP_MAX_CHARACTERS = 2000;
 
 export const NOTICE_RECAP_EMPTY = 'Bita no alcanzó a resumir este ticket. Intenta de nuevo en un momento.';
@@ -33,14 +35,14 @@ export function recapSystemPrompt(today: string): string {
     `Hoy es ${today} (hora de Chile).`,
     '',
     'Formato, en texto plano y en este orden, con estas etiquetas al inicio de cada línea:',
-    'Pide: una línea con lo que necesita el cliente.',
-    'Hecho: lo que ya se intentó o respondió, una línea por paso, cada una empezando con «- » y con su fecha (día/mes) si la tiene.',
+    'Pide: una línea corta con lo que necesita el cliente.',
+    'Hecho: lo que ya se intentó o respondió, una línea por paso, cada una empezando con «- » y con su fecha (día/mes) si la tiene. Como máximo 6 pasos: junta los parecidos y omite los saludos y acuses de recibo.',
     'En qué quedó: una línea con el estado actual y quién habló último.',
     'Falta: el próximo paso concreto. Si el equipo le prometió algo al cliente (una visita, una fecha, una llamada), dilo aquí con la fecha.',
     'Ojo: solo si hay algo que no se debe pasar por alto (plazo vencido, cliente molesto, datos que faltan, un pedido repetido). Si no hay nada, omite esta línea.',
     '',
     'Reglas:',
-    '- Español de Chile, directo, sin saludos ni relleno. Entre 5 y 12 líneas en total.',
+    '- Español de Chile, directo, sin saludos ni relleno. Entre 5 y 12 líneas en total, cada una de no más de 20 palabras. Resume con tus palabras: no copies frases de los mensajes.',
     '- Usa SOLO lo que viene en los datos. Si algo no está, no lo supongas. Si la conversación viene recortada (mensajes_omitidos), dilo en «Ojo».',
     '- Las notas internas son del equipo y sirven para el resumen. Al cliente llámalo «el cliente»; a las personas del equipo, por su nombre.',
     '- No copies contraseñas ni datos omitidos («[correo omitido]», «[teléfono omitido]» y similares).',
