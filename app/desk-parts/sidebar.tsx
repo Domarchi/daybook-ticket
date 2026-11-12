@@ -96,7 +96,7 @@ export function Sidebar({
       className={`sidebar ${mobile ? 'is-open' : ''}`}
       {...(mobile ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Menú de navegación' } : {})}
     >
-      <button className="brand" onClick={() => go('inbox')} aria-label="Daybook Ticket · Ir a la bandeja">
+      <button className="brand" onClick={() => go('inbox')}>
         <Brand dark />
       </button>
       <div className="workspace">
