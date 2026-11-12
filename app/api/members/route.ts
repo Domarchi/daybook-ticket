@@ -5,6 +5,8 @@ import { requireAccess, requireAdmin, publicMember, validateMemberCompany, type 
 import { prepareInvitation } from '@/lib/invitations';
 import { notificationStatements, drainOutboxBestEffort } from '@/lib/mail';
 import { after } from 'next/server';
+import { assignInviteEquipment } from '@/lib/client-equipment';
+import { clientInviteProblem } from '@/lib/client-equipment-model';
 export async function POST(request: Request) {
   return handle(async () => {
     const access = requireAdmin(await requireAccess(request));
@@ -13,6 +15,8 @@ export async function POST(request: Request) {
       throw new ApiError(400, 'Solo las cuentas cliente pueden marcarse como prueba.');
     if (data.role === 'admin' && access.role !== 'owner')
       throw new ApiError(403, 'Solo la persona propietaria puede invitar administradores.');
+    const equipmentProblem = clientInviteProblem(data);
+    if (equipmentProblem) throw new ApiError(400, equipmentProblem);
     const company = {
       role: data.role,
       customerCompanyId: data.customerCompanyId ?? null,
@@ -56,6 +60,17 @@ export async function POST(request: Request) {
           ],
         )
       ).rows[0];
+      const equipment =
+        data.role === 'client' && data.equipment && company.customerCompanyId
+          ? await assignInviteEquipment(tx, {
+              ownerId: fresh.ownerId,
+              companyId: company.customerCompanyId,
+              memberId: id,
+              actorMemberId: fresh.member.id,
+              equipment: data.equipment,
+              now,
+            })
+          : null;
       await database.execute(invitation.statement, tx);
       for (const statement of notificationStatements(database, {
         ownerId: fresh.ownerId,
@@ -66,7 +81,11 @@ export async function POST(request: Request) {
         expiresAt: invitation.expiresAt,
       }))
         await database.execute(statement, tx);
-      return { member: publicMember({ ...row, hasAccount: false }), invitationUrl: invitation.url };
+      return {
+        member: publicMember({ ...row, hasAccount: false }),
+        invitationUrl: invitation.url,
+        equipment: equipment && { id: equipment.id, assetTag: equipment.assetTag, created: equipment.created },
+      };
     });
     after(async () => {
       await drainOutboxBestEffort(access.ownerId);
