@@ -222,3 +222,4 @@ body:has(.bita-launcher, .bita-panel) .content {
 .bita-action-note.failed { color: var(--color-danger-text); }
 .bita-action-note svg { flex: 0 0 auto; }
 .bita-action-dismissed { margin: 0; color: var(--color-text-muted); font-size: 12px; }
+.bita-action-subject { color: var(--color-text-muted); font-size: 12px; }
