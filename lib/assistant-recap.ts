@@ -12,8 +12,7 @@ import type { Recap } from './assistant-data';
 import { serviceDay } from './assistant-desk';
 
 export const MIN_RECAP_MESSAGES = 4;
-// Haiku 5.5 thinks by default (adaptive) and that thinking counts against `max_tokens`: 700 cut a real recap of a
-// six-message ticket in production on 12 Nov 2026. 1500 leaves room for both and still costs under USD 0.001.
+// With thinking disabled a recap is a few hundred tokens; the cap is a ceiling against a runaway answer.
 export const RECAP_MAX_OUTPUT_TOKENS = 1500;
 export const RECAP_MAX_CHARACTERS = 2000;
 
@@ -90,6 +89,9 @@ export async function writeRecap(options: {
         model: options.model,
         max_tokens: RECAP_MAX_OUTPUT_TOKENS,
         output_config: { effort: 'low' },
+        // Writing a recap or a draft needs no reasoning, and Haiku 5.5's default (adaptive) thinking ate the whole
+        // output budget of a real recap. Haiku 5.5 accepts `disabled` at effort `high` or below.
+        thinking: { type: 'disabled' },
         cache_control: { type: 'ephemeral' },
         system: recapSystemPrompt(serviceDay(options.now)),
         messages: [{ role: 'user', content: recapRequest(options.data) }],

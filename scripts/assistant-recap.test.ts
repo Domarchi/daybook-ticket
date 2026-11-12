@@ -90,6 +90,7 @@ test('a recap is one call without tools, low effort and cached', async () => {
   assert.equal(calls[0].max_tokens, RECAP_MAX_OUTPUT_TOKENS);
   assert.deepEqual(calls[0].output_config, { effort: 'low' });
   assert.deepEqual(calls[0].cache_control, { type: 'ephemeral' });
+  assert.deepEqual(calls[0].thinking, { type: 'disabled' }, 'thinking ate the whole budget of a real recap');
   assert.match(String(calls[0].system), /Hoy es 2026-11-12/);
   assert.equal(result.outcome, 'ok');
   assert.equal(result.text, 'Pide: revisar el notebook.\nHecho:\n- 10/11 pidió el modelo.');

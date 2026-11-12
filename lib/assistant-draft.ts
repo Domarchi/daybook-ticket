@@ -14,7 +14,7 @@ import { AgentError, NOTICE_REFUSAL, TIME_PER_CALL_MS, type MessagesClient } fro
 import type { Suggestions } from './assistant-data';
 import { serviceDay } from './assistant-desk';
 
-// Room for Haiku 5.5's adaptive thinking, which counts against `max_tokens`, plus a draft of a few lines.
+// With thinking disabled a draft is a few hundred tokens; the cap is a ceiling against a runaway answer.
 export const DRAFT_MAX_OUTPUT_TOKENS = 1500;
 /** What a draft may weigh once in the composer: long enough for steps, short enough to be read before sending. */
 export const DRAFT_MAX_CHARACTERS = 2500;
@@ -121,6 +121,9 @@ export async function writeDraft(options: {
         model: options.model,
         max_tokens: DRAFT_MAX_OUTPUT_TOKENS,
         output_config: { effort: 'low' },
+        // Writing a recap or a draft needs no reasoning, and Haiku 5.5's default (adaptive) thinking ate the whole
+        // output budget of a real recap. Haiku 5.5 accepts `disabled` at effort `high` or below.
+        thinking: { type: 'disabled' },
         cache_control: { type: 'ephemeral' },
         system: draftSystemPrompt(serviceDay(options.now)),
         messages: [{ role: 'user', content: draftRequest(options.data) }],

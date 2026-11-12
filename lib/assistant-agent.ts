@@ -5,8 +5,9 @@
  * limits on turns, output tokens, history and input below are explicit and testable. The client is injected so the
  * loop can be tested without network or key. Same design as Bita in Daybook Parte Diario.
  *
- * Model rules that matter here (Haiku 5.5): adaptive thinking is on by default, so no `thinking` is sent and effort is
- * lowered to `low` (reading desk data needs no deep reasoning); no `temperature`/`top_p`/`top_k` (rejected); the
+ * Model rules that matter here (Haiku 5.5): adaptive thinking is on by default and kept in the chat (it helps pick the
+ * tools), with effort lowered to `low`; the one-shot draft and recap turn it off (`assistant-draft.ts`,
+ * `assistant-recap.ts`); no `temperature`/`top_p`/`top_k` (rejected); the
  * assistant turn is sent back whole (with its thinking blocks) inside the same message, only text travels between
  * messages; a safety decline arrives as `stop_reason: "refusal"` with HTTP 200 and is an answer, not an error.
  */
