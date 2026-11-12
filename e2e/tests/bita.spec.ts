@@ -415,7 +415,7 @@ test.describe('Bita, the staff assistant', () => {
     expect(wire).toContain('Probable driver de video');
     expect(wire).toContain('mensajes_totales');
     for (const secret of [REQUESTER, REQUESTER_EMAIL]) expect(wire).not.toContain(secret);
-    await expectNoCriticalViolations(page, 'Resumen de Bita en el ticket');
+    await expectNoSeriousViolations(page, 'Resumen de Bita en el ticket');
     await page.screenshot({ path: testInfo.outputPath('bita-resumen-ticket.png') });
   });
 
