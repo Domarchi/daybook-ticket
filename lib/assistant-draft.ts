@@ -14,7 +14,8 @@ import { AgentError, NOTICE_REFUSAL, TIME_PER_CALL_MS, type MessagesClient } fro
 import type { Suggestions } from './assistant-data';
 import { serviceDay } from './assistant-desk';
 
-export const DRAFT_MAX_OUTPUT_TOKENS = 1024;
+// Room for Haiku 5.5's adaptive thinking, which counts against `max_tokens`, plus a draft of a few lines.
+export const DRAFT_MAX_OUTPUT_TOKENS = 1500;
 /** What a draft may weigh once in the composer: long enough for steps, short enough to be read before sending. */
 export const DRAFT_MAX_CHARACTERS = 2500;
 export const NAME_PLACEHOLDER = '[nombre]';
