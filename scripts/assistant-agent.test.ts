@@ -210,8 +210,10 @@ const assistantFiles = [
   'app/api/assistant/route.ts',
   'app/api/assistant/summary/route.ts',
   'app/api/assistant/tickets/[id]/suggestions/route.ts',
+  'app/api/assistant/tickets/[id]/draft/route.ts',
   'app/bita.tsx',
   'app/bita-suggestions.tsx',
+  'app/bita-draft.tsx',
 ];
 
 test('the API key is read in two places only and is never logged or returned', () => {
@@ -255,6 +257,7 @@ test('with the flag off every route answers 404 without reading the session or t
     const chat = await import('../app/api/assistant/route');
     const summary = await import('../app/api/assistant/summary/route');
     const suggestions = await import('../app/api/assistant/tickets/[id]/suggestions/route');
+    const draft = await import('../app/api/assistant/tickets/[id]/draft/route');
     const post = await chat.POST(
       new Request('http://127.0.0.1/api/assistant', {
         method: 'POST',
@@ -270,6 +273,15 @@ test('with the flag off every route answers 404 without reading the session or t
       (
         await suggestions.GET(
           new Request('http://127.0.0.1/api/assistant/tickets/1/suggestions'),
+          routeContext as never,
+        )
+      ).status,
+      404,
+    );
+    assert.equal(
+      (
+        await draft.POST(
+          new Request('http://127.0.0.1/api/assistant/tickets/1/draft', { method: 'POST' }),
           routeContext as never,
         )
       ).status,

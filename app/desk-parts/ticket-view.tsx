@@ -181,6 +181,7 @@ export function TicketView({
                 collaboration={Boolean(data.evolution?.features.collaboration)}
                 members={data.members}
                 savedReplies={data.savedReplies || []}
+                bitaDraft={Boolean(onAskBita)}
                 legacyEmail={email}
                 busy={busy}
                 onSave={message =>

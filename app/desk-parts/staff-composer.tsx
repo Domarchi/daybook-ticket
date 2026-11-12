@@ -6,11 +6,13 @@ import { getDraftOperations } from '@/lib/draft-operations';
 import { type DraftKind, ticketDraftKey } from '@/lib/ticket-drafts';
 import { notifyTicketPresenceActivity } from '@/lib/ticket-presence-client';
 import { LoaderCircle, MessageSquare, Send, ShieldCheck, Sparkles, X } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { type Member, type Message, type Ticket } from '../../lib/types';
 import { AttachmentComposer } from '../attachments';
 import { MessageEditor } from '../message-content';
 import { type SavedReplyItem, SavedReplyPicker } from '../saved-replies';
+import { BitaDraft } from '../bita-draft';
+import { PENDING_PLACEHOLDER, withDraft } from '@/lib/assistant-ui';
 
 export function StaffComposer({
   ticket,
@@ -23,6 +25,7 @@ export function StaffComposer({
   onClearReply,
   collaboration,
   members,
+  bitaDraft = false,
 }: {
   ticket: Ticket;
   viewer: Member;
@@ -31,6 +34,8 @@ export function StaffComposer({
   onClearReply: () => void;
   collaboration: boolean;
   members: Member[];
+  /** Bita can write a draft of the reply (feature 3): only when the server offers Bita to this person. */
+  bitaDraft?: boolean;
   savedReplies: SavedReplyItem[];
   busy: boolean;
   onSave: (message: {
@@ -51,6 +56,12 @@ export function StaffComposer({
   const scope = `${ticketDraftKey({ memberId: viewer.id, role: viewer.role, ticketId: ticket.id })}.${message.kind}`;
   const attachments = useDraftAttachments(scope, message.kind, ticket.id);
   const saving = useRef(false);
+  // The draft arrives seconds after the click: it is added to what the composer holds then, not when it was asked.
+  const latestBody = useRef(message.body);
+  useEffect(() => {
+    latestBody.current = message.body;
+  }, [message.body]);
+  const [pendingWarning, setPendingWarning] = useState(false);
   const mentionIds = message.mentionMemberIds ?? [];
   const setMentionIds = (ids: string[]) =>
     setReferences(message.kind, {
@@ -84,6 +95,11 @@ export function StaffComposer({
           resolvedQuote.error
         )
           return;
+        if (message.kind === 'reply' && PENDING_PLACEHOLDER.test(message.body)) {
+          setPendingWarning(true);
+          return;
+        }
+        setPendingWarning(false);
         saving.current = true;
         try {
           const payload = { ...message, ...attachments.payload(), bodyFormat: 'markdown' as const };
@@ -131,6 +147,16 @@ export function StaffComposer({
           onInsert={body => edit(message.body ? `${message.body}\n\n${body}` : body)}
         />
       </details>
+      {bitaDraft && message.kind === 'reply' && (
+        <BitaDraft
+          ticketId={ticket.id}
+          disabled={busy}
+          onDraft={text => {
+            edit(withDraft(latestBody.current, text));
+            setPendingWarning(false);
+          }}
+        />
+      )}
       {draft.recoveredLegacy && (
         <p className="draft-notice" role="status">
           Recuperamos un borrador anterior como nota interna para mantenerlo privado. Revísalo antes de guardarlo.
@@ -234,6 +260,11 @@ export function StaffComposer({
         }
       />
       <AttachmentComposer controls={attachments} disabled={busy} />
+      {pendingWarning && message.kind === 'reply' && PENDING_PLACEHOLDER.test(message.body) && (
+        <p className="draft-notice bita-draft-pending" role="alert">
+          La respuesta todavía tiene partes marcadas «[completar: …]». Escríbelas o bórralas antes de enviar.
+        </p>
+      )}
       <div className="composer-footer">
         <small>
           {message.kind === 'reply'

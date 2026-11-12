@@ -13,6 +13,7 @@ import { askForSolution, isSuggestionsResponse, type SuggestionsView } from '@/l
 import { LoaderCircle } from 'lucide-react';
 import { useState } from 'react';
 import { BitaAvatar } from './bita-avatar';
+import './bita.css';
 
 export function BitaSuggestions({
   ticketId,

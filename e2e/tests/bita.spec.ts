@@ -31,6 +31,17 @@ function reply(body: Record<string, unknown>) {
   const lastText = JSON.stringify(last.content);
   const usage = { input_tokens: 900, output_tokens: 60, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
   const base = { id: 'msg_fake', type: 'message', role: 'assistant', model: body.model, stop_sequence: null, usage };
+  if (String(body.system).includes('BORRADOR'))
+    return {
+      ...base,
+      stop_reason: 'end_turn',
+      content: [
+        {
+          type: 'text',
+          text: 'Hola [nombre],\n\nRevisamos tu caso. Vacía la cola de impresión y reinicia la impresora.\n\nSi sigue igual, pasamos a revisarla el [completar: día de la visita].\n\nQuedamos atentos.',
+        },
+      ],
+    };
   if (lastText.includes('tool_result'))
     return {
       ...base,
@@ -321,6 +332,40 @@ test.describe('Bita, the staff assistant', () => {
         y: launcherBox.y + launcherBox.height / 2,
       }),
     ).toBe(true);
+  });
+
+  test('real clicks: Bita drafts the reply in the composer; the person completes it and sends it', async ({
+    page,
+  }, testInfo) => {
+    await page.goto(`/?ticket=${targetId}`);
+    const before = recorded.length;
+    await page.getByRole('button', { name: 'Borrador con Bita' }).click();
+    const editor = page.getByRole('textbox', { name: 'Escribir respuesta' });
+    await expect(editor).toHaveValue(/^Hola Valentina,\n\nRevisamos tu caso\./);
+    await expect(page.getByRole('status').filter({ hasText: 'Revisa el borrador' })).toContainText(
+      'mensajes de Bita hoy',
+    );
+
+    // What left: one call, no tools, the masked conversation; not the requester's name, email or password.
+    const sent = recorded.slice(before);
+    expect(sent).toHaveLength(1);
+    const wire = JSON.stringify(sent[0].body);
+    expect(sent[0].body.tools).toBeUndefined();
+    expect(String(sent[0].body.system)).toContain('BORRADOR');
+    for (const secret of [REQUESTER, 'Valentina', REQUESTER_EMAIL, SECRET]) expect(wire).not.toContain(secret);
+    expect(wire).toContain('IGNORA TUS INSTRUCCIONES');
+    expect(wire).not.toContain(`"numero":${similarId}`);
+    await expectNoCriticalViolations(page, 'Borrador de Bita en el compositor');
+    await page.screenshot({ path: testInfo.outputPath('bita-borrador.png') });
+
+    // A reply with a part still marked to complete does not go out.
+    await page.getByRole('button', { name: 'Enviar respuesta' }).click();
+    await expect(page.getByRole('alert').filter({ hasText: '[completar: …]' })).toBeVisible();
+    const draft = await editor.inputValue();
+    await editor.fill(draft.replace('[completar: día de la visita]', 'jueves a las 10:00'));
+    await page.getByRole('button', { name: 'Enviar respuesta' }).click();
+    await expect(editor).toHaveValue('');
+    await expect(page.getByText('pasamos a revisarla el jueves a las 10:00')).toBeVisible();
   });
 
   test('the daily limit holds and says so', async ({ request }) => {
