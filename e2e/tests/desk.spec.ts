@@ -19,6 +19,8 @@ async function createTicket(page: Page) {
 test.describe.configure({ mode: 'serial' });
 
 test.describe('the support desk', () => {
+  // Rosa's invitation link, kept for the portal test further down (the tests in this file run in order).
+  let rosaInvitation = '';
   test('an empty inbox is accessible and invites the first ticket', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Bandeja de entrada' })).toBeVisible();
@@ -210,6 +212,7 @@ test.describe('the support desk', () => {
     await expectNoSeriousViolations(page, 'Invitar cliente con equipo');
     await form.getByRole('button', { name: 'Crear invitación' }).click();
     await expect(page.getByRole('heading', { name: 'Invitación para rosa@example.test' })).toBeVisible();
+    rosaInvitation = await page.getByRole('textbox', { name: 'Enlace de invitación' }).inputValue();
 
     // Staff invitations do not ask for equipment.
     await page.getByRole('button', { name: 'Invitar persona' }).click();
@@ -268,6 +271,51 @@ test.describe('the support desk', () => {
     await page.getByRole('searchbox', { name: 'Buscar equipo' }).fill('nb-0042');
     await expect(rosa).toBeVisible();
     await expect(monitor).toHaveCount(0);
+  });
+
+  test('a client sees their equipment in the portal and names it in a ticket that the team then sees', async ({
+    page,
+    browser,
+  }) => {
+    expect(rosaInvitation).toMatch(/^http/);
+    // Rosa, in her own browser, activates her account from the real invitation link.
+    const rosaContext = await browser.newContext();
+    const rosa = await rosaContext.newPage();
+    try {
+      await rosa.goto(rosaInvitation);
+      const password = `Rosa-e2e-${crypto.randomUUID()}`;
+      await rosa.getByLabel('Contraseña', { exact: true }).fill(password);
+      await rosa.getByLabel('Repite tu contraseña').fill(password);
+      await rosa.getByRole('button', { name: 'Activar mi cuenta' }).click();
+      await rosa.waitForURL(url => url.pathname === '/', { timeout: 30_000 });
+
+      const mine = rosa.getByRole('region', { name: 'Mis equipos' });
+      await expect(mine).toContainText('NB-0042');
+      await expect(mine).not.toContainText('MON-7');
+      await expectNoSeriousViolations(rosa, 'Portal con mis equipos');
+
+      await rosa.getByRole('button', { name: 'Nuevo ticket' }).first().click();
+      const form = rosa.locator('form.client-new-ticket');
+      const equipment = form.getByRole('combobox', { name: /Sobre qué equipo/ });
+      // Her only equipment is already chosen.
+      await expect(equipment.locator('option:checked')).toHaveText('NB-0042 · Computador');
+      await form.getByLabel('Asunto').fill('El notebook no enciende');
+      await form
+        .getByRole('textbox', { name: 'Descripción' })
+        .fill('Desde esta mañana no prende, ni conectado al cargador.');
+      await form.getByRole('button', { name: 'Crear ticket' }).click();
+      const created = rosa.getByText(/Tu ticket #\d{4} fue creado/);
+      await expect(created).toBeVisible();
+      const ticket = Number(/#(\d{4})/.exec((await created.textContent()) ?? '')?.[1]);
+      expect(ticket).toBeGreaterThan(0);
+
+      // The team sees which equipment the ticket is about.
+      await page.goto(`/?ticket=${ticket}`);
+      await expect(page.getByRole('heading', { name: 'El notebook no enciende', level: 1 })).toBeVisible();
+      await expect(page.locator('.ticket-equipment')).toContainText('NB-0042 · Computador');
+    } finally {
+      await rosaContext.close();
+    }
   });
 
   test.describe('dark mode', () => {

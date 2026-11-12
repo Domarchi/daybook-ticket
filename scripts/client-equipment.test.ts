@@ -11,11 +11,13 @@ import {
   createEquipmentSchema,
   isEquipmentFilter,
   clientInviteProblem,
+  equipmentLabel,
+  ticketEquipmentProblem,
   existingEquipmentProblem,
   inviteEquipmentSchema,
 } from '../lib/client-equipment-model';
 import { FAULT_GROUPS } from '../lib/ticket-category-model';
-import { ApiError, inviteMemberSchema } from '../lib/server';
+import { ApiError, createTicketSchema, inviteMemberSchema } from '../lib/server';
 import { WORKSPACE_ROUTE_REGISTRY } from '../lib/workspace-route-registry';
 
 const equipment = { assetTag: 'nb-0042', kind: 'computer' as const };
@@ -223,4 +225,70 @@ test('the inventory API is staff-only and reachable through the workspace route 
   assert.match(inventory, /WHERE a\."ownerId" = \$1 AND a\.archived = false/, 'listing is scoped to the workspace');
   assert.match(inventory, /FOR UPDATE/, 'reassignment locks the row');
   assert.match(inventory, /expectedVersion/, 'reassignment checks the version');
+});
+
+test('a ticket names only equipment that belongs to the person it is for (F6-A2b)', () => {
+  assert.equal(ticketEquipmentProblem({ assignedMemberId: 'rosa', archived: false }, 'rosa'), null);
+  assert.match(ticketEquipmentProblem(null, 'rosa') ?? '', /no existe/);
+  assert.match(ticketEquipmentProblem({ assignedMemberId: 'rosa', archived: true }, 'rosa') ?? '', /dado de baja/);
+  assert.match(
+    ticketEquipmentProblem({ assignedMemberId: 'pedro', archived: false }, 'rosa') ?? '',
+    /asignado a la persona/,
+  );
+  assert.match(
+    ticketEquipmentProblem({ assignedMemberId: null, archived: false }, 'rosa') ?? '',
+    /asignado a la persona/,
+  );
+  assert.match(
+    ticketEquipmentProblem({ assignedMemberId: 'rosa', archived: false }, null) ?? '',
+    /asignado a la persona/,
+    'a ticket without a client account cannot name equipment',
+  );
+  assert.equal(
+    equipmentLabel({ assetTag: 'NB-0042', name: 'Computador NB-0042', category: 'Computador' }),
+    'NB-0042 · Computador',
+  );
+  assert.equal(
+    equipmentLabel({ assetTag: null, name: 'Impresora del piso 3', category: 'Equipo' }),
+    'Impresora del piso 3',
+  );
+});
+
+test('a new ticket may carry the equipment id, checked inside the creation transaction', () => {
+  const base = {
+    operationId: '0b6f3a3e-9d0c-4a51-8f2e-6d7c5b4a3f21',
+    subject: 'El notebook no enciende',
+    department: 'Soporte',
+    body: 'No prende desde esta mañana.',
+  };
+  assert.equal(createTicketSchema.safeParse(base).success, true);
+  assert.equal(
+    createTicketSchema.safeParse({ ...base, assetId: '6f1b8a52-3c1d-4f7e-9a10-2b5c8d9e0f11' }).success,
+    true,
+  );
+  assert.equal(createTicketSchema.safeParse({ ...base, assetId: 'NB-0042' }).success, false);
+  const route = readFileSync('app/api/tickets/route.ts', 'utf8').replace(/\s+/g, ' ');
+  const insert = route.indexOf('INSERT INTO tickets'),
+    link = route.indexOf('linkTicketEquipment(tx, fresh,');
+  assert.ok(insert > 0 && link > insert, 'linked after the ticket exists, in the same transaction');
+  assert.match(route, /requesterMemberId: requester\.requesterMemberId/, 'checked against the ticket requester');
+});
+
+test('own and ticket equipment routes are reachable in a workspace, before the equipment id route', () => {
+  const find = (path: string) => WORKSPACE_ROUTE_REGISTRY.find(item => item.pattern.test(path));
+  const mine = find('equipment/mine');
+  assert.equal(
+    typeof (mine?.handlers as Record<string, unknown>).GET,
+    'function',
+    'equipment/mine is not the [id] route',
+  );
+  assert.deepEqual(find('tickets/12/equipment')?.names, ['id']);
+  assert.equal(typeof (find('tickets/12/equipment')?.handlers as Record<string, unknown>).GET, 'function');
+  const inventory = readFileSync('lib/equipment-inventory.ts', 'utf8').replace(/\s+/g, ' ');
+  assert.match(
+    inventory,
+    /a\."assignedContactMemberId" = \$2 AND a\.archived = false/,
+    'mine = assigned to me, active',
+  );
+  assert.match(inventory, /await getTicket\(access, ticketId\)/, 'ticket equipment follows ticket access');
 });

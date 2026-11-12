@@ -111,3 +111,27 @@ export function assigneeProblem(
   if (member.customerCompanyId !== companyId) return 'Ese cliente pertenece a otra empresa que el equipo.';
   return null;
 }
+
+/** A piece of equipment as its owner, or a ticket that names it, sees it (F6-A2b). */
+export type OwnEquipment = {
+  id: string;
+  assetTag: string | null;
+  name: string;
+  category: string;
+  serial: string;
+  companyName: string;
+};
+/** How a piece of equipment is named in a list or a select. */
+export function equipmentLabel(item: Pick<OwnEquipment, 'assetTag' | 'name' | 'category'>): string {
+  return item.assetTag ? `${item.assetTag} · ${item.category}` : item.name;
+}
+/** A ticket can name one piece of equipment, and only one that belongs to the person it is for. */
+export function ticketEquipmentProblem(
+  asset: { assignedMemberId: string | null; archived: boolean } | null,
+  requesterMemberId: string | null,
+): string | null {
+  if (!asset || asset.archived) return 'Ese equipo no existe en este espacio o fue dado de baja.';
+  if (!requesterMemberId || asset.assignedMemberId !== requesterMemberId)
+    return 'Elige un equipo asignado a la persona que hace la solicitud.';
+  return null;
+}
