@@ -573,6 +573,8 @@ test.describe('Bita, the staff assistant', () => {
     await expect(assign).toContainText('Responsable: sin asignar →');
     await expect(classify).toContainText('Equipos y periféricos · Computador');
     await expect(note).toContainText('Revisar el disco del notebook.');
+    // The ticket number shows once per card (in the summary); the subject is the link to the ticket.
+    expect(((await assign.innerText()).match(new RegExp(`#${longId}\\b`, 'g')) ?? []).length).toBe(1);
     // The cards follow the order Bita proposed them in.
     const titles = await panel
       .getByRole('region', { name: /Propuesta de Bita/ })
@@ -607,6 +609,8 @@ test.describe('Bita, the staff assistant', () => {
       await note.getByRole('button', { name: 'Descartar' }).click();
       await expect(panel.getByText(`Descartaste: Agregar una nota interna a #${longId}.`)).toBeVisible();
       await page.screenshot({ path: testInfo.outputPath('bita-propuestas-confirmadas.png') });
+      await assign.getByRole('button', { name: 'Notebook lento después de la actualización' }).click();
+      await expect(page).toHaveURL(new RegExp(`ticket=${longId}$`));
 
       const after = await row();
       expect(after.assigneeMemberId).not.toBeNull();

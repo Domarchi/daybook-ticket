@@ -132,17 +132,15 @@ export function BitaActionCard({
     );
   return (
     <section className={`bita-action ${state}`} aria-label={`Propuesta de Bita: ${offer.summary}`}>
+      {/* The summary already names the ticket ("Asignar #7 a…"); the line below opens it by its subject. */}
       <p className="bita-action-title">
-        <strong>{offer.summary}</strong>{' '}
-        <button
-          type="button"
-          className="bita-link"
-          aria-label={`Abrir el ticket ${offer.ticketId}`}
-          onClick={() => onOpenTicket(offer.ticketId)}
-        >
-          #{offer.ticketId}
-        </button>{' '}
-        {offer.subject}
+        <strong>{offer.summary}</strong>
+      </p>
+      <p className="bita-action-subject">
+        Ticket:{' '}
+        <button type="button" className="bita-link" onClick={() => onOpenTicket(offer.ticketId)}>
+          {offer.subject}
+        </button>
       </p>
       <Detail offer={offer} />
       {state === 'done' ? (
