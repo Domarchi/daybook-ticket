@@ -52,3 +52,62 @@ export function existingEquipmentProblem(
   if (current.assignedName) return `El equipo ${tag} ya está asignado a ${current.assignedName}.`;
   return null;
 }
+
+/** The equipment inventory as the staff sees it (F6-A2). */
+export type EquipmentItem = {
+  id: string;
+  assetTag: string | null;
+  name: string;
+  category: string;
+  serial: string;
+  companyId: string;
+  companyName: string;
+  assignedMemberId: string | null;
+  assignedName: string | null;
+  version: number;
+  updatedAt: string;
+};
+export type EquipmentClient = {
+  id: string;
+  name: string;
+  email: string;
+  companyId: string | null;
+  companyName: string | null;
+};
+export type EquipmentInventory = {
+  equipment: EquipmentItem[];
+  /** Active clients of a company: who equipment can be assigned to. */
+  clients: EquipmentClient[];
+  /** Clients without any active equipment, including older accounts and those without a company. */
+  clientsWithoutEquipment: EquipmentClient[];
+};
+export const EQUIPMENT_FILTERS = ['all', 'unassigned', 'assigned'] as const;
+export type EquipmentFilter = (typeof EQUIPMENT_FILTERS)[number];
+export function isEquipmentFilter(value: unknown): value is EquipmentFilter {
+  return typeof value === 'string' && (EQUIPMENT_FILTERS as readonly string[]).includes(value);
+}
+
+const uuid = z.string().uuid('Selecciona una opción válida.');
+export const createEquipmentSchema = z
+  .object({
+    companyId: uuid,
+    assetTag: z.string().max(200),
+    kind: z.enum(KIND_IDS),
+    serial: z.string().trim().max(SERIAL_MAX_LENGTH).optional(),
+    assignedMemberId: uuid.nullable().optional(),
+  })
+  .strict();
+export const assignEquipmentSchema = z
+  .object({ expectedVersion: z.number().int().min(0), assignedMemberId: uuid.nullable() })
+  .strict();
+
+/** Equipment goes only to an active client of its own company. Returns the message to show, or null. */
+export function assigneeProblem(
+  member: { role: string; status: string; customerCompanyId: string | null } | null,
+  companyId: string,
+): string | null {
+  if (!member || member.role !== 'client' || member.status === 'revoked')
+    return 'Solo puedes asignar el equipo a un cliente con acceso.';
+  if (member.customerCompanyId !== companyId) return 'Ese cliente pertenece a otra empresa que el equipo.';
+  return null;
+}

@@ -14,6 +14,7 @@ export const DESK_VIEWS = [
   'inbox',
   'overview',
   'contacts',
+  'equipment',
   'knowledge',
   'team',
   'settings',

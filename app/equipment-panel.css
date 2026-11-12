@@ -1,0 +1,41 @@
+/* Equipos (F6-A2). Colours come from tokens, so light and dark need no separate rules. */
+.equipment-panel { display: grid; gap: 20px; min-width: 0; }
+.equipment-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.equipment-search { position: relative; flex: 1 1 280px; display: flex; align-items: center; }
+.equipment-search > svg { position: absolute; left: 12px; color: var(--color-text-muted); pointer-events: none; }
+.equipment-search input { width: 100%; min-height: var(--touch-target); padding: 10px 12px 10px 36px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); font: inherit; font-size: 14px; }
+.equipment-search input:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+.equipment-filters { display: inline-flex; border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
+.equipment-filters button { min-height: var(--touch-target); padding: 0 14px; border: 0; background: var(--color-surface); color: var(--color-text-muted); font-size: 13px; cursor: pointer; }
+.equipment-filters button + button { border-left: 1px solid var(--color-border); }
+.equipment-filters button.active { background: var(--color-accent-soft); color: var(--color-accent); font-weight: 600; }
+.equipment-filters button:focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
+.equipment-error { margin: 0; padding: 12px 14px; border: 1px solid var(--color-danger-border); border-radius: var(--radius-md); background: var(--color-danger-bg); color: var(--color-danger-text); font-size: 13px; }
+.equipment-list .section-head, .equipment-missing .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.equipment-list .section-head h2, .equipment-missing .section-head h2 { display: inline-flex; align-items: center; gap: 8px; font-size: 16px; }
+.equipment-list .section-head > span, .equipment-missing .section-head > span { color: var(--color-text-muted); font-size: 13px; }
+.equipment-rows, .equipment-client-list { list-style: none; margin: 0; padding: 0; }
+.equipment-row, .equipment-client-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 20px; border-top: 1px solid var(--color-border); }
+.equipment-identity, .equipment-client-list li > div { display: grid; gap: 4px; min-width: 0; }
+.equipment-identity strong { font-size: 15px; letter-spacing: .3px; color: var(--color-text); }
+.equipment-identity span, .equipment-client-list span, .equipment-client-list small { font-size: 13px; color: var(--color-text-muted); overflow-wrap: anywhere; }
+.equipment-client-list strong { font-size: 14px; color: var(--color-text); }
+.equipment-assign { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.equipment-assign select { min-height: var(--touch-target); min-width: 190px; padding: 8px 10px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); font: inherit; font-size: 13px; }
+.equipment-assign button, .equipment-client-list .secondary { min-height: var(--touch-target); }
+.equipment-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 17px; padding: 20px; }
+.equipment-form label { display: grid; gap: 7px; font-size: 13px; color: var(--color-text); }
+.equipment-form input, .equipment-form select { min-height: var(--touch-target); padding: 10px 12px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); font: inherit; font-size: 14px; }
+.equipment-form input::placeholder { color: var(--color-text-muted); }
+.equipment-form .form-footer { grid-column: 1 / -1; }
+.equipment-panel .panel-help { padding: 0 20px 18px; }
+@media (max-width: 750px) {
+  .equipment-row, .equipment-client-list li { flex-direction: column; align-items: stretch; padding: 14px 16px; }
+  .equipment-assign { width: 100%; }
+  .equipment-assign label, .equipment-assign select { flex: 1; min-width: 0; width: 100%; }
+  .equipment-form { grid-template-columns: 1fr; padding: 16px; }
+  .equipment-search input, .equipment-form input, .equipment-form select, .equipment-assign select { font-size: 16px; }
+  .equipment-filters { width: 100%; }
+  .equipment-filters button { flex: 1; }
+  .equipment-toolbar > .primary { width: 100%; justify-content: center; }
+}

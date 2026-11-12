@@ -88,6 +88,8 @@ import * as knowledge5 from '@/app/api/reports/company/route';
 import * as knowledge6 from '@/app/api/reports/monthly/[id]/download/route';
 import * as knowledge7 from '@/app/api/reports/monthly/[id]/route';
 import * as knowledge8 from '@/app/api/reports/monthly/route';
+import * as equipment0 from '@/app/api/equipment/[id]/route';
+import * as equipment1 from '@/app/api/equipment/route';
 export const WORKSPACE_ROUTE_REGISTRY = [
   { pattern: new RegExp('^knowledge/([^/]+)/publications$'), names: ['id'], handlers: knowledge0 },
   { pattern: new RegExp('^knowledge/([^/]+)/review$'), names: ['id'], handlers: knowledge1 },
@@ -139,6 +141,8 @@ export const WORKSPACE_ROUTE_REGISTRY = [
   { pattern: new RegExp('^companies$'), names: [], handlers: r15 },
   { pattern: new RegExp('^email-inbound/([^/]+)/retry$'), names: ['id'], handlers: r16 },
   { pattern: new RegExp('^email-inbound$'), names: [], handlers: r17 },
+  { pattern: new RegExp('^equipment/([^/]+)$'), names: ['id'], handlers: equipment0 },
+  { pattern: new RegExp('^equipment$'), names: [], handlers: equipment1 },
   { pattern: new RegExp('^escalations$'), names: [], handlers: r18 },
   { pattern: new RegExp('^evolution/features$'), names: [], handlers: r19 },
   { pattern: new RegExp('^members/([^/]+)/invite$'), names: ['id'], handlers: r20 },

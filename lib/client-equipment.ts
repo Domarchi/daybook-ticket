@@ -43,7 +43,7 @@ export async function assignInviteEquipment(
         [current.id, input.memberId, input.now],
       )
     ).rows[0];
-    await audit(tx, input, current.id, before, after);
+    await recordEquipmentEvent(tx, input, current.id, before, after);
     return { id: current.id, assetTag: tag, created: false };
   }
   const id = randomUUID(),
@@ -73,11 +73,12 @@ export async function assignInviteEquipment(
       throw new ApiError(409, `El equipo ${tag} ya está registrado. Vuelve a intentarlo.`);
     throw error;
   }
-  await audit(tx, input, id, null, row);
+  await recordEquipmentEvent(tx, input, id, null, row);
   return { id, assetTag: tag, created: true };
 }
 
-async function audit(
+/** History entry for an equipment change, in the same format as the service-context screens. */
+export async function recordEquipmentEvent(
   tx: PoolClient,
   input: { ownerId: string; companyId: string; actorMemberId: string; now: string },
   id: string,
