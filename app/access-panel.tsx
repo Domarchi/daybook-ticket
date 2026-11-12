@@ -6,6 +6,7 @@ import { Check, Copy, Mail, Plus, RefreshCw, ShieldCheck, UserPlus, Users, X } f
 import type { MailStatus, Member, MemberRole, Workspace } from '../lib/types';
 import './access-panel.css';
 import { CompaniesPanel, MemberCompanyEditor } from './team-tools';
+import { EQUIPMENT_KINDS } from '../lib/client-equipment-model';
 
 export const ROLE_LABELS: Record<MemberRole, string> = {
   owner: 'Propietario',
@@ -32,6 +33,7 @@ async function request<T = unknown>(path: string, method: string, body: unknown)
 
 export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolean; run: Run }) {
   const [creating, setCreating] = useState(false);
+  const [inviteRole, setInviteRole] = useState<MemberRole>('client');
   const [filter, setFilter] = useState('all');
   const [invitation, setInvitation] = useState<{ memberId: string; email: string; url: string } | null>(null);
   const [copied, setCopied] = useState(false);
@@ -52,10 +54,22 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
     const form = new FormData(event.currentTarget);
     if (
       await run(async () => {
+        const role = form.get('role');
+        const serial = String(form.get('serial') ?? '').trim();
         const result = await request<{ member: Member; invitationUrl: string }>('/api/members', 'POST', {
           name: form.get('name'),
           email: form.get('email'),
-          role: form.get('role'),
+          role,
+          ...(role === 'client'
+            ? {
+                customerCompanyId: form.get('customerCompanyId') || undefined,
+                equipment: {
+                  assetTag: String(form.get('assetTag') ?? ''),
+                  kind: form.get('equipmentKind'),
+                  ...(serial ? { serial } : {}),
+                },
+              }
+            : {}),
         });
         setInvitation({ memberId: result.member.id, email: result.member.email, url: result.invitationUrl });
         setCopied(false);
@@ -105,7 +119,15 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
           <h1>Equipo y clientes</h1>
           <p>Invita a las personas que atenderán solicitudes y a los clientes que las crearán.</p>
         </div>
-        <button className="primary" disabled={busy} onClick={() => setCreating(!creating)}>
+        <button
+          className="primary"
+          disabled={busy}
+          onClick={() => {
+            // A new form always starts as a client invitation, whatever was chosen last time.
+            if (!creating) setInviteRole('client');
+            setCreating(!creating);
+          }}
+        >
           {creating ? <X size={17} /> : <UserPlus size={17} />}
           {creating ? 'Cerrar formulario' : 'Invitar persona'}
         </button>
@@ -156,7 +178,12 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
               </label>
               <label>
                 Rol
-                <select name="role" defaultValue="client" disabled={busy}>
+                <select
+                  name="role"
+                  value={inviteRole}
+                  onChange={event => setInviteRole(event.target.value as MemberRole)}
+                  disabled={busy}
+                >
                   {roles.map(role => (
                     <option value={role} key={role}>
                       {ROLE_LABELS[role]}
@@ -164,6 +191,56 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
                   ))}
                 </select>
               </label>
+              {inviteRole === 'client' && (
+                <fieldset className="access-client-equipment">
+                  <legend>Empresa y equipo del cliente</legend>
+                  <label>
+                    Empresa
+                    <select name="customerCompanyId" required defaultValue="" disabled={busy}>
+                      <option value="" disabled>
+                        {data.companies.length ? 'Selecciona la empresa' : 'Primero crea una empresa'}
+                      </option>
+                      {data.companies.map(company => (
+                        <option value={company.id} key={company.id}>
+                          {company.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    ID del equipo
+                    <input
+                      name="assetTag"
+                      required
+                      maxLength={64}
+                      placeholder="Ej.: NB-0042"
+                      autoComplete="off"
+                      aria-describedby="access-asset-tag-help"
+                      disabled={busy}
+                    />
+                  </label>
+                  <label>
+                    Tipo de equipo
+                    <select name="equipmentKind" defaultValue="computer" disabled={busy}>
+                      {EQUIPMENT_KINDS.map(kind => (
+                        <option value={kind.id} key={kind.id}>
+                          {kind.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    N° de serie (opcional)
+                    <input name="serial" maxLength={120} autoComplete="off" disabled={busy} />
+                  </label>
+                  <p id="access-asset-tag-help" className="access-equipment-help">
+                    El código de la etiqueta de inventario. Si ese equipo ya existe sin asignar en la empresa, se le
+                    asigna a este cliente.
+                    {!data.companies.length &&
+                      ' Crea la empresa en «Empresas», más abajo, antes de invitar al cliente.'}
+                  </p>
+                </fieldset>
+              )}
               <div className="access-role-help">
                 <p>
                   <strong>Cliente:</strong> crea tickets y consulta los permitidos según su acceso.

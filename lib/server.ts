@@ -1,5 +1,6 @@
 import { organizationSubmissionSchema } from './work-organization-model';
 import { collaborationMessageFields } from './collaboration-model';
+import { inviteEquipmentSchema } from './client-equipment-model';
 import { getDatabase } from '../db';
 import type { Database } from '../db/database';
 import { z } from 'zod';
@@ -104,6 +105,8 @@ export const inviteMemberSchema = z
     role: z.enum(['admin', 'agent', 'client']),
     customerCompanyId: memberId.optional(),
     companyAccess: z.enum(['own', 'manager']).optional(),
+    /** Required for clients (F6-A): their equipment by its inventory ID. */
+    equipment: inviteEquipmentSchema.optional(),
   })
   .strict();
 export const patchMemberSchema = z

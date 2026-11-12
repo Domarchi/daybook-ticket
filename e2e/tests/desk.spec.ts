@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { expectNoSeriousViolations } from '../support/axe';
+import { readRunState } from '../support/state';
 
 const SUBJECT = 'No puedo imprimir la factura de octubre';
 const REQUESTER = 'Andrea Molina';
@@ -175,6 +176,52 @@ test.describe('the support desk', () => {
     await page.goto('/?view=settings&section=mail');
     await expect(page).toHaveURL(/section=mail/);
     await expect(settings).toHaveAttribute('class', /active/);
+  });
+
+  test('a new client is invited with their company and equipment, and the same equipment is not given twice', async ({
+    page,
+  }) => {
+    // Inviting people is a sensitive action: the owner confirms the password first (it lasts five minutes).
+    await page.goto('/security');
+    await page.getByLabel('Contraseña actual').fill(readRunState().password);
+    await page.getByRole('button', { name: 'Verificar contraseña' }).click();
+    await expect(page.getByText('Contraseña verificada para esta sesión.')).toBeVisible();
+
+    await page.goto('/?view=team');
+    await expect(page.getByRole('heading', { name: 'Equipo y clientes', level: 1 })).toBeVisible();
+    await page.getByRole('button', { name: 'Nueva empresa' }).click();
+    await page.getByLabel('Nombre de la empresa').fill('Constructora Andes');
+    await page.getByRole('button', { name: 'Guardar empresa' }).click();
+    await expect(page.locator('.company-list strong', { hasText: 'Constructora Andes' })).toBeVisible();
+
+    const invite = async (name: string, email: string) => {
+      await page.getByRole('button', { name: 'Invitar persona' }).click();
+      const form = page.locator('.access-invite form');
+      await form.getByLabel('Nombre', { exact: true }).fill(name);
+      await form.getByLabel('Correo de acceso').fill(email);
+      await expect(form.getByRole('group', { name: 'Empresa y equipo del cliente' })).toBeVisible();
+      await form.getByRole('combobox', { name: /^Empresa/ }).selectOption({ label: 'Constructora Andes' });
+      await form.getByLabel('ID del equipo').fill('  nb-0042 ');
+      await form.getByLabel('Tipo de equipo').selectOption({ label: 'Computador' });
+      return form;
+    };
+
+    const form = await invite('Rosa Pérez', 'rosa@example.test');
+    await expectNoSeriousViolations(page, 'Invitar cliente con equipo');
+    await form.getByRole('button', { name: 'Crear invitación' }).click();
+    await expect(page.getByRole('heading', { name: 'Invitación para rosa@example.test' })).toBeVisible();
+
+    // Staff invitations do not ask for equipment.
+    await page.getByRole('button', { name: 'Invitar persona' }).click();
+    await page.locator('.access-invite form').getByLabel('Rol').selectOption({ label: 'Agente' });
+    await expect(page.getByRole('group', { name: 'Empresa y equipo del cliente' })).toHaveCount(0);
+    await page.getByRole('button', { name: 'Cerrar formulario' }).click();
+
+    // The same inventory ID, typed differently, is already Rosa's: refused, and nobody is invited.
+    const second = await invite('Tomás Soto', 'tomas@example.test');
+    await second.getByRole('button', { name: 'Crear invitación' }).click();
+    await expect(page.getByText('El equipo NB-0042 ya está asignado a Rosa Pérez.')).toBeVisible();
+    await expect(page.getByText('tomas@example.test')).toHaveCount(0);
   });
 
   test.describe('dark mode', () => {
