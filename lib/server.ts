@@ -61,6 +61,8 @@ export const createTicketSchema = z
     priority: ticketPriority.default('normal'),
     body: messageBody,
     bodyFormat: z.enum(['plain', 'markdown']).optional(),
+    /** The requester's equipment the ticket is about (F6-A2b). */
+    assetId: z.string().uuid().optional(),
   })
   .strict();
 export const patchTicketSchema = z

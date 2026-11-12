@@ -10,9 +10,11 @@ import {
   type EquipmentFilter,
   type EquipmentInventory,
   type EquipmentItem,
+  type OwnEquipment,
+  ticketEquipmentProblem,
 } from './client-equipment-model';
 import { lockAccess } from './ticket-mutations';
-import { ApiError, db } from './server';
+import { ApiError, db, getTicket } from './server';
 import { acquireTicketWorkLock } from './work-lock';
 
 /** At most this many rows are listed; the search narrows it. Inventories in one workspace are expected to be small. */
@@ -228,4 +230,63 @@ export async function assignEquipment(
       assignedName: assignee?.name ?? null,
     };
   });
+}
+
+const OWN_COLUMNS = `a.id, a."assetTag", a.name, a.category, a.serial, c.name AS "companyName"`;
+
+/** The equipment assigned to the person asking: what a client sees in the portal and can name in a ticket. */
+export async function listOwnEquipment(access: AccessContext): Promise<OwnEquipment[]> {
+  return (
+    await db()
+      .prepare(
+        `SELECT ${OWN_COLUMNS}
+           FROM "customerAssets" a
+           JOIN "customerCompanies" c ON c.id = a."companyId" AND c."ownerId" = a."ownerId"
+          WHERE a."ownerId" = $1 AND a."assignedContactMemberId" = $2 AND a.archived = false
+          ORDER BY a."assetTag" NULLS LAST, a.name, a.id`,
+      )
+      .bind(access.ownerId, access.member.id)
+      .all<OwnEquipment>()
+  ).results;
+}
+
+/** The equipment a ticket names, for anyone who can open that ticket. */
+export async function listTicketEquipment(access: AccessContext, ticketId: number): Promise<OwnEquipment[]> {
+  await getTicket(access, ticketId);
+  return (
+    await db()
+      .prepare(
+        `SELECT ${OWN_COLUMNS}
+           FROM "ticketAssetLinks" l
+           JOIN "customerAssets" a ON a.id = l."assetId" AND a."ownerId" = l."ownerId"
+           JOIN "customerCompanies" c ON c.id = a."companyId" AND c."ownerId" = a."ownerId"
+          WHERE l."ownerId" = $1 AND l."ticketId" = $2
+          ORDER BY l."createdAt", a.id`,
+      )
+      .bind(access.ownerId, ticketId)
+      .all<OwnEquipment>()
+  ).results;
+}
+
+/**
+ * Inside the ticket-creation transaction: links the equipment the ticket is about, after checking that it belongs
+ * to the person the ticket is for (a client can only name their own equipment).
+ */
+export async function linkTicketEquipment(
+  tx: PoolClient,
+  fresh: AccessContext,
+  input: { ticketId: number; assetId: string; requesterMemberId: string | null; now: string },
+) {
+  const asset = (
+    await tx.query<{ assignedMemberId: string | null; archived: boolean }>(
+      'SELECT "assignedContactMemberId" AS "assignedMemberId", archived FROM "customerAssets" WHERE id=$1 AND "ownerId"=$2 FOR SHARE',
+      [input.assetId, fresh.ownerId],
+    )
+  ).rows[0];
+  const problem = ticketEquipmentProblem(asset ?? null, input.requesterMemberId);
+  if (problem) throw new ApiError(400, problem);
+  await tx.query(
+    'INSERT INTO "ticketAssetLinks" ("ticketId","assetId","ownerId","createdAt","createdBy") VALUES ($1,$2,$3,$4,$5)',
+    [input.ticketId, input.assetId, fresh.ownerId, input.now, fresh.member.id],
+  );
 }
