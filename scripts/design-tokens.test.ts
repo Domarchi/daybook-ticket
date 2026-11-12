@@ -121,7 +121,11 @@ test('every token used by the token-based sheets is defined', () => {
   ]) {
     const used = [...read(sheet).matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
     assert.ok(used.length > 0, `${sheet} should use tokens`);
-    for (const name of used) assert.ok(name in light, `${name} (used by ${sheet}) is not defined in tokens.css`);
+    for (const name of used) {
+      // --db-* come from @daybook/design: they must exist there (colors or scale).
+      const shared_ = name.startsWith('--db-') && (name.slice(5) in shared.light || name.slice(5) in shared.escala);
+      assert.ok(name in light || shared_, `${name} (used by ${sheet}) is not defined in tokens.css or @daybook/design`);
+    }
   }
 });
 

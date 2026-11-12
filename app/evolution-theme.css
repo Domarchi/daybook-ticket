@@ -1,5 +1,5 @@
-.theme-control{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);position:relative}.theme-control select{max-width:125px;min-height:34px;padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);font:inherit}.theme-control>span{position:absolute;right:0;top:100%;z-index:20;width:min(280px,85vw);padding:10px;background:var(--surface);border:1px solid var(--line);border-radius:8px;font-size:11px;line-height:1.6}
-.evolution-features-panel{margin-top:24px}.evolution-features-panel>p{padding:16px 22px;font-size:13px;color:var(--muted);line-height:1.7}.evolution-features-panel>div:last-child:not(.section-head){padding:0 22px 18px;display:grid;gap:10px}.evolution-features-panel label{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:10px 0;font-size:13px;border-bottom:1px solid var(--line)}.evolution-features-panel input{accent-color:#805a0e;width:18px;height:18px}
+.theme-control{display:flex;align-items:center;gap:6px;font-size:var(--db-text-overline);color:var(--muted);position:relative}.theme-control select{max-width:125px;min-height:34px;padding:5px 7px;border:1px solid var(--line);border-radius:var(--db-radius-control);background:var(--surface);color:var(--ink);font:inherit}.theme-control>span{position:absolute;right:0;top:100%;z-index:20;width:min(280px,85vw);padding:10px;background:var(--surface);border:1px solid var(--line);border-radius:var(--db-radius-control);font-size:var(--db-text-overline);line-height:1.6}
+.evolution-features-panel{margin-top:24px}.evolution-features-panel>p{padding:16px 22px;font-size:var(--db-text-meta);color:var(--muted);line-height:1.7}.evolution-features-panel>div:last-child:not(.section-head){padding:0 22px 18px;display:grid;gap:10px}.evolution-features-panel label{display:flex;justify-content:space-between;align-items:center;gap:15px;padding:10px 0;font-size:var(--db-text-meta);border-bottom:1px solid var(--line)}.evolution-features-panel input{accent-color:#805a0e;width:18px;height:18px}
 /* The dark theme is an application palette, including the staff workspace.
    Shared colors (--paper, --ink, --line, --accent...) come from @daybook/design,
    which already switches every --db-* value to dark; only Ticket-specific values stay here. */
@@ -31,7 +31,7 @@
 :root[data-color-scheme="dark"] .message-content-rich a{color:#edc879}
 :root[data-color-scheme="dark"] .message-content-rich code{background:#222;color:var(--ink)}
 :root[data-color-scheme="light"]{color-scheme:light}
-@media(max-width:750px){.theme-control select{max-width:105px;font-size:12px}.theme-control>svg{display:none}}
+@media(max-width:750px){.theme-control select{max-width:105px;font-size:var(--db-text-caption)}.theme-control>svg{display:none}}
 @media (prefers-color-scheme: dark){
 :root:not([data-color-scheme="light"]){color-scheme:dark;--navy:#0a0a0a}
 :root:not([data-color-scheme="light"]) body,:root:not([data-color-scheme="light"]) .main,:root:not([data-color-scheme="light"]) .content{background:#000;color:var(--ink)}

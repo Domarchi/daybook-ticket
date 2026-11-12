@@ -1,4 +1,4 @@
-.ticket-pagination { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px 22px; border-top:1px solid var(--line,#e6e8e6); color:var(--muted,#6b706b); font-size:12px; }
+.ticket-pagination { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:18px 22px; border-top:1px solid var(--line,#e6e8e6); color:var(--muted,#6b706b); font-size:var(--db-text-caption); }
 .ticket-pagination nav { display:flex; align-items:center; gap:12px; }
 .ticket-pagination button { white-space:nowrap; }
 .conversation-pagination { display:flex; justify-content:center; padding:14px; border-bottom:1px solid var(--line,#e6e8e6); }

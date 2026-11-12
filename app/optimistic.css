@@ -1,13 +1,13 @@
 /* Instant changes: only the field being saved waits; the undo button sits in the confirmation toast. */
 .detail-fields select[aria-busy="true"] { opacity: .65; cursor: progress; }
 .ticket-assignment-controls[aria-busy="true"] { cursor: progress; }
-.field-problem { margin: 6px 0 0; font-size: 12px; line-height: 1.4; color: var(--color-danger-text); }
-.toast-undo { margin-left: 14px; padding: 4px 10px; min-height: 28px; border: 1px solid currentColor; border-radius: var(--radius-sm); font-weight: 600; font-size: 12px; color: inherit; background: transparent; cursor: pointer; }
+.field-problem { margin: 6px 0 0; font-size: var(--db-text-caption); line-height: 1.4; color: var(--color-danger-text); }
+.toast-undo { margin-left: 14px; padding: 4px 10px; min-height: 28px; border: 1px solid currentColor; border-radius: var(--radius-sm); font-weight: var(--db-weight-semibold); font-size: var(--db-text-caption); color: inherit; background: transparent; cursor: pointer; }
 .toast-undo:hover { text-decoration: underline; }
 @media (pointer: coarse) { .toast-undo { min-height: var(--touch-target); padding: 0 14px; } }
 /* Clasificación del ticket (F5-D) */
 .ticket-category { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; min-width: 0; }
-.ticket-category legend { font-size: 12px; font-weight: 600; color: var(--muted, #69717c); padding: 0; margin-bottom: 4px; }
-.ticket-category .ticket-category-note { font-size: 12px; color: var(--muted, #69717c); line-height: 1.5; }
+.ticket-category legend { font-size: var(--db-text-caption); font-weight: var(--db-weight-semibold); color: var(--muted, #69717c); padding: 0; margin-bottom: 4px; }
+.ticket-category .ticket-category-note { font-size: var(--db-text-caption); color: var(--muted, #69717c); line-height: 1.5; }
 .ticket-category .text-button { justify-self: start; }
 

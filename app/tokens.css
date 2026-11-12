@@ -29,9 +29,9 @@
   --color-danger-border: #f2d3cb;
   --color-danger-text: #8f3f33;
 
-  --radius-sm: 5px;
-  --radius-md: 6px;
-  --radius-lg: 7px;
+  --radius-sm: var(--db-radius-control);
+  --radius-md: var(--db-radius-control);
+  --radius-lg: var(--db-radius-control);
   --space-1: var(--db-space-1);
   --space-2: var(--db-space-2);
   --space-3: var(--db-space-3);
