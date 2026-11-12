@@ -76,6 +76,25 @@ En el recuadro «Bita en este ticket», el botón **«Resumir ticket»** resume 
 - El texto de los mensajes es dato, no instrucciones.
 - La pantalla avisa que es un resumen hecho con IA y que hay que revisar la conversación antes de actuar.
 
+### 5. Informe por empresa (12 nov 2026)
+
+En el chat, «dame el informe de ACME» o «¿cómo le fue a ACME en octubre?» usa la herramienta **`informe_empresa`** (`lib/assistant-company-report.ts`). Gasta 1 mensaje, como cualquier pregunta del chat.
+
+- **Reutiliza el informe de la pantalla Informes por empresa** (`lib/company-reports.ts`), que solo suma cifras: no incluye conversaciones, solicitantes, notas ni documentos. Bita no calcula nada nuevo.
+- **La empresa se busca por nombre,** sin importar mayúsculas, tildes ni puntuación. Si hay varias posibles, Bita pregunta cuál; nunca adivina. Si no la encuentra, nombra las registradas (hasta 15).
+- **El mes es el que se pida, en formato AAAA-MM.** Si no se dice, es el mes en curso según la hora de Santiago. No acepta meses futuros. No incluye tickets de prueba.
+- **Al modelo le llega una lista blanca:**
+  - empresa y mes;
+  - entradas y resueltos del período;
+  - SLA cumplido, incumplido y porcentaje;
+  - respuestas públicas del equipo;
+  - carga abierta, pendiente y vencida de hoy;
+  - los 5 tipos y los 5 equipos más frecuentes.
+
+  No le llegan el identificador de la empresa, el detalle diario ni las notas de cobertura.
+- **El PDF oficial se descarga bajo la respuesta.** El servidor, no el modelo, agrega un botón «Descargar el informe PDF de …» cuando la herramienta encontró la empresa. Al pulsarlo, la pantalla hace lo mismo que Informes por empresa: crea el informe mensual guardado (`POST /api/reports/monthly`, con sus reglas y su límite) y descarga su PDF. Lo crea el clic de la persona, no Bita. Un segundo clic descarga el mismo informe, sin crear otro.
+- **Depende de la función «Conocimiento»** de las funciones nuevas, igual que la pantalla Informes por empresa. Con ella en pausa, Bita responde que los informes no están disponibles en este espacio. **El 12 nov 2026 estaba en pausa en producción.**
+
 ### Herramientas del modelo (todas de lectura)
 
 | Herramienta | Qué devuelve |
@@ -83,6 +102,7 @@ En el recuadro «Bita en este ticket», el botón **«Resumir ticket»** resume 
 | `resumen_bandeja` | El resumen de la función 1. |
 | `buscar_tickets` | Hasta 10 tickets por texto y vista (`activos`, `sin_asignar`, `vencidos`, `mios`…), con la misma consulta de la bandeja (`getTicketPage`). Una línea por ticket, sin conversación. |
 | `sugerir_solucion` | La función 2 completa para un número de ticket. |
+| `informe_empresa` | La función 5: las cifras del informe de una empresa para un mes. Es de lectura; el botón de descarga lo pone el servidor. |
 
 Ninguna herramienta recibe un usuario o un rol: cada consulta usa el acceso de la sesión, con las mismas reglas de visibilidad que la bandeja (`ticketReadScope`, `getTicket`, `getConversationPage`). Antes de tocar la base, las entradas del modelo se validan en `lib/assistant-input.ts`.
 
@@ -186,6 +206,7 @@ Requiere autorización explícita del dueño para producción.
   - `scripts/assistant-agent.test.ts`: bucle del agente con un cliente falso (topes, negativas, cortes, fallos con gasto) y contratos de código. Comprueba que la clave se lee en dos sitios, que no hay SQL de escritura salvo el contador, que todas las rutas pasan por la puerta, que el chat se carga diferido y nunca en el portal ni en los pilotos, y que con el flag apagado las cinco rutas responden 404 sin tocar la base.
   - `scripts/assistant-draft.test.ts`: prompt del borrador estable y sin nombres, lista blanca sin números de otros tickets, nombre puesto en el servidor, una sola llamada sin herramientas, negativas, cortes y fallos sin costo, borrador debajo del texto y bloqueo por «[completar: …]».
   - `scripts/assistant-recap.test.ts`: regla de ticket corto sin costo, prompt estable y con formato fijo, una sola llamada sin herramientas, negativas, cortes y fallos sin costo, y etiquetas del panel.
+  - `scripts/assistant-company-report.test.ts`: entrada de la herramienta, mes por omisión y sin futuros, búsqueda de la empresa (una, varias o ninguna), lista blanca del informe y validación del botón de descarga.
   - `scripts/assistant-ui.test.ts`: saludo, enlaces `#N` y artículos, líneas del resumen y validación de las respuestas del servidor.
 - **HTTP y navegador (`npm run test:e2e`, proyecto `bita`):** `e2e/tests/bita.spec.ts`, contra el servidor compilado, un PostgreSQL desechable y un **Anthropic falso** local que registra lo que recibe. Comprueba:
   - el resumen y las sugerencias sin llamar al modelo;
@@ -197,6 +218,7 @@ Requiere autorización explícita del dueño para producción.
   - móvil de 375 px en modo oscuro con axe;
   - clics reales del borrador: llega al compositor con «Hola Valentina,», sale una sola llamada sin el nombre, el correo ni la contraseña, «Enviar respuesta» se bloquea con «[completar: …]» y, una vez completado, la respuesta se envía;
   - clics reales del resumen: un ticket corto no llama al modelo; uno largo hace una sola llamada con la nota interna y sin el nombre ni el correo del cliente, y muestra las etiquetas;
+  - clics reales del informe por empresa: la pregunta llega como herramienta, el resultado no lleva el solicitante, el correo ni el identificador de la empresa, el PDF se descarga (empieza con `%PDF`) y un segundo clic no crea otro informe;
   - el tope diario (429).
 
   La suite e2e corre con `ASSISTANT_ENABLED=1` y una clave ficticia; nunca alcanza la API real.
@@ -208,6 +230,5 @@ Requiere autorización explícita del dueño para producción.
 - **Los artículos no tienen enlace propio.** La base de conocimiento no tiene URL por artículo, así que «artículo A12» abre la vista Conocimiento.
 - **Sin «Útil / No útil»:** Parte Diario lo guarda en su auditoría; aquí no hay una tabla equivalente sin migración.
 - **Fases siguientes, cada una con aprobación aparte:**
-  - informe por empresa descargable (5);
   - acciones con confirmación (6).
 - **El parecido es por palabras.** Con pocos tickets solucionados, Bita lo dice y propone pasos «(general)». Cuando la 0015 guarde las categorías corregidas por personas, conviene usarlas en vez de recalcularlas.

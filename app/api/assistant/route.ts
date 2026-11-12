@@ -69,7 +69,12 @@ export async function POST(request: Request) {
         cachedTokens: result.cachedTokens,
         outputTokens: result.outputTokens,
       });
-      return json({ reply: result.text, remaining: Math.max(0, limit - reservation.used), limit });
+      return json({
+        reply: result.text,
+        remaining: Math.max(0, limit - reservation.used),
+        limit,
+        ...(result.actions.length ? { actions: result.actions } : {}),
+      });
     } catch (failure) {
       const verdict = classifyFailure(failure);
       // Turns already billed before the failure count: the message stays spent. Only a failure that cost nothing
