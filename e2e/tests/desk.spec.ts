@@ -235,6 +235,19 @@ test.describe('the support desk', () => {
       await expectNoSeriousViolations(page, 'Ticket en modo oscuro');
     });
 
+    test('the invite form and the access list are readable in dark mode', async ({ page }) => {
+      await page.goto('/?view=team');
+      await expect(page.getByRole('heading', { name: 'Equipo y clientes', level: 1 })).toBeVisible();
+      await page.getByRole('button', { name: 'Invitar persona' }).click();
+      const form = page.locator('.access-invite form');
+      await expect(form.getByRole('group', { name: 'Empresa y equipo del cliente' })).toBeVisible();
+      await form.getByLabel('ID del equipo').fill('NB-0099');
+      // The fields follow the dark theme instead of staying white with light text.
+      await expect(form.getByLabel('ID del equipo')).toHaveCSS('background-color', 'rgb(16, 16, 16)');
+      await expectNoSeriousViolations(page, 'Invitar cliente en modo oscuro');
+      await page.getByRole('button', { name: 'Cerrar formulario' }).click();
+    });
+
     test('the other desk views pass the accessibility gate in dark mode', async ({ page }) => {
       for (const [view, screen] of [
         ['overview', 'Resumen'],
