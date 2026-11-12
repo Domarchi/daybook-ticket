@@ -198,3 +198,34 @@ export function withDraft(current: string, draft: string): string {
 
 /** Bita leaves `[completar: …]` where it lacked a fact; a reply must not reach the customer with one still in it. */
 export const PENDING_PLACEHOLDER = /\[completar\b[^\]]*\]/i;
+
+/** What the recap route answers: the recap, or a notice (short ticket, refusal, nothing written). */
+export type RecapResponse = {
+  recap: string | null;
+  notice?: string;
+  cut?: boolean;
+  remaining: number | null;
+  limit: number;
+};
+
+export function isRecapResponse(value: unknown): value is RecapResponse {
+  return (
+    isObject(value) &&
+    (typeof value.recap === 'string' || (value.recap === null && typeof value.notice === 'string')) &&
+    (value.remaining === null || isInteger(value.remaining)) &&
+    isInteger(value.limit)
+  );
+}
+
+/** The recap's lines: the ones that start with a known label get it apart, so the panel can bold it. */
+export const RECAP_LABELS = ['Pide:', 'Hecho:', 'En qué quedó:', 'Falta:', 'Ojo:'] as const;
+export function recapLines(text: string): { label: string; text: string }[] {
+  return text
+    .split('\n')
+    .map(line => line.trimEnd())
+    .filter(Boolean)
+    .map(line => {
+      const label = RECAP_LABELS.find(item => line.startsWith(item));
+      return label ? { label, text: line.slice(label.length).trim() } : { label: '', text: line };
+    });
+}

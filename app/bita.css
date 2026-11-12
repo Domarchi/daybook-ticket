@@ -183,3 +183,11 @@ body:has(.bita-launcher, .bita-panel) .content {
 }
 .bita-draft-note { flex: 1 1 240px; margin: 0; color: var(--chat-muted, var(--color-text-muted)); font-size: 11px; line-height: 1.5; }
 .bita-draft-note.failed { color: var(--color-danger-text); }
+
+/* "Resumir ticket": the recap of a long ticket, inside the Bita box. */
+.bita-recap { margin-top: var(--space-3); padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-accent-soft); font-size: 13px; line-height: 1.55; }
+.bita-recap h3 { margin: 0 0 var(--space-2); font-size: 13px; font-weight: 650; }
+.bita-recap ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.bita-recap li { white-space: pre-wrap; overflow-wrap: anywhere; }
+.bita-recap li:not(.labeled) { padding-left: var(--space-3); }
+.bita-recap .bita-suggestions-note { margin-top: var(--space-2); }

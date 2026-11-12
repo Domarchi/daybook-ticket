@@ -20,6 +20,7 @@ let failNext = false;
 let similarId = 0;
 let targetId = 0;
 let overdueId = 0;
+let longId = 0;
 
 const REQUESTER = 'Valentina Ortúzar';
 const REQUESTER_EMAIL = 'valentina.ortuzar@cliente-ficticio.test';
@@ -31,6 +32,17 @@ function reply(body: Record<string, unknown>) {
   const lastText = JSON.stringify(last.content);
   const usage = { input_tokens: 900, output_tokens: 60, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
   const base = { id: 'msg_fake', type: 'message', role: 'assistant', model: body.model, stop_sequence: null, usage };
+  if (String(body.system).includes('Resumes un ticket largo'))
+    return {
+      ...base,
+      stop_reason: 'end_turn',
+      content: [
+        {
+          type: 'text',
+          text: 'Pide: que el notebook vuelva a andar rápido.\nHecho:\n- 05/11 Mario pidió el modelo del equipo.\n- 07/11 se reinstaló el driver de video.\nEn qué quedó: el cliente dice que sigue lento; habló último.\nFalta: coordinar la visita que Mario le ofreció.\nOjo: el plazo está por vencer.',
+        },
+      ],
+    };
   if (String(body.system).includes('BORRADOR'))
     return {
       ...base,
@@ -105,6 +117,17 @@ async function seed() {
     );
     overdueId = await ticket('VPN no conecta desde la casa', 'open', -60);
     await message(overdueId, 'request', REQUESTER, 'client', 'La VPN no conecta.', -200);
+    longId = await ticket('Notebook lento después de la actualización', 'open', 120);
+    const turns: [string, string, string | null, string][] = [
+      ['request', REQUESTER, 'client', 'El notebook está muy lento desde la actualización.'],
+      ['reply', 'Mario Técnico', 'admin', '¿Nos indicas el modelo del equipo?'],
+      ['request', REQUESTER, 'client', 'Es un modelo del 2022. Mi correo es ' + REQUESTER_EMAIL],
+      ['note', 'Mario Técnico', 'admin', 'Probable driver de video. Reinstalar.'],
+      ['reply', 'Mario Técnico', 'admin', 'Reinstalamos el driver de video. ¿Cómo va?'],
+      ['request', REQUESTER, 'client', 'Sigue lento. ¿Pueden venir?'],
+    ];
+    for (const [index, [kind, author, role, body]] of turns.entries())
+      await message(longId, kind, author, role, body, -280 + index * 10);
     await pool.query(
       `INSERT INTO articles ("ownerId",title,category,body,"reviewState","createdAt","updatedAt")
        VALUES ($1,'Impresora que no imprime','Impresoras','Vaciar la cola, reiniciar el servicio y reinstalar el driver.','approved',$2,$2)`,
@@ -366,6 +389,34 @@ test.describe('Bita, the staff assistant', () => {
     await page.getByRole('button', { name: 'Enviar respuesta' }).click();
     await expect(editor).toHaveValue('');
     await expect(page.getByText('pasamos a revisarla el jueves a las 10:00')).toBeVisible();
+  });
+
+  test('real clicks: a short ticket is not recapped; a long one is, once, without the customer data', async ({
+    page,
+  }, testInfo) => {
+    const box = page.getByRole('region', { name: 'Sugerencias de Bita' });
+    let before = recorded.length;
+    await page.goto(`/?ticket=${targetId}`);
+    await box.getByRole('button', { name: 'Resumir ticket' }).click();
+    await expect(box.getByRole('status', { name: 'Resumen de Bita' })).toContainText('se lee más rápido completo');
+    expect(recorded.length).toBe(before);
+
+    await page.goto(`/?ticket=${longId}`);
+    before = recorded.length;
+    await box.getByRole('button', { name: 'Resumir ticket' }).click();
+    const recap = box.getByRole('status', { name: 'Resumen de Bita' });
+    await expect(recap).toContainText('Pide: que el notebook vuelva a andar rápido.');
+    await expect(recap).toContainText('Falta: coordinar la visita');
+    await expect(recap).toContainText('mensajes de Bita hoy');
+    const sent = recorded.slice(before);
+    expect(sent).toHaveLength(1);
+    const wire = JSON.stringify(sent[0].body);
+    expect(sent[0].body.tools).toBeUndefined();
+    expect(wire).toContain('Probable driver de video');
+    expect(wire).toContain('mensajes_totales');
+    for (const secret of [REQUESTER, REQUESTER_EMAIL]) expect(wire).not.toContain(secret);
+    await expectNoSeriousViolations(page, 'Resumen de Bita en el ticket');
+    await page.screenshot({ path: testInfo.outputPath('bita-resumen-ticket.png') });
   });
 
   test('the daily limit holds and says so', async ({ request }) => {

@@ -7,7 +7,14 @@
  */
 import type { AccessContext } from './access';
 import { MAX_DESK_ROWS, summarizeDesk, type DeskRow } from './assistant-desk';
-import { MAX_ARTICLE_TEXT, MAX_SOLUTION_TEXT, messageForModel, safeText, ticketDetail } from './assistant-privacy';
+import {
+  MAX_ARTICLE_TEXT,
+  MAX_MESSAGE_TEXT,
+  MAX_SOLUTION_TEXT,
+  messageForModel,
+  safeText,
+  ticketDetail,
+} from './assistant-privacy';
 import {
   MAX_ARTICLES,
   MAX_CANDIDATES,
@@ -200,3 +207,40 @@ export async function readSuggestions(
 }
 
 export type Suggestions = Awaited<ReturnType<typeof readSuggestions>>;
+
+/** Messages a recap reads: the latest ones, plus the customer's first request when it fell outside the window. */
+export const MAX_RECAP_MESSAGES = 40;
+
+async function messageCount(access: AccessContext, ticketId: number) {
+  const row = await db()
+    .prepare(`SELECT count(*)::int AS total FROM messages WHERE "ownerId"=$1 AND "ticketId"=$2`)
+    .bind(access.ownerId, ticketId)
+    .first<{ total: number }>();
+  return row?.total ?? 0;
+}
+
+/**
+ * Everything the recap of a long ticket (feature 4) needs, reduced to the allow-list: the ticket's detail, how many
+ * messages it has, the latest `MAX_RECAP_MESSAGES` masked, and the first request when it is older than those.
+ */
+export async function readRecap(access: AccessContext, ticketId: number, now = Date.now()) {
+  const page = await getConversationPage(access, ticketId, MAX_RECAP_MESSAGES);
+  const ticket = page.ticket;
+  const people = [ticket.requesterName];
+  const [assigneeName, companyName, total, firstBody] = await Promise.all([
+    nameOf('members', ticket.assigneeMemberId, access.ownerId),
+    nameOf('customerCompanies', ticket.customerCompanyId, access.ownerId),
+    messageCount(access, ticket.id),
+    page.nextCursor ? firstMessageBody(access, ticket.id) : Promise.resolve(''),
+  ]);
+  return {
+    ticket: ticketDetail(ticket, { assigneeName, companyName, requesterName: ticket.requesterName }, now),
+    mensajes_totales: total,
+    ...(page.nextCursor
+      ? { primer_pedido_del_cliente: safeText(firstBody, MAX_MESSAGE_TEXT, people), mensajes_omitidos: true }
+      : {}),
+    conversacion: page.messages.map(message => messageForModel(message, people)),
+  };
+}
+
+export type Recap = Awaited<ReturnType<typeof readRecap>>;
