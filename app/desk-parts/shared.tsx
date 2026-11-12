@@ -20,6 +20,7 @@ export const views: Record<View, string> = {
   inbox: 'Bandeja de entrada',
   overview: 'Resumen',
   contacts: 'Contactos',
+  equipment: 'Equipos',
   knowledge: 'Conocimiento',
   team: 'Equipo y clientes',
   settings: 'Configuración',

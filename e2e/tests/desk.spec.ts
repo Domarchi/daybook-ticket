@@ -224,6 +224,52 @@ test.describe('the support desk', () => {
     await expect(page.getByText('tomas@example.test')).toHaveCount(0);
   });
 
+  test('the Equipos view lists equipment, registers more, and assigns and frees it', async ({ page }) => {
+    await page.goto('/?view=equipment');
+    await expect(page.getByRole('heading', { name: 'Equipos', level: 1 })).toBeVisible();
+    const rows = page.locator('.equipment-row');
+    // Rosa's equipment from the invitation, already assigned to her.
+    const rosa = rows.filter({ hasText: 'NB-0042' });
+    await expect(rosa).toBeVisible();
+    await expect(rosa.getByRole('combobox', { name: 'Asignado a NB-0042' })).toHaveValue(/.+/);
+    await expect(rosa.getByRole('combobox', { name: 'Asignado a NB-0042' }).locator('option:checked')).toHaveText(
+      'Rosa Pérez',
+    );
+    await expect(page.getByText('Todos los clientes con acceso tienen al menos un equipo registrado.')).toBeVisible();
+    await expectNoSeriousViolations(page, 'Equipos');
+
+    // Register a monitor without an owner yet.
+    await page.getByRole('button', { name: 'Registrar equipo' }).click();
+    const form = page.locator('.equipment-form');
+    await form.getByRole('combobox', { name: /^Empresa/ }).selectOption({ label: 'Constructora Andes' });
+    await form.getByLabel('ID del equipo').fill('mon-7');
+    await form.getByLabel('Tipo de equipo').selectOption({ label: 'Monitor' });
+    await form.getByRole('button', { name: 'Registrar equipo' }).click();
+    await expect(page.getByText('Equipo MON-7 registrado')).toBeVisible();
+    const monitor = rows.filter({ hasText: 'MON-7' });
+    await expect(monitor).toContainText('Monitor');
+
+    // Only the free one under "Sin asignar".
+    await page.getByRole('button', { name: 'Sin asignar', exact: true }).click();
+    await expect(monitor).toBeVisible();
+    await expect(rosa).toHaveCount(0);
+
+    // Give it to Rosa: it leaves the free list.
+    await monitor.getByRole('combobox', { name: 'Asignado a MON-7' }).selectOption({ label: 'Rosa Pérez' });
+    await monitor.getByRole('button', { name: 'Guardar asignación de MON-7' }).click();
+    await expect(page.getByText('Equipo asignado')).toBeVisible();
+    await expect(page.getByText('Ningún equipo coincide con la búsqueda.')).toBeVisible();
+
+    // Free it again from the full list, then find Rosa's notebook by its ID typed in lower case.
+    await page.getByRole('button', { name: 'Todos', exact: true }).click();
+    await monitor.getByRole('combobox', { name: 'Asignado a MON-7' }).selectOption({ label: 'Sin asignar' });
+    await monitor.getByRole('button', { name: 'Guardar asignación de MON-7' }).click();
+    await expect(page.getByText('Equipo liberado')).toBeVisible();
+    await page.getByRole('searchbox', { name: 'Buscar equipo' }).fill('nb-0042');
+    await expect(rosa).toBeVisible();
+    await expect(monitor).toHaveCount(0);
+  });
+
   test.describe('dark mode', () => {
     test.use({ colorScheme: 'dark' });
     test('the inbox and an open ticket pass the accessibility gate in dark mode', async ({ page }) => {
@@ -252,6 +298,7 @@ test.describe('the support desk', () => {
       for (const [view, screen] of [
         ['overview', 'Resumen'],
         ['contacts', 'Contactos'],
+        ['equipment', 'Equipos'],
         ['knowledge', 'Conocimiento'],
         ['team', 'Equipo'],
         ['settings', 'Configuración'],

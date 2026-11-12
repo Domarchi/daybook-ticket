@@ -4,13 +4,19 @@ import { readFileSync } from 'node:fs';
 import type { PoolClient } from 'pg';
 import { assignInviteEquipment } from '../lib/client-equipment';
 import {
+  EQUIPMENT_FILTERS,
   EQUIPMENT_KINDS,
+  assigneeProblem,
+  assignEquipmentSchema,
+  createEquipmentSchema,
+  isEquipmentFilter,
   clientInviteProblem,
   existingEquipmentProblem,
   inviteEquipmentSchema,
 } from '../lib/client-equipment-model';
 import { FAULT_GROUPS } from '../lib/ticket-category-model';
 import { ApiError, inviteMemberSchema } from '../lib/server';
+import { WORKSPACE_ROUTE_REGISTRY } from '../lib/workspace-route-registry';
 
 const equipment = { assetTag: 'nb-0042', kind: 'computer' as const };
 
@@ -161,4 +167,60 @@ test('the invite route checks the rule before writing and assigns inside the sam
     assign = route.indexOf('assignInviteEquipment(tx,');
   assert.ok(check > 0 && check < transaction, 'rule checked before the transaction');
   assert.ok(insert > transaction && assign > insert, 'equipment assigned after the member exists, in the same tx');
+});
+
+test('equipment goes only to an active client of its own company (F6-A2)', () => {
+  const client = { role: 'client', status: 'active', customerCompanyId: 'c1' };
+  assert.equal(assigneeProblem(client, 'c1'), null);
+  assert.equal(assigneeProblem({ ...client, status: 'invited' }, 'c1'), null, 'an invited client can already have it');
+  assert.match(assigneeProblem(null, 'c1') ?? '', /cliente con acceso/);
+  assert.match(
+    assigneeProblem({ ...client, role: 'agent', customerCompanyId: null }, 'c1') ?? '',
+    /cliente con acceso/,
+  );
+  assert.match(assigneeProblem({ ...client, status: 'revoked' }, 'c1') ?? '', /cliente con acceso/);
+  assert.match(assigneeProblem(client, 'c2') ?? '', /otra empresa/);
+});
+
+test('inventory requests are strict: known filters, uuids, a version for every reassignment', () => {
+  const company = '6f1b8a52-3c1d-4f7e-9a10-2b5c8d9e0f11';
+  assert.deepEqual([...EQUIPMENT_FILTERS], ['all', 'unassigned', 'assigned']);
+  assert.equal(isEquipmentFilter('unassigned'), true);
+  assert.equal(isEquipmentFilter('archived'), false);
+  assert.equal(
+    createEquipmentSchema.safeParse({ companyId: company, assetTag: 'MON-7', kind: 'monitor' }).success,
+    true,
+  );
+  assert.equal(
+    createEquipmentSchema.safeParse({ companyId: company, assetTag: 'MON-7', kind: 'monitor', assignedMemberId: null })
+      .success,
+    true,
+  );
+  assert.equal(createEquipmentSchema.safeParse({ companyId: 'c1', assetTag: 'MON-7', kind: 'monitor' }).success, false);
+  assert.equal(assignEquipmentSchema.safeParse({ assignedMemberId: null }).success, false, 'version required');
+  assert.equal(assignEquipmentSchema.safeParse({ expectedVersion: 2, assignedMemberId: null }).success, true);
+  assert.equal(
+    assignEquipmentSchema.safeParse({ expectedVersion: 2, assignedMemberId: company, companyId: company }).success,
+    false,
+  );
+});
+
+test('the inventory API is staff-only and reachable through the workspace route registry', () => {
+  for (const [path, method] of [
+    ['equipment', 'GET'],
+    ['equipment', 'POST'],
+    ['equipment/6f1b8a52-3c1d-4f7e-9a10-2b5c8d9e0f11', 'PATCH'],
+  ] as const) {
+    const route = WORKSPACE_ROUTE_REGISTRY.find(item => item.pattern.test(path));
+    assert.ok(route, path);
+    assert.equal(typeof (route.handlers as Record<string, unknown>)[method], 'function', `${method} ${path}`);
+  }
+  for (const file of ['app/api/equipment/route.ts', 'app/api/equipment/[id]/route.ts']) {
+    const source = readFileSync(file, 'utf8');
+    assert.match(source, /requireStaff\(await requireAccess\(request\)\)/, file);
+  }
+  const inventory = readFileSync('lib/equipment-inventory.ts', 'utf8').replace(/\s+/g, ' ');
+  assert.match(inventory, /WHERE a\."ownerId" = \$1 AND a\.archived = false/, 'listing is scoped to the workspace');
+  assert.match(inventory, /FOR UPDATE/, 'reassignment locks the row');
+  assert.match(inventory, /expectedVersion/, 'reassignment checks the version');
 });
