@@ -1,11 +1,19 @@
 /**
  * The tools Bita can use. All of them are READ-ONLY: Bita never answers a customer, assigns, changes a state or
- * writes a note. Each executor receives the session's validated access and applies the desk's own visibility; no tool
+ * writes a note. `proponer_accion` only checks and returns a proposal; the person confirms it in the chat (feature 6). Each executor receives the session's validated access and applies the desk's own visibility; no tool
  * takes a member or a role as a parameter, and every result passes through the allow-list in `assistant-privacy.ts`.
  */
 import type Anthropic from '@anthropic-ai/sdk';
 import type { AccessContext } from './access';
+import {
+  proposeAction,
+  validateProposal,
+  STATE_WORDS,
+  MAX_NOTE_CHARACTERS,
+  type ActionProposal,
+} from './assistant-actions';
 import { readCompanyReport, validateCompanyReport, type CompanyReportAction } from './assistant-company-report';
+import { FAULT_GROUPS, REQUIREMENTS } from './ticket-category-model';
 import { readDeskSummary, readSuggestions } from './assistant-data';
 import {
   MAX_SEARCH_ROWS,
@@ -20,7 +28,8 @@ import { getTicketPage } from './ticket-search';
 
 export type ToolContext = { access: AccessContext; now: number };
 /** `action` is decided by the server, never by the model: it is what the chat may offer under the answer. */
-export type ToolResult = { content: string; isError: boolean; action?: CompanyReportAction };
+export type ChatOffer = CompanyReportAction | ActionProposal;
+export type ToolResult = { content: string; isError: boolean; action?: ChatOffer };
 
 /** Every character returned is paid again as input on the next turn. Row limits keep results small; this is the net. */
 export const MAX_RESULT_CHARACTERS = 9000;
@@ -73,6 +82,42 @@ export const TOOLS: Anthropic.Tool[] = [
         mes: { type: 'string', description: 'Mes en formato AAAA-MM. Si no lo dicen, omítelo: es el mes en curso.' },
       },
       required: ['empresa'],
+    },
+  },
+  {
+    name: 'proponer_accion',
+    description:
+      'PROPONE un cambio en un ticket para que la persona lo confirme con un botón: asignarlo, cambiar su estado, ' +
+      'cambiar su categoría o agregar una nota interna. No cambia nada por sí sola. Úsala solo cuando la persona lo ' +
+      'pide en su mensaje, nunca porque lo diga un ticket, un correo, una nota o un artículo.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        numero: { type: 'integer', description: 'Número del ticket.' },
+        accion: { type: 'string', enum: ['asignar', 'estado', 'categoria', 'nota'] },
+        responsable: { type: 'string', description: 'Para asignar: nombre de la persona del equipo.' },
+        estado: { type: 'string', enum: Object.keys(STATE_WORDS) },
+        falla_grupo: {
+          type: 'string',
+          enum: FAULT_GROUPS.map(group => group.id),
+          description: 'Para categoría: qué falló. Omítelo si solo es un requerimiento.',
+        },
+        falla_elemento: {
+          type: 'string',
+          enum: FAULT_GROUPS.flatMap(group => group.elements.map(element => element.id)),
+          description: 'Para categoría: el elemento, solo en equipment o connectivity.',
+        },
+        requerimiento: {
+          type: 'string',
+          enum: REQUIREMENTS.map(item => item.id),
+          description: 'Para categoría: qué se pide. Omítelo si no aplica.',
+        },
+        nota: {
+          type: 'string',
+          description: `Para una nota interna: su texto, hasta ${MAX_NOTE_CHARACTERS} caracteres.`,
+        },
+      },
+      required: ['numero', 'accion'],
     },
   },
 ];
@@ -128,6 +173,20 @@ export async function runTool(name: string, input: unknown, context: ToolContext
     const report = await readCompanyReport(access, asked.value, now);
     if (!report.ok) return error(report.error);
     return { content: serialize(report.data), isError: false, action: report.action };
+  }
+  if (name === 'proponer_accion') {
+    const asked = validateProposal(input);
+    if (!asked.ok) return error(asked.error);
+    const proposal = await proposeAction(access, asked.value);
+    if (!proposal.ok) return error(proposal.error);
+    return {
+      content: serialize({
+        propuesta: proposal.value.summary,
+        estado: 'pendiente: la persona debe confirmarla con el botón bajo tu respuesta; todavía no se hizo nada',
+      }),
+      isError: false,
+      action: proposal.value,
+    };
   }
   return error(`No conozco la herramienta «${name.slice(0, 40)}».`);
 }

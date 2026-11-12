@@ -23,15 +23,16 @@ import {
   splitWithLinks,
   summaryLines,
   type DeskSummaryView,
-  type ReportOffer,
+  type ChatOffer,
 } from '@/lib/assistant-ui';
 import { X } from 'lucide-react';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { BitaAvatar } from './bita-avatar';
+import { BitaActionCard } from './bita-action';
 import { BitaReportDownload } from './bita-report';
 import './bita.css';
 
-type ChatEntry = { id: number; role: 'user' | 'assistant'; content: string; actions?: ReportOffer[] };
+type ChatEntry = { id: number; role: 'user' | 'assistant'; content: string; actions?: ChatOffer[] };
 export type BitaRequest = { id: number; text: string } | null;
 
 /** Messages sent per request. The server trims to 8 on its own; this only avoids sending more over the network. */
@@ -102,8 +103,11 @@ export default function Bita({
   request,
   onOpenTicket,
   onOpenKnowledge,
+  onTicketChanged,
 }: {
   name: string;
+  /** After a confirmed change (feature 6) the desk reloads, so the ticket and the inbox show it. */
+  onTicketChanged?: () => void;
   /** A question asked from elsewhere (the ticket's "Pedir a Bita"): opening the panel sends it. */
   request: BitaRequest;
   onOpenTicket: (id: number) => void;
@@ -125,6 +129,7 @@ export default function Bita({
   const log = useRef<HTMLDivElement>(null);
   const wasOpen = useRef(false);
   const panelId = useId();
+  const [versions, setVersions] = useState<Record<number, number>>({});
 
   // The hour is fixed when the panel opens: the greeting does not change while it is being read.
   const greeting = useMemo(() => (open ? introduction(firstName(name), hourInChile()) : ''), [open, name]);
@@ -331,9 +336,22 @@ export default function Bita({
                       <span className="sr-only">{ASSISTANT_NAME}: </span>
                       <TextWithLinks text={entry.content} onOpenTicket={openTicket} onOpenKnowledge={onOpenKnowledge} />
                     </div>
-                    {entry.actions?.map(offer => (
-                      <BitaReportDownload key={`${offer.companyId}:${offer.month}`} offer={offer} />
-                    ))}
+                    {entry.actions?.map(offer =>
+                      offer.kind === 'company_report' ? (
+                        <BitaReportDownload key={`${offer.companyId}:${offer.month}`} offer={offer} />
+                      ) : (
+                        <BitaActionCard
+                          key={offer.id}
+                          offer={offer}
+                          knownVersion={versions[offer.ticketId]}
+                          onOpenTicket={openTicket}
+                          onDone={(ticketId, version) => {
+                            if (version !== null) setVersions(current => ({ ...current, [ticketId]: version }));
+                            onTicketChanged?.();
+                          }}
+                        />
+                      ),
+                    )}
                   </div>
                 </div>
               ),

@@ -546,6 +546,7 @@ export default function Desk({
           request={bitaRequest}
           onOpenTicket={id => navigateDesk({ ticketId: id })}
           onOpenKnowledge={() => go('knowledge')}
+          onTicketChanged={() => void refresh().catch(() => undefined)}
         />
       )}
       {create && (
