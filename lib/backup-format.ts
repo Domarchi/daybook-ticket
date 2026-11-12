@@ -149,6 +149,7 @@ export const ADDED_BACKUP_COLUMNS: Readonly<Record<string, readonly string[]>> =
   mailOutbox: ['sourceMessageId', 'serviceReminderId'],
   attachments: ['contractId'],
   articles: ['version', 'contentRevision', 'reviewState', 'archived'],
+  customerAssets: ['assetTag'],
 };
 export function compatibleBackupColumns(table: string, target: readonly string[], source: readonly string[]) {
   const optional = ADDED_BACKUP_COLUMNS[table] ?? [];
