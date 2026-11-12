@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import test from 'node:test';
 
@@ -31,10 +32,29 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+// Shared colors come from @daybook/design as var(--db-*). Resolve them against the
+// package for each scheme so the contrast checks compare real colors.
+type Scheme = 'light' | 'dark';
+const shared: Record<Scheme, Record<string, string>> = JSON.parse(
+  readFileSync(createRequire(import.meta.url).resolve('@daybook/design/tokens.json'), 'utf8'),
+);
+const resolve = (values: Record<string, string>, scheme: Scheme) =>
+  Object.fromEntries(
+    Object.entries(values).map(([name, value]) => [
+      name,
+      value.replace(/var\(--db-([\w-]+)\)/g, (_, key: string) => {
+        assert.ok(shared[scheme][key], `@daybook/design does not define --db-${key}`);
+        return shared[scheme][key];
+      }),
+    ]),
+  );
+
 const tokens = read('tokens.css');
-const light = block(tokens, ':root {');
-const dark = block(tokens, ':root[data-color-scheme="dark"]');
+const lightRaw = block(tokens, ':root {');
+const darkOverrides = block(tokens, ':root[data-color-scheme="dark"]');
 const darkMedia = block(tokens.slice(tokens.indexOf('@media')), ':root:not([data-color-scheme="light"])');
+const light = resolve(lightRaw, 'light');
+const dark = resolve({ ...lightRaw, ...darkOverrides }, 'dark');
 
 const pairs: Array<[string, string, number, string]> = [
   ['--color-text', '--color-bg', 4.5, 'body text'],
@@ -63,12 +83,16 @@ for (const [scheme, palette] of [
 }
 
 test('the prefers-color-scheme dark block repeats the explicit dark block exactly', () => {
-  assert.deepEqual(darkMedia, dark);
+  assert.deepEqual(darkMedia, darkOverrides);
 });
 
 test('semantic tokens match the legacy palette they alias (no silent drift)', () => {
-  const legacyLight = block(read('globals.css'), ':root{');
-  const legacyDark = block(read('evolution-theme.css'), ':root[data-color-scheme="dark"]{');
+  const legacyRaw = block(read('globals.css'), ':root{');
+  const legacyLight = resolve(legacyRaw, 'light');
+  const legacyDark = resolve(
+    { ...legacyRaw, ...block(read('evolution-theme.css'), ':root[data-color-scheme="dark"]{') },
+    'dark',
+  );
   const map: Record<string, string> = {
     '--color-bg': '--paper',
     '--color-surface': '--surface',

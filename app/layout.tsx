@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import '@daybook/design/tokens.css';
 import './globals.css';
 import './service-plus.css';
 import './ticket-chat.css';

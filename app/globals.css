@@ -1,5 +1,5 @@
 @import "tailwindcss";
-:root{--ink:#11120f;--muted:#69675f;--line:#d9dbdc;--paper:#f7f8f9;--surface:#ffffff;--navy:#11120f;--blue:#805a0e;--lime:#efc56e;--accent:#805a0e;--accent-soft:#faf3e3;--font-sans:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+:root{--ink:var(--db-text);--muted:var(--db-text-muted);--line:var(--db-border);--paper:var(--db-bg);--surface:var(--db-surface);--navy:#11120f;--blue:var(--db-brand);--lime:var(--db-rail-focus);--accent:var(--db-brand);--accent-soft:var(--db-brand-soft);--font-sans:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 *{box-sizing:border-box}
 body{margin:0;color:var(--ink);font-family:var(--font-sans);font-size:13px;background:var(--paper);letter-spacing:-.15px}
 button,input,select,textarea{font:inherit}

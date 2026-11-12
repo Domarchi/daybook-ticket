@@ -23,3 +23,8 @@
 /* Dark mode: the card, bars and fields follow the tokens above; these are the pieces with their own colours. */
 @media(prefers-color-scheme:dark){:root:not([data-color-scheme="light"]) .auth-submit{background:#edc879;border-color:#edc879;color:#19160f}:root:not([data-color-scheme="light"]) .auth-submit:hover{background:#f5d795}:root:not([data-color-scheme="light"]) .auth-notice{background:#142b23;color:#a0d8b8;border-color:#2f5b45}:root:not([data-color-scheme="light"]) .auth-form-wrap input::placeholder{color:#a1a1a1}}
 :root[data-color-scheme="dark"] .auth-submit{background:#edc879;border-color:#edc879;color:#19160f}:root[data-color-scheme="dark"] .auth-submit:hover{background:#f5d795}:root[data-color-scheme="dark"] .auth-notice{background:#142b23;color:#a0d8b8;border-color:#2f5b45}:root[data-color-scheme="dark"] .auth-form-wrap input::placeholder{color:#a1a1a1}
+
+/* La cabecera del acceso es negra como el fondo en el tema oscuro, igual que la
+   del escritorio y la del portal; en claro sigue siendo la tarjeta blanca. */
+:root[data-color-scheme="dark"] .auth-topbar{background:var(--color-bg)}
+@media(prefers-color-scheme:dark){:root:not([data-color-scheme="light"]) .auth-topbar{background:var(--color-bg)}}
