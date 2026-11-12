@@ -113,6 +113,13 @@
       "when": 1793912008000,
       "tag": "0015_ticket_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793912009000,
+      "tag": "0016_equipment_and_requirements",
+      "breakpoints": true
     }
   ]
 }

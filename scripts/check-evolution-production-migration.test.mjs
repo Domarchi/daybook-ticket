@@ -330,13 +330,17 @@ test('evolution requires a single explicit reviewed prefix, exact confirmation a
     mode: 'audit',
     through: '0015',
   });
+  assert.deepEqual(validateEvolutionCliArguments(['--audit', '--through=0016'], {}), {
+    mode: 'audit',
+    through: '0016',
+  });
   for (const args of [
     [],
     ['--audit'],
     ['--apply', '--audit'],
     ['--apply', '--through=0007', 'secret'],
     ['--audit', '--through=0006'],
-    ['--audit', '--through=0016'],
+    ['--audit', '--through=0017'],
     ['--audit', '--through=7'],
     ['--audit', '--through=0007,0009'],
     ['--audit', '--through=0007;SELECT 1'],
@@ -859,7 +863,7 @@ test('0014 adds only the two reviewed ticket-queue indexes: no extension, data, 
     'CREATE INDEX CONCURRENTLY x ON tickets (id) ; INSERT INTO tickets DEFAULT VALUES;',
   ])
     assert.throws(() => analyzeEvolutionSql(14, `${sql}\n${statement}`), MigrationOperatorError);
-  assert.throws(() => analyzeEvolutionSql(16, sql), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(17, sql), MigrationOperatorError);
 });
 
 test('0015 adds only five nullable ticket columns: no default, backfill, constraint, index or data change', async () => {
@@ -892,5 +896,72 @@ test('0015 adds only five nullable ticket columns: no default, backfill, constra
     'DROP INDEX tickets_owner_page;',
   ])
     assert.throws(() => analyzeEvolutionSql(15, `${sql}\n${statement}`), MigrationOperatorError);
-  assert.throws(() => analyzeEvolutionSql(16, sql), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(17, sql), MigrationOperatorError);
+});
+
+test('0016 adds the nullable inventory ID with a unique index and one new empty table: no backfill or destructive DDL', async () => {
+  const artifacts = await loadEvolutionMigrationArtifacts('0016');
+  assert.equal(artifacts.files.length, 17);
+  const last = artifacts.files[16];
+  assert.equal(last.tag, '0016_equipment_and_requirements');
+  assert.equal(last.when, 1793912009000);
+  const sql = last.content.toString('utf8'),
+    plan = analyzeEvolutionSql(16, sql);
+  assert.deepEqual(plan.additions, [
+    {
+      table: 'customerAssets',
+      column_name: 'assetTag',
+      data_type: 'text',
+      not_null: false,
+      column_default: null,
+      defaultValue: null,
+    },
+  ]);
+  assert.deepEqual(plan.indexes, [
+    { name: 'customer_assets_owner_tag', table: 'customerAssets' },
+    { name: 'ticket_fulfillment_owner_stage', table: 'ticketFulfillment' },
+  ]);
+  assert.deepEqual(
+    plan.tables.map(table => table.name),
+    ['ticketFulfillment'],
+  );
+  const columns = plan.tables[0].columns;
+  assert.deepEqual(
+    columns.map(column => column.column_name),
+    [
+      'ticketId',
+      'ownerId',
+      'stage',
+      'expectedOn',
+      'delayReason',
+      'delayNote',
+      'delayedAt',
+      'deliveredAt',
+      'deliveredBy',
+      'receivedAt',
+      'assetId',
+      'cancelReason',
+      'cancelledFrom',
+      'version',
+      'createdAt',
+      'updatedAt',
+    ],
+  );
+  // Only the version counter has a default; nothing else is filled in by the database.
+  assert.deepEqual(
+    columns.filter(column => column.column_default !== null).map(column => [column.column_name, column.defaultValue]),
+    [['version', 0]],
+  );
+  assert.equal(plan.replacesPushEndpoint, false);
+  assert.equal(plan.replacesAttachmentKind, false);
+  for (const statement of [
+    'UPDATE "customerAssets" SET "assetTag" = id;',
+    'ALTER TABLE "customerAssets" ADD COLUMN "extra" text NOT NULL;',
+    'ALTER TABLE "customerAssets" DROP COLUMN "assetTag";',
+    'ALTER TABLE "customerAssets" ALTER COLUMN "companyId" DROP NOT NULL;',
+    'DROP INDEX customer_assets_owner_company;',
+    'INSERT INTO "ticketFulfillment" ("ticketId") VALUES (1);',
+  ])
+    assert.throws(() => analyzeEvolutionSql(16, `${sql}\n${statement}`), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(17, sql), MigrationOperatorError);
 });
