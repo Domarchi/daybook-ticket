@@ -5,6 +5,7 @@
  */
 import type Anthropic from '@anthropic-ai/sdk';
 import type { AccessContext } from './access';
+import { readCompanyReport, validateCompanyReport, type CompanyReportAction } from './assistant-company-report';
 import { readDeskSummary, readSuggestions } from './assistant-data';
 import {
   MAX_SEARCH_ROWS,
@@ -18,7 +19,8 @@ import { ApiError } from './server';
 import { getTicketPage } from './ticket-search';
 
 export type ToolContext = { access: AccessContext; now: number };
-export type ToolResult = { content: string; isError: boolean };
+/** `action` is decided by the server, never by the model: it is what the chat may offer under the answer. */
+export type ToolResult = { content: string; isError: boolean; action?: CompanyReportAction };
 
 /** Every character returned is paid again as input on the next turn. Row limits keep results small; this is the net. */
 export const MAX_RESULT_CHARACTERS = 9000;
@@ -56,6 +58,21 @@ export const TOOLS: Anthropic.Tool[] = [
       type: 'object',
       properties: { numero: { type: 'integer', description: 'Número del ticket.' } },
       required: ['numero'],
+    },
+  },
+  {
+    name: 'informe_empresa',
+    description:
+      'Informe de una empresa cliente para un mes: tickets que entraron y se resolvieron, cumplimiento del SLA, ' +
+      'carga abierta y vencida de hoy, tipos y equipos más frecuentes. Solo cifras, sin conversaciones. Úsala para ' +
+      '«informe de la empresa X», «cómo le fue a X en octubre». La pantalla ofrece el PDF oficial bajo tu respuesta.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        empresa: { type: 'string', description: 'Nombre de la empresa, como lo dijo la persona.' },
+        mes: { type: 'string', description: 'Mes en formato AAAA-MM. Si no lo dicen, omítelo: es el mes en curso.' },
+      },
+      required: ['empresa'],
     },
   },
 ];
@@ -104,6 +121,13 @@ export async function runTool(name: string, input: unknown, context: ToolContext
       if (failure instanceof ApiError && failure.status === 404) return error(`No existe el ticket #${id.value}.`);
       throw failure;
     }
+  }
+  if (name === 'informe_empresa') {
+    const asked = validateCompanyReport(input);
+    if (!asked.ok) return error(asked.error);
+    const report = await readCompanyReport(access, asked.value, now);
+    if (!report.ok) return error(report.error);
+    return { content: serialize(report.data), isError: false, action: report.action };
   }
   return error(`No conozco la herramienta «${name.slice(0, 40)}».`);
 }

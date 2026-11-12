@@ -10,7 +10,7 @@ export const OWNER_EMAIL = 'owner@example.test';
 /** A local stand-in for the Anthropic API: Bita's tests never reach the real one, and the key below is not a key. */
 export const FAKE_ANTHROPIC_PORT = Number(process.env.DAYBOOK_E2E_FAKE_ANTHROPIC_PORT || 5199);
 export const FAKE_ANTHROPIC_URL = `http://127.0.0.1:${FAKE_ANTHROPIC_PORT}`;
-export const ASSISTANT_DAILY_LIMIT = 6;
+export const ASSISTANT_DAILY_LIMIT = 10;
 export const OWNER_NAME = 'Propietaria de Prueba';
 export const STATE_DIR = resolve(process.cwd(), 'e2e', '.state');
 export const RUN_FILE = resolve(STATE_DIR, 'run.json');

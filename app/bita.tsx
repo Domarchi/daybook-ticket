@@ -23,13 +23,15 @@ import {
   splitWithLinks,
   summaryLines,
   type DeskSummaryView,
+  type ReportOffer,
 } from '@/lib/assistant-ui';
 import { X } from 'lucide-react';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { BitaAvatar } from './bita-avatar';
+import { BitaReportDownload } from './bita-report';
 import './bita.css';
 
-type ChatEntry = { id: number; role: 'user' | 'assistant'; content: string };
+type ChatEntry = { id: number; role: 'user' | 'assistant'; content: string; actions?: ReportOffer[] };
 export type BitaRequest = { id: number; text: string } | null;
 
 /** Messages sent per request. The server trims to 8 on its own; this only avoids sending more over the network. */
@@ -172,7 +174,10 @@ export default function Bita({
       setSending(true);
       try {
         const answer = await post(conversation);
-        setEntries(current => [...current, { id: nextId.current++, role: 'assistant', content: answer.reply }]);
+        setEntries(current => [
+          ...current,
+          { id: nextId.current++, role: 'assistant', content: answer.reply, actions: answer.actions },
+        ]);
         setRemaining(answer.remaining);
       } catch (failure) {
         // The unanswered message leaves the conversation and goes back to the field, to resend it with one tap.
@@ -321,9 +326,14 @@ export default function Bita({
               ) : (
                 <div key={entry.id} className="bita-row">
                   <BitaAvatar size={26} />
-                  <div className="bita-message hers">
-                    <span className="sr-only">{ASSISTANT_NAME}: </span>
-                    <TextWithLinks text={entry.content} onOpenTicket={openTicket} onOpenKnowledge={onOpenKnowledge} />
+                  <div className="bita-column">
+                    <div className="bita-message hers">
+                      <span className="sr-only">{ASSISTANT_NAME}: </span>
+                      <TextWithLinks text={entry.content} onOpenTicket={openTicket} onOpenKnowledge={onOpenKnowledge} />
+                    </div>
+                    {entry.actions?.map(offer => (
+                      <BitaReportDownload key={`${offer.companyId}:${offer.month}`} offer={offer} />
+                    ))}
                   </div>
                 </div>
               ),

@@ -197,7 +197,7 @@ test('the system prompt is stable for caching and declares customer text as data
   assert.ok(!/Joaqu|Mario/.test(prompt), 'no personal names in the cached prompt');
   assert.deepEqual(
     TOOLS.map(tool => tool.name),
-    ['resumen_bandeja', 'buscar_tickets', 'sugerir_solucion'],
+    ['resumen_bandeja', 'buscar_tickets', 'sugerir_solucion', 'informe_empresa'],
   );
 });
 
@@ -215,6 +215,7 @@ const assistantFiles = [
   'app/bita.tsx',
   'app/bita-suggestions.tsx',
   'app/bita-draft.tsx',
+  'app/bita-report.tsx',
 ];
 
 test('the API key is read in two places only and is never logged or returned', () => {
@@ -239,6 +240,19 @@ test('Bita only reads: no write SQL outside the quota counter, and every route i
     assert.match(read(route), /requireAssistantAccess\(request\)/, `${route} is not gated`);
   const gate = read('lib/assistant-access.ts');
   assert.ok(gate.indexOf('assistantEnabled()') < gate.indexOf('requireAccess(request)'), 'flag before session');
+});
+
+test("the only thing the chat can create is the official company report, and only on the person's click", () => {
+  for (const file of assistantFiles.filter(file => file.startsWith('app/bita')))
+    for (const call of read(file).match(/daybookFetch\([^)]*?method: 'POST'/g) ?? [])
+      assert.ok(
+        file === 'app/bita-report.tsx' || /\/api\/assistant/.test(call),
+        `${file} posts outside Bita's own routes`,
+      );
+  const report = read('app/bita-report.tsx');
+  assert.match(report, /'\/api\/reports\/monthly'/);
+  assert.match(report, /onClick=\{\(\) => void download\(\)\}/);
+  assert.match(report, /includeTests: false/);
 });
 
 test('the desk downloads the chat only when the server offers it, and never in the customer portal', () => {
