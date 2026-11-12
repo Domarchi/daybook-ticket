@@ -117,7 +117,29 @@ export function isSummaryResponse(value: unknown): value is SummaryResponse {
 
 /** A company report the chat may offer to download under Bita's answer (feature 5). Built by the server. */
 export type ReportOffer = { kind: 'company_report'; companyId: string; companyName: string; month: string };
-export type ChatResponse = { reply: string; remaining: number; limit: number; actions?: ReportOffer[] };
+/** A change Bita proposes and the person confirms (feature 6). Built and checked by the server. */
+export type ActionOffer = {
+  kind: 'ticket_action';
+  id: string;
+  ticketId: number;
+  subject: string;
+  version: number;
+  summary: string;
+  change:
+    | { type: 'assign'; memberId: string; memberName: string; fromName: string | null }
+    | { type: 'status'; to: 'open' | 'resolved' | 'closed'; toLabel: string; fromLabel: string }
+    | {
+        type: 'category';
+        faultGroup: string | null;
+        faultElement: string | null;
+        requirement: string | null;
+        toLabel: string;
+        fromLabel: string;
+      }
+    | { type: 'note'; body: string };
+};
+export type ChatOffer = ReportOffer | ActionOffer;
+export type ChatResponse = { reply: string; remaining: number; limit: number; actions?: ChatOffer[] };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function isReportOffer(value: unknown): value is ReportOffer {
@@ -131,6 +153,41 @@ export function isReportOffer(value: unknown): value is ReportOffer {
     typeof value.month === 'string' &&
     /^20\d{2}-(0[1-9]|1[0-2])$/.test(value.month)
   );
+}
+
+const text = (value: unknown, max: number) => typeof value === 'string' && value.length <= max;
+const nullableText = (value: unknown, max: number) => value === null || text(value, max);
+export function isActionOffer(value: unknown): value is ActionOffer {
+  if (
+    !isObject(value) ||
+    value.kind !== 'ticket_action' ||
+    !text(value.id, 64) ||
+    !isInteger(value.ticketId) ||
+    !text(value.subject, 300) ||
+    !isInteger(value.version) ||
+    !text(value.summary, 300) ||
+    !isObject(value.change)
+  )
+    return false;
+  const change = value.change;
+  if (change.type === 'assign')
+    return text(change.memberId, 80) && text(change.memberName, 200) && nullableText(change.fromName, 200);
+  if (change.type === 'status')
+    return (
+      ['open', 'resolved', 'closed'].includes(String(change.to)) &&
+      text(change.toLabel, 80) &&
+      text(change.fromLabel, 80)
+    );
+  if (change.type === 'category')
+    return (
+      nullableText(change.faultGroup, 40) &&
+      nullableText(change.faultElement, 40) &&
+      nullableText(change.requirement, 40) &&
+      text(change.toLabel, 200) &&
+      text(change.fromLabel, 200)
+    );
+  if (change.type === 'note') return text(change.body, 1500) && String(change.body).trim().length > 0;
+  return false;
 }
 
 const MONTHS = [
@@ -158,7 +215,8 @@ export function isChatResponse(value: unknown): value is ChatResponse {
     typeof value.reply === 'string' &&
     isInteger(value.remaining) &&
     isInteger(value.limit) &&
-    (value.actions === undefined || (Array.isArray(value.actions) && value.actions.every(isReportOffer)))
+    (value.actions === undefined ||
+      (Array.isArray(value.actions) && value.actions.every(item => isReportOffer(item) || isActionOffer(item))))
   );
 }
 

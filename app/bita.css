@@ -203,3 +203,22 @@ body:has(.bita-launcher, .bita-panel) .content {
 .bita-report .secondary svg { flex: 0 0 auto; }
 .bita-report-note { margin: 0; color: var(--color-text-muted); font-size: 12px; line-height: 1.5; }
 .bita-report-note.failed { color: var(--color-danger-text); }
+
+/* Feature 6: a change Bita proposes, waiting for the person's confirmation. */
+.bita-action {
+  display: flex; flex-direction: column; gap: 6px; max-width: 100%; padding: var(--space-3);
+  border: 1px solid var(--color-accent); border-radius: var(--radius-md); background: var(--color-surface);
+  font-size: 13px; line-height: 1.5;
+}
+.bita-action.done { border-color: var(--color-border); background: var(--color-accent-soft); }
+.bita-action p { margin: 0; overflow-wrap: anywhere; }
+.bita-action blockquote {
+  margin: 0; padding: var(--space-2) var(--space-3); border-left: 3px solid var(--color-accent); background: var(--color-bg);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.bita-action-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.bita-action-buttons button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; }
+.bita-action-note { display: flex; align-items: center; gap: 6px; color: var(--color-text-muted); font-size: 12px; }
+.bita-action-note.failed { color: var(--color-danger-text); }
+.bita-action-note svg { flex: 0 0 auto; }
+.bita-action-dismissed { margin: 0; color: var(--color-text-muted); font-size: 12px; }

@@ -35,6 +35,40 @@ function reply(body: Record<string, unknown>) {
   const lastText = JSON.stringify(last.content);
   const usage = { input_tokens: 900, output_tokens: 60, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
   const base = { id: 'msg_fake', type: 'message', role: 'assistant', model: body.model, stop_sequence: null, usage };
+  if (lastText.includes('tool_result') && lastText.includes('propuesta'))
+    return {
+      ...base,
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: 'Te dejé las propuestas para confirmar. No cambié nada todavía.' }],
+    };
+  const act = /Asigna el #(\d+)/.exec(lastText);
+  if (act && !lastText.includes('tool_result')) {
+    const numero = Number(act[1]);
+    return {
+      ...base,
+      stop_reason: 'tool_use',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_a',
+          name: 'proponer_accion',
+          input: { numero, accion: 'asignar', responsable: 'propietaria' },
+        },
+        {
+          type: 'tool_use',
+          id: 'toolu_b',
+          name: 'proponer_accion',
+          input: { numero, accion: 'categoria', falla_grupo: 'equipment', falla_elemento: 'computer' },
+        },
+        {
+          type: 'tool_use',
+          id: 'toolu_c',
+          name: 'proponer_accion',
+          input: { numero, accion: 'nota', nota: 'Revisar el disco del notebook.' },
+        },
+      ],
+    };
+  }
   if (lastText.includes('entradas_del_mes'))
     return {
       ...base,
@@ -516,6 +550,72 @@ test.describe('Bita, the staff assistant', () => {
         companyId,
       ]);
       expect(rows[0].n).toBe(1);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  test('real clicks: Bita proposes three changes; only the confirmed ones happen, as the person', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Abrir el chat con Bita' }).click();
+    const panel = page.getByRole('dialog', { name: /Bita/ });
+    await panel.getByLabel('Tu pregunta').fill(`Asigna el #${longId} a la propietaria, clasifícalo y deja una nota.`);
+    await panel.getByRole('button', { name: 'Enviar' }).click();
+    await expect(panel).toContainText('Te dejé las propuestas para confirmar.');
+
+    const assign = panel.getByRole('region', { name: new RegExp(`Propuesta de Bita: Asignar #${longId}`) });
+    const classify = panel.getByRole('region', { name: new RegExp(`Propuesta de Bita: Clasificar #${longId}`) });
+    const note = panel.getByRole('region', {
+      name: new RegExp(`Propuesta de Bita: Agregar una nota interna a #${longId}`),
+    });
+    await expect(assign).toContainText('Responsable: sin asignar →');
+    await expect(classify).toContainText('Equipos y periféricos · Computador');
+    await expect(note).toContainText('Revisar el disco del notebook.');
+    // The cards follow the order Bita proposed them in.
+    const titles = await panel
+      .getByRole('region', { name: /Propuesta de Bita/ })
+      .evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label')));
+    expect(titles.map(title => title?.split(':')[1]?.trim().split(' ')[0])).toEqual([
+      'Asignar',
+      'Clasificar',
+      'Agregar',
+    ]);
+    await expectNoSeriousViolations(page, 'Propuestas de Bita');
+    await page.screenshot({ path: testInfo.outputPath('bita-propuestas.png') });
+
+    // Nothing happened yet: proposing writes nothing.
+    const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+    const row = async () =>
+      (
+        await pool.query(
+          `SELECT t."assigneeMemberId",t."faultGroup",t."faultElement",t."categorySource",
+             (SELECT count(*)::int FROM messages m WHERE m."ticketId"=t.id AND m.kind='note' AND m.body LIKE 'Revisar el disco%') AS notes
+           FROM tickets t WHERE t.id=$1`,
+          [longId],
+        )
+      ).rows[0];
+    try {
+      expect(await row()).toMatchObject({ assigneeMemberId: null, categorySource: null, notes: 0 });
+
+      await assign.getByRole('button', { name: 'Confirmar' }).click();
+      await expect(assign).toContainText('Hecho. Queda en el historial del ticket a tu nombre.');
+      // The second change on the same ticket carries the version the first one left.
+      await classify.getByRole('button', { name: 'Confirmar' }).click();
+      await expect(classify).toContainText('Hecho.');
+      await note.getByRole('button', { name: 'Descartar' }).click();
+      await expect(panel.getByText(`Descartaste: Agregar una nota interna a #${longId}.`)).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath('bita-propuestas-confirmadas.png') });
+
+      const after = await row();
+      expect(after.assigneeMemberId).not.toBeNull();
+      expect(after).toMatchObject({
+        faultGroup: 'equipment',
+        faultElement: 'computer',
+        categorySource: 'manual',
+        notes: 0,
+      });
     } finally {
       await pool.end();
     }
