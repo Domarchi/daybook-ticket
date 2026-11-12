@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { expectNoCriticalViolations } from '../support/axe';
+import { expectNoSeriousViolations } from '../support/axe';
 
 const SUBJECT = 'No puedo imprimir la factura de octubre';
 
@@ -17,7 +17,7 @@ test.describe('the desk on a 375 px phone', () => {
     await expect(cards.getByRole('link', { name: SUBJECT })).toBeVisible();
     await expect(page.getByRole('table')).toHaveCount(0);
     await expectNoSidewaysScroll(page);
-    await expectNoCriticalViolations(page, 'Bandeja en móvil');
+    await expectNoSeriousViolations(page, 'Bandeja en móvil');
   });
 
   test('the menu opens as a dialog, closes with Escape and gives focus back', async ({ page }) => {
@@ -26,7 +26,7 @@ test.describe('the desk on a 375 px phone', () => {
     await open.click();
     const menu = page.getByRole('dialog', { name: 'Menú de navegación' });
     await expect(menu).toBeVisible();
-    await expectNoCriticalViolations(page, 'Menú móvil abierto');
+    await expectNoSeriousViolations(page, 'Menú móvil abierto');
     await page.keyboard.press('Escape');
     await expect(menu).toBeHidden();
     await expect(open).toBeFocused();
@@ -38,6 +38,6 @@ test.describe('the desk on a 375 px phone', () => {
     await expect(page.getByRole('heading', { name: SUBJECT, level: 1 })).toBeVisible();
     await expect(page.getByPlaceholder('Escribe una respuesta clara y cercana…')).toBeVisible();
     await expectNoSidewaysScroll(page);
-    await expectNoCriticalViolations(page, 'Ticket en móvil');
+    await expectNoSeriousViolations(page, 'Ticket en móvil');
   });
 });

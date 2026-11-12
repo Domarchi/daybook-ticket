@@ -33,16 +33,23 @@ npm run test:e2e
 | `bita` | Bita, el asistente, contra un Anthropic **falso** local: resumen y sugerencias sin modelo, lista blanca y enmascarado de lo que saldría, origen y sesión, devolución del cupo ante una caída, clics reales (resumen, «Sugerir solución», «Pedir pasos a Bita», enlaces), móvil oscuro y tope diario. Ver `docs/BITA.md` |
 | `session` | inicio de sesión con contraseña y cierre de sesión que revoca el acceso (corre al final: cerrar sesión invalida la sesión del servidor) |
 
-Cada pantalla pasa por axe (WCAG 2.0/2.1 A y AA) en claro, oscuro y móvil. **Una violación crítica falla la corrida.** Las graves no fallan todavía: quedan como anotaciones del informe para decidir cuándo endurecer la puerta.
+Cada pantalla pasa por axe (WCAG 2.0/2.1 A y AA) en claro, oscuro y móvil. **Una violación crítica o grave falla la corrida**, y el mensaje nombra la regla, el elemento y, si es contraste, los colores encontrados.
 
-## Hallazgos de axe (graves, aún sin corregir)
+En modo oscuro se revisan el acceso, la bandeja, el ticket, Resumen, Contactos, Conocimiento, Equipo, Configuración y Bita en móvil.
 
-| Regla | Dónde | Nodos |
+## Hallazgos de axe corregidos (12 nov 2026)
+
+Al principio la puerta solo fallaba con violaciones críticas; las graves quedaban como anotaciones. Antes de endurecerla se corrigieron:
+
+| Regla | Causa | Arreglo |
 | --- | --- | --- |
-| `color-contrast` | modo oscuro: bandeja (13) y ticket (11); en claro y móvil, 1 nodo en casi todas las pantallas | hasta 13 |
-| `label-content-name-mismatch` | 1 nodo en casi todas las pantallas (un control cuyo nombre accesible no contiene su texto visible) | 1 |
+| `color-contrast` | Un gris fijo de modo claro (`#69675f`) en unas 120 reglas de `globals.css`, `mail-tracking.css` y `notification-settings.css`, que no cambiaba en oscuro | Usan `var(--muted)`: mismo valor en claro, `#a1a1a1` en oscuro |
+| `color-contrast` | Fondos blancos fijos en oscuro: panel «En foco», anillo del Resumen, resumen de Equipo, cabecera y botón del seguimiento de correos, `kbd`, pantalla de acceso | Reglas oscuras en `evolution-theme.css` (preferencia del sistema y tema elegido) |
+| `color-contrast` | Colores de prioridad, «Actualización automática», avisos, rol de acceso y nota de privacidad pensados solo para fondo claro | Versiones claras en modo oscuro |
+| `color-contrast` (claro) | «Vencido» (`#bc8980`, 2,98:1) y el aviso de push (`#70766c`, 4,39:1) | `#a5473b` (5,89:1) y `var(--muted)` (5,33:1) |
+| `label-content-name-mismatch` | El botón/enlace del logo tenía un `aria-label` («Daybook Ticket · Ir a la bandeja») que no contiene su texto visible | Sin `aria-label`: el nombre sale del logo, «Daybook Ticket» |
 
-Siguiente paso natural: corregir esos dos grupos y pasar «grave» a fallo. Es un cambio visual, por eso no va mezclado con esta fase.
+Los avatares conservan su fondo pastel también en oscuro, así que sus iniciales se mantienen oscuras.
 
 ## Observación de la primera corrida en CI
 

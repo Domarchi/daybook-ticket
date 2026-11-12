@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { expectNoCriticalViolations } from '../support/axe';
+import { expectNoSeriousViolations } from '../support/axe';
 
 test.describe('without a session', () => {
   test('the sign-in page is usable and accessible', async ({ page }) => {
@@ -7,7 +7,14 @@ test.describe('without a session', () => {
     await expect(page.getByRole('heading', { name: 'Inicia sesión' })).toBeVisible();
     await expect(page.getByLabel('Correo electrónico')).toBeEditable();
     await expect(page.getByRole('button', { name: 'Entrar a mi espacio' })).toBeEnabled();
-    await expectNoCriticalViolations(page, 'Inicio de sesión');
+    await expectNoSeriousViolations(page, 'Inicio de sesión');
+  });
+
+  test('the sign-in page is readable in dark mode', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.goto('/login');
+    await expect(page.getByRole('heading', { name: 'Inicia sesión' })).toBeVisible();
+    await expectNoSeriousViolations(page, 'Inicio de sesión en modo oscuro');
   });
 
   test('a wrong password is refused without saying which part was wrong', async ({ page }) => {
