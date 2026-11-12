@@ -17,7 +17,7 @@ export default async function SecurityPage({ searchParams }: { searchParams: Pro
   return (
     <main className="security-page">
       <header>
-        <Link href="/" aria-label="Daybook Ticket · Inicio">
+        <Link href="/">
           <Brand />
         </Link>
         <span>Acceso privado</span>

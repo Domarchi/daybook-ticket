@@ -10,12 +10,26 @@ export default function Brand({ dark = false, compact = false }: { dark?: boolea
     >
       <Image
         unoptimized
+        className={dark ? undefined : 'daybook-mark-light'}
         src={`/brand/daybook-mark-on-${dark ? 'dark' : 'light'}.svg`}
         width="48"
         height="48"
         alt=""
         aria-hidden="true"
       />
+      {/* On light surfaces the ink mark is used; when the page follows the dark theme the same spot turns dark,
+          so the light-ink mark takes its place (CSS in evolution-theme.css picks one). */}
+      {!dark && (
+        <Image
+          unoptimized
+          className="daybook-mark-dark"
+          src="/brand/daybook-mark-on-dark.svg"
+          width="48"
+          height="48"
+          alt=""
+          aria-hidden="true"
+        />
+      )}
       {!compact && (
         <span className="daybook-brand-type">
           <strong>DAYBOOK</strong>

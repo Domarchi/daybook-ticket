@@ -61,3 +61,8 @@
 /* Cerrado (closed) in dark mode */
 @media (prefers-color-scheme: dark){:root:not([data-color-scheme="light"]) .status.closed{background:#262b31;color:#c6ccd4}}
 :root[data-color-scheme="dark"] .status.closed{background:#262b31;color:#c6ccd4}
+/* Brand mark: the light-surface brand shows the ink mark, and swaps to the light-ink mark in dark mode */
+.daybook-brand img.daybook-mark-dark{display:none}
+@media (prefers-color-scheme: dark){:root:not([data-color-scheme="light"]) .daybook-brand:not(.daybook-brand-dark) img.daybook-mark-light{display:none}:root:not([data-color-scheme="light"]) .daybook-brand:not(.daybook-brand-dark) img.daybook-mark-dark{display:block}}
+:root[data-color-scheme="dark"] .daybook-brand:not(.daybook-brand-dark) img.daybook-mark-light{display:none}
+:root[data-color-scheme="dark"] .daybook-brand:not(.daybook-brand-dark) img.daybook-mark-dark{display:block}

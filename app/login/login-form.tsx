@@ -121,7 +121,7 @@ export default function LoginForm({
   return (
     <div className="auth-shell">
       <header className="auth-topbar">
-        <a href="/login" aria-label="Daybook Ticket · Inicio">
+        <a href="/login">
           <Brand />
         </a>
         <span className="auth-private">

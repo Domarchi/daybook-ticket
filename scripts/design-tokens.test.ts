@@ -85,9 +85,49 @@ test('semantic tokens match the legacy palette they alias (no silent drift)', ()
 });
 
 test('every token used by the token-based sheets is defined', () => {
-  for (const sheet of ['accessibility.css', 'mobile-inbox.css', 'optimistic.css', 'combobox.css', 'settings-nav.css']) {
+  for (const sheet of [
+    'accessibility.css',
+    'mobile-inbox.css',
+    'optimistic.css',
+    'combobox.css',
+    'settings-nav.css',
+    'login/login.css',
+  ]) {
     const used = [...read(sheet).matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
     assert.ok(used.length > 0, `${sheet} should use tokens`);
     for (const name of used) assert.ok(name in light, `${name} (used by ${sheet}) is not defined in tokens.css`);
   }
+});
+
+test('the sign-in page has no fixed white surfaces, so dark mode cannot leave light text on a white card', () => {
+  const css = read('login/login.css');
+  assert.doesNotMatch(css, /background:\s*#fff(?:fff)?\b/i);
+  for (const piece of ['.auth-topbar', '.auth-form-wrap{', '.auth-footer']) {
+    const at = css.indexOf(piece);
+    assert.ok(at >= 0, `${piece} missing`);
+    assert.match(
+      css.slice(at, css.indexOf('}', at)),
+      /background:var\(--color-surface\)/,
+      `${piece} uses the surface token`,
+    );
+  }
+  for (const scope of [
+    '@media(prefers-color-scheme:dark){:root:not([data-color-scheme="light"]) .auth-submit{',
+    ':root[data-color-scheme="dark"] .auth-submit{',
+  ]) {
+    assert.ok(css.includes(scope), `dark sign-in button rule: ${scope}`);
+  }
+});
+
+test('the light-surface brand swaps to the light-ink mark in dark mode', () => {
+  const theme = read('evolution-theme.css');
+  assert.match(theme, /\.daybook-brand img\.daybook-mark-dark\{display:none\}/);
+  assert.match(
+    theme,
+    /:root\[data-color-scheme="dark"\] \.daybook-brand:not\(\.daybook-brand-dark\) img\.daybook-mark-dark\{display:block\}/,
+  );
+  assert.match(
+    theme,
+    /:root:not\(\[data-color-scheme="light"\]\) \.daybook-brand:not\(\.daybook-brand-dark\) img\.daybook-mark-light\{display:none\}/,
+  );
 });
