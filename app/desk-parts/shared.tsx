@@ -21,6 +21,7 @@ export const views: Record<View, string> = {
   overview: 'Resumen',
   contacts: 'Contactos',
   equipment: 'Equipos',
+  requirements: 'Requerimientos',
   knowledge: 'Conocimiento',
   team: 'Equipo y clientes',
   settings: 'Configuración',

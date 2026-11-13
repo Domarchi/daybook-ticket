@@ -93,8 +93,11 @@ export const KNOWLEDGE_BACKUP_TABLES = [
   'knowledgeEvents',
   'companyMonthlyReports',
 ] as const;
+/** F6 (migration 0016): the follow-up of requirements. Restored after tickets, members and equipment. */
+export const FULFILLMENT_BACKUP_TABLES = ['ticketFulfillment'] as const;
 type BackupTableName =
   | 'workspaceProfiles'
+  | (typeof FULFILLMENT_BACKUP_TABLES)[number]
   | (typeof SECURITY_TABLES)[number]
   | (typeof ORGANIZATION_BACKUP_TABLES)[number]
   | (typeof SERVICE_CONTEXT_BACKUP_TABLES)[number]
@@ -123,7 +126,20 @@ export const PRE_KNOWLEDGE_WORKSPACE_BACKUP_TABLES = [
   'workspaceProfiles',
 ] as const;
 export const KNOWLEDGE_SECURITY_BACKUP_TABLES = [...KNOWLEDGE_BACKUP_PROFILE, ...SECURITY_TABLES] as const;
-export const BACKUP_TABLES: readonly BackupTableName[] = [...KNOWLEDGE_SECURITY_BACKUP_TABLES, 'workspaceProfiles'];
+/** Every backup taken before F6-B2 has exactly these tables; they still validate and restore. */
+export const PRE_FULFILLMENT_BACKUP_TABLES: readonly BackupTableName[] = [
+  ...KNOWLEDGE_SECURITY_BACKUP_TABLES,
+  'workspaceProfiles',
+];
+/**
+ * workspaceProfiles stays last: it carries the quota limits, which are restored only after every existing row
+ * (the recovery drill checks this order).
+ */
+export const BACKUP_TABLES: readonly BackupTableName[] = [
+  ...KNOWLEDGE_SECURITY_BACKUP_TABLES,
+  ...FULFILLMENT_BACKUP_TABLES,
+  'workspaceProfiles',
+];
 export const BACKUP_TABLE_PROFILES: readonly (readonly string[])[] = [
   LEGACY_BACKUP_TABLES,
   RELIABILITY_BACKUP_TABLES,
@@ -138,6 +154,7 @@ export const BACKUP_TABLE_PROFILES: readonly (readonly string[])[] = [
   PRE_KNOWLEDGE_SECURITY_BACKUP_TABLES,
   PRE_KNOWLEDGE_WORKSPACE_BACKUP_TABLES,
   KNOWLEDGE_SECURITY_BACKUP_TABLES,
+  PRE_FULFILLMENT_BACKUP_TABLES,
   BACKUP_TABLES,
 ];
 export const ADDED_BACKUP_COLUMNS: Readonly<Record<string, readonly string[]>> = {

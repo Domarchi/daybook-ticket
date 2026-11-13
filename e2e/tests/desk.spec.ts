@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { expectNoSeriousViolations } from '../support/axe';
 import { readRunState } from '../support/state';
+import { todayIn } from '../../lib/fulfillment-model';
 
 const SUBJECT = 'No puedo imprimir la factura de octubre';
 const REQUESTER = 'Andrea Molina';
@@ -318,6 +319,67 @@ test.describe('the support desk', () => {
     }
   });
 
+  test('a requirement is followed stage by stage, with a committed date and a reported delay', async ({ page }) => {
+    const day = (offset: number) => {
+      const [year, month, date] = todayIn('America/Santiago', new Date()).split('-').map(Number);
+      return new Date(Date.UTC(year, month - 1, date + offset)).toISOString().slice(0, 10);
+    };
+    const subject = 'Necesito un monitor adicional';
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Nuevo ticket' }).click();
+    await page.getByLabel('Nombre del solicitante').fill('Rosa Pérez');
+    await page.getByLabel('Correo electrónico').fill('rosa@example.test');
+    await page.getByLabel('Asunto').fill(subject);
+    await page.getByLabel('Descripción').fill('Solicito un monitor adicional para mi puesto de trabajo.');
+    await page.getByRole('button', { name: 'Crear ticket' }).click();
+    // The desk opens the new ticket right away.
+    await expect(page.getByRole('heading', { name: subject, level: 1 })).toBeVisible();
+
+    const panel = page.getByRole('region', { name: 'Seguimiento del requerimiento' });
+    await panel.getByRole('button', { name: 'Seguir como requerimiento' }).click();
+    await expect(panel.getByRole('list', { name: 'Avance del requerimiento' })).toBeVisible();
+    await expect(panel.locator('[aria-current="step"]')).toContainText('Solicitado');
+
+    await panel.getByLabel('Fecha comprometida').fill(day(5));
+    await panel.getByRole('button', { name: 'Guardar fecha' }).click();
+    await expect(page.getByText('Fecha comprometida guardada')).toBeVisible();
+
+    await panel.getByRole('combobox', { name: 'Mover a' }).selectOption({ label: 'En gestión' });
+    await panel.getByRole('button', { name: 'Cambiar etapa' }).click();
+    await expect(panel.locator('[aria-current="step"]')).toContainText('En gestión');
+
+    await panel.getByRole('button', { name: 'Informar retraso' }).click();
+    await panel.getByRole('combobox', { name: 'Motivo del retraso' }).selectOption({ label: 'Proveedor' });
+    await panel.getByLabel('Nueva fecha comprometida').fill(day(10));
+    await panel.getByLabel(/Nota para el cliente/).fill('El proveedor despacha el lunes');
+    await panel.getByRole('button', { name: 'Informar retraso' }).click();
+    await expect(panel).toContainText('Proveedor · El proveedor despacha el lunes');
+
+    await panel.getByRole('combobox', { name: 'Mover a' }).selectOption({ label: 'Listo para entregar' });
+    await panel.getByRole('button', { name: 'Cambiar etapa' }).click();
+    await expect(panel.locator('[aria-current="step"]')).toContainText('Listo para entregar');
+    // Going back needs a reason; "Entregado" is not offered here (it records the equipment, F6-B4).
+    await expect(panel.getByRole('combobox', { name: 'Mover a' }).locator('option')).not.toContainText(['Entregado']);
+    await panel.getByRole('combobox', { name: 'Mover a' }).selectOption({ label: 'En gestión' });
+    await panel.getByLabel('Motivo').fill('El monitor llegó con un píxel muerto');
+    await panel.getByRole('button', { name: 'Cambiar etapa' }).click();
+    await expect(panel.locator('[aria-current="step"]')).toContainText('En gestión');
+
+    await panel.getByText(/Historial del seguimiento/).click();
+    await expect(panel.getByRole('listitem').filter({ hasText: 'Retraso: Proveedor' })).toBeVisible();
+    await expect(
+      panel.getByRole('listitem').filter({ hasText: 'En gestión · El monitor llegó con un píxel muerto' }),
+    ).toBeVisible();
+    await expectNoSeriousViolations(page, 'Ticket con seguimiento de requerimiento');
+
+    await page.goto('/?view=requirements');
+    await expect(page.getByRole('heading', { name: 'Requerimientos', level: 1 })).toBeVisible();
+    const row = page.locator('.requirements-rows li').filter({ hasText: subject });
+    await expect(row).toContainText('En gestión');
+    await expect(row).toContainText('Retraso: Proveedor');
+    await expectNoSeriousViolations(page, 'Requerimientos');
+  });
+
   test.describe('dark mode', () => {
     test.use({ colorScheme: 'dark' });
     test('the inbox and an open ticket pass the accessibility gate in dark mode', async ({ page }) => {
@@ -347,6 +409,7 @@ test.describe('the support desk', () => {
         ['overview', 'Resumen'],
         ['contacts', 'Contactos'],
         ['equipment', 'Equipos'],
+        ['requirements', 'Requerimientos'],
         ['knowledge', 'Conocimiento'],
         ['team', 'Equipo'],
         ['settings', 'Configuración'],
