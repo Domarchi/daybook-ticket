@@ -14,11 +14,15 @@ import {
   listSecurityAudit,
 } from '../lib/security.ts';
 import { createBusinessExport } from '../lib/business-export.ts';
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
-assert.equal(
-  new URL(process.env.DATABASE_URL).hostname,
-  'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
-);
+import { databaseCheckCi } from './database-check-target.mjs';
+const databaseCi = databaseCheckCi();
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+  assert.equal(
+    new URL(process.env.DATABASE_URL).hostname,
+    'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
+  );
+}
 for (const name of ['RESEND_API_KEY', 'RESEND_INBOUND_API_KEY', 'VAPID_PRIVATE_KEY']) assert.ok(!process.env[name]);
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 }),
   client = await pool.connect();

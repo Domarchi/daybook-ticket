@@ -13,13 +13,18 @@ import {
   parseInboundRoute,
   InvalidInboundEmail,
 } from '../lib/inbound-email-validation.ts';
+import { databaseCheckCi } from './database-check-target.mjs';
+import { seedQaWorkspaceProfiles } from './qa-workspace-profile.mjs';
+const databaseCi = databaseCheckCi();
 
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
-assert.equal(
-  new URL(process.env.DATABASE_URL).hostname,
-  'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
-);
-assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+  assert.equal(
+    new URL(process.env.DATABASE_URL).hostname,
+    'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
+  );
+  assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+}
 assert.ok(
   !process.env.RESEND_API_KEY &&
     !process.env.RESEND_INBOUND_API_KEY &&
@@ -75,11 +80,21 @@ const run = (value, extra = {}, at = now) =>
 const count = async table =>
   Number((await pool.query(`SELECT count(*)::int AS n FROM "${table}" WHERE "ownerId"=$1`, [ownerId])).rows[0].n);
 
+let previousSenders;
 try {
   await pool.query(
     'INSERT INTO organizations (id,"ownerId",name,"createdAt") VALUES ($1,$2,\'QA ingreso ficticio\',$3)',
     [orgId, ownerId, now.toISOString()],
   );
+  await seedQaWorkspaceProfiles(pool, [ownerId]);
+  // Since E7 a non-daybook space receives mail only when enabled with a verified sender (fictitious here).
+  const qaSender = `QA ingreso <ingreso-${orgId}@example.test>`;
+  await pool.query('UPDATE "workspaceProfiles" SET "inboundEnabled"=true,"mailFrom"=$2 WHERE "ownerId"=$1', [
+    ownerId,
+    qaSender,
+  ]);
+  previousSenders = process.env.DAYBOOK_VERIFIED_WORKSPACE_SENDERS_JSON;
+  process.env.DAYBOOK_VERIFIED_WORKSPACE_SENDERS_JSON = JSON.stringify({ [orgId]: qaSender });
   for (const id of [companyA, companyB])
     await pool.query(
       'INSERT INTO "customerCompanies" (id,"organizationId","ownerId",name,"createdAt","updatedAt") VALUES ($1,$2,$3,\'QA empresa ingreso\',$4,$4)',
@@ -191,6 +206,8 @@ try {
     JSON.stringify({ result: 'PASS', checks, concurrentRetries: 4, externalRequests: 0, externalDeliveries: 0 }),
   );
 } finally {
+  if (previousSenders === undefined) delete process.env.DAYBOOK_VERIFIED_WORKSPACE_SENDERS_JSON;
+  else process.env.DAYBOOK_VERIFIED_WORKSPACE_SENDERS_JSON = previousSenders;
   for (const table of [
     'pushDeliveries',
     'mailDeliveryEvents',
@@ -204,6 +221,7 @@ try {
     'settings',
     'members',
     'customerCompanies',
+    'workspaceProfiles',
     'organizations',
   ]) {
     await pool.query(`DELETE FROM "${table}" WHERE "ownerId"=$1`, [ownerId]);

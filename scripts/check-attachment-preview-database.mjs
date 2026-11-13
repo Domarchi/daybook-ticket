@@ -6,11 +6,16 @@ import { PDFDocument } from 'pdf-lib';
 import pg from 'pg';
 import { Database } from '../db/database.ts';
 import { previewAttachment } from '../lib/attachments.ts';
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
-assert.equal(
-  new URL(process.env.DATABASE_URL).hostname,
-  'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
-);
+import { databaseCheckCi } from './database-check-target.mjs';
+import { seedQaWorkspaceProfiles } from './qa-workspace-profile.mjs';
+const databaseCi = databaseCheckCi();
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+  assert.equal(
+    new URL(process.env.DATABASE_URL).hostname,
+    'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
+  );
+}
 assert.ok(!process.env.RESEND_API_KEY && !process.env.RESEND_INBOUND_API_KEY && !process.env.VAPID_PRIVATE_KEY);
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 }),
   database = new Database(pool);
@@ -67,6 +72,7 @@ try {
     ownerId,
     now,
   ]);
+  await seedQaWorkspaceProfiles(pool, [ownerId]);
   for (const id of [company, companyB])
     await pool.query(
       'INSERT INTO "customerCompanies" (id,"organizationId","ownerId",name,"createdAt","updatedAt") VALUES ($1,$2,$2,\'Empresa ficticia\',$3,$3)',
@@ -152,7 +158,8 @@ try {
   await pool.query("UPDATE members SET status='revoked' WHERE id=$1", [owner]);
   await assert.rejects(
     previewAttachment(staff, ids.internalImage, database, storage),
-    error => error.status === 404,
+    // The live-member lock rejects a revoked member before any file lookup.
+    error => error.status === 403,
     'A stale owner context cannot read a private file.',
   );
   console.log(
@@ -172,7 +179,15 @@ try {
     }),
   );
 } finally {
-  for (const table of ['attachments', 'messages', 'tickets', 'members', 'customerCompanies', 'organizations'])
+  for (const table of [
+    'attachments',
+    'messages',
+    'tickets',
+    'members',
+    'customerCompanies',
+    'workspaceProfiles',
+    'organizations',
+  ])
     await pool.query(`DELETE FROM "${table}" WHERE "ownerId"=$1`, [ownerId]);
   assert.equal(
     (await pool.query('SELECT count(*)::int AS n FROM organizations WHERE "ownerId"=$1', [ownerId])).rows[0].n,

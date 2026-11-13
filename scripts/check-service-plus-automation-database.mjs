@@ -21,12 +21,16 @@ import {
 } from '../lib/satisfaction.ts';
 import { recordSlaOutcome } from '../lib/agent-metrics.ts';
 import { parseMetricsQuery } from '../lib/agent-metrics-model.ts';
+import { databaseCheckCi } from './database-check-target.mjs';
+const databaseCi = databaseCheckCi();
 
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
-assert.equal(
-  new URL(process.env.DATABASE_URL).hostname,
-  'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
-);
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+  assert.equal(
+    new URL(process.env.DATABASE_URL).hostname,
+    'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
+  );
+}
 assert.ok(
   !process.env.RESEND_API_KEY &&
     !process.env.RESEND_INBOUND_API_KEY &&

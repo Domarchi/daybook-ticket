@@ -60,9 +60,26 @@ En GitHub, más lento que un portátil, la prueba de respuesta y nota falló una
 - **MFA, recuperación y reautenticación** (ya validadas contra QA con helpers HTTP privados).
 - **Aislamiento entre dos espacios**: depende de la función `workspaces`, que sigue apagada.
 - **Adjuntos**: necesitan Blob privado.
-- **Pruebas de base de datos** (`check-*-database.mjs`): siguen sin correr en CI; falta un guardián común. El trabajo `e2e` ya demuestra que un Postgres de servicio basta.
 - Un navegador distinto de Chrome.
 
 ## Cambios de dependencias
 
 `@playwright/test` 1.59.1, `playwright-core` 1.59.1 (fijada para que `@axe-core/playwright` no instale otra versión) y `@axe-core/playwright` 4.14.0, todas exactas y solo de desarrollo. `axe-core` pasó de 4.11.4 a 4.14.0 (lo comparte `eslint-plugin-jsx-a11y`; el lint no cambió).
+
+## Pruebas de base de datos en CI (13 nov 2026)
+
+El trabajo `database` de `ci.yml` corre en serie los 24 `scripts/check-*-database.mjs` (`npm run test:database:ci`) contra un Postgres 17 de servicio. Antes migra la base desde cero. El simulacro de recuperación sigue en su propio flujo, `recovery-drill.yml`.
+
+- **Protección común:** `scripts/database-check-target.mjs`.
+  - El modo CI exige `CI=true` y `DAYBOOK_DATABASE_CI=1`, host `127.0.0.1`/`localhost`, puerto 5432 y base y usuario `daybook_db_ci`.
+  - Ese modo rechaza las variables de QA y cualquier clave de correo, push, Blob o IA, además de `VERCEL_ENV=production`.
+  - Sin ese indicador, cada script conserva **sus mismas** aserciones del host de QA en Neon.
+  - Una prueba unitaria exige que todo script `check-*-database` nuevo entre en la lista y use la protección.
+- **Lo que encontró al correr por primera vez:** 10 de los 24 scripts estaban rotos desde E7 o F5. También habrían fallado contra QA:
+  - **Ocho creaban espacios ficticios sin perfil.** Desde E7 un espacio sin perfil queda «en incorporación o en pausa» (423). Ahora siembran el perfil activo con `seedQaWorkspaceProfiles` y lo borran al limpiar.
+  - **Recordatorios esperaba el comportamiento de un solo espacio.** Desde E7 el trabajador recorre todos los espacios activos: `skipped` solo significa «no hay espacios» y el fallo de un espacio deja el ciclo `incomplete` sin lanzar el error. La prueba ahora verifica el arrendamiento y el resultado del ciclo.
+  - **Búsqueda sumaba `open + resolved`.** F5 cambió los conteos a `active`, `unassigned`, `inProgress`, `resolved` y `closed`.
+  - **Vista previa de adjuntos esperaba 404 para un miembro revocado.** Ahora el bloqueo del miembro vivo responde 403 antes de buscar el archivo.
+  - **Correo entrante:** desde E7 un espacio distinto de `daybook` necesita la recepción activada y un remitente verificado. La prueba los configura con valores ficticios y solo dentro del proceso.
+  - **Correo entrante confiable usa el espacio `daybook`.** En la base vacía del CI la prueba crea uno ficticio y lo borra al terminar.
+- **Comprobación local:** dos corridas completas en una base vacía pasaron las 24 pruebas. Al final no quedó ninguna fila en `organizations`, `members`, `tickets`, `messages`, `workspaceProfiles` ni `authUser`.

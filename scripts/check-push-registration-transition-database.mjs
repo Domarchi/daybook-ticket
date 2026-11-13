@@ -4,20 +4,28 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { Database } from '../db/database.ts';
 import { registerPushSubscriptionBatch } from '../lib/push-registration-compat.ts';
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+import { databaseCheckCi } from './database-check-target.mjs';
+const databaseCi = databaseCheckCi();
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+}
 let qaTarget;
 try {
   qaTarget = new URL(process.env.DATABASE_URL || '');
 } catch {
   throw Error('Falta una conexión válida para la base aislada de QA.');
 }
-assert.equal(qaTarget.hostname, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
-assert.equal(qaTarget.pathname, '/daybook_ticket');
+if (!databaseCi) {
+  assert.equal(qaTarget.hostname, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+  assert.equal(qaTarget.pathname, '/daybook_ticket');
+}
 assert.ok(['postgres:', 'postgresql:'].includes(qaTarget.protocol));
 assert.notEqual(process.env.NODE_TLS_REJECT_UNAUTHORIZED, '0');
 // Session-scoped search_path requires the verified direct connection, never the transaction pooler.
-qaTarget.hostname = 'ep-falling-water-bbfa4ijl.c-15.us-east-1.aws.neon.tech';
-qaTarget.searchParams.set('sslmode', 'verify-full');
+if (!databaseCi) {
+  qaTarget.hostname = 'ep-falling-water-bbfa4ijl.c-15.us-east-1.aws.neon.tech';
+  qaTarget.searchParams.set('sslmode', 'verify-full');
+}
 for (const name of ['RESEND_API_KEY', 'RESEND_INBOUND_API_KEY', 'VAPID_PRIVATE_KEY']) assert.ok(!process.env[name]);
 const schema = `qa_push_transition_${randomUUID().replaceAll('-', '')}`,
   pool = new pg.Pool({ connectionString: qaTarget.toString(), max: 1 }),
