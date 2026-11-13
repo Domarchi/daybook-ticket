@@ -332,7 +332,7 @@ export function TicketView({
             <a href={`mailto:${current.requesterEmail}`}>{current.requesterEmail}</a>
             {data.viewer && (
               <TicketEquipment
-                key={`${data.viewer.id}:${current.id}`}
+                key={`${data.viewer.id}:${current.id}:${current.version}`}
                 memberId={data.viewer.id}
                 ticketId={current.id}
               />

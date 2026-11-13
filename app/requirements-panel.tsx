@@ -4,9 +4,10 @@ import { navigateDesk } from '@/lib/desk-url';
 import { useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { STAGE_LABELS, delayReasonLabel } from '../lib/fulfillment-model';
-import { formatDay } from '../lib/fulfillment-display';
+import { formatDay, fulfillmentCsv } from '../lib/fulfillment-display';
 import { REQUIREMENTS } from '../lib/ticket-category-model';
-import type { FulfillmentListFilter, FulfillmentListItem } from '../lib/fulfillment';
+import type { FulfillmentListFilter, FulfillmentListItem, FulfillmentSummary } from '../lib/fulfillment';
+import { Download } from 'lucide-react';
 import { DeskLink } from './desk-parts/shared';
 import './fulfillment-panel.css';
 
@@ -17,14 +18,21 @@ const FILTERS: { id: FulfillmentListFilter; label: string }[] = [
   { id: 'ready', label: 'Listos para entregar' },
   { id: 'overdue', label: 'Atrasados' },
   { id: 'closed', label: 'Cerrados' },
+  { id: 'all', label: 'Todos' },
 ];
-type Listing = { items: FulfillmentListItem[]; counts: Record<FulfillmentListFilter, number>; today: string };
+type Listing = {
+  items: FulfillmentListItem[];
+  counts: Record<FulfillmentListFilter, number>;
+  summary: FulfillmentSummary;
+  today: string;
+};
 const number = (id: number) => `#${String(id).padStart(4, '0')}`;
 const requirementName = (id: string | null) => REQUIREMENTS.find(item => item.id === id)?.label ?? 'Requerimiento';
 
 /** "Requerimientos": every followed requirement by stage, with the committed date and whether it is late (F6-B2). */
 export function RequirementsPanel({ memberId, refreshKey }: { memberId: string; refreshKey?: string }) {
   const [filter, setFilter] = useState<FulfillmentListFilter>('active');
+  const [exportError, setExportError] = useState('');
   const key = `${filter}:${refreshKey ?? ''}`;
   const [state, setState] = useState<{ key: string; data: Listing | null; error: string }>({
     key: '',
@@ -51,8 +59,66 @@ export function RequirementsPanel({ memberId, refreshKey }: { memberId: string; 
   const loading = state.key !== key;
 
   const data = state.data;
+  const exportCsv = async () => {
+    setExportError('');
+    try {
+      const response = await daybookFetch('/api/fulfillments?filter=all', {
+        cache: 'no-store',
+        headers: { 'X-Daybook-Member-Id': memberId },
+      });
+      const body = (await response.json().catch(() => ({}))) as Listing & { error?: string };
+      if (!response.ok) throw new Error(body.error || 'No se pudo exportar.');
+      const url = URL.createObjectURL(
+        new Blob(['\uFEFF' + fulfillmentCsv(body.items)], { type: 'text/csv;charset=utf-8' }),
+      );
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `requerimientos-${body.today}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setExportError((error as Error).message);
+    }
+  };
   return (
     <div className="requirements-panel">
+      {data && (
+        <section className="requirements-summary" aria-label="Resumen de requerimientos">
+          <div>
+            <strong>{data.summary.delivered}</strong>
+            <span>entregados</span>
+          </div>
+          <div>
+            <strong>
+              {data.summary.averageDeliveryDays === null
+                ? '—'
+                : `${data.summary.averageDeliveryDays.toLocaleString('es-CL')} días`}
+            </strong>
+            <span>tiempo medio de entrega</span>
+          </div>
+          <div>
+            <strong>{data.summary.overduePercent === null ? '—' : `${data.summary.overduePercent} %`}</strong>
+            <span>de los abiertos, atrasados</span>
+          </div>
+          <div>
+            <strong>
+              {data.summary.topDelayReasons.length
+                ? data.summary.topDelayReasons.map(item => `${item.label} (${item.count})`).join(', ')
+                : 'Sin retrasos'}
+            </strong>
+            <span>motivos de retraso más comunes</span>
+          </div>
+          <button type="button" className="secondary" onClick={() => void exportCsv()}>
+            <Download size={15} aria-hidden="true" />
+            Exportar CSV
+          </button>
+        </section>
+      )}
+      {exportError && (
+        <p className="equipment-error" role="alert">
+          {exportError}
+        </p>
+      )}
       <div className="requirements-filters" role="group" aria-label="Mostrar requerimientos">
         {FILTERS.map(item => (
           <button

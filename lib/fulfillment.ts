@@ -2,8 +2,13 @@ import type { PoolClient } from 'pg';
 import { requireStaff, ticketAccessSql, type AccessContext } from './access';
 import {
   DELAY_REASONS,
+  delayReasonLabel,
   delayProblem,
+  deliveryNeedsAsset,
+  deliveryProblem,
   expectedDateProblem,
+  receiptProblem,
+  ticketStatusAfter,
   isFinalStage,
   isFulfillmentStage,
   isOverdue,
@@ -12,12 +17,20 @@ import {
   type FulfillmentStage,
 } from './fulfillment-model';
 import { DEFAULT_SERVICE_TIME_ZONE } from './sla-policy';
-import { lockAccess, recordEvent } from './ticket-mutations';
+import { lockAccess, patchTicketInTransaction, recordEvent } from './ticket-mutations';
+import { normalizeAssetTag } from './asset-tag';
+import { assignInviteEquipment } from './client-equipment';
+import { EQUIPMENT_KINDS, type InviteEquipment } from './client-equipment-model';
 import { ApiError, db, getTicket } from './server';
 import { acquireTicketWorkLock } from './work-lock';
 
 /** Follow-up of a requirement (F6-B2). Rules live in lib/fulfillment-model.ts; this file only reads and writes. */
-export const FULFILLMENT_EVENT_ACTIONS = ['fulfillment', 'fulfillment_delay', 'fulfillment_date'] as const;
+export const FULFILLMENT_EVENT_ACTIONS = [
+  'fulfillment',
+  'fulfillment_delay',
+  'fulfillment_date',
+  'fulfillment_receipt',
+] as const;
 export type FulfillmentEventAction = (typeof FULFILLMENT_EVENT_ACTIONS)[number];
 
 export type FulfillmentRow = {
@@ -31,6 +44,7 @@ export type FulfillmentRow = {
   receivedAt: string | null;
   cancelReason: string | null;
   cancelledFrom: FulfillmentStage | null;
+  assetId: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
@@ -46,6 +60,12 @@ export type FulfillmentView = {
   fulfillment: (FulfillmentRow & { overdue: boolean }) | null;
   /** The ticket names a requirement, so the team can start following it. */
   canStart: boolean;
+  /** What is asked for: delivering equipment asks for its inventory ID. */
+  requirement: string | null;
+  /** The inventory ID of the equipment that was delivered, if any. */
+  deliveredAssetTag: string | null;
+  /** The person who asked can confirm the receipt now. */
+  canConfirmReceipt: boolean;
   events: FulfillmentEvent[];
   today: string;
 };
@@ -57,17 +77,58 @@ export type FulfillmentListItem = {
   stage: FulfillmentStage;
   expectedOn: string | null;
   delayReason: string | null;
+  createdAt: string;
+  deliveredAt: string | null;
   updatedAt: string;
   overdue: boolean;
 };
-export const FULFILLMENT_LIST_FILTERS = ['active', 'requested', 'in_progress', 'ready', 'overdue', 'closed'] as const;
+export const FULFILLMENT_LIST_FILTERS = [
+  'active',
+  'requested',
+  'in_progress',
+  'ready',
+  'overdue',
+  'closed',
+  'all',
+] as const;
+/** The figures above the list (F6-B4): over every followed requirement of the workspace. */
+export type FulfillmentSummary = {
+  delivered: number;
+  /** Mean days from "Solicitado" to "Entregado", one decimal; null until something was delivered. */
+  averageDeliveryDays: number | null;
+  /** Late share of the open ones, 0–100; null when nothing is open. */
+  overduePercent: number | null;
+  topDelayReasons: { reason: string; label: string; count: number }[];
+};
+/** Pure, so the figures are tested without a database. */
+export function summarizeFulfillments(
+  items: Pick<FulfillmentListItem, 'stage' | 'overdue' | 'createdAt' | 'deliveredAt'>[],
+  delayReasons: string[],
+): FulfillmentSummary {
+  const delivered = items.filter(item => item.stage === 'delivered' && item.deliveredAt);
+  const days = delivered.map(item => (Date.parse(item.deliveredAt!) - Date.parse(item.createdAt)) / 86_400_000);
+  const open = items.filter(item => !isFinalStage(item.stage));
+  const counts = new Map<string, number>();
+  for (const reason of delayReasons) counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  return {
+    delivered: delivered.length,
+    averageDeliveryDays: days.length
+      ? Math.round((days.reduce((sum, value) => sum + value, 0) / days.length) * 10) / 10
+      : null,
+    overduePercent: open.length ? Math.round((open.filter(item => item.overdue).length / open.length) * 100) : null,
+    topDelayReasons: [...counts]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 3)
+      .map(([reason, count]) => ({ reason, label: delayReasonLabel(reason), count })),
+  };
+}
 export type FulfillmentListFilter = (typeof FULFILLMENT_LIST_FILTERS)[number];
 export function isFulfillmentListFilter(value: unknown): value is FulfillmentListFilter {
   return typeof value === 'string' && (FULFILLMENT_LIST_FILTERS as readonly string[]).includes(value);
 }
 
 const COLUMNS = `"ticketId", stage, "expectedOn", "delayReason", "delayNote", "delayedAt", "deliveredAt", "receivedAt",
-  "cancelReason", "cancelledFrom", version, "createdAt", "updatedAt"`;
+  "cancelReason", "cancelledFrom", "assetId", version, "createdAt", "updatedAt"`;
 export const today = (now = new Date()) => todayIn(DEFAULT_SERVICE_TIME_ZONE, now);
 
 /** What the ticket screen shows: the follow-up (if any), whether it can start, and its history. */
@@ -89,9 +150,21 @@ export async function readFulfillment(access: AccessContext, ticketId: number): 
       .bind(access.ownerId, ticketId)
       .all<FulfillmentEvent>()
   ).results;
+  const requirement = (ticket as { requirement?: string | null }).requirement ?? null;
+  const deliveredAssetTag = row?.assetId
+    ? ((
+        await database
+          .prepare('SELECT "assetTag" FROM "customerAssets" WHERE id=$1 AND "ownerId"=$2')
+          .bind(row.assetId, access.ownerId)
+          .first<{ assetTag: string | null }>()
+      )?.assetTag ?? null)
+    : null;
   return {
     fulfillment: row ? { ...row, overdue: isOverdue(row, day) } : null,
-    canStart: !row && Boolean((ticket as { requirement?: string | null }).requirement) && ticket.status === 'open',
+    canStart: !row && Boolean(requirement) && ticket.status === 'open',
+    requirement,
+    deliveredAssetTag,
+    canConfirmReceipt: Boolean(row && ticket.requesterMemberId === access.member.id && !receiptProblem(row)),
     events,
     today: day,
   };
@@ -258,13 +331,19 @@ export async function setFulfillmentDate(
 export async function listFulfillments(
   access: AccessContext,
   filter: FulfillmentListFilter = 'active',
-): Promise<{ items: FulfillmentListItem[]; counts: Record<FulfillmentListFilter, number>; today: string }> {
+): Promise<{
+  items: FulfillmentListItem[];
+  counts: Record<FulfillmentListFilter, number>;
+  summary: FulfillmentSummary;
+  today: string;
+}> {
   requireStaff(access);
   const day = today();
   const rows = (
     await db()
       .prepare(
-        `SELECT f."ticketId", t.subject, t."requesterName", t.requirement, f.stage, f."expectedOn", f."delayReason", f."updatedAt"
+        `SELECT f."ticketId", t.subject, t."requesterName", t.requirement, f.stage, f."expectedOn", f."delayReason",
+                f."createdAt", f."deliveredAt", f."updatedAt"
            FROM "ticketFulfillment" f
            JOIN tickets t ON t.id = f."ticketId" AND t."ownerId" = f."ownerId"
           WHERE f."ownerId" = $1
@@ -275,20 +354,41 @@ export async function listFulfillments(
   ).results;
   const items = rows.map(row => ({ ...row, overdue: isOverdue(row, day) }));
   const matches = (item: FulfillmentListItem, value: FulfillmentListFilter) =>
-    value === 'active'
-      ? !isFinalStage(item.stage)
-      : value === 'overdue'
-        ? item.overdue
-        : value === 'closed'
-          ? isFinalStage(item.stage)
-          : item.stage === value;
+    value === 'all'
+      ? true
+      : value === 'active'
+        ? !isFinalStage(item.stage)
+        : value === 'overdue'
+          ? item.overdue
+          : value === 'closed'
+            ? isFinalStage(item.stage)
+            : item.stage === value;
   const counts = Object.fromEntries(
     FULFILLMENT_LIST_FILTERS.map(value => [value, items.filter(item => matches(item, value)).length]),
   ) as Record<FulfillmentListFilter, number>;
-  return { items: items.filter(item => matches(item, filter)), counts, today: day };
+  const delays = (
+    await db()
+      .prepare(`SELECT "afterValue" FROM "ticketEvents" WHERE "ownerId"=$1 AND action='fulfillment_delay'`)
+      .bind(access.ownerId)
+      .all<{ afterValue: string | null }>()
+  ).results.map(row => {
+    try {
+      const reason = (JSON.parse(row.afterValue ?? '{}') as { reason?: unknown }).reason;
+      return typeof reason === 'string' ? reason : 'other';
+    } catch {
+      return 'other';
+    }
+  });
+  return {
+    items: items.filter(item => matches(item, filter)),
+    counts,
+    summary: summarizeFulfillments(items, delays),
+    today: day,
+  };
 }
 
 export const DELAY_REASON_IDS = DELAY_REASONS.map(reason => reason.id);
+const isEquipmentKind = (value: unknown): value is string => EQUIPMENT_KINDS.some(kind => kind.id === value);
 
 /**
  * Inside the ticket-creation transaction (F6-B3): a requirement asked for on purpose starts its follow-up in
@@ -331,4 +431,122 @@ export async function listOwnFulfillments(access: AccessContext): Promise<{ item
       .all<Omit<OwnFulfillment, 'overdue'>>()
   ).results;
   return { items: rows.map(row => ({ ...row, overdue: isOverdue(row, day) })), today: day };
+}
+
+/**
+ * "Marcar entregado" (F6-B4), in one transaction:
+ * - when what was asked is equipment, its inventory ID is recorded and assigned to the requester (an existing free
+ *   one of their company is reused, one that is already theirs is kept) and linked to the ticket;
+ * - the follow-up moves to "Entregado";
+ * - the ticket is solved through the same path as "Marcar solucionado" (SLA outcome, satisfaction survey, events).
+ */
+export async function deliverFulfillment(
+  access: AccessContext,
+  ticketId: number,
+  input: { expectedVersion: number; assetTag?: string | null; kind?: string | null; serial?: string | null },
+) {
+  return inTicketTransaction(access, ticketId, async (tx, fresh, existing) => {
+    const row = checkVersion(existing, input.expectedVersion);
+    const ticket = (
+      await tx.query<{ requirement: string | null; requesterMemberId: string | null; status: string }>(
+        'SELECT requirement, "requesterMemberId", status FROM tickets WHERE id=$1 AND "ownerId"=$2 FOR UPDATE',
+        [ticketId, fresh.ownerId],
+      )
+    ).rows[0];
+    if (!ticket) throw new ApiError(404, 'El ticket no existe o no tienes acceso.');
+    const problem = deliveryProblem(row.stage, ticket.requirement, input.assetTag);
+    if (problem) throw new ApiError(400, problem);
+    const now = new Date().toISOString();
+    let asset: { id: string; assetTag: string } | null = null;
+    if (deliveryNeedsAsset(ticket.requirement)) {
+      if (!ticket.requesterMemberId)
+        throw new ApiError(400, 'Vincula primero la cuenta del cliente al ticket para asignarle el equipo.');
+      const requester = (
+        await tx.query<{ role: string; status: string; customerCompanyId: string | null }>(
+          'SELECT role, status, "customerCompanyId" FROM members WHERE id=$1 AND "ownerId"=$2',
+          [ticket.requesterMemberId, fresh.ownerId],
+        )
+      ).rows[0];
+      if (!requester || requester.role !== 'client' || requester.status === 'revoked')
+        throw new ApiError(400, 'El equipo se entrega a una cuenta de cliente con acceso.');
+      if (!requester.customerCompanyId)
+        throw new ApiError(400, 'El cliente no tiene empresa. Asígnale una para registrar su equipo.');
+      const tag = normalizeAssetTag(input.assetTag ?? '');
+      const mine = (
+        await tx.query<{ id: string }>(
+          `SELECT id FROM "customerAssets" WHERE "ownerId"=$1 AND "assetTag"=$2 AND "assignedContactMemberId"=$3
+             AND "companyId"=$4 AND archived=false`,
+          [fresh.ownerId, tag, ticket.requesterMemberId, requester.customerCompanyId],
+        )
+      ).rows[0];
+      asset = mine
+        ? { id: mine.id, assetTag: tag }
+        : await assignInviteEquipment(tx, {
+            ownerId: fresh.ownerId,
+            companyId: requester.customerCompanyId,
+            memberId: ticket.requesterMemberId,
+            actorMemberId: fresh.member.id,
+            equipment: {
+              assetTag: tag,
+              kind: (isEquipmentKind(input.kind) ? input.kind : 'other_device') as InviteEquipment['kind'],
+              ...(input.serial?.trim() ? { serial: input.serial.trim() } : {}),
+            },
+            now,
+          });
+      await tx.query(
+        `INSERT INTO "ticketAssetLinks" ("ticketId","assetId","ownerId","createdAt","createdBy") VALUES ($1,$2,$3,$4,$5)
+         ON CONFLICT DO NOTHING`,
+        [ticketId, asset.id, fresh.ownerId, now, fresh.member.id],
+      );
+    }
+    const updated = (
+      await tx.query<FulfillmentRow>(
+        `UPDATE "ticketFulfillment" SET stage='delivered', "deliveredAt"=$3, "deliveredBy"=$4, "assetId"=$5,
+                version=version+1, "updatedAt"=$3
+          WHERE "ticketId"=$1 AND "ownerId"=$2 RETURNING ${COLUMNS}`,
+        [ticketId, fresh.ownerId, now, fresh.member.id, asset?.id ?? null],
+      )
+    ).rows[0];
+    await recordEvent(
+      tx,
+      fresh,
+      ticketId,
+      'fulfillment',
+      { stage: row.stage },
+      { stage: 'delivered', assetTag: asset?.assetTag ?? null },
+    );
+    if (ticketStatusAfter('delivered') === 'resolved' && ticket.status === 'open')
+      await patchTicketInTransaction(tx, fresh, ticketId, { status: 'resolved' });
+    return { ...updated, overdue: false, assetTag: asset?.assetTag ?? null };
+  });
+}
+
+/** "Confirmar recepción": optional, once, by the person who asked, after delivery. */
+export async function confirmFulfillmentReceipt(access: AccessContext, ticketId: number) {
+  const ticket = await getTicket(access, ticketId);
+  if (ticket.requesterMemberId !== access.member.id)
+    throw new ApiError(403, 'Solo quien hizo el pedido puede confirmar que lo recibió.');
+  return db().transaction(async tx => {
+    await acquireTicketWorkLock(tx, access.ownerId);
+    const fresh = await lockAccess(tx, access);
+    const row = (
+      await tx.query<FulfillmentRow>(
+        `SELECT ${COLUMNS} FROM "ticketFulfillment" WHERE "ticketId"=$1 AND "ownerId"=$2 FOR UPDATE`,
+        [ticketId, fresh.ownerId],
+      )
+    ).rows[0];
+    if (!row) throw new ApiError(404, 'Este ticket no tiene seguimiento de requerimiento.');
+    const problem = receiptProblem(row);
+    if (problem) throw new ApiError(400, problem);
+    const now = new Date().toISOString();
+    const updated = (
+      await tx.query<FulfillmentRow>(
+        `UPDATE "ticketFulfillment" SET "receivedAt"=$3, version=version+1, "updatedAt"=$3
+          WHERE "ticketId"=$1 AND "ownerId"=$2 RETURNING ${COLUMNS}`,
+        [ticketId, fresh.ownerId, now],
+      )
+    ).rows[0];
+    await recordEvent(tx, fresh, ticketId, 'fulfillment_receipt', null, { receivedAt: now });
+    return { ...updated, overdue: false };
+  });
 }

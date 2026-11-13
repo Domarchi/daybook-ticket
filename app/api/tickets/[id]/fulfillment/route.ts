@@ -1,7 +1,11 @@
 import { z } from 'zod';
 import { requireAccess, requireStaff } from '@/lib/access';
+import { after } from 'next/server';
+import { drainAutomationBestEffort } from '@/lib/automation';
+import { drainOutboxBestEffort } from '@/lib/mail';
 import {
   changeFulfillmentStage,
+  deliverFulfillment,
   readFulfillment,
   reportFulfillmentDelay,
   setFulfillmentDate,
@@ -26,6 +30,15 @@ const changeSchema = z.discriminatedUnion('action', [
     })
     .strict(),
   z.object({ action: z.literal('date'), expectedVersion: version, expectedOn: date }).strict(),
+  z
+    .object({
+      action: z.literal('deliver'),
+      expectedVersion: version,
+      assetTag: z.string().max(200).nullable().optional(),
+      kind: z.string().max(40).nullable().optional(),
+      serial: z.string().max(120).nullable().optional(),
+    })
+    .strict(),
 ]);
 
 /** The follow-up of a requirement and its history, for anyone who can open the ticket. */
@@ -54,6 +67,14 @@ export async function PATCH(request: Request, context: Context) {
     const body = await parseBody(request, changeSchema);
     if (body.action === 'stage') return json(await changeFulfillmentStage(access, ticketId, body));
     if (body.action === 'delay') return json(await reportFulfillmentDelay(access, ticketId, body));
+    if (body.action === 'deliver') {
+      const result = await deliverFulfillment(access, ticketId, body);
+      // Solving the ticket may queue mail and automation, exactly as "Marcar solucionado" does.
+      after(async () => {
+        await Promise.allSettled([drainOutboxBestEffort(access.ownerId), drainAutomationBestEffort(access.ownerId)]);
+      });
+      return json(result);
+    }
     return json(await setFulfillmentDate(access, ticketId, body));
   });
 }

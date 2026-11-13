@@ -6,15 +6,20 @@ import {
   DELAY_REASONS,
   STAGE_LABELS,
   delayReasonLabel,
+  isFinalStage,
   stageChangeProblem,
   stageOptions,
   trackingSteps,
   type FulfillmentStage,
 } from '../lib/fulfillment-model';
 import { describeFulfillmentEvent, formatDay } from '../lib/fulfillment-display';
+import { EQUIPMENT_KINDS } from '../lib/client-equipment-model';
 import type { FulfillmentView } from '../lib/fulfillment';
 import type { DeskRun } from './desk-parts/shared';
 import './fulfillment-panel.css';
+
+const when = (value: string) =>
+  new Intl.DateTimeFormat('es-CL', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 
 async function call<T>(memberId: string, path: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await daybookFetch(path, {
@@ -175,7 +180,82 @@ export function FulfillmentPanel({
             <dd>{current.cancelReason}</dd>
           </div>
         )}
+        {current.stage === 'delivered' && current.deliveredAt && (
+          <div>
+            <dt>Entregado</dt>
+            <dd>
+              {when(current.deliveredAt)}
+              {view.deliveredAssetTag ? ` · equipo ${view.deliveredAssetTag}` : ''}
+            </dd>
+          </div>
+        )}
+        {current.stage === 'delivered' && (
+          <div>
+            <dt>Recepción</dt>
+            <dd>{current.receivedAt ? `Confirmada el ${when(current.receivedAt)}` : 'Sin confirmar (es opcional)'}</dd>
+          </div>
+        )}
       </dl>
+      {!isFinalStage(current.stage) && (
+        <form
+          className="fulfillment-inline fulfillment-deliver"
+          onSubmit={(event: FormEvent<HTMLFormElement>) => {
+            event.preventDefault();
+            const values = new FormData(event.currentTarget);
+            const equipment =
+              view.requirement === 'equipment'
+                ? {
+                    assetTag: String(values.get('assetTag') ?? ''),
+                    kind: String(values.get('kind') ?? 'computer'),
+                    serial: String(values.get('serial') ?? '').trim() || null,
+                  }
+                : {};
+            void act(
+              () =>
+                call(memberId, path, 'PATCH', { action: 'deliver', expectedVersion: current.version, ...equipment }),
+              'Requerimiento entregado y ticket solucionado',
+            );
+          }}
+        >
+          {view.requirement === 'equipment' && (
+            <>
+              <label>
+                ID del equipo entregado
+                <input
+                  name="assetTag"
+                  required
+                  maxLength={64}
+                  placeholder="Ej.: NB-0042"
+                  autoComplete="off"
+                  disabled={busy}
+                />
+              </label>
+              <label>
+                Tipo de equipo
+                <select name="kind" defaultValue="computer" disabled={busy}>
+                  {EQUIPMENT_KINDS.map(kind => (
+                    <option key={kind.id} value={kind.id}>
+                      {kind.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                N° de serie (opcional)
+                <input name="serial" maxLength={120} autoComplete="off" disabled={busy} />
+              </label>
+            </>
+          )}
+          <p className="fulfillment-help fulfillment-wide">
+            {view.requirement === 'equipment'
+              ? 'El equipo queda registrado y asignado a quien lo pidió, y el ticket pasa a Solucionado.'
+              : 'El ticket pasa a Solucionado y el cliente recibe la encuesta, como al marcarlo solucionado.'}
+          </p>
+          <button className="primary" disabled={busy}>
+            Marcar entregado
+          </button>
+        </form>
+      )}
 
       {options.length > 0 && (
         <>

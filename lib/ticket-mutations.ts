@@ -202,168 +202,178 @@ export async function publicReplyRecipients(
   ]);
 }
 export async function patchTicket(access: AccessContext, id: number, data: Record<string, unknown>, claim = false) {
-  return db().transaction(async tx => {
-    await acquireTicketWorkLock(tx, access.ownerId);
-    const fresh = await lockAccess(tx, access);
-    const settings = await getSettingsInTransaction(tx, access.ownerId);
-    if (fresh.role === 'client') throw new ApiError(403, 'Esta acción está disponible solo para el equipo.');
-    const old = await lockTicket(tx, fresh, id);
-    const assigning = claim || 'assigneeMemberId' in data || 'assignee' in data;
-    if (assigning && data.expectedVersion !== old.version)
-      throw new ApiError(409, 'El ticket cambió. Revisa su responsable antes de continuar.');
-    if (claim && old.assigneeMemberId) throw new ApiError(409, `El ticket ya está asignado a ${old.assignee}.`);
-    const changes: Record<string, unknown> = {};
-    if (data.isTest !== undefined) {
-      if (!['owner', 'admin'].includes(fresh.role))
-        throw new ApiError(403, 'Solo los administradores pueden marcar pruebas.');
-      if (data.expectedVersion !== old.version)
-        throw new ApiError(409, 'El ticket cambió. Actualiza antes de marcarlo.');
-      if (typeof data.isTest !== 'boolean') throw new ApiError(400, 'La marca de prueba no es válida.');
-      if (data.isTest !== Boolean(old.isTest)) changes.isTest = data.isTest;
+  return db().transaction(tx => patchTicketInTransaction(tx, access, id, data, claim));
+}
+/**
+ * The body of `patchTicket`, for callers that must change a ticket inside their own transaction (delivering a
+ * requirement solves its ticket atomically, F6-B4). The locks it takes are re-entrant within one transaction.
+ */
+export async function patchTicketInTransaction(
+  tx: PoolClient,
+  access: AccessContext,
+  id: number,
+  data: Record<string, unknown>,
+  claim = false,
+): Promise<{ ticket: Ticket }> {
+  await acquireTicketWorkLock(tx, access.ownerId);
+  const fresh = await lockAccess(tx, access);
+  const settings = await getSettingsInTransaction(tx, access.ownerId);
+  if (fresh.role === 'client') throw new ApiError(403, 'Esta acción está disponible solo para el equipo.');
+  const old = await lockTicket(tx, fresh, id);
+  const assigning = claim || 'assigneeMemberId' in data || 'assignee' in data;
+  if (assigning && data.expectedVersion !== old.version)
+    throw new ApiError(409, 'El ticket cambió. Revisa su responsable antes de continuar.');
+  if (claim && old.assigneeMemberId) throw new ApiError(409, `El ticket ya está asignado a ${old.assignee}.`);
+  const changes: Record<string, unknown> = {};
+  if (data.isTest !== undefined) {
+    if (!['owner', 'admin'].includes(fresh.role))
+      throw new ApiError(403, 'Solo los administradores pueden marcar pruebas.');
+    if (data.expectedVersion !== old.version) throw new ApiError(409, 'El ticket cambió. Actualiza antes de marcarlo.');
+    if (typeof data.isTest !== 'boolean') throw new ApiError(400, 'La marca de prueba no es válida.');
+    if (data.isTest !== Boolean(old.isTest)) changes.isTest = data.isTest;
+  }
+  for (const key of ['subject', 'department', 'priority', 'status'])
+    if (data[key] !== undefined && data[key] !== old[key as keyof Ticket]) changes[key] = data[key];
+  if (changes.status) {
+    const problem = statusChangeProblem(old.status, String(changes.status));
+    if (problem) throw new ApiError(409, problem);
+  }
+  let categoryEvent: [string, string] | null = null;
+  if (data.category !== undefined) {
+    if (data.expectedVersion !== old.version)
+      throw new ApiError(409, 'El ticket cambió. Actualiza antes de corregir la clasificación.');
+    const category = validateCategoryCorrection(data.category as Parameters<typeof validateCategoryCorrection>[0]);
+    if (!category) throw new ApiError(400, 'Selecciona una clasificación válida.');
+    const same =
+      old.categorySource === 'manual' &&
+      (old.faultGroup ?? null) === category.faultGroup &&
+      (old.faultElement ?? null) === category.faultElement &&
+      (old.requirement ?? null) === category.requirement;
+    // Confirming the suggestion as it is also counts: it becomes a person's choice the classifier will not touch.
+    if (!same) {
+      Object.assign(changes, { ...category, categorySource: 'manual', categoryConfidence: null });
+      const describe = (row: {
+        faultGroup?: string | null;
+        faultElement?: string | null;
+        requirement?: string | null;
+      }) =>
+        `${faultLabel(storedCategory({ ...row, categorySource: 'manual' })?.fault ?? null)} / ${requirementLabel(
+          storedCategory({ ...row, categorySource: 'manual' })?.requirement ?? null,
+        )}`;
+      categoryEvent = [old.categorySource ? describe(old) : 'Sin clasificar', describe(category)];
     }
-    for (const key of ['subject', 'department', 'priority', 'status'])
-      if (data[key] !== undefined && data[key] !== old[key as keyof Ticket]) changes[key] = data[key];
-    if (changes.status) {
-      const problem = statusChangeProblem(old.status, String(changes.status));
-      if (problem) throw new ApiError(409, problem);
+  }
+  if (data.department !== undefined && !settings.departments.includes(String(data.department)))
+    throw new ApiError(400, 'Selecciona un departamento válido.');
+  if (assigning) {
+    const targetId = claim ? fresh.member.id : data.assigneeMemberId;
+    if (!claim && data.assignee !== undefined && data.assigneeMemberId === undefined)
+      throw new ApiError(400, 'Selecciona una cuenta por su identificador.');
+    const { rows } = targetId
+      ? await tx.query(
+          "SELECT id,name FROM members WHERE id=$1 AND \"ownerId\"=$2 AND status='active' AND role IN ('owner','admin','agent')",
+          [targetId, access.ownerId],
+        )
+      : { rows: [] };
+    if (targetId && !rows[0]) throw new ApiError(400, 'Selecciona un agente activo.');
+    if ((targetId || null) !== old.assigneeMemberId) {
+      changes.assigneeMemberId = targetId || null;
+      changes.assignee = rows[0]?.name || '';
     }
-    let categoryEvent: [string, string] | null = null;
-    if (data.category !== undefined) {
-      if (data.expectedVersion !== old.version)
-        throw new ApiError(409, 'El ticket cambió. Actualiza antes de corregir la clasificación.');
-      const category = validateCategoryCorrection(data.category as Parameters<typeof validateCategoryCorrection>[0]);
-      if (!category) throw new ApiError(400, 'Selecciona una clasificación válida.');
-      const same =
-        old.categorySource === 'manual' &&
-        (old.faultGroup ?? null) === category.faultGroup &&
-        (old.faultElement ?? null) === category.faultElement &&
-        (old.requirement ?? null) === category.requirement;
-      // Confirming the suggestion as it is also counts: it becomes a person's choice the classifier will not touch.
-      if (!same) {
-        Object.assign(changes, { ...category, categorySource: 'manual', categoryConfidence: null });
-        const describe = (row: {
-          faultGroup?: string | null;
-          faultElement?: string | null;
-          requirement?: string | null;
-        }) =>
-          `${faultLabel(storedCategory({ ...row, categorySource: 'manual' })?.fault ?? null)} / ${requirementLabel(
-            storedCategory({ ...row, categorySource: 'manual' })?.requirement ?? null,
-          )}`;
-        categoryEvent = [old.categorySource ? describe(old) : 'Sin clasificar', describe(category)];
-      }
-    }
-    if (data.department !== undefined && !settings.departments.includes(String(data.department)))
-      throw new ApiError(400, 'Selecciona un departamento válido.');
-    if (assigning) {
-      const targetId = claim ? fresh.member.id : data.assigneeMemberId;
-      if (!claim && data.assignee !== undefined && data.assigneeMemberId === undefined)
-        throw new ApiError(400, 'Selecciona una cuenta por su identificador.');
-      const { rows } = targetId
-        ? await tx.query(
-            "SELECT id,name FROM members WHERE id=$1 AND \"ownerId\"=$2 AND status='active' AND role IN ('owner','admin','agent')",
-            [targetId, access.ownerId],
-          )
-        : { rows: [] };
-      if (targetId && !rows[0]) throw new ApiError(400, 'Selecciona un agente activo.');
-      if ((targetId || null) !== old.assigneeMemberId) {
-        changes.assigneeMemberId = targetId || null;
-        changes.assignee = rows[0]?.name || '';
-      }
-    }
-    if (data.requesterMemberId !== undefined && data.requesterMemberId !== old.requesterMemberId) {
-      if (data.requesterMemberId) {
-        const { rows } = await tx.query(
-          "SELECT id,name,email FROM members WHERE id=$1 AND \"ownerId\"=$2 AND role='client' AND status<>'revoked'",
-          [data.requesterMemberId, access.ownerId],
-        );
-        if (!rows[0]) throw new ApiError(400, 'Selecciona una cuenta de cliente habilitada.');
-        Object.assign(changes, {
-          requesterMemberId: rows[0].id,
-          requesterName: rows[0].name,
-          requesterEmail: rows[0].email,
-        });
-      } else changes.requesterMemberId = null;
-    }
-    if (data.customerCompanyId !== undefined && data.customerCompanyId !== old.customerCompanyId) {
-      if (!['owner', 'admin'].includes(fresh.role))
-        throw new ApiError(403, 'Solo los administradores pueden cambiar la empresa.');
-      if (data.customerCompanyId) {
-        const { rows } = await tx.query('SELECT id FROM "customerCompanies" WHERE id=$1 AND "ownerId"=$2 FOR SHARE', [
-          data.customerCompanyId,
-          access.ownerId,
-        ]);
-        if (!rows[0]) throw new ApiError(400, 'Selecciona una empresa válida.');
-      }
-      changes.customerCompanyId = data.customerCompanyId || null;
-    }
-    if (!Object.keys(changes).length) return { ticket: old };
-    const now = new Date().toISOString();
-    if (changes.priority) {
-      const snapshot = storedTicketPolicy(old);
-      changes.dueAt = snapshot
-        ? resolutionDeadline(old.slaStartedAt || old.createdAt, changes.priority as Ticket['priority'], snapshot)
-        : new Date(
-            Date.parse(old.createdAt) + settings.slaHours[changes.priority as keyof typeof settings.slaHours] * 3600000,
-          ).toISOString();
-    }
-    if (changes.status === 'open' && isFinished(old.status)) {
-      const snapshot = await getEffectiveServicePolicy(
-        tx,
-        access.ownerId,
-        (changes.customerCompanyId === undefined ? old.customerCompanyId : changes.customerCompanyId) as string | null,
-        settings.slaHours,
+  }
+  if (data.requesterMemberId !== undefined && data.requesterMemberId !== old.requesterMemberId) {
+    if (data.requesterMemberId) {
+      const { rows } = await tx.query(
+        "SELECT id,name,email FROM members WHERE id=$1 AND \"ownerId\"=$2 AND role='client' AND status<>'revoked'",
+        [data.requesterMemberId, access.ownerId],
       );
-      changes.slaPolicySnapshot = JSON.stringify(snapshot);
-      changes.slaStartedAt = now;
-      changes.dueAt = resolutionDeadline(now, (changes.priority || old.priority) as Ticket['priority'], snapshot);
-    }
-    const resolutionKey =
-      changes.status === 'resolved'
-        ? await recordSlaOutcome(tx, {
-            ownerId: access.ownerId,
-            ticketId: id,
-            actorMemberId: fresh.member.id,
-            startedAt: old.slaStartedAt || null,
-            dueAt: String(changes.dueAt || old.dueAt),
-            resolvedAt: now,
-            customerCompanyId: (changes.customerCompanyId === undefined
-              ? old.customerCompanyId
-              : changes.customerCompanyId) as string | null,
-            policySnapshot: old.slaPolicySnapshot || null,
-          })
-        : null;
-    changes.updatedAt = now;
-    changes.version = old.version + 1;
-    const keys = Object.keys(changes);
-    const { rows } = await tx.query(
-      `UPDATE tickets SET ${keys.map((key, i) => `"${key}"=$${i + 1}`).join(',')} WHERE id=$${keys.length + 1} AND "ownerId"=$${keys.length + 2} RETURNING *`,
-      [...Object.values(changes), id, access.ownerId],
-    );
-    if (resolutionKey)
-      await createSatisfactionForResolution(tx, db(), {
-        ownerId: access.ownerId,
-        ticketId: id,
-        resolutionKey,
-        resolvedAt: now,
-        requesterMemberId: rows[0].requesterMemberId,
-        resolverMemberId: fresh.member.id,
-        customerCompanyId: rows[0].customerCompanyId,
+      if (!rows[0]) throw new ApiError(400, 'Selecciona una cuenta de cliente habilitada.');
+      Object.assign(changes, {
+        requesterMemberId: rows[0].id,
+        requesterName: rows[0].name,
+        requesterEmail: rows[0].email,
       });
-    for (const key of [
-      'isTest',
-      'subject',
-      'status',
-      'priority',
-      'assigneeMemberId',
-      'customerCompanyId',
-      'requesterMemberId',
-      'department',
-    ])
-      if (key in changes) await recordEvent(tx, fresh, id, key, old[key as keyof Ticket], changes[key]);
-    if (categoryEvent) await recordEvent(tx, fresh, id, 'category', categoryEvent[0], categoryEvent[1]);
-    await enqueueAutomationEvent(tx, fresh, id, `ticket:${id}:version:${rows[0].version}`, 'ticket_updated');
-    return { ticket: rows[0] as Ticket };
-  });
+    } else changes.requesterMemberId = null;
+  }
+  if (data.customerCompanyId !== undefined && data.customerCompanyId !== old.customerCompanyId) {
+    if (!['owner', 'admin'].includes(fresh.role))
+      throw new ApiError(403, 'Solo los administradores pueden cambiar la empresa.');
+    if (data.customerCompanyId) {
+      const { rows } = await tx.query('SELECT id FROM "customerCompanies" WHERE id=$1 AND "ownerId"=$2 FOR SHARE', [
+        data.customerCompanyId,
+        access.ownerId,
+      ]);
+      if (!rows[0]) throw new ApiError(400, 'Selecciona una empresa válida.');
+    }
+    changes.customerCompanyId = data.customerCompanyId || null;
+  }
+  if (!Object.keys(changes).length) return { ticket: old };
+  const now = new Date().toISOString();
+  if (changes.priority) {
+    const snapshot = storedTicketPolicy(old);
+    changes.dueAt = snapshot
+      ? resolutionDeadline(old.slaStartedAt || old.createdAt, changes.priority as Ticket['priority'], snapshot)
+      : new Date(
+          Date.parse(old.createdAt) + settings.slaHours[changes.priority as keyof typeof settings.slaHours] * 3600000,
+        ).toISOString();
+  }
+  if (changes.status === 'open' && isFinished(old.status)) {
+    const snapshot = await getEffectiveServicePolicy(
+      tx,
+      access.ownerId,
+      (changes.customerCompanyId === undefined ? old.customerCompanyId : changes.customerCompanyId) as string | null,
+      settings.slaHours,
+    );
+    changes.slaPolicySnapshot = JSON.stringify(snapshot);
+    changes.slaStartedAt = now;
+    changes.dueAt = resolutionDeadline(now, (changes.priority || old.priority) as Ticket['priority'], snapshot);
+  }
+  const resolutionKey =
+    changes.status === 'resolved'
+      ? await recordSlaOutcome(tx, {
+          ownerId: access.ownerId,
+          ticketId: id,
+          actorMemberId: fresh.member.id,
+          startedAt: old.slaStartedAt || null,
+          dueAt: String(changes.dueAt || old.dueAt),
+          resolvedAt: now,
+          customerCompanyId: (changes.customerCompanyId === undefined
+            ? old.customerCompanyId
+            : changes.customerCompanyId) as string | null,
+          policySnapshot: old.slaPolicySnapshot || null,
+        })
+      : null;
+  changes.updatedAt = now;
+  changes.version = old.version + 1;
+  const keys = Object.keys(changes);
+  const { rows } = await tx.query(
+    `UPDATE tickets SET ${keys.map((key, i) => `"${key}"=$${i + 1}`).join(',')} WHERE id=$${keys.length + 1} AND "ownerId"=$${keys.length + 2} RETURNING *`,
+    [...Object.values(changes), id, access.ownerId],
+  );
+  if (resolutionKey)
+    await createSatisfactionForResolution(tx, db(), {
+      ownerId: access.ownerId,
+      ticketId: id,
+      resolutionKey,
+      resolvedAt: now,
+      requesterMemberId: rows[0].requesterMemberId,
+      resolverMemberId: fresh.member.id,
+      customerCompanyId: rows[0].customerCompanyId,
+    });
+  for (const key of [
+    'isTest',
+    'subject',
+    'status',
+    'priority',
+    'assigneeMemberId',
+    'customerCompanyId',
+    'requesterMemberId',
+    'department',
+  ])
+    if (key in changes) await recordEvent(tx, fresh, id, key, old[key as keyof Ticket], changes[key]);
+  if (categoryEvent) await recordEvent(tx, fresh, id, 'category', categoryEvent[0], categoryEvent[1]);
+  await enqueueAutomationEvent(tx, fresh, id, `ticket:${id}:version:${rows[0].version}`, 'ticket_updated');
+  return { ticket: rows[0] as Ticket };
 }
 export async function ticketEvents(tx: PoolClient, ownerId: string, id: number): Promise<TicketEvent[]> {
   return (
