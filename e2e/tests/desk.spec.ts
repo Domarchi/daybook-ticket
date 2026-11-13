@@ -90,6 +90,23 @@ test.describe('the support desk', () => {
     await expect(page.getByRole('combobox', { name: 'Prioridad', exact: true })).toHaveValue('normal');
   });
 
+  test('on a tablet the inbox shows cards and never pushes the page sideways', async ({ page }) => {
+    // The ticket table needs about 800 px; next to the rail it only fits from 1024 px up.
+    for (const width of [768, 900, 1023]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/');
+      await expect(page.getByText(SUBJECT).first()).toBeVisible();
+      await expect(page.locator('.ticket-table')).toHaveCount(0);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, `${width}px: horizontal overflow`).toBe(0);
+    }
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto('/');
+    await expect(page.locator('.ticket-table')).toBeVisible();
+  });
+
   test('search finds the ticket by its subject', async ({ page }) => {
     await page.goto('/');
     await page.getByPlaceholder('Buscar en tickets y conversaciones…').fill('factura de octubre');

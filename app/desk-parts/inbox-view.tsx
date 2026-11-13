@@ -94,7 +94,10 @@ export function InboxView({
   openTicket: (ticket: Ticket) => void;
   go: (view: View) => void;
 }) {
-  const narrow = useMediaQuery('(max-width: 750px)');
+  // The ticket table needs about 800 px. Next to the rail (232 px, or 214 px on
+  // tablets) that only fits from 1024 px up; narrower windows get the same cards
+  // the phone uses, instead of pushing the whole page sideways.
+  const narrow = useMediaQuery('(max-width: 1023px)');
   return (
     <>
       <div className="page-heading">
