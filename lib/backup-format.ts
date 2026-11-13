@@ -131,9 +131,14 @@ export const PRE_FULFILLMENT_BACKUP_TABLES: readonly BackupTableName[] = [
   ...KNOWLEDGE_SECURITY_BACKUP_TABLES,
   'workspaceProfiles',
 ];
+/**
+ * workspaceProfiles stays last: it carries the quota limits, which are restored only after every existing row
+ * (the recovery drill checks this order).
+ */
 export const BACKUP_TABLES: readonly BackupTableName[] = [
-  ...PRE_FULFILLMENT_BACKUP_TABLES,
+  ...KNOWLEDGE_SECURITY_BACKUP_TABLES,
   ...FULFILLMENT_BACKUP_TABLES,
+  'workspaceProfiles',
 ];
 export const BACKUP_TABLE_PROFILES: readonly (readonly string[])[] = [
   LEGACY_BACKUP_TABLES,

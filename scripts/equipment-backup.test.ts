@@ -18,6 +18,7 @@ test('a backup taken before migration 0016 still restores into customerAssets wi
 test('ticketFulfillment is backed up and restored after tickets, members and equipment (F6-B2)', () => {
   const tables = BACKUP_TABLES as readonly string[];
   assert.ok(tables.includes('ticketFulfillment'));
+  assert.equal(tables.at(-1), 'workspaceProfiles', 'quota limits are restored after every existing row');
   for (const before of ['tickets', 'members', 'customerAssets'])
     assert.ok(tables.indexOf(before) < tables.indexOf('ticketFulfillment'), `${before} is restored first`);
   // Backups taken before this change have one table less and must still be accepted.
