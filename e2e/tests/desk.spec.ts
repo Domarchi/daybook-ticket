@@ -413,6 +413,52 @@ test.describe('the support desk', () => {
     await expect(panel.getByRole('button', { name: 'Seguir como requerimiento' })).toHaveCount(0);
   });
 
+  test('equipment shows its history and tickets, and is given up and reactivated', async ({ page }) => {
+    await page.goto('/?view=equipment');
+    await expect(page.getByRole('heading', { name: 'Equipos', level: 1 })).toBeVisible();
+    const rows = page.locator('.equipment-row');
+    const notebook = rows.filter({ hasText: 'NB-0042' });
+    const monitor = rows.filter({ hasText: 'MON-7' });
+
+    // Rosa's notebook: registered with her invitation and named by two tickets.
+    await notebook.getByRole('button', { name: 'Ver historial de NB-0042' }).click();
+    const notebookHistory = page.getByRole('region', { name: 'Historial de NB-0042' });
+    await expect(notebookHistory).toContainText('Registrado y asignado a Rosa Pérez');
+    await expect(notebookHistory.getByRole('link', { name: /El notebook no enciende/ })).toBeVisible();
+    await expect(notebookHistory.getByRole('link', { name: /Cambio de batería del notebook/ })).toBeVisible();
+
+    // The monitor went to Rosa and back; the history says so, newest first.
+    await monitor.getByRole('button', { name: 'Ver historial de MON-7' }).click();
+    const monitorHistory = page.getByRole('region', { name: 'Historial de MON-7' });
+    await expect(monitorHistory.locator('ol li')).toHaveText([
+      /Liberado \(estaba con Rosa Pérez\)/,
+      /Asignado a Rosa Pérez/,
+      /Registrado sin asignar/,
+    ]);
+    await expect(monitorHistory).toContainText('Ningún ticket lo menciona todavía.');
+
+    await monitor.getByRole('button', { name: 'Dar de baja MON-7' }).click();
+    await expect(monitor.getByRole('group', { name: 'Confirmar baja de MON-7' })).toBeVisible();
+    await expectNoSeriousViolations(page, 'Equipos con historial y baja');
+    await monitor.getByRole('button', { name: 'Confirmar baja de MON-7' }).click();
+    await expect(page.getByText('Equipo MON-7 dado de baja')).toBeVisible();
+    await expect(monitor).toHaveCount(0);
+
+    // Given-up equipment has its own list, from where it comes back unassigned.
+    await page.getByRole('button', { name: 'Dados de baja', exact: true }).click();
+    await expect(monitor).toContainText('Dado de baja');
+    await expect(notebook).toHaveCount(0);
+    await monitor.getByRole('button', { name: 'Ver historial de MON-7' }).click();
+    await expect(page.getByRole('region', { name: 'Historial de MON-7' }).locator('ol li').first()).toContainText(
+      'Dado de baja',
+    );
+    await monitor.getByRole('button', { name: 'Reactivar MON-7' }).click();
+    await expect(page.getByText('Equipo MON-7 reactivado')).toBeVisible();
+    await expect(page.getByText('No hay equipos dados de baja.')).toBeVisible();
+    await page.getByRole('button', { name: 'Sin asignar', exact: true }).click();
+    await expect(monitor).toBeVisible();
+  });
+
   test('a requirement is followed stage by stage, with a committed date and a reported delay', async ({ page }) => {
     const day = (offset: number) => {
       const [year, month, date] = todayIn('America/Santiago', new Date()).split('-').map(Number);

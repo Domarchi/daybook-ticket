@@ -6,18 +6,23 @@ import {
   EQUIPMENT_KINDS,
   type EquipmentClient,
   type EquipmentFilter,
+  type EquipmentHistory,
   type EquipmentInventory,
   type EquipmentItem,
 } from '../lib/client-equipment-model';
 import type { CustomerCompany } from '../lib/types';
-import type { DeskRun } from './desk-parts/shared';
+import { currentWorkspaceId } from '../lib/workspace-client';
+import { workspaceHome } from '../lib/workspace-model';
+import { fmtDate, Status, type DeskRun } from './desk-parts/shared';
 import './equipment-panel.css';
 
 const FILTER_LABELS: Record<EquipmentFilter, string> = {
   all: 'Todos',
   unassigned: 'Sin asignar',
   assigned: 'Asignados',
+  archived: 'Dados de baja',
 };
+const ticketNumber = (id: number) => `#${String(id).padStart(4, '0')}`;
 
 async function request<T>(memberId: string, path: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await daybookFetch(path, {
@@ -160,9 +165,11 @@ export function EquipmentPanel({
         {!data && state.loading && <p className="panel-help">Cargando equipos…</p>}
         {data && !data.equipment.length && (
           <p className="panel-help">
-            {query || filter !== 'all'
-              ? 'Ningún equipo coincide con la búsqueda.'
-              : 'Aún no hay equipos. Se registran al invitar a un cliente o con «Registrar equipo».'}
+            {filter === 'archived' && !query
+              ? 'No hay equipos dados de baja.'
+              : query || filter !== 'all'
+                ? 'Ningún equipo coincide con la búsqueda.'
+                : 'Aún no hay equipos. Se registran al invitar a un cliente o con «Registrar equipo».'}
           </p>
         )}
         {data && data.equipment.length > 0 && (
@@ -170,9 +177,20 @@ export function EquipmentPanel({
             {data.equipment.map(item => (
               <EquipmentRow
                 key={`${item.id}:${item.version}`}
+                memberId={memberId}
                 item={item}
                 clients={clientsByCompany.get(item.companyId) ?? []}
                 busy={busy}
+                onArchive={archived =>
+                  refreshAfter(
+                    () =>
+                      request(memberId, `/api/equipment/${item.id}`, 'PATCH', {
+                        expectedVersion: item.version,
+                        archived,
+                      }),
+                    `Equipo ${item.assetTag ?? item.name} ${archived ? 'dado de baja' : 'reactivado'}`,
+                  )
+                }
                 onAssign={assignedMemberId =>
                   refreshAfter(
                     () =>
@@ -233,51 +251,184 @@ export function EquipmentPanel({
 }
 
 function EquipmentRow({
+  memberId,
   item,
   clients,
   busy,
   onAssign,
+  onArchive,
 }: {
+  memberId: string;
   item: EquipmentItem;
   clients: EquipmentClient[];
   busy: boolean;
   onAssign: (assignedMemberId: string | null) => Promise<boolean>;
+  onArchive: (archived: boolean) => Promise<boolean>;
 }) {
   const [choice, setChoice] = useState(item.assignedMemberId ?? '');
+  const [confirming, setConfirming] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const changed = choice !== (item.assignedMemberId ?? '');
   const label = item.assetTag ?? item.name;
+  const historyId = `equipment-history-${item.id}`;
   return (
-    <li className="equipment-row">
-      <div className="equipment-identity">
-        <strong>{item.assetTag ?? 'Sin ID'}</strong>
-        <span>
-          {item.category}
-          {item.serial ? ` · Serie ${item.serial}` : ''} · {item.companyName}
-        </span>
+    <li className={`equipment-row${item.archived ? ' is-archived' : ''}`}>
+      <div className="equipment-row-main">
+        <div className="equipment-identity">
+          <strong>{item.assetTag ?? 'Sin ID'}</strong>
+          <span>
+            {item.category}
+            {item.serial ? ` · Serie ${item.serial}` : ''} · {item.companyName}
+            {item.archived ? ' · Dado de baja' : ''}
+          </span>
+        </div>
+        {item.archived ? (
+          <div className="equipment-assign">
+            <button type="button" className="secondary" disabled={busy} onClick={() => void onArchive(false)}>
+              Reactivar<span className="sr-only"> {label}</span>
+            </button>
+          </div>
+        ) : (
+          <form
+            className="equipment-assign"
+            onSubmit={(event: FormEvent) => {
+              event.preventDefault();
+              if (changed) void onAssign(choice || null);
+            }}
+          >
+            <label>
+              <span className="sr-only">Asignado a {label}</span>
+              <select value={choice} onChange={event => setChoice(event.target.value)} disabled={busy}>
+                <option value="">Sin asignar</option>
+                {clients.map(client => (
+                  <option key={client.id} value={client.id}>
+                    {client.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="secondary" disabled={busy || !changed}>
+              Guardar<span className="sr-only"> asignación de {label}</span>
+            </button>
+          </form>
+        )}
       </div>
-      <form
-        className="equipment-assign"
-        onSubmit={(event: FormEvent) => {
-          event.preventDefault();
-          if (changed) void onAssign(choice || null);
-        }}
-      >
-        <label>
-          <span className="sr-only">Asignado a {label}</span>
-          <select value={choice} onChange={event => setChoice(event.target.value)} disabled={busy}>
-            <option value="">Sin asignar</option>
-            {clients.map(client => (
-              <option key={client.id} value={client.id}>
-                {client.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button className="secondary" disabled={busy || !changed}>
-          Guardar<span className="sr-only"> asignación de {label}</span>
+      <div className="equipment-row-tools">
+        <button
+          type="button"
+          className="text-button"
+          aria-expanded={historyOpen}
+          aria-controls={historyOpen ? historyId : undefined}
+          onClick={() => setHistoryOpen(value => !value)}
+        >
+          {historyOpen ? 'Ocultar historial' : 'Ver historial'}
+          <span className="sr-only"> de {label}</span>
         </button>
-      </form>
+        {!item.archived && !confirming && (
+          <button type="button" className="text-button" disabled={busy} onClick={() => setConfirming(true)}>
+            Dar de baja<span className="sr-only"> {label}</span>
+          </button>
+        )}
+      </div>
+      {confirming && (
+        <div className="equipment-confirm" role="group" aria-label={`Confirmar baja de ${label}`}>
+          <p>
+            {label} saldrá del inventario activo
+            {item.assignedName ? ` y dejará de estar asignado a ${item.assignedName}` : ''}. Los tickets que ya lo
+            mencionan lo conservan y puedes reactivarlo desde «Dados de baja».
+          </p>
+          <div>
+            <button type="button" className="secondary" disabled={busy} onClick={() => setConfirming(false)}>
+              Cancelar
+            </button>
+            <button type="button" className="primary" disabled={busy} onClick={() => void onArchive(true)}>
+              Confirmar baja<span className="sr-only"> de {label}</span>
+            </button>
+          </div>
+        </div>
+      )}
+      {historyOpen && <EquipmentHistoryView id={historyId} memberId={memberId} assetId={item.id} label={label} />}
     </li>
+  );
+}
+
+/** What happened to one piece of equipment and the tickets that named it (F6-A3). */
+function EquipmentHistoryView({
+  id,
+  memberId,
+  assetId,
+  label,
+}: {
+  id: string;
+  memberId: string;
+  assetId: string;
+  label: string;
+}) {
+  const [state, setState] = useState<{ data: EquipmentHistory | null; error: string }>({ data: null, error: '' });
+  useEffect(() => {
+    let cancelled = false;
+    request<EquipmentHistory>(memberId, `/api/equipment/${assetId}`)
+      .then(data => {
+        if (!cancelled) setState({ data, error: '' });
+      })
+      .catch((error: Error) => {
+        if (!cancelled) setState({ data: null, error: error.message });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [memberId, assetId]);
+  const { data, error } = state;
+  return (
+    <div
+      id={id}
+      className="equipment-history"
+      aria-label={`Historial de ${label}`}
+      role="region"
+      aria-busy={!data && !error}
+    >
+      {error && (
+        <p className="equipment-error" role="alert">
+          {error}
+        </p>
+      )}
+      {!data && !error && <p className="panel-help">Cargando historial…</p>}
+      {data && (
+        <>
+          <h3>Cambios</h3>
+          {data.entries.length ? (
+            <ol>
+              {data.entries.map((entry, index) => (
+                <li key={`${entry.at}:${index}`}>
+                  <time dateTime={entry.at}>{fmtDate(entry.at)}</time>
+                  <span>
+                    {entry.text}
+                    {entry.actorName ? <small> · por {entry.actorName}</small> : null}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="panel-help">Sin cambios registrados.</p>
+          )}
+          <h3>Tickets que lo mencionan</h3>
+          {data.tickets.length ? (
+            <ul>
+              {data.tickets.map(ticket => (
+                <li key={ticket.id}>
+                  <a href={workspaceHome(currentWorkspaceId(), ticket.id)}>
+                    {ticketNumber(ticket.id)} · {ticket.subject}
+                  </a>
+                  <Status ticket={ticket} />
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="panel-help">Ningún ticket lo menciona todavía.</p>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
