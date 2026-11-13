@@ -75,7 +75,7 @@
     "@types/web-push": "3.6.4",
     "@types/yauzl": "3.4.0",
     "drizzle-kit": "0.31.10",
-    "eslint": "9.39.4",
+    "eslint": "10.14.0",
     "eslint-config-next": "16.4.5",
     "playwright-core": "1.59.1",
     "prettier": "3.9.10",
