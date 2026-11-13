@@ -27,7 +27,6 @@ import {
 } from '@/lib/ticket-overlay';
 import { type Ticket } from '../lib/types';
 import ClientPortal from './client-portal';
-import { ThemeControl } from './evolution-controls';
 import { LiveStatus } from './live-status';
 import { TicketAlerts } from './ticket-alerts';
 import { View, request, Modal, PRIORITY, views, Avatar, ReplyTarget } from './desk-parts/shared';
@@ -428,13 +427,6 @@ export default function Desk({
         </header>
         <div className="content">
           <div className="workspace-sync">
-            {data.viewer && (
-              <ThemeControl
-                key={data.viewer.id}
-                memberId={data.viewer.id}
-                preferred={data.preferences?.theme || 'system'}
-              />
-            )}
             <LiveStatus connection={connection} />
             {data.viewer && <TicketAlerts alerts={alerts} onOpen={openAlert} />}
           </div>

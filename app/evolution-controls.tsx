@@ -59,9 +59,9 @@ export function ThemeControl({ memberId, preferred }: { memberId: string; prefer
           }
         }}
       >
-        <option value="system">Automático</option>
-        <option value="dark">Oscuro</option>
+        <option value="system">Sistema</option>
         <option value="light">Claro</option>
+        <option value="dark">Oscuro</option>
       </select>
       {error && <span role="status">{error}</span>}
     </div>

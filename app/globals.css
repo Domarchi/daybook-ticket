@@ -530,3 +530,31 @@ button:focus-visible,a:focus-visible{outline:2px solid #a46d09;outline-offset:3p
 .test-ticket-control label { display: inline-flex; align-items: center; gap: .5rem; white-space: nowrap; }
 .test-ticket-control input[type="checkbox"] { width: 1rem; height: 1rem; margin: 0; accent-color: var(--gold, #b49652); }
 .test-ticket-control small { overflow-wrap: anywhere; }
+
+/* Layout común de la familia Daybook (Fase 4, @daybook/design 0.5.0): riel de
+   232 px con barra dorada en el ítem activo, cabecera fija de 64 px y contenido
+   con tope de 1360 px centrado, igual que Parte Diario y Daybook Travel. Va al
+   final a propósito: fija los valores de las capas anteriores (224/246/230/220 px
+   de riel, 66/76/68 px de cabecera, contenido de 1680 px). */
+.sidebar{width:var(--db-rail-width)}
+.main{margin-left:var(--db-rail-width)}
+.sidebar nav button{min-height:var(--db-rail-item-height)}
+.sidebar nav button.active{box-shadow:inset var(--db-rail-indicator-width) 0 var(--db-rail-indicator)}
+.topbar{height:var(--db-topbar-height);padding-inline:max(var(--db-content-gutter),calc((100% - var(--db-content-max)) / 2 + var(--db-content-gutter)))}
+.content{max-width:none;padding-inline:max(var(--db-content-gutter),calc((100% - var(--db-content-max)) / 2 + var(--db-content-gutter)))}
+.toast{left:calc(50% + var(--db-rail-width) / 2)}
+@media(max-width:1250px){.topbar,.content{padding-inline:24px}}
+@media(max-width:1000px){.topbar,.content{padding-inline:20px}}
+@media(max-width:750px){.main{margin-left:0}.topbar,.content{padding-inline:16px}.toast{left:50%}}
+
+/* El selector de tema vive en el pie del riel, junto a la persona (Fase 4). El
+   riel es oscuro en los dos temas: el selector toma sus colores. */
+.sidebar .theme-control{margin:0 4px 12px;color:var(--db-rail-text-muted)}
+.sidebar .theme-control select{flex:1;max-width:none;min-height:36px;background:transparent;color:var(--db-rail-text);border-color:var(--db-rail-border)}
+.sidebar .theme-control select option{color:initial}
+.sidebar .theme-control>span{right:auto;left:0;top:auto;bottom:100%}
+/* El nombre en el pie del riel: el botón centraba su texto y, con el riel de
+   232 px, un nombre largo se recortaba por los dos lados. Alineado a la
+   izquierda, termina en «…». */
+.sidebar .profile>.profile-security{display:block;max-width:none;text-align:left}
+.sidebar .profile>.profile-security small{overflow:hidden;text-overflow:ellipsis}
