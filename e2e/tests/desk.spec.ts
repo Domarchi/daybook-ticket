@@ -383,6 +383,36 @@ test.describe('the support desk', () => {
     }
   });
 
+  test('the team creates a ticket for a client naming their equipment and asking for a requirement', async ({
+    page,
+  }) => {
+    const subject = 'Cambio de batería del notebook';
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Nuevo ticket' }).click();
+    const form = page.locator('form.form');
+    // Without a linked client there is no equipment to choose.
+    await expect(form.getByRole('combobox', { name: /Sobre qué equipo/ })).toHaveCount(0);
+    await form
+      .getByRole('combobox', { name: 'Cuenta del cliente' })
+      .selectOption({ label: 'Rosa Pérez · rosa@example.test' });
+    const equipment = form.getByRole('combobox', { name: /Sobre qué equipo/ });
+    // Rosa's only active equipment is chosen; the monitor freed earlier is not offered.
+    await expect(equipment.locator('option:checked')).toHaveText('NB-0042 · Computador');
+    await expect(equipment.locator('option')).not.toContainText(['MON-7 · Monitor']);
+    await form.getByRole('combobox', { name: 'Tipo de solicitud' }).selectOption({ label: 'Un pedido: Equipos' });
+    await form.getByLabel('Asunto').fill(subject);
+    await form.getByLabel('Descripción').fill('La batería dura menos de una hora; necesita una nueva.');
+    await expectNoSeriousViolations(page, 'Nuevo ticket con equipo y pedido');
+    await form.getByRole('button', { name: 'Crear ticket' }).click();
+
+    await expect(page.getByRole('heading', { name: subject, level: 1 })).toBeVisible();
+    await expect(page.locator('.ticket-equipment')).toContainText('NB-0042 · Computador');
+    // Asked as a requirement, it is followed from «Solicitado» without a further click.
+    const panel = page.getByRole('region', { name: 'Seguimiento del requerimiento' });
+    await expect(panel.locator('[aria-current="step"]')).toContainText('Solicitado');
+    await expect(panel.getByRole('button', { name: 'Seguir como requerimiento' })).toHaveCount(0);
+  });
+
   test('a requirement is followed stage by stage, with a committed date and a reported delay', async ({ page }) => {
     const day = (offset: number) => {
       const [year, month, date] = todayIn('America/Santiago', new Date()).split('-').map(Number);

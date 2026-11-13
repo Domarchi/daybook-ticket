@@ -10,6 +10,7 @@ const fields = [
   'requesterEmail',
   'requesterMemberId',
   'assigneeMemberId',
+  'requirement',
 ] as const;
 export function readNewTicketDraft(scope: string): Record<string, string> {
   const cached = memory.get(workspaceStorageKey(scope));

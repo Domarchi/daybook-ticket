@@ -11,6 +11,9 @@ import {
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { type Member, type Settings } from '../../lib/types';
+import { equipmentLabel } from '../../lib/client-equipment-model';
+import { REQUIREMENTS } from '../../lib/ticket-category-model';
+import { useClientEquipment } from '../own-equipment';
 import { AttachmentComposer } from '../attachments';
 import { KnowledgeSuggestions } from '../knowledge';
 import { type OrganizationRequestValue, RequestOrganizationFields } from '../work-organization';
@@ -50,6 +53,15 @@ export function TicketForm({
   const clients = members.filter(member => member.role === 'client' && member.status !== 'revoked');
   const staff = members.filter(member => member.role !== 'client' && member.status === 'active');
   const requester = clients.find(member => member.id === requesterId);
+  const clientEquipment = useClientEquipment(viewer.id, requester?.id ?? '');
+  // The equipment the ticket is about. Untouched, it follows the client's only piece (if just one).
+  const [assetChoice, setAssetChoice] = useState<{ requesterId: string; assetId: string } | null>(null);
+  const assetId =
+    assetChoice?.requesterId === requesterId
+      ? assetChoice.assetId
+      : clientEquipment.length === 1
+        ? clientEquipment[0].id
+        : '';
   return (
     <form
       className="form"
@@ -71,6 +83,8 @@ export function TicketForm({
         else body.assigneeMemberId = body.assigneeMemberId || null;
         if (requesterId) body.requesterMemberId = requesterId;
         else delete body.requesterMemberId;
+        if (!body.requirement) delete body.requirement;
+        if (requester && assetId && clientEquipment.some(item => item.id === assetId)) body.assetId = assetId;
         Object.assign(body, attachments.payload());
         if (organizationRequest.requestTypeId || Object.keys(organizationRequest.fieldValues || {}).length)
           Object.assign(body, organizationRequest);
@@ -173,6 +187,34 @@ export function TicketForm({
             ))}
           </select>
         </label>
+        <label className={requester && clientEquipment.length ? '' : 'full'}>
+          Tipo de solicitud
+          <select name="requirement" defaultValue={initialDraft.requirement || ''} disabled={busy}>
+            <option value="">Una falla o consulta</option>
+            {REQUIREMENTS.map(item => (
+              <option key={item.id} value={item.id}>
+                Un pedido: {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {requester && clientEquipment.length > 0 && (
+          <label>
+            ¿Sobre qué equipo?
+            <select
+              value={assetId}
+              disabled={busy}
+              onChange={event => setAssetChoice({ requesterId, assetId: event.target.value })}
+            >
+              <option value="">No es sobre un equipo</option>
+              {clientEquipment.map(item => (
+                <option key={item.id} value={item.id}>
+                  {equipmentLabel(item)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="full">
           Responsable
           <select name="assigneeMemberId" defaultValue={initialDraft.assigneeMemberId ?? '__auto__'} disabled={busy}>

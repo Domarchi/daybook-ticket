@@ -2,7 +2,7 @@
 import { daybookFetch } from '@/lib/browser-request';
 import { useEffect, useState } from 'react';
 import { Laptop } from 'lucide-react';
-import { equipmentLabel, type OwnEquipment } from '../lib/client-equipment-model';
+import { equipmentLabel, type EquipmentItem, type OwnEquipment } from '../lib/client-equipment-model';
 import './equipment-panel.css';
 
 async function readEquipment(memberId: string, path: string, signal: AbortSignal): Promise<OwnEquipment[]> {
@@ -27,6 +27,33 @@ export function useOwnEquipment(memberId: string): OwnEquipment[] {
     return () => controller.abort();
   }, [memberId]);
   return state.memberId === memberId ? state.items : [];
+}
+
+/**
+ * Staff creating a ticket for a client: that client's active equipment, read from the inventory once a client is
+ * chosen. Empty while loading, on failure or without a client: choosing equipment is optional, never a gate.
+ */
+export function useClientEquipment(viewerId: string, clientId: string): OwnEquipment[] {
+  const [state, setState] = useState<{ viewerId: string; items: EquipmentItem[] } | null>(null);
+  const needed = Boolean(clientId) && state?.viewerId !== viewerId;
+  useEffect(() => {
+    if (!needed) return;
+    const controller = new AbortController();
+    daybookFetch('/api/equipment?filter=assigned', {
+      cache: 'no-store',
+      headers: { 'X-Daybook-Member-Id': viewerId },
+      signal: controller.signal,
+    })
+      .then(async response => {
+        if (!response.ok) throw new Error('Equipment unavailable');
+        const body = (await response.json()) as { equipment?: EquipmentItem[] };
+        setState({ viewerId, items: Array.isArray(body.equipment) ? body.equipment : [] });
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [viewerId, needed]);
+  if (!clientId || state?.viewerId !== viewerId) return [];
+  return state.items.filter(item => item.assignedMemberId === clientId);
 }
 
 /** "Mis equipos" in the client portal. */
