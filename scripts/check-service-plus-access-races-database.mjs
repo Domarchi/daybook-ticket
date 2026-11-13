@@ -14,13 +14,18 @@ import { getAlertsPage, markAlertsRead } from '../lib/alerts.ts';
 import { lockTicket, runOperation } from '../lib/ticket-mutations.ts';
 import { recordSlaOutcome } from '../lib/agent-metrics.ts';
 import { createSatisfactionForResolution, isSatisfactionEligibleForDelivery } from '../lib/satisfaction.ts';
+import { databaseCheckCi } from './database-check-target.mjs';
+import { seedQaWorkspaceProfiles } from './qa-workspace-profile.mjs';
+const databaseCi = databaseCheckCi();
 
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
-assert.equal(
-  new URL(process.env.DATABASE_URL).hostname,
-  'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
-);
-assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+  assert.equal(
+    new URL(process.env.DATABASE_URL).hostname,
+    'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
+  );
+  assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+}
 assert.ok(
   !process.env.RESEND_API_KEY &&
     !process.env.RESEND_INBOUND_API_KEY &&
@@ -106,6 +111,7 @@ try {
     'INSERT INTO organizations (id,"ownerId",name,"createdAt") VALUES ($1,$2,\'QA authorization races\',$3)',
     [orgId, ownerId, now],
   );
+  await seedQaWorkspaceProfiles(pool, [ownerId]);
   await pool.query('INSERT INTO "notificationSettings" ("ownerId","alertsActivatedAt") VALUES ($1,$2)', [
     ownerId,
     cutoff,
@@ -320,6 +326,7 @@ try {
     'notificationSettings',
     'members',
     'customerCompanies',
+    'workspaceProfiles',
     'organizations',
   ])
     await pool.query(`DELETE FROM "${table}" WHERE "ownerId"=$1`, [ownerId]);

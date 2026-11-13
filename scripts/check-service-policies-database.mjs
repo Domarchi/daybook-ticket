@@ -15,12 +15,17 @@ import {
   saveServicePolicy,
 } from '../lib/service-policies.ts';
 import { calculateTicketDueAt } from '../lib/sla-policy.ts';
+import { databaseCheckCi } from './database-check-target.mjs';
+import { seedQaWorkspaceProfiles } from './qa-workspace-profile.mjs';
+const databaseCi = databaseCheckCi();
 
 const qaHost = 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech';
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
-assert.equal(new URL(process.env.DATABASE_URL).hostname, qaHost);
-assert.equal(new URL(process.env.DATABASE_URL).pathname, '/daybook_ticket');
-assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, qaHost);
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+  assert.equal(new URL(process.env.DATABASE_URL).hostname, qaHost);
+  assert.equal(new URL(process.env.DATABASE_URL).pathname, '/daybook_ticket');
+  assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, qaHost);
+}
 assert.ok(!process.env.RESEND_API_KEY && !process.env.DAYBOOK_EMAIL_FROM && !process.env.VAPID_PRIVATE_KEY);
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
 const database = new Database(pool);
@@ -112,6 +117,7 @@ try {
     );
     fixturesCreated = true;
   }
+  await seedQaWorkspaceProfiles(pool, [ownerId, otherOwnerId]);
   for (const [id, user, role, organization, own] of [
     [admin, adminUserId, 'owner', orgId, ownerId],
     [client, clientUserId, 'client', orgId, ownerId],
@@ -469,6 +475,7 @@ try {
       await pool.query('DELETE FROM "customerCompanies" WHERE "ownerId"=$1', [own]);
       await pool.query('DELETE FROM settings WHERE "ownerId"=$1', [own]);
       await pool.query('DELETE FROM members WHERE "ownerId"=$1', [own]);
+      await pool.query('DELETE FROM "workspaceProfiles" WHERE "ownerId"=$1', [own]);
       await pool.query('DELETE FROM organizations WHERE "ownerId"=$1', [own]);
       assert.equal(
         (await pool.query('SELECT count(*)::int AS n FROM "servicePolicies" WHERE "ownerId"=$1', [own])).rows[0].n,

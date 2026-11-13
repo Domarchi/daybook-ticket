@@ -12,12 +12,17 @@ import {
   runNotificationTick,
   getReminderHealth,
 } from '../lib/reminders.ts';
+import { databaseCheckCi } from './database-check-target.mjs';
+import { seedQaWorkspaceProfiles } from './qa-workspace-profile.mjs';
+const databaseCi = databaseCheckCi();
 
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
-assert.ok(process.env.DATABASE_URL && process.env.DAYBOOK_QA_DATABASE_HOST);
-const hostname = new URL(process.env.DATABASE_URL).hostname;
-assert.equal(hostname, process.env.DAYBOOK_QA_DATABASE_HOST);
-assert.ok(!hostname.includes('ep-dawn-moon'), 'Production endpoint is forbidden.');
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+  assert.ok(process.env.DATABASE_URL && process.env.DAYBOOK_QA_DATABASE_HOST);
+  const hostname = new URL(process.env.DATABASE_URL).hostname;
+  assert.equal(hostname, process.env.DAYBOOK_QA_DATABASE_HOST);
+  assert.ok(!hostname.includes('ep-dawn-moon'), 'Production endpoint is forbidden.');
+}
 assert.ok(!process.env.RESEND_API_KEY && !process.env.DAYBOOK_EMAIL_FROM, 'Real mail must be disabled.');
 process.env.DAYBOOK_NOTIFICATION_ENVIRONMENT = 'qa';
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 5 });
@@ -91,6 +96,7 @@ try {
     'INSERT INTO organizations (id,"ownerId",name,"createdAt") VALUES ($1,$2,\'QA ficticio recordatorios\',$3)',
     [orgId, ownerId, now.toISOString()],
   );
+  await seedQaWorkspaceProfiles(pool, [ownerId]);
   for (const [id, role] of [
     [agentA, 'agent'],
     [agentB, 'admin'],
@@ -297,9 +303,16 @@ try {
       maxTickets: 1,
       now: () => now,
     });
-    assert.equal(
-      secondTick.skipped,
-      true,
+    // Since E7 a tick walks every active space, so `skipped` only means "no spaces". The lease is the proof:
+    // the concurrent worker neither claimed this space nor did its ticket work.
+    const afterConcurrent = (
+      await pool.query('SELECT "leaseToken","lastInvocationId" FROM "notificationJobHealth" WHERE "ownerId"=$1', [
+        ownerId,
+      ])
+    ).rows[0];
+    assert.deepEqual(
+      afterConcurrent,
+      { leaseToken: inFlight.leaseToken, lastInvocationId: 'qa-worker-one' },
       'A committed active lease prevents a concurrent worker from doing ticket work.',
     );
     assert.equal(secondTick.processed, 0);
@@ -395,10 +408,13 @@ try {
     if (statement.sql.startsWith('INSERT INTO "mailOutbox"')) throw new Error('qa-worker-outbox-failure');
   });
   const failureAt = new Date(now.getTime() + 2 * hour);
-  await assert.rejects(
-    runNotificationTick('qa-worker-failure', { database: failingWorker, maxTickets: 1, now: () => failureAt }),
-    /qa-worker-outbox-failure/,
-  );
+  // Since E7 one failing space does not stop the others: the tick reports itself incomplete instead of throwing.
+  const failedTick = await runNotificationTick('qa-worker-failure', {
+    database: failingWorker,
+    maxTickets: 1,
+    now: () => failureAt,
+  });
+  assert.deepEqual([failedTick.processed, failedTick.queued, failedTick.incomplete], [0, 0, true]);
   assert.equal((await occurrences(failedTicket)).length, 0);
   assert.equal(
     (
@@ -482,6 +498,7 @@ try {
     ]) {
       await tx.query(`DELETE FROM "${table}" WHERE "ownerId"=$1`, [ownerId]);
     }
+    await tx.query('DELETE FROM "workspaceProfiles" WHERE "ownerId"=$1', [ownerId]);
     await tx.query('DELETE FROM organizations WHERE id=$1 AND "ownerId"=$2', [orgId, ownerId]);
     await tx.query('COMMIT');
     assert.equal(

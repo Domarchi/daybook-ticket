@@ -5,10 +5,14 @@ import pg from 'pg';
 import { getAgentMetrics } from '../lib/agent-metrics.ts';
 import { getSatisfactionReport } from '../lib/satisfaction.ts';
 import { parseMetricsQuery } from '../lib/agent-metrics-model.ts';
+import { databaseCheckCi } from './database-check-target.mjs';
+const databaseCi = databaseCheckCi();
 const url = new URL(process.env.DATABASE_URL);
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
-assert.equal(url.hostname, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
-assert.equal(url.pathname, '/daybook_ticket');
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+  assert.equal(url.hostname, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+  assert.equal(url.pathname, '/daybook_ticket');
+}
 assert.ok(!process.env.RESEND_API_KEY && !process.env.RESEND_INBOUND_API_KEY && !process.env.VAPID_PRIVATE_KEY);
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 }),
   tx = await pool.connect();

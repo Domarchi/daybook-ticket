@@ -8,14 +8,19 @@ import pg from 'pg';
 import { publicMember } from '../lib/access.ts';
 import { heartbeatTicketPresence, readTicketPresence, releaseTicketPresence } from '../lib/ticket-presence.ts';
 import { readPublicTicketProgress } from '../lib/ticket-presence-progress.ts';
+import { databaseCheckCi } from './database-check-target.mjs';
+import { seedQaWorkspaceProfiles } from './qa-workspace-profile.mjs';
+const databaseCi = databaseCheckCi();
 
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
-assert.equal(
-  new URL(process.env.DATABASE_URL).hostname,
-  'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
-);
-if (process.env.DAYBOOK_QA_DATABASE_HOST)
-  assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+  assert.equal(
+    new URL(process.env.DATABASE_URL).hostname,
+    'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
+  );
+  if (process.env.DAYBOOK_QA_DATABASE_HOST)
+    assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+}
 assert.ok(!process.env.RESEND_API_KEY && !process.env.RESEND_INBOUND_API_KEY && !process.env.VAPID_PRIVATE_KEY);
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 1 });
 const client = await pool.connect(),
@@ -72,6 +77,7 @@ try {
     ownerId,
     timestamp,
   ]);
+  await seedQaWorkspaceProfiles(client, [ownerId]);
   for (const [id, role, name] of [
     [staffId, 'agent', 'QA visible staff'],
     [peerId, 'agent', 'QA colleague'],

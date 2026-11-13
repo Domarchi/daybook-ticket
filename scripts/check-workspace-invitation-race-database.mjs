@@ -8,14 +8,22 @@ import { acceptInvitation, prepareInvitation } from '../lib/invitations.ts';
 import { renewPilotOwnerInvitation } from '../lib/workspaces.ts';
 import { acquireTicketWorkLock } from '../lib/work-lock.ts';
 import { DEFAULT_PILOT_LIMITS } from '../lib/workspace-model.ts';
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+import { databaseCheckCi } from './database-check-target.mjs';
+const databaseCi = databaseCheckCi();
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+}
 const target = new URL(process.env.DATABASE_URL);
-assert.equal(target.hostname, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
-assert.equal(target.pathname, '/daybook_ticket');
+if (!databaseCi) {
+  assert.equal(target.hostname, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+  assert.equal(target.pathname, '/daybook_ticket');
+}
 for (const key of ['RESEND_API_KEY', 'RESEND_INBOUND_API_KEY', 'VAPID_PRIVATE_KEY']) assert.ok(!process.env[key]);
 // These connections retain a private schema across transactions. Use direct QA, not PgBouncer.
-target.hostname = 'ep-falling-water-bbfa4ijl.c-15.us-east-1.aws.neon.tech';
-target.searchParams.set('sslmode', 'verify-full');
+if (!databaseCi) {
+  target.hostname = 'ep-falling-water-bbfa4ijl.c-15.us-east-1.aws.neon.tech';
+  target.searchParams.set('sslmode', 'verify-full');
+}
 const pool = new pg.Pool({ connectionString: target.href, max: 2 }),
   left = await pool.connect(),
   right = await pool.connect();

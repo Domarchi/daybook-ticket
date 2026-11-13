@@ -102,6 +102,49 @@ jobs:
             test-results/
           retention-days: 7
           if-no-files-found: ignore
+  # The scripts/check-*-database checks (transactions, races, leases, isolation by ownerId) against a disposable
+  # PostgreSQL 17 service, migrated from zero, in series. Fictitious data only; the guard in
+  # scripts/database-check-target.mjs refuses anything that is not local and named daybook_db_ci, and every
+  # mail, push, file-store and AI key must be absent.
+  database:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: daybook_db_ci
+          POSTGRES_PASSWORD: daybook-ci-disposable-database
+          POSTGRES_DB: daybook_db_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      CI: 'true'
+      DAYBOOK_DATABASE_CI: '1'
+      DATABASE_URL: postgresql://daybook_db_ci:daybook-ci-disposable-database@127.0.0.1:5432/daybook_db_ci?sslmode=disable
+      BETTER_AUTH_SECRET: daybook-ci-fictitious-database-checks-only
+      DAYBOOK_SITE_URL: http://127.0.0.1:5176
+      DAYBOOK_OWNER_EMAIL: owner@example.test
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Database checks (fictitious data, no delivery)
+        run: npm run test:database:ci
   # Informational until the framework patch release is adopted: production
   # dependencies currently report advisories (see docs/QUALITY_PHASE_1.md). The
   # step turns findings into a warning annotation instead of a red check, so a

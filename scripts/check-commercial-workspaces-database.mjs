@@ -16,16 +16,22 @@ import {
   assertWorkspaceOperational,
 } from '../lib/workspaces.ts';
 import { DEFAULT_PILOT_LIMITS, operatorGranted } from '../lib/workspace-model.ts';
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
-assert.equal(
-  new URL(process.env.DATABASE_URL).hostname,
-  'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
-);
+import { databaseCheckCi } from './database-check-target.mjs';
+const databaseCi = databaseCheckCi();
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+  assert.equal(
+    new URL(process.env.DATABASE_URL).hostname,
+    'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
+  );
+}
 for (const key of ['RESEND_API_KEY', 'RESEND_INBOUND_API_KEY', 'VAPID_PRIVATE_KEY']) assert.ok(!process.env[key]);
 const target = new URL(process.env.DATABASE_URL);
-assert.equal(target.pathname, '/daybook_ticket');
-target.hostname = 'ep-falling-water-bbfa4ijl.c-15.us-east-1.aws.neon.tech';
-target.searchParams.set('sslmode', 'verify-full');
+if (!databaseCi) {
+  assert.equal(target.pathname, '/daybook_ticket');
+  target.hostname = 'ep-falling-water-bbfa4ijl.c-15.us-east-1.aws.neon.tech';
+  target.searchParams.set('sslmode', 'verify-full');
+}
 // Session search_path belongs to a dedicated connection, never a transaction pool.
 const pool = new pg.Pool({ connectionString: target.href, max: 3 }),
   client = await pool.connect();

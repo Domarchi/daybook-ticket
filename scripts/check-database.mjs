@@ -5,17 +5,21 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { Database } from '../db/database.ts';
+import { databaseCheckCi } from './database-check-target.mjs';
+const databaseCi = databaseCheckCi();
 
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1', 'Autoriza explícitamente una base de pruebas aislada.');
-assert.ok(
-  process.env.DATABASE_URL && process.env.DAYBOOK_QA_DATABASE_HOST,
-  'Falta el hostname esperado de la rama de pruebas.',
-);
-assert.equal(
-  new URL(process.env.DATABASE_URL).hostname,
-  process.env.DAYBOOK_QA_DATABASE_HOST,
-  'La conexión debe apuntar exactamente a la rama de pruebas.',
-);
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1', 'Autoriza explícitamente una base de pruebas aislada.');
+  assert.ok(
+    process.env.DATABASE_URL && process.env.DAYBOOK_QA_DATABASE_HOST,
+    'Falta el hostname esperado de la rama de pruebas.',
+  );
+  assert.equal(
+    new URL(process.env.DATABASE_URL).hostname,
+    process.env.DAYBOOK_QA_DATABASE_HOST,
+    'La conexión debe apuntar exactamente a la rama de pruebas.',
+  );
+}
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
 const database = new Database(pool);
 const fixtureId = `qa-transaction-${randomUUID()}`;
