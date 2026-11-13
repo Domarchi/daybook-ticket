@@ -5,6 +5,11 @@ import { assetTagProblem, normalizeAssetTag } from './asset-tag';
 import { recordEquipmentEvent } from './client-equipment';
 import {
   assigneeProblem,
+  describeEquipmentChange,
+  EQUIPMENT_HISTORY_LIMIT,
+  equipmentHistoryMemberIds,
+  type EquipmentHistory,
+  type EquipmentTicket,
   equipmentKindLabel,
   type EquipmentClient,
   type EquipmentFilter,
@@ -21,8 +26,8 @@ import { acquireTicketWorkLock } from './work-lock';
 export const EQUIPMENT_LIST_LIMIT = 500;
 
 /**
- * The staff inventory: active equipment of this workspace (archived ones are left out), the clients it can go to,
- * and the clients that still have none. Uses the same table as "Empresas y servicios" but does not need that
+ * The staff inventory: active equipment of this workspace (or, with the «archived» filter, only what was given
+ * up), the clients it can go to, and the clients that still have none. Uses the same table as "Empresas y servicios" but does not need that
  * function to be on.
  */
 export async function listEquipment(
@@ -38,13 +43,13 @@ export async function listEquipment(
     await database
       .prepare(
         `SELECT a.id, a."assetTag", a.name, a.category, a.serial, a."companyId", c.name AS "companyName",
-                m.id AS "assignedMemberId", m.name AS "assignedName", a.version, a."updatedAt"
+                m.id AS "assignedMemberId", m.name AS "assignedName", a.archived, a.version, a."updatedAt"
            FROM "customerAssets" a
            JOIN "customerCompanies" c ON c.id = a."companyId" AND c."ownerId" = a."ownerId"
            LEFT JOIN members m ON m.id = a."assignedContactMemberId" AND m."ownerId" = a."ownerId" AND m.status <> 'revoked'
-          WHERE a."ownerId" = $1 AND a.archived = false
+          WHERE a."ownerId" = $1 AND a.archived = ($3 = 'archived')
             AND ($2::text IS NULL OR a."assetTag" ILIKE $2 OR a.name ILIKE $2 OR a.serial ILIKE $2 OR m.name ILIKE $2 OR c.name ILIKE $2)
-            AND ($3 = 'all' OR ($3 = 'unassigned' AND m.id IS NULL) OR ($3 = 'assigned' AND m.id IS NOT NULL))
+            AND ($3 IN ('all', 'archived') OR ($3 = 'unassigned' AND m.id IS NULL) OR ($3 = 'assigned' AND m.id IS NOT NULL))
           ORDER BY a."assetTag" NULLS LAST, a.name, a.id
           LIMIT ${EQUIPMENT_LIST_LIMIT}`,
       )
@@ -169,6 +174,7 @@ export async function createEquipment(
       companyName: company.name,
       assignedMemberId: input.assignedMemberId ?? null,
       assignedName: assignee?.name ?? null,
+      archived: false,
       version: Number(row.version),
       updatedAt: now,
     };
@@ -230,6 +236,120 @@ export async function assignEquipment(
       assignedName: assignee?.name ?? null,
     };
   });
+}
+
+/**
+ * «Dar de baja» or «Reactivar». Giving up equipment also frees it (the history keeps who had it), so it leaves the
+ * client's equipment and cannot be named in new tickets; tickets that already named it keep the link. Reactivated
+ * equipment comes back unassigned. Same version check as an assignment.
+ */
+export async function setEquipmentArchived(
+  access: AccessContext,
+  id: string,
+  input: { expectedVersion: number; archived: boolean },
+): Promise<{ id: string; version: number; archived: boolean }> {
+  requireStaff(access);
+  return writeTransaction(access, async (tx, fresh) => {
+    const before = (
+      await tx.query<Record<string, unknown> & { companyId: string; version: number; archived: boolean }>(
+        'SELECT * FROM "customerAssets" WHERE id=$1 AND "ownerId"=$2 FOR UPDATE',
+        [id, fresh.ownerId],
+      )
+    ).rows[0];
+    if (!before) throw new ApiError(404, 'Ese equipo no existe en este espacio.');
+    if (Number(before.version) !== input.expectedVersion)
+      throw new ApiError(409, 'Alguien cambió este equipo hace un momento. Actualiza la lista y vuelve a intentarlo.');
+    if (Boolean(before.archived) === input.archived)
+      return { id, version: Number(before.version), archived: input.archived };
+    const now = new Date().toISOString();
+    const after = (
+      await tx.query(
+        'UPDATE "customerAssets" SET archived=$2, "assignedContactMemberId"=NULL, version=version+1, "updatedAt"=$3 WHERE id=$1 RETURNING *',
+        [id, input.archived, now],
+      )
+    ).rows[0];
+    await recordEquipmentEvent(
+      tx,
+      { ownerId: fresh.ownerId, companyId: before.companyId, actorMemberId: fresh.member.id, now },
+      id,
+      before,
+      after,
+    );
+    return { id, version: Number(after.version), archived: input.archived };
+  });
+}
+
+const parseSnapshot = (value: string | null) => {
+  if (!value) return null;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+};
+
+/** A piece of equipment's history as readable lines, and the tickets that named it (staff only, F6-A3). */
+export async function equipmentHistory(access: AccessContext, id: string): Promise<EquipmentHistory> {
+  requireStaff(access);
+  const database = db();
+  const exists = await database
+    .prepare('SELECT 1 FROM "customerAssets" WHERE id=$1 AND "ownerId"=$2')
+    .bind(id, access.ownerId)
+    .first();
+  if (!exists) throw new ApiError(404, 'Ese equipo no existe en este espacio.');
+  const events = (
+    await database
+      .prepare(
+        `SELECT e."createdAt" AS at, e."beforeJson", e."afterJson", m.name AS "actorName"
+           FROM "serviceContextEvents" e
+           LEFT JOIN members m ON m.id = e."actorMemberId" AND m."ownerId" = e."ownerId"
+          WHERE e."ownerId" = $1 AND e.resource = 'assets' AND e."resourceId" = $2
+          ORDER BY e."createdAt" DESC, e.id DESC
+          LIMIT ${EQUIPMENT_HISTORY_LIMIT}`,
+      )
+      .bind(access.ownerId, id)
+      .all<{ at: string; beforeJson: string | null; afterJson: string; actorName: string | null }>()
+  ).results.map(row => ({
+    at: row.at,
+    actorName: row.actorName,
+    before: parseSnapshot(row.beforeJson),
+    after: parseSnapshot(row.afterJson),
+  }));
+  const ids = equipmentHistoryMemberIds(events);
+  const names = new Map(
+    ids.length
+      ? (
+          await database
+            .prepare(
+              'SELECT id, name FROM members WHERE "ownerId"=$1 AND id IN (SELECT jsonb_array_elements_text($2::jsonb))',
+            )
+            .bind(access.ownerId, JSON.stringify(ids))
+            .all<{ id: string; name: string }>()
+        ).results.map(row => [row.id, row.name] as const)
+      : [],
+  );
+  const tickets = (
+    await database
+      .prepare(
+        `SELECT t.id, t.subject, t.status, t."assigneeMemberId", l."createdAt" AS "linkedAt"
+           FROM "ticketAssetLinks" l
+           JOIN tickets t ON t.id = l."ticketId" AND t."ownerId" = l."ownerId"
+          WHERE l."ownerId" = $1 AND l."assetId" = $2
+          ORDER BY l."createdAt" DESC, t.id DESC
+          LIMIT ${EQUIPMENT_HISTORY_LIMIT}`,
+      )
+      .bind(access.ownerId, id)
+      .all<EquipmentTicket>()
+  ).results;
+  return {
+    entries: events.map(event => ({
+      at: event.at,
+      actorName: event.actorName,
+      text: describeEquipmentChange(event.before, event.after, names),
+    })),
+    tickets,
+  };
 }
 
 const OWN_COLUMNS = `a.id, a."assetTag", a.name, a.category, a.serial, c.name AS "companyName"`;

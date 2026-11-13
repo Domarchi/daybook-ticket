@@ -15,6 +15,9 @@ import {
   ticketEquipmentProblem,
   existingEquipmentProblem,
   inviteEquipmentSchema,
+  equipmentChangeSchema,
+  describeEquipmentChange,
+  equipmentHistoryMemberIds,
 } from '../lib/client-equipment-model';
 import { FAULT_GROUPS } from '../lib/ticket-category-model';
 import { ApiError, createTicketSchema, inviteMemberSchema } from '../lib/server';
@@ -186,9 +189,10 @@ test('equipment goes only to an active client of its own company (F6-A2)', () =>
 
 test('inventory requests are strict: known filters, uuids, a version for every reassignment', () => {
   const company = '6f1b8a52-3c1d-4f7e-9a10-2b5c8d9e0f11';
-  assert.deepEqual([...EQUIPMENT_FILTERS], ['all', 'unassigned', 'assigned']);
+  assert.deepEqual([...EQUIPMENT_FILTERS], ['all', 'unassigned', 'assigned', 'archived']);
   assert.equal(isEquipmentFilter('unassigned'), true);
-  assert.equal(isEquipmentFilter('archived'), false);
+  assert.equal(isEquipmentFilter('archived'), true);
+  assert.equal(isEquipmentFilter('deleted'), false);
   assert.equal(
     createEquipmentSchema.safeParse({ companyId: company, assetTag: 'MON-7', kind: 'monitor' }).success,
     true,
@@ -222,7 +226,12 @@ test('the inventory API is staff-only and reachable through the workspace route 
     assert.match(source, /requireStaff\(await requireAccess\(request\)\)/, file);
   }
   const inventory = readFileSync('lib/equipment-inventory.ts', 'utf8').replace(/\s+/g, ' ');
-  assert.match(inventory, /WHERE a\."ownerId" = \$1 AND a\.archived = false/, 'listing is scoped to the workspace');
+  assert.match(
+    inventory,
+    /WHERE a\."ownerId" = \$1 AND a\.archived = \(\$3 = 'archived'\)/,
+    'listing is scoped to the workspace; given-up equipment only under its own filter',
+  );
+  assert.match(inventory, /\$3 IN \('all', 'archived'\)/, 'the archived list is not emptied by the holder filter');
   assert.match(inventory, /FOR UPDATE/, 'reassignment locks the row');
   assert.match(inventory, /expectedVersion/, 'reassignment checks the version');
 });
@@ -291,4 +300,69 @@ test('own and ticket equipment routes are reachable in a workspace, before the e
     'mine = assigned to me, active',
   );
   assert.match(inventory, /await getTicket\(access, ticketId\)/, 'ticket equipment follows ticket access');
+});
+
+test('a change is an assignment or a «dar de baja» / «reactivar», always with the version (F6-A3)', () => {
+  const member = '6f1b8a52-3c1d-4f7e-9a10-2b5c8d9e0f11';
+  assert.deepEqual(equipmentChangeSchema.parse({ expectedVersion: 1, archived: true }), {
+    expectedVersion: 1,
+    archived: true,
+  });
+  assert.deepEqual(equipmentChangeSchema.parse({ expectedVersion: 1, assignedMemberId: member }), {
+    expectedVersion: 1,
+    assignedMemberId: member,
+  });
+  for (const bad of [
+    { archived: true },
+    { expectedVersion: 1, archived: 'yes' },
+    { expectedVersion: 1, archived: true, assignedMemberId: member },
+    { expectedVersion: 1 },
+  ])
+    assert.equal(equipmentChangeSchema.safeParse(bad).success, false, JSON.stringify(bad));
+});
+
+test('the history reads as sentences with the names of who had the equipment (F6-A3)', () => {
+  const names = new Map([
+    ['rosa', 'Rosa Pérez'],
+    ['tomas', 'Tomás Soto'],
+  ]);
+  const row = (holder: string | null, archived = false) => ({ assignedContactMemberId: holder, archived });
+  assert.equal(describeEquipmentChange(null, row('rosa'), names), 'Registrado y asignado a Rosa Pérez');
+  assert.equal(describeEquipmentChange(null, row(null), names), 'Registrado sin asignar');
+  assert.equal(describeEquipmentChange(row(null), row('rosa'), names), 'Asignado a Rosa Pérez');
+  assert.equal(describeEquipmentChange(row('rosa'), row(null), names), 'Liberado (estaba con Rosa Pérez)');
+  assert.equal(describeEquipmentChange(row('rosa'), row('tomas'), names), 'Reasignado de Rosa Pérez a Tomás Soto');
+  assert.equal(describeEquipmentChange(row('rosa'), row(null, true), names), 'Dado de baja (estaba con Rosa Pérez)');
+  assert.equal(describeEquipmentChange(row(null), row(null, true), names), 'Dado de baja');
+  assert.equal(describeEquipmentChange(row(null, true), row(null), names), 'Reactivado sin asignar');
+  assert.equal(describeEquipmentChange(row('rosa'), row('rosa'), names), 'Datos del equipo actualizados');
+  assert.equal(describeEquipmentChange(row(null), row('ghost'), names), 'Asignado a otra cuenta');
+  assert.deepEqual(
+    equipmentHistoryMemberIds([
+      { before: null, after: row('rosa') },
+      { before: row('rosa'), after: row('tomas') },
+      { before: row('tomas'), after: { assignedContactMemberId: 7 } },
+    ]),
+    ['rosa', 'tomas'],
+  );
+});
+
+test('giving equipment up frees it under the lock and the version check, and leaves a history entry', () => {
+  const source = readFileSync('lib/equipment-inventory.ts', 'utf8');
+  const archive = source.slice(source.indexOf('export async function setEquipmentArchived'));
+  const body = archive.slice(0, archive.indexOf('\nexport async function'));
+  assert.match(body, /writeTransaction\(access/, 'work lock and a live staff member');
+  assert.match(body, /FOR UPDATE/);
+  assert.match(body, /expectedVersion/);
+  assert.match(body, /SET archived=\$2, "assignedContactMemberId"=NULL, version=version\+1/);
+  assert.match(body, /recordEquipmentEvent\(/);
+  const history = source.slice(source.indexOf('export async function equipmentHistory'));
+  assert.match(history, /requireStaff\(access\)/);
+  assert.equal(
+    (history.match(/"ownerId" = \$1/g) ?? []).length >= 2,
+    true,
+    'events and tickets scoped to the workspace',
+  );
+  const route = readFileSync('app/api/equipment/[id]/route.ts', 'utf8');
+  assert.equal(route.match(/requireStaff\(await requireAccess\(request\)\)/g)?.length, 2, 'GET and PATCH');
 });

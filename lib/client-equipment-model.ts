@@ -5,6 +5,7 @@
 import { z } from 'zod';
 import { FAULT_GROUPS } from './ticket-category-model';
 import { assetTagProblem } from './asset-tag';
+import type { TicketStatus } from './ticket-status';
 
 export const EQUIPMENT_KINDS = FAULT_GROUPS[0].elements.map(element => ({ id: element.id, label: element.label }));
 export type EquipmentKind = (typeof FAULT_GROUPS)[0]['elements'][number]['id'];
@@ -64,6 +65,8 @@ export type EquipmentItem = {
   companyName: string;
   assignedMemberId: string | null;
   assignedName: string | null;
+  /** Dado de baja: out of the active inventory, the client's equipment and new tickets. */
+  archived: boolean;
   version: number;
   updatedAt: string;
 };
@@ -81,7 +84,7 @@ export type EquipmentInventory = {
   /** Clients without any active equipment, including older accounts and those without a company. */
   clientsWithoutEquipment: EquipmentClient[];
 };
-export const EQUIPMENT_FILTERS = ['all', 'unassigned', 'assigned'] as const;
+export const EQUIPMENT_FILTERS = ['all', 'unassigned', 'assigned', 'archived'] as const;
 export type EquipmentFilter = (typeof EQUIPMENT_FILTERS)[number];
 export function isEquipmentFilter(value: unknown): value is EquipmentFilter {
   return typeof value === 'string' && (EQUIPMENT_FILTERS as readonly string[]).includes(value);
@@ -100,6 +103,12 @@ export const createEquipmentSchema = z
 export const assignEquipmentSchema = z
   .object({ expectedVersion: z.number().int().min(0), assignedMemberId: uuid.nullable() })
   .strict();
+/** «Dar de baja» (archived: true) or «Reactivar» (archived: false). */
+export const archiveEquipmentSchema = z
+  .object({ expectedVersion: z.number().int().min(0), archived: z.boolean() })
+  .strict();
+/** What a change to one piece of equipment sends: an assignment, or taking it out of or back into the inventory. */
+export const equipmentChangeSchema = z.union([assignEquipmentSchema, archiveEquipmentSchema]);
 
 /** Equipment goes only to an active client of its own company. Returns the message to show, or null. */
 export function assigneeProblem(
@@ -134,4 +143,48 @@ export function ticketEquipmentProblem(
   if (!requesterMemberId || asset.assignedMemberId !== requesterMemberId)
     return 'Elige un equipo asignado a la persona que hace la solicitud.';
   return null;
+}
+
+/** One line of a piece of equipment's history, newest first (F6-A3). */
+export type EquipmentHistoryEntry = { at: string; actorName: string | null; text: string };
+/** A ticket that named a piece of equipment, newest first. */
+export type EquipmentTicket = {
+  id: number;
+  subject: string;
+  status: TicketStatus;
+  assigneeMemberId: string | null;
+  linkedAt: string;
+};
+export type EquipmentHistory = { entries: EquipmentHistoryEntry[]; tickets: EquipmentTicket[] };
+/** At most this many history lines and tickets are shown for one piece of equipment. */
+export const EQUIPMENT_HISTORY_LIMIT = 50;
+
+type Snapshot = { assignedContactMemberId?: unknown; archived?: unknown } | null;
+const holder = (row: Snapshot) =>
+  typeof row?.assignedContactMemberId === 'string' ? row.assignedContactMemberId : null;
+
+/** The member ids a history entry mentions, so their names can be read in one query. */
+export function equipmentHistoryMemberIds(rows: { before: Snapshot; after: Snapshot }[]): string[] {
+  const ids = new Set<string>();
+  for (const row of rows) for (const id of [holder(row.before), holder(row.after)]) if (id) ids.add(id);
+  return [...ids];
+}
+
+/**
+ * How one recorded change reads in the history. `before` is null when the equipment was registered. Names come
+ * from `names`; an id that is not there (an account from elsewhere) reads as «otra cuenta».
+ */
+export function describeEquipmentChange(before: Snapshot, after: Snapshot, names: ReadonlyMap<string, string>): string {
+  const name = (id: string) => names.get(id) ?? 'otra cuenta';
+  const from = holder(before),
+    to = holder(after);
+  if (!before) return to ? `Registrado y asignado a ${name(to)}` : 'Registrado sin asignar';
+  if (!before.archived && after?.archived) return from ? `Dado de baja (estaba con ${name(from)})` : 'Dado de baja';
+  if (before.archived && !after?.archived) return 'Reactivado sin asignar';
+  if (from !== to) {
+    if (!from) return `Asignado a ${name(to!)}`;
+    if (!to) return `Liberado (estaba con ${name(from)})`;
+    return `Reasignado de ${name(from)} a ${name(to)}`;
+  }
+  return 'Datos del equipo actualizados';
 }

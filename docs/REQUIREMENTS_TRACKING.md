@@ -103,3 +103,19 @@ Los motivos y notas admiten hasta 500 caracteres.
   - el porcentaje de abiertos que están atrasados;
   - los tres motivos de retraso más comunes.
 - **Exportar CSV:** baja una fila por requerimiento, con las celdas protegidas contra fórmulas de planilla. Hay una lista nueva, «Todos».
+
+## Nuevo ticket del equipo con equipo y pedido (13 nov 2026)
+
+El formulario «Nuevo ticket» del equipo de soporte ofrece lo mismo que el portal: «Tipo de solicitud» y, al elegir una cuenta de cliente con equipos activos, «¿Sobre qué equipo?» (preelegido si tiene uno solo). El servidor ya validaba ambos datos, así que no hubo cambios en la API ni en la base.
+
+## F6-A3: dar de baja y historial de cada equipo (13 nov 2026)
+
+Sin migración: usa la columna `customerAssets.archived` y el historial `serviceContextEvents` que ya existían.
+
+- **Dar de baja:** en «Equipos», cada fila tiene «Dar de baja», con una confirmación en la misma fila. El equipo:
+  - sale del inventario activo, de «Mis equipos» del cliente y de los equipos que se pueden nombrar en un ticket nuevo;
+  - queda **sin asignar**, aunque el historial guarda quién lo tenía;
+  - sigue vinculado a los tickets que ya lo mencionaban.
+- **Reactivar:** el filtro «Dados de baja» lista esos equipos, y desde ahí «Reactivar» los devuelve al inventario sin asignar. Reutilizar el ID del equipo al invitar a un cliente sigue pidiendo reactivarlo primero.
+- **Historial:** «Ver historial» muestra, del más reciente al más antiguo, quién hizo cada cambio y qué significó: registrado, asignado, liberado, reasignado, dado de baja, reactivado o datos actualizados. También lista los tickets que mencionaron el equipo, con su estado y un enlace. Muestra como máximo 50 de cada uno y solo lo ve el equipo de soporte.
+- **Concurrencia:** dar de baja y reactivar usan el mismo bloqueo de trabajo, `FOR UPDATE` y la misma versión esperada que una asignación. Si otra persona cambió el equipo, la respuesta es 409.
