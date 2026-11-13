@@ -545,7 +545,9 @@ button:focus-visible,a:focus-visible{outline:2px solid #a46d09;outline-offset:3p
 .toast{left:calc(50% + var(--db-rail-width) / 2)}
 @media(max-width:1250px){.topbar,.content{padding-inline:24px}}
 @media(max-width:1000px){.topbar,.content{padding-inline:20px}}
-@media(max-width:750px){.main{margin-left:0}.topbar,.content{padding-inline:16px}.toast{left:50%}}
+/* En tableta, el riel compacto de la familia (214 px), como Parte Diario. */
+@media(max-width:1024px){.sidebar{width:var(--db-rail-width-compact)}.main{margin-left:var(--db-rail-width-compact)}.toast{left:calc(50% + var(--db-rail-width-compact) / 2)}}
+@media(max-width:750px){.sidebar{width:var(--db-rail-width)}.main{margin-left:0}.topbar,.content{padding-inline:16px}.toast{left:50%}}
 
 /* El selector de tema vive en el pie del riel, junto a la persona (Fase 4). El
    riel es oscuro en los dos temas: el selector toma sus colores. */
