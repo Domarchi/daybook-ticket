@@ -177,6 +177,40 @@ test.describe('the support desk', () => {
     await expect(settings).toHaveAttribute('class', /active/);
   });
 
+  // Fase 5b: lo que no tiene vuelta atrás se confirma en un diálogo con el botón
+  // rojo que nombra la acción y el foco en «Cancelar». («Revocar acceso» con
+  // «Deshacer» no se cubre acá: gestionar personas pide verificar la contraseña
+  // del propietario, y esta suite no toca esa verificación.)
+  test('deleting a saved reply asks in a dialog with a red button that names the action', async ({ page }) => {
+    await page.goto('/?view=knowledge');
+    await page.getByRole('button', { name: 'Nueva respuesta' }).click();
+    await page.getByLabel('Título').fill('Reinicio de impresora');
+    await page.getByLabel('Categoría').fill('Soporte');
+    await page.getByLabel('Respuesta', { exact: true }).fill('Apaga la impresora 30 segundos y vuelve a intentar.');
+    await page.getByRole('button', { name: 'Guardar respuesta' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Respuesta guardada' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Eliminar respuesta Reinicio de impresora' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Eliminar respuesta guardada' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Cancelar' })).toBeFocused();
+    const danger = dialog.getByRole('button', { name: 'Eliminar respuesta' });
+    await expect(danger).toHaveCSS('background-color', 'rgb(179, 38, 30)');
+    await expect(danger).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await expectNoSeriousViolations(page, 'Confirmar eliminación');
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText('Reinicio de impresora')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Eliminar respuesta Reinicio de impresora' }).click();
+    await page
+      .getByRole('dialog', { name: 'Eliminar respuesta guardada' })
+      .getByRole('button', { name: 'Eliminar respuesta' })
+      .click();
+    await expect(page.getByRole('status').filter({ hasText: 'Respuesta eliminada' })).toBeVisible();
+    await expect(page.getByText('Reinicio de impresora')).toHaveCount(0);
+  });
+
   test.describe('dark mode', () => {
     test.use({ colorScheme: 'dark' });
     test('the inbox and an open ticket pass the accessibility gate in dark mode', async ({ page }) => {

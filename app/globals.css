@@ -579,3 +579,18 @@ button:focus-visible,a:focus-visible{outline:2px solid #a46d09;outline-offset:3p
 @keyframes daybook-toast-in{from{opacity:0;transform:translateY(8px)}}
 @media(max-width:1024px){.toast-region{left:calc(50% + var(--db-rail-width-compact) / 2);max-width:min(var(--db-toast-max-width),calc(100vw - var(--db-rail-width-compact) - var(--db-space-6)))}}
 @media(max-width:750px){.toast-region{left:50%;bottom:calc(var(--db-space-4) + env(safe-area-inset-bottom));max-width:calc(100vw - var(--db-space-6))}}
+
+/* Acciones delicadas (Fase 5b, @daybook/design 0.6), igual que Parte Diario y
+   Travel: lo que no tiene vuelta atrás se confirma en un diálogo con el botón
+   rojo lleno que nombra la acción; lo que se puede revertir se hace y el aviso
+   ofrece «Deshacer» con el borde del aviso, 10 s. */
+.danger-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--db-button-height);padding:11px var(--db-button-padding-x);border:1px solid var(--db-danger-action);border-radius:var(--db-button-radius);background:var(--db-danger-action);color:var(--db-danger-action-text);font-size:var(--db-button-font-size);font-weight:var(--db-button-weight);white-space:nowrap;cursor:pointer}
+.danger-button:not(:disabled):hover{border-color:var(--db-danger-action-hover);background:var(--db-danger-action-hover)}
+.danger-button:disabled{opacity:.48;cursor:not-allowed}
+.danger-button:focus-visible{outline:2px solid var(--db-focus);outline-offset:3px}
+.confirm-dialog-body{display:grid;gap:var(--db-space-5);padding:20px 22px 22px}
+.confirm-dialog-body>p{margin:0;color:var(--muted);font-size:var(--db-text-body);line-height:var(--db-leading-body)}
+.confirm-dialog-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--db-space-2)}
+.toast-undo{flex:0 0 auto;min-height:36px;margin-left:auto;padding:0 var(--db-space-3);border:1px solid var(--db-toast-border);border-radius:var(--db-radius-control);background:transparent;color:var(--db-toast-text);font:inherit;font-weight:600;cursor:pointer}
+.toast-undo:hover{background:rgba(255,255,255,.08)}
+.toast-undo:focus-visible{outline:2px solid var(--db-focus);outline-offset:2px}

@@ -160,6 +160,48 @@ export function Modal({
     </dialog>
   );
 }
+// Fase 5 del estándar Daybook: lo que no se puede deshacer se confirma en un
+// diálogo propio, con el botón rojo lleno (`--db-danger-action`) que nombra la
+// acción —«Eliminar regla», nunca «Aceptar»— y el foco en «Cancelar», la salida
+// segura para quien tocó sin querer. Lo que sí se puede deshacer no pasa por
+// acá: se hace y el aviso ofrece «Deshacer» durante 10 s.
+export function ConfirmDialog({
+  title,
+  description,
+  confirmLabel,
+  busyLabel = 'Eliminando…',
+  busy = false,
+  onConfirm,
+  onClose,
+}: {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  busyLabel?: string;
+  busy?: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const cancel = useRef<HTMLButtonElement>(null);
+  // Corre después del `showModal()` de Modal (los efectos del hijo van primero
+  // y este componente es el padre), que dejaría el foco en la ✕ del encabezado.
+  useEffect(() => cancel.current?.focus(), []);
+  return (
+    <Modal title={title} onClose={() => !busy && onClose()}>
+      <div className="confirm-dialog-body">
+        <p>{description}</p>
+        <div className="confirm-dialog-actions">
+          <button ref={cancel} type="button" className="secondary" disabled={busy} onClick={onClose}>
+            Cancelar
+          </button>
+          <button type="button" className="danger-button" disabled={busy} onClick={onConfirm}>
+            {busy ? busyLabel : confirmLabel}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
 // The search shortcut is Cmd+K on Apple devices and Ctrl+K elsewhere (the handler accepts both).
 const isApplePlatform = () => /Mac|iPhone|iPad/i.test(navigator.userAgent);
 export function SearchShortcut() {

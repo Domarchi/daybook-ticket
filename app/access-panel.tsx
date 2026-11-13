@@ -14,7 +14,7 @@ export const ROLE_LABELS: Record<MemberRole, string> = {
   client: 'Cliente',
 };
 const MEMBER_STATUS = { invited: 'Invitación pendiente', active: 'Activo', revoked: 'Acceso revocado' };
-type Run = (action: () => Promise<unknown>, message: string) => Promise<boolean>;
+type Run = (action: () => Promise<unknown>, message: string, undo?: { run: () => void }) => Promise<boolean>;
 
 async function request<T = unknown>(path: string, method: string, body: unknown): Promise<T> {
   const response = await daybookFetch(path, {
@@ -81,6 +81,11 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
         if (invitation?.memberId === member.id && body.status === 'revoked') setInvitation(null);
       },
       body.status === 'revoked' ? 'Acceso revocado' : 'Acceso actualizado',
+      // Revocar se revierte con «Restaurar acceso», así que no se pregunta: se
+      // hace y el aviso ofrece «Deshacer» durante 10 s (Fase 5).
+      body.status === 'revoked' && member.status !== 'revoked'
+        ? { run: () => void update(member, { status: member.status }) }
+        : undefined,
     );
 
   const copy = async () => {

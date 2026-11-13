@@ -22,6 +22,7 @@ import type { ServiceCalendar } from '@/lib/sla-policy';
 import type { AssignmentRule } from '@/lib/automatic-assignment';
 import type { AgentAvailability } from '@/lib/assignment-rules';
 import { ClientRequestError } from '@/lib/client-request';
+import { ConfirmDialog } from './desk-parts/shared';
 import './operations-settings.css';
 type Saved = () => void | Promise<unknown>;
 interface OperationsSettingsProps {
@@ -996,27 +997,20 @@ function RuleEditor({
       <div className="ops-form-actions">
         {!isNew && rule && (
           <div className="ops-reset">
-            {confirmDelete ? (
-              <>
-                <span>¿Eliminar esta regla?</span>
-                <button
-                  type="button"
-                  className="ops-text-button ops-danger"
-                  disabled={busy || conflicted}
-                  onClick={() => void remove()}
-                >
-                  Confirmar eliminación
-                </button>
-                <button
-                  type="button"
-                  className="ops-text-button"
-                  disabled={busy}
-                  onClick={() => setConfirmDelete(false)}
-                >
-                  Conservar
-                </button>
-              </>
-            ) : (
+            {confirmDelete && (
+              <ConfirmDialog
+                title="Eliminar regla de reparto"
+                description="Los tickets nuevos dejan de repartirse con esta regla. Los que ya se asignaron conservan su responsable. No se puede deshacer."
+                confirmLabel="Eliminar regla"
+                busy={busy}
+                onClose={() => setConfirmDelete(false)}
+                onConfirm={async () => {
+                  await remove();
+                  setConfirmDelete(false);
+                }}
+              />
+            )}
+            {
               <button
                 type="button"
                 className="ops-text-button ops-danger"
@@ -1026,7 +1020,7 @@ function RuleEditor({
                 <Trash2 size={14} />
                 Eliminar regla
               </button>
-            )}
+            }
           </div>
         )}
         <button className="secondary" type="button" disabled={busy} onClick={onCancel}>

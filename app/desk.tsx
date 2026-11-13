@@ -131,7 +131,8 @@ export default function Desk({
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, []);
-  const run = async (fn: () => Promise<unknown>, message: string) => {
+  // `undo`: la acción se pudo revertir y el aviso ofrece «Deshacer» 10 s (Fase 5).
+  const run = async (fn: () => Promise<unknown>, message: string, undo?: { run: () => void }) => {
     setBusy(true);
     setError('');
     try {
@@ -141,7 +142,7 @@ export default function Desk({
       } catch {
         setError('El cambio se guardó. Reintentaremos actualizar la vista automáticamente; no necesitas reenviarlo.');
       }
-      notify(message);
+      notify(message, undo ?? null);
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Algo salió mal.');

@@ -7,7 +7,11 @@ import { Combobox } from './combobox';
 import { clientRequest, ClientRequestError } from '@/lib/client-request';
 
 export type CompanyItem = { id: string; name: string; createdAt: string; updatedAt: string };
-export type RunAction = (action: () => Promise<unknown>, message: string) => Promise<boolean>;
+export type RunAction = (
+  action: () => Promise<unknown>,
+  message: string,
+  undo?: { run: () => void },
+) => Promise<boolean>;
 type Activity = {
   id: string;
   actorName: string;
