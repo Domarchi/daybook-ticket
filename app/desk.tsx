@@ -7,7 +7,7 @@ import { disconnectPushOnSignOut } from '@/lib/push-client';
 import { visibleTicketSelection } from '@/lib/ticket-selection';
 import { currentWorkspaceId } from '@/lib/workspace-client';
 import { workspaceHome } from '@/lib/workspace-model';
-import { CheckCircle2, ChevronRight, LoaderCircle, Menu, Search, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronRight, LoaderCircle, Menu, Search, ShieldCheck, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -430,14 +430,6 @@ export default function Desk({
             <LiveStatus connection={connection} />
             {data.viewer && <TicketAlerts alerts={alerts} onOpen={openAlert} />}
           </div>
-          {error && (
-            <div className="error-banner" role="alert">
-              <span>{error}</span>
-              <button onClick={() => setError('')} aria-label="Cerrar aviso">
-                <X size={17} />
-              </button>
-            </div>
-          )}
           {loading ? (
             <div className="loading">
               <LoaderCircle className="spin" />
@@ -566,26 +558,44 @@ export default function Desk({
         </Modal>
       )}
 
-      {toast && (
-        <div className="toast" role="status">
-          <CheckCircle2 size={18} />
-          {toast}
-          {undoAction && (
-            <button
-              type="button"
-              className="toast-undo"
-              onClick={() => {
-                const action = undoAction;
-                setUndoAction(null);
-                setToast('');
-                action.run();
-              }}
-            >
-              Deshacer
+      {/* The notice after an action (Phase 5 of the Daybook standard): bottom
+          centre of the content in all three apps. A success leaves on its own;
+          an error stays until it is closed or the next action clears it. Both
+          live inside regions that are always mounted, so screen readers announce
+          what changes inside them. While an error is up, it is the only notice. */}
+      <div className="toast-region" role="alert" aria-atomic="true">
+        {error && (
+          <div className="toast error">
+            <AlertTriangle size={18} aria-hidden="true" />
+            <span>{error}</span>
+            <button type="button" className="toast-close" onClick={() => setError('')} aria-label="Cerrar aviso">
+              <X size={16} />
             </button>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
+      <div className="toast-region" role="status" aria-live="polite" aria-atomic="true">
+        {toast && !error && (
+          <div className="toast">
+            <CheckCircle2 size={18} aria-hidden="true" />
+            {toast}
+            {undoAction && (
+              <button
+                type="button"
+                className="toast-undo"
+                onClick={() => {
+                  const action = undoAction;
+                  setUndoAction(null);
+                  setToast('');
+                  action.run();
+                }}
+              >
+                Deshacer
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       {busy && (
         <div className="saving" role="status">
           <LoaderCircle size={14} className="spin" />

@@ -560,3 +560,22 @@ button:focus-visible,a:focus-visible{outline:2px solid #a46d09;outline-offset:3p
    izquierda, termina en «…». */
 .sidebar .profile>.profile-security{display:block;max-width:none;text-align:left}
 .sidebar .profile>.profile-security small{overflow:hidden;text-overflow:ellipsis}
+
+/* El aviso tras una acción (Fase 5, @daybook/design 0.6): tarjeta oscura en los
+   dos temas, abajo al centro del contenido, igual que Parte Diario y Daybook
+   Travel. El error deja de ser una franja arriba del contenido: es el mismo
+   aviso en rojo y se queda hasta cerrarlo. Lo que se fija abajo al centro es la
+   región viva (`.toast-region`, siempre montada), con el aviso adentro: así la
+   región que se anuncia es también la caja que se ve. */
+.toast-region{position:fixed;left:calc(50% + var(--db-rail-width) / 2);bottom:var(--db-toast-offset);translate:-50% 0;z-index:100;display:grid;justify-items:center;width:max-content;max-width:min(var(--db-toast-max-width),calc(100vw - var(--db-rail-width) - var(--db-space-6)))}
+.toast{position:static;left:auto;bottom:auto;transform:none;translate:none;max-width:100%;width:max-content;min-height:var(--db-toast-min-height);gap:var(--db-space-3);padding:var(--db-toast-padding-y) var(--db-toast-padding-x);border:1px solid var(--db-toast-border);border-radius:var(--db-toast-radius);background:var(--db-toast-bg);color:var(--db-toast-text);box-shadow:var(--db-toast-shadow);font-size:var(--db-toast-font-size);line-height:var(--db-leading-ui);animation:daybook-toast-in var(--db-duration-enter) var(--db-ease-out) both}
+.toast>svg{flex:0 0 auto;width:var(--db-toast-icon);height:var(--db-toast-icon);color:var(--db-toast-success)}
+.toast.error{padding-block:1px;padding-right:1px;border-color:var(--db-toast-danger-border);background:var(--db-toast-danger-bg)}
+.toast.error>svg{color:var(--db-toast-danger)}
+.toast-close{display:grid;flex:0 0 auto;width:44px;height:44px;margin-left:auto;place-items:center;border:0;border-radius:var(--db-radius-control);background:transparent;color:inherit;cursor:pointer}
+.toast-close:hover{background:rgba(255,255,255,.08)}
+.toast-close:focus-visible{outline:2px solid var(--db-focus);outline-offset:2px}
+.toast-undo{min-height:36px;margin-left:var(--db-space-1);color:var(--db-toast-text)}
+@keyframes daybook-toast-in{from{opacity:0;transform:translateY(8px)}}
+@media(max-width:1024px){.toast-region{left:calc(50% + var(--db-rail-width-compact) / 2);max-width:min(var(--db-toast-max-width),calc(100vw - var(--db-rail-width-compact) - var(--db-space-6)))}}
+@media(max-width:750px){.toast-region{left:50%;bottom:calc(var(--db-space-4) + env(safe-area-inset-bottom));max-width:calc(100vw - var(--db-space-6))}}
