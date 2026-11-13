@@ -8,6 +8,7 @@ import { readTicketResource } from '@/hooks/use-ticket-search';
 import { MessageContent } from './message-content';
 import { MessageAttachments } from './attachments';
 import type { Attachment, Message } from '@/lib/types';
+import { SkeletonList } from './estados';
 
 type SearchHit = { id: number; author: string; kind: string; createdAt: string; excerpt: string };
 type FileHit = Attachment & { createdAt: string; messageId: number; kind: string; author: string };
@@ -281,7 +282,7 @@ export function TicketCollaborationTools({
           </div>
           <div className="ticket-collaboration-results" aria-busy={loading}>
             {loading ? (
-              <p role="status">Buscando…</p>
+              <SkeletonList label="Buscando…" rows={2} lines={1} />
             ) : mode === 'search' && !query.trim() ? (
               <p>Escribe para buscar en el historial completo del ticket.</p>
             ) : (

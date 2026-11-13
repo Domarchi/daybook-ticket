@@ -7,7 +7,7 @@ import { disconnectPushOnSignOut } from '@/lib/push-client';
 import { visibleTicketSelection } from '@/lib/ticket-selection';
 import { currentWorkspaceId } from '@/lib/workspace-client';
 import { workspaceHome } from '@/lib/workspace-model';
-import { CheckCircle2, ChevronRight, LoaderCircle, Menu, Search, ShieldCheck, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ChevronRight, LoaderCircle, Menu, Search, ShieldCheck, X } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -27,7 +27,6 @@ import {
 } from '@/lib/ticket-overlay';
 import { type Ticket } from '../lib/types';
 import ClientPortal from './client-portal';
-import { ThemeControl } from './evolution-controls';
 import { LiveStatus } from './live-status';
 import { TicketAlerts } from './ticket-alerts';
 import { View, request, Modal, PRIORITY, views, Avatar, ReplyTarget } from './desk-parts/shared';
@@ -39,6 +38,7 @@ import { SectionView } from './desk-parts/section-view';
 import { Sidebar } from './desk-parts/sidebar';
 import { TicketForm } from './desk-parts/ticket-form';
 import type { BitaRequest } from './bita';
+import { SkeletonList } from './estados';
 
 // Bita's chat is only downloaded when the server offers it to this person.
 const Bita = dynamic(() => import('./bita'), { ssr: false });
@@ -132,7 +132,8 @@ export default function Desk({
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   }, []);
-  const run = async (fn: () => Promise<unknown>, message: string) => {
+  // `undo`: la acción se pudo revertir y el aviso ofrece «Deshacer» 10 s (Fase 5).
+  const run = async (fn: () => Promise<unknown>, message: string, undo?: { run: () => void }) => {
     setBusy(true);
     setError('');
     try {
@@ -142,7 +143,7 @@ export default function Desk({
       } catch {
         setError('El cambio se guardó. Reintentaremos actualizar la vista automáticamente; no necesitas reenviarlo.');
       }
-      notify(message);
+      notify(message, undo ?? null);
       return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Algo salió mal.');
@@ -428,32 +429,17 @@ export default function Desk({
         </header>
         <div className="content">
           <div className="workspace-sync">
-            {data.viewer && (
-              <ThemeControl
-                key={data.viewer.id}
-                memberId={data.viewer.id}
-                preferred={data.preferences?.theme || 'system'}
-              />
-            )}
             <LiveStatus connection={connection} />
             {data.viewer && <TicketAlerts alerts={alerts} onOpen={openAlert} />}
           </div>
-          {error && (
-            <div className="error-banner" role="alert">
-              <span>{error}</span>
-              <button onClick={() => setError('')} aria-label="Cerrar aviso">
-                <X size={17} />
-              </button>
-            </div>
-          )}
           {loading ? (
             <div className="loading">
               <LoaderCircle className="spin" />
               <p>Preparando tu espacio…</p>
             </div>
           ) : ticketId && !current ? (
-            <div className="panel ticket-search-feedback" role={conversation.error ? 'alert' : 'status'}>
-              {conversation.error || 'Cargando conversación…'}
+            <div className="panel ticket-search-feedback" role={conversation.error ? 'alert' : undefined}>
+              {conversation.error || <SkeletonList label="Cargando conversación…" rows={3} lines={2} />}
               <button className="text-button" onClick={leaveTicket}>
                 Volver a la bandeja
               </button>
@@ -576,26 +562,44 @@ export default function Desk({
         </Modal>
       )}
 
-      {toast && (
-        <div className="toast" role="status">
-          <CheckCircle2 size={18} />
-          {toast}
-          {undoAction && (
-            <button
-              type="button"
-              className="toast-undo"
-              onClick={() => {
-                const action = undoAction;
-                setUndoAction(null);
-                setToast('');
-                action.run();
-              }}
-            >
-              Deshacer
+      {/* The notice after an action (Phase 5 of the Daybook standard): bottom
+          centre of the content in all three apps. A success leaves on its own;
+          an error stays until it is closed or the next action clears it. Both
+          live inside regions that are always mounted, so screen readers announce
+          what changes inside them. While an error is up, it is the only notice. */}
+      <div className="toast-region" role="alert" aria-atomic="true">
+        {error && (
+          <div className="toast error">
+            <AlertTriangle size={18} aria-hidden="true" />
+            <span>{error}</span>
+            <button type="button" className="toast-close" onClick={() => setError('')} aria-label="Cerrar aviso">
+              <X size={16} />
             </button>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
+      <div className="toast-region" role="status" aria-live="polite" aria-atomic="true">
+        {toast && !error && (
+          <div className="toast">
+            <CheckCircle2 size={18} aria-hidden="true" />
+            {toast}
+            {undoAction && (
+              <button
+                type="button"
+                className="toast-undo"
+                onClick={() => {
+                  const action = undoAction;
+                  setUndoAction(null);
+                  setToast('');
+                  action.run();
+                }}
+              >
+                Deshacer
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       {busy && (
         <div className="saving" role="status">
           <LoaderCircle size={14} className="spin" />

@@ -22,7 +22,9 @@ import type { ServiceCalendar } from '@/lib/sla-policy';
 import type { AssignmentRule } from '@/lib/automatic-assignment';
 import type { AgentAvailability } from '@/lib/assignment-rules';
 import { ClientRequestError } from '@/lib/client-request';
+import { ConfirmDialog } from './desk-parts/shared';
 import './operations-settings.css';
+import { EmptyState, SkeletonList } from './estados';
 type Saved = () => void | Promise<unknown>;
 interface OperationsSettingsProps {
   companies: CustomerCompany[];
@@ -149,12 +151,7 @@ function Notice({ message, error = false }: { message: string; error?: boolean }
   ) : null;
 }
 function Loading({ text = 'Cargando configuración…' }: { text?: string }) {
-  return (
-    <p className="ops-loading" role="status">
-      <Loader2 className="ops-spin" size={17} aria-hidden="true" />
-      {text}
-    </p>
-  );
+  return <SkeletonList label={text} rows={2} lines={1} />;
 }
 function ServicePolicySettings({
   companies,
@@ -754,11 +751,11 @@ function AssignmentRulesSettings({ companies, members, departments, memberId, on
             ))}
           </div>
           {!rules?.length && !editing && (
-            <div className="ops-empty">
-              <Route size={25} aria-hidden="true" />
-              <strong>El reparto sigue en tus manos</strong>
-              <p>Crea una regla y elige cuándo activarla. Tus tickets actuales conservarán su responsable.</p>
-            </div>
+            <EmptyState
+              icon={<Route size={22} />}
+              title="El reparto sigue en tus manos"
+              text="Crea una regla y elige cuándo activarla. Tus tickets actuales conservarán su responsable."
+            />
           )}
           {!activeStaff.length && (
             <p className="ops-help">Necesitas una cuenta activa del equipo para configurar el reparto.</p>
@@ -996,27 +993,20 @@ function RuleEditor({
       <div className="ops-form-actions">
         {!isNew && rule && (
           <div className="ops-reset">
-            {confirmDelete ? (
-              <>
-                <span>¿Eliminar esta regla?</span>
-                <button
-                  type="button"
-                  className="ops-text-button ops-danger"
-                  disabled={busy || conflicted}
-                  onClick={() => void remove()}
-                >
-                  Confirmar eliminación
-                </button>
-                <button
-                  type="button"
-                  className="ops-text-button"
-                  disabled={busy}
-                  onClick={() => setConfirmDelete(false)}
-                >
-                  Conservar
-                </button>
-              </>
-            ) : (
+            {confirmDelete && (
+              <ConfirmDialog
+                title="Eliminar regla de reparto"
+                description="Los tickets nuevos dejan de repartirse con esta regla. Los que ya se asignaron conservan su responsable. No se puede deshacer."
+                confirmLabel="Eliminar regla"
+                busy={busy}
+                onClose={() => setConfirmDelete(false)}
+                onConfirm={async () => {
+                  await remove();
+                  setConfirmDelete(false);
+                }}
+              />
+            )}
+            {
               <button
                 type="button"
                 className="ops-text-button ops-danger"
@@ -1026,7 +1016,7 @@ function RuleEditor({
                 <Trash2 size={14} />
                 Eliminar regla
               </button>
-            )}
+            }
           </div>
         )}
         <button className="secondary" type="button" disabled={busy} onClick={onCancel}>

@@ -23,6 +23,8 @@ import {
   Search,
   ShieldCheck,
   X,
+  Bell,
+  ClipboardList,
 } from 'lucide-react';
 import type { CustomerCompany, Member } from '@/lib/types';
 import type {
@@ -37,6 +39,7 @@ import { useDraftAttachments } from '@/hooks/use-draft-attachments';
 import { getDraftOperations } from '@/lib/draft-operations';
 import { AttachmentComposer, MessageAttachments } from './attachments';
 import './service-context.css';
+import { EmptyState, SkeletonList } from './estados';
 
 const LABELS: Record<ServiceResource, string> = {
   profiles: 'Ficha de empresa',
@@ -273,7 +276,11 @@ export function ServiceContextPanel({
         </button>
       </div>
       {!companies.length ? (
-        <p className="service-context-empty">Crea una empresa para registrar su contexto de servicio.</p>
+        <EmptyState
+          icon={<Building2 size={22} />}
+          title="Sin empresas"
+          text="Crea una empresa para registrar su contexto de servicio."
+        />
       ) : (
         <>
           <nav className="service-context-tabs" aria-label="Contexto de la empresa">
@@ -345,14 +352,13 @@ export function ServiceContextPanel({
                 )}
               </div>
               <Feedback error={current?.error || ''} />
-              {loading && (
-                <p className="service-context-empty" role="status">
-                  <LoaderCircle size={17} className="spin" />
-                  Cargando registros…
-                </p>
-              )}
+              {loading && <SkeletonList label="Cargando registros…" rows={2} lines={1} />}
               {!loading && !current?.items.length && (
-                <p className="service-context-empty">No hay registros para esta empresa y estos filtros.</p>
+                <EmptyState
+                  icon={<ClipboardList size={22} />}
+                  title="Sin registros"
+                  text="No hay registros para esta empresa y estos filtros."
+                />
               )}
               <div className="service-context-list">
                 {!loading &&
@@ -749,7 +755,7 @@ function AssetHistory({ memberId, asset, onClose }: { memberId: string; asset: E
       </header>
       <Feedback error={state.error} />
       {state.loading ? (
-        <p role="status">Cargando incidencias…</p>
+        <SkeletonList label="Cargando incidencias…" rows={2} lines={1} />
       ) : state.items.length ? (
         <ul>
           {state.items.map(ticket => (
@@ -968,10 +974,10 @@ function ServiceContextReminders({
           <p>No se generan avisos de etapas anteriores a la activación o al cambio de fecha.</p>
         </>
       ) : (
-        <p role="status">Consultando programación…</p>
+        <SkeletonList label="Consultando programación…" rows={1} lines={2} />
       )}
       {!state.items.length ? (
-        <p className="service-context-empty">No tienes avisos para esta empresa.</p>
+        <EmptyState icon={<Bell size={22} />} title="Sin avisos" text="No tienes avisos para esta empresa." />
       ) : (
         <ul>
           {state.items.map(item => (
@@ -1127,7 +1133,11 @@ export function TicketServiceContextPanel({
       </header>
       <Feedback error={current?.error || ''} />
       {!companyId ? (
-        <p className="service-context-empty">Asocia el ticket a una empresa para vincular sus equipos y contratos.</p>
+        <EmptyState
+          icon={<Building2 size={22} />}
+          title="Ticket sin empresa"
+          text="Asocia el ticket a una empresa para vincular sus equipos y contratos."
+        />
       ) : (
         <>
           <label className="service-context-search">
@@ -1140,9 +1150,7 @@ export function TicketServiceContextPanel({
             />
           </label>
           {!current?.context ? (
-            <p role="status" className="service-context-empty">
-              Cargando contexto…
-            </p>
+            <SkeletonList label="Cargando contexto…" rows={2} lines={1} />
           ) : (
             <form
               onSubmit={async event => {

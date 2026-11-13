@@ -11,6 +11,7 @@ import {
   type TicketSatisfaction,
 } from '@/lib/satisfaction-model';
 import './satisfaction.css';
+import { SkeletonList } from './estados';
 
 export function TicketSatisfactionPanel({
   ticketId,
@@ -68,9 +69,8 @@ export function TicketSatisfactionPanel({
   if (!isFinished(status)) return null;
   if (!current)
     return (
-      <section className="ticket-satisfaction" role="status">
-        <LoaderCircle size={18} className="spinning" />
-        Consultando evaluación…
+      <section className="ticket-satisfaction">
+        <SkeletonList label="Consultando evaluación…" rows={1} lines={1} />
       </section>
     );
   if (current.error)

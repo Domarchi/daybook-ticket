@@ -6,6 +6,7 @@ import { ArrowUpRight, LoaderCircle, RefreshCw } from 'lucide-react';
 import type { Member } from '@/lib/types';
 import { escalationSelectionOptions, toggleEscalationRecipient, type EscalationPolicy } from '@/lib/escalation-policy';
 import './satisfaction.css';
+import { SkeletonList } from './estados';
 
 export function EscalationSettingsPanel({ memberId, members }: { memberId: string; members: Member[] }) {
   const [policy, setPolicy] = useState<EscalationPolicy | null>(null);
@@ -99,11 +100,7 @@ export function EscalationSettingsPanel({ memberId, members }: { memberId: strin
           Cuando una solicitud necesita apoyo, otro encargado recibe un aviso en el portal y por correo. El responsable
           del ticket se conserva.
         </p>
-        {!policy && !error && (
-          <p role="status">
-            <LoaderCircle className="spinning" size={16} /> Cargando configuración…
-          </p>
-        )}
+        {!policy && !error && <SkeletonList label="Cargando configuración…" rows={2} lines={1} />}
         <fieldset disabled={!policy || busy} className="escalation-fields">
           <label className="service-plus-check">
             <input

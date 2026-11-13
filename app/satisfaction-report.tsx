@@ -7,6 +7,7 @@ import type { CustomerCompany, Member } from '@/lib/types';
 import { metricsCsvCell, metricsDate, shiftMetricsDate } from '@/lib/agent-metrics-model';
 import type { SatisfactionAggregate, SatisfactionReport } from '@/lib/satisfaction-model';
 import './satisfaction.css';
+import { SkeletonList } from './estados';
 
 const number = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 1 });
 const format = (value: number | null, suffix = '') =>
@@ -225,7 +226,7 @@ export function SatisfactionReportPanel({
         cierres anteriores a esta función no se reconstruyen.
       </p>
       {incomplete && <p role="status">Selecciona ambas fechas para consultar.</p>}
-      {!incomplete && !current && <p role="status">Consultando evaluaciones…</p>}
+      {!incomplete && !current && <SkeletonList label="Consultando evaluaciones…" rows={2} lines={1} />}
       {current?.error && (
         <p className="service-plus-error" role="alert">
           {current.error}

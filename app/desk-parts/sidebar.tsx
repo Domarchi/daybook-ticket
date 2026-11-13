@@ -22,6 +22,7 @@ import Brand from '../brand';
 import { WorkspaceSwitcher } from '../workspace-navigation';
 import { useEffect, useRef } from 'react';
 import { Avatar, View } from './shared';
+import { ThemeControl } from '../evolution-controls';
 
 export function Sidebar({
   view,
@@ -275,6 +276,15 @@ export function Sidebar({
             <ArrowRight size={16} />
           </button>
         </div>
+        {/* El tema, en el pie del riel junto a la persona, como en Parte Diario y
+            Daybook Travel. En el teléfono el riel es el menú, así que también está. */}
+        {data.viewer && (
+          <ThemeControl
+            key={data.viewer.id}
+            memberId={data.viewer.id}
+            preferred={data.preferences?.theme || 'system'}
+          />
+        )}
       </div>
     </aside>
   );

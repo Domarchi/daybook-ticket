@@ -5,66 +5,53 @@
  * (scripts/design-tokens.test.ts) checks them against the legacy palette and
  * checks WCAG AA contrast for every text/background pair.
  *
+ * Shared colors come from @daybook/design (--db-* variables, imported first in
+ * app/layout.tsx). The package already switches every --db-* value to dark, so the
+ * dark blocks below only hold what is Ticket-specific. The drift test resolves
+ * var(--db-*) against the package before checking contrast.
+ *
  * Mapping to legacy names: --color-bg=--paper, --color-surface=--surface,
  * --color-text=--ink, --color-text-muted=--muted, --color-border=--line,
  * --color-accent=--accent (--blue and --lime are aliases of it, despite their names),
  * --color-accent-soft=--accent-soft.
  */
 :root {
-  --color-bg: #f7f8f9;
-  --color-surface: #ffffff;
-  --color-text: #11120f;
-  --color-text-muted: #69675f;
-  --color-border: #d9dbdc;
-  --color-border-strong: #8c8f88;
-  --color-accent: #805a0e;
-  --color-accent-soft: #faf3e3;
-  --color-focus: #a46d09;
+  --color-bg: var(--db-bg);
+  --color-surface: var(--db-surface);
+  --color-text: var(--db-text);
+  --color-text-muted: var(--db-text-muted);
+  --color-border: var(--db-border);
+  --color-border-strong: var(--db-border-strong);
+  --color-accent: var(--db-brand);
+  --color-accent-soft: var(--db-brand-soft);
+  --color-focus: var(--db-focus);
   --color-danger-bg: #fff0ed;
   --color-danger-border: #f2d3cb;
   --color-danger-text: #8f3f33;
 
-  --radius-sm: 5px;
-  --radius-md: 6px;
-  --radius-lg: 7px;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 24px;
-  --space-6: 32px;
+  --radius-sm: var(--db-radius-control);
+  --radius-md: var(--db-radius-control);
+  --radius-lg: var(--db-radius-control);
+  --space-1: var(--db-space-1);
+  --space-2: var(--db-space-2);
+  --space-3: var(--db-space-3);
+  --space-4: var(--db-space-4);
+  --space-5: var(--db-space-5);
+  --space-6: var(--db-space-6);
   --shadow-sm: 0 2px 3px #11120f0a;
   --focus-ring: 2px solid var(--color-focus);
   --focus-offset: 2px;
   --touch-target: 44px;
 }
 
-:root[data-color-scheme="dark"] {
-  --color-bg: #000000;
-  --color-surface: #0a0a0a;
-  --color-text: #ededed;
-  --color-text-muted: #a1a1a1;
-  --color-border: #303030;
-  --color-border-strong: #6b6b6b;
-  --color-accent: #edc879;
-  --color-accent-soft: #292315;
-  --color-focus: #edc879;
+:root[data-theme="dark"] {
   --color-danger-bg: #291716;
   --color-danger-border: #91483f;
   --color-danger-text: #ffb4aa;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-color-scheme="light"]) {
-    --color-bg: #000000;
-    --color-surface: #0a0a0a;
-    --color-text: #ededed;
-    --color-text-muted: #a1a1a1;
-    --color-border: #303030;
-    --color-border-strong: #6b6b6b;
-    --color-accent: #edc879;
-    --color-accent-soft: #292315;
-    --color-focus: #edc879;
+  :root:not([data-theme="light"]) {
     --color-danger-bg: #291716;
     --color-danger-border: #91483f;
     --color-danger-text: #ffb4aa;

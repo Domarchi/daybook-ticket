@@ -31,6 +31,7 @@ import type { OrganizationCatalog } from '@/lib/work-organization-model';
 import { getDraftOperations } from '@/lib/draft-operations';
 import { orgRequest, useOrgResource } from './work-organization';
 import './automation.css';
+import { SkeletonList } from './estados';
 type Page<T> = { items: T[]; nextCursor: string | null };
 type SettingsResult = {
   settings: { enabled: boolean; version: number; activatedAt: string | null };
@@ -1219,11 +1220,7 @@ function AutomationRuleHistory({
         </button>
       </div>
       <ErrorText>{history.error}</ErrorText>
-      {history.loading && (
-        <p role="status" className="automation-help">
-          Cargando versiones…
-        </p>
-      )}
+      {history.loading && <SkeletonList label="Cargando versiones…" rows={2} lines={1} />}
       {history.data?.items.map(entry => (
         <details key={entry.version}>
           <summary>

@@ -98,6 +98,23 @@ test.describe('the support desk', () => {
     await expect(page.getByRole('combobox', { name: 'Prioridad', exact: true })).toHaveValue('normal');
   });
 
+  test('on a tablet the inbox shows cards and never pushes the page sideways', async ({ page }) => {
+    // The ticket table needs about 800 px; next to the rail it only fits from 1024 px up.
+    for (const width of [768, 900, 1023]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto('/');
+      await expect(page.getByText(SUBJECT).first()).toBeVisible();
+      await expect(page.locator('.ticket-table')).toHaveCount(0);
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      );
+      expect(overflow, `${width}px: horizontal overflow`).toBe(0);
+    }
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto('/');
+    await expect(page.locator('.ticket-table')).toBeVisible();
+  });
+
   test('search finds the ticket by its subject', async ({ page }) => {
     await page.goto('/');
     await page.getByPlaceholder('Buscar en tickets y conversaciones…').fill('factura de octubre');
@@ -242,6 +259,62 @@ test.describe('the support desk', () => {
     await page.goto('/?view=settings&section=mail');
     await expect(page).toHaveURL(/section=mail/);
     await expect(settings).toHaveAttribute('class', /active/);
+  });
+
+  // Fase 5b: lo que no tiene vuelta atrás se confirma en un diálogo con el botón
+  // rojo que nombra la acción y el foco en «Cancelar». («Revocar acceso» con
+  // «Deshacer» no se cubre acá: gestionar personas pide verificar la contraseña
+  // del propietario, y esta suite no toca esa verificación.)
+  test('deleting a saved reply asks in a dialog with a red button that names the action', async ({ page }) => {
+    await page.goto('/?view=knowledge');
+    await page.getByRole('button', { name: 'Nueva respuesta' }).click();
+    await page.getByLabel('Título').fill('Reinicio de impresora');
+    await page.getByLabel('Categoría').fill('Soporte');
+    await page.getByLabel('Respuesta', { exact: true }).fill('Apaga la impresora 30 segundos y vuelve a intentar.');
+    await page.getByRole('button', { name: 'Guardar respuesta' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Respuesta guardada' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Eliminar respuesta Reinicio de impresora' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Eliminar respuesta guardada' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Cancelar' })).toBeFocused();
+    const danger = dialog.getByRole('button', { name: 'Eliminar respuesta' });
+    await expect(danger).toHaveCSS('background-color', 'rgb(179, 38, 30)');
+    await expect(danger).toHaveCSS('color', 'rgb(255, 255, 255)');
+    await expectNoSeriousViolations(page, 'Confirmar eliminación');
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText('Reinicio de impresora')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Eliminar respuesta Reinicio de impresora' }).click();
+    await page
+      .getByRole('dialog', { name: 'Eliminar respuesta guardada' })
+      .getByRole('button', { name: 'Eliminar respuesta' })
+      .click();
+    await expect(page.getByRole('status').filter({ hasText: 'Respuesta eliminada' })).toBeVisible();
+    await expect(page.getByText('Reinicio de impresora')).toHaveCount(0);
+  });
+
+  test('choosing a theme by hand marks data-theme like the other Daybook apps and survives a reload', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const html = page.locator('html');
+    const appearance = page.getByRole('combobox', { name: 'Apariencia' });
+    // The choice is saved with PUT /api/preferences; reload only after the server answered.
+    const savedPreference = () =>
+      page.waitForResponse(r => r.url().endsWith('/api/preferences') && r.request().method() === 'PUT' && r.ok());
+    await Promise.all([savedPreference(), appearance.selectOption('dark')]);
+    await expect(html).toHaveAttribute('data-theme', 'dark');
+    await expect(html).toHaveAttribute('data-theme-preference', 'dark');
+    await expect(html).not.toHaveAttribute('data-color-scheme', /./);
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
+    await page.reload();
+    await expect(page.getByRole('combobox', { name: 'Apariencia' })).toHaveValue('dark');
+    await expect(html).toHaveAttribute('data-theme', 'dark');
+    await Promise.all([savedPreference(), page.getByRole('combobox', { name: 'Apariencia' }).selectOption('system')]);
+    await expect(html).toHaveAttribute('data-theme', 'light');
+    await expect(html).toHaveAttribute('data-theme-preference', 'system');
   });
 
   test('a new client is invited with their company and equipment, and the same equipment is not given twice', async ({

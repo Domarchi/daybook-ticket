@@ -1,6 +1,15 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { BarChart3, CalendarClock, Download, FileText, LoaderCircle, RefreshCw, ShieldCheck } from 'lucide-react';
+import {
+  BarChart3,
+  CalendarClock,
+  Download,
+  FileText,
+  RefreshCw,
+  ShieldCheck,
+  Building2,
+  CalendarRange,
+} from 'lucide-react';
 import type { CustomerCompany } from '@/lib/types';
 import type { CompanyOperationalReport, CompanyMonthlyReport, CompanyTrend } from '@/lib/knowledge-model';
 import { metricsDate, shiftMetricsDate } from '@/lib/agent-metrics-model';
@@ -8,6 +17,7 @@ import { daybookFetch } from '@/lib/browser-request';
 import { getDraftOperations } from '@/lib/draft-operations';
 import { knowledgeRequest } from '@/lib/knowledge-request';
 import './knowledge-reports.css';
+import { EmptyState, SkeletonList, SkeletonTable } from './estados';
 
 type ReportListItem = Omit<CompanyMonthlyReport, 'report'>;
 function Feedback({ error }: { error: string }) {
@@ -125,14 +135,19 @@ export function CompanyReportsPanel({ memberId, companies }: { memberId: string;
       </div>
       <Feedback error={current?.error || ''} />
       {!companies.length ? (
-        <p className="kr-empty">Registra una empresa para consultar sus indicadores.</p>
+        <EmptyState
+          icon={<Building2 size={22} />}
+          title="Sin empresas"
+          text="Registra una empresa para consultar sus indicadores."
+        />
       ) : !from || !to ? (
-        <p className="kr-empty">Selecciona ambas fechas para consultar los indicadores.</p>
+        <EmptyState
+          icon={<CalendarRange size={22} />}
+          title="Elige el período"
+          text="Selecciona ambas fechas para consultar los indicadores."
+        />
       ) : !current ? (
-        <p className="kr-empty" role="status">
-          <LoaderCircle size={16} className="spin" />
-          Consultando indicadores…
-        </p>
+        <SkeletonTable label="Consultando indicadores…" rows={3} columns={4} />
       ) : (
         s &&
         current.report && (
@@ -323,9 +338,13 @@ function MonthlyReports({
         </button>
       </form>
       {!current ? (
-        <p role="status">Cargando capturas…</p>
+        <SkeletonList label="Cargando capturas…" rows={2} lines={1} />
       ) : current.error ? null : !current.items.length ? (
-        <p className="kr-empty">No hay capturas guardadas para esta empresa.</p>
+        <EmptyState
+          icon={<FileText size={22} />}
+          title="Sin capturas"
+          text="No hay capturas guardadas para esta empresa."
+        />
       ) : (
         <ul className="kr-report-list">
           {current.items.map(item => (

@@ -70,6 +70,7 @@ import { AttachmentComposer } from './attachments';
 import './client-portal.css';
 import { useTicketSearch, useTicketConversation, type TicketFilters } from '@/hooks/use-ticket-search';
 import { TicketPagination } from './ticket-pagination';
+import { EmptyState, SkeletonList } from './estados';
 
 const PRIORITY: Record<TicketPriority, string> = { low: 'Baja', normal: 'Normal', high: 'Alta', urgent: 'Urgente' };
 const date = (value: string) =>
@@ -548,8 +549,12 @@ export default function ClientPortal({
             </form>
           </>
         ) : selectedId && !current ? (
-          <div className="client-feedback" role={conversation.error ? 'alert' : 'status'}>
-            <p>{conversation.error || 'Cargando conversación…'}</p>
+          <div className="client-feedback" role={conversation.error ? 'alert' : undefined}>
+            {conversation.error ? (
+              <p>{conversation.error}</p>
+            ) : (
+              <SkeletonList label="Cargando conversación…" rows={3} lines={2} />
+            )}
             <button className="secondary" onClick={() => navigate('tickets')}>
               Mis tickets
             </button>
@@ -822,25 +827,25 @@ export default function ClientPortal({
                   {searchResults.error}
                 </p>
               ) : searchResults.loading && visibleTickets.length === 0 ? (
-                <p className="ticket-search-feedback" role="status">
-                  Buscando tickets y conversaciones…
-                </p>
+                <SkeletonList label="Buscando tickets y conversaciones…" rows={3} lines={1} />
               ) : visibleTickets.length === 0 ? (
-                <div className="client-empty">
-                  <TicketIcon size={34} />
-                  <h2>{counts.all ? 'No hay tickets con esos filtros' : 'Tu primera conversación empieza aquí'}</h2>
-                  <p>
-                    {counts.all
+                <EmptyState
+                  icon={<TicketIcon size={22} />}
+                  title={counts.all ? 'No hay tickets con esos filtros' : 'Tu primera conversación empieza aquí'}
+                  text={
+                    counts.all
                       ? 'Prueba otra búsqueda o elige un estado diferente.'
-                      : 'Crea una solicitud para recibir ayuda de nuestro equipo.'}
-                  </p>
-                  {counts.all === 0 && (
-                    <button className="primary" disabled={busy} onClick={newTicket}>
-                      <Plus size={16} />
-                      Crear mi primer ticket
-                    </button>
-                  )}
-                </div>
+                      : 'Crea una solicitud para recibir ayuda de nuestro equipo.'
+                  }
+                  action={
+                    counts.all === 0 && (
+                      <button className="primary" disabled={busy} onClick={newTicket}>
+                        <Plus size={16} />
+                        Crear mi primer ticket
+                      </button>
+                    )
+                  }
+                />
               ) : (
                 <div>
                   {visibleTickets.map(ticket => (

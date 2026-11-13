@@ -30,6 +30,7 @@ import { Combobox } from '../combobox';
 import { Overview } from './overview';
 import { TicketCards } from './ticket-cards';
 import { ClassifyBackfill } from '../classify-backfill';
+import { SkeletonList } from '../estados';
 
 export function InboxView({
   view,
@@ -96,7 +97,10 @@ export function InboxView({
   go: (view: View) => void;
   refresh: () => Promise<unknown>;
 }) {
-  const narrow = useMediaQuery('(max-width: 750px)');
+  // The ticket table needs about 800 px. Next to the rail (232 px, or 214 px on
+  // tablets) that only fits from 1024 px up; narrower windows get the same cards
+  // the phone uses, instead of pushing the whole page sideways.
+  const narrow = useMediaQuery('(max-width: 1023px)');
   return (
     <>
       <div className="page-heading">
@@ -396,9 +400,7 @@ export function InboxView({
                 {searchResults.error}
               </p>
             ) : searchResults.loading && filtered.length === 0 ? (
-              <p className="ticket-search-feedback" role="status">
-                Buscando tickets y conversaciones…
-              </p>
+              <SkeletonList label="Buscando tickets y conversaciones…" rows={4} lines={1} />
             ) : filtered.length === 0 ? (
               <Empty title="No hay tickets en esta vista">Prueba otra búsqueda o ajusta los filtros.</Empty>
             ) : narrow ? (
