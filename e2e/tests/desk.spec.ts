@@ -234,7 +234,10 @@ test.describe('the support desk', () => {
     await page.goto('/');
     const html = page.locator('html');
     const appearance = page.getByRole('combobox', { name: 'Apariencia' });
-    await appearance.selectOption('dark');
+    // The choice is saved with PUT /api/preferences; reload only after the server answered.
+    const savedPreference = () =>
+      page.waitForResponse(r => r.url().endsWith('/api/preferences') && r.request().method() === 'PUT' && r.ok());
+    await Promise.all([savedPreference(), appearance.selectOption('dark')]);
     await expect(html).toHaveAttribute('data-theme', 'dark');
     await expect(html).toHaveAttribute('data-theme-preference', 'dark');
     await expect(html).not.toHaveAttribute('data-color-scheme', /./);
@@ -242,7 +245,7 @@ test.describe('the support desk', () => {
     await page.reload();
     await expect(page.getByRole('combobox', { name: 'Apariencia' })).toHaveValue('dark');
     await expect(html).toHaveAttribute('data-theme', 'dark');
-    await page.getByRole('combobox', { name: 'Apariencia' }).selectOption('system');
+    await Promise.all([savedPreference(), page.getByRole('combobox', { name: 'Apariencia' }).selectOption('system')]);
     await expect(html).toHaveAttribute('data-theme', 'light');
     await expect(html).toHaveAttribute('data-theme-preference', 'system');
   });
