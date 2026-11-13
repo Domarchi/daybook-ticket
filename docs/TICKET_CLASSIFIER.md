@@ -75,6 +75,25 @@ No hay reversión automática: quitar las columnas sería DDL destructivo con or
 - **API**: `PATCH /api/tickets/:id` con `{ category: { faultGroup, faultElement, requirement }, expectedVersion }`. Exige la versión vigente (409 si el ticket cambió), valida contra la lista (400 si el elemento no es de su grupo o el valor no existe), registra el evento «Clasificación actualizada» con el antes y el después, y no permite fijar el origen desde la petición.
 - **Bandeja**: filtro «Filtrar por categoría» (cada grupo, «Solo requerimientos» y «Sin clasificar»), guardado con los demás filtros y en las vistas guardadas. Un filtro guardado sin categoría sigue cargando.
 - **Exportación CSV**: tres columnas nuevas, *Elemento fallado*, *Requerimiento* y *Clasificación* (Sugerida / Revisada / Sin clasificar).
-- **Tickets anteriores**: quedan «Sin clasificar». Clasificarlos sería una acción aparte y explícita.
+- **Tickets anteriores**: quedan «Sin clasificar» hasta que un administrador los revisa (ver abajo).
+
+## Clasificar tickets anteriores (13 nov 2026)
+
+Los tickets creados antes del clasificador se clasifican con una acción explícita de un administrador, con revisión previa. No usa migración ni trabajo programado.
+
+- **Bandeja (solo propietario y administradores):** si hay tickets sin clasificar, aparece el aviso «N tickets sin clasificar» con el botón «Revisar sugerencias». «Ahora no» lo oculta hasta cerrar la pestaña.
+- **Revisión:**
+  - La lista muestra hasta 200 tickets, los más antiguos primero. Cada uno lleva la misma sugerencia que recibiría un ticket nuevo, calculada con el asunto y el primer mensaje del cliente, y las palabras que la decidieron.
+  - Las sugerencias seguras vienen marcadas. Las poco seguras vienen desmarcadas, con el aviso «Sugerencia poco segura: revísala».
+  - Se aplica solo lo marcado. Lo desmarcado sigue «Sin clasificar».
+- **Al aplicar** (`POST /api/tickets/classify`):
+  - El navegador envía solo los números de ticket. El servidor vuelve a calcular la sugerencia, la guarda como `bot` («Sugerida automáticamente», corregible desde el ticket) y registra «Clasificación actualizada» en el historial.
+  - Un ticket que alguien clasificó mientras tanto no se toca y se informa como omitido.
+  - Corre con el candado de trabajo de tickets y revalida que el administrador siga activo.
+  - No cambia `updatedAt`, así que los tickets antiguos no suben al principio de la bandeja.
+- **Vista previa** (`GET /api/tickets/classify`): solo lectura.
+- **Pruebas:**
+  - Unitarias en `scripts/ticket-backfill.test.ts`.
+  - E2e en `desk.spec.ts`: dos tickets antiguos, uno claro y otro vago; se aplica solo el claro y se comprueba que el vago sigue sin clasificar. Incluye la revisión de accesibilidad.
 
 Pruebas: `scripts/ticket-category-integration.test.ts` (validación, forma de la API, orden de columnas, todas las vías de alta, filtros y panel) y la prueba de navegador «the classifier suggests a category…», que crea un ticket de impresora, comprueba la sugerencia, la corrige, recarga y filtra la bandeja.

@@ -2,6 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 import { expectNoSeriousViolations } from '../support/axe';
 import { readRunState } from '../support/state';
 import { todayIn } from '../../lib/fulfillment-model';
+import { randomUUID } from 'node:crypto';
+import pg from 'pg';
+import { DATABASE_URL } from '../support/env';
 
 const SUBJECT = 'No puedo imprimir la factura de octubre';
 const REQUESTER = 'Andrea Molina';
@@ -134,6 +137,65 @@ test.describe('the support desk', () => {
     await expect(page.getByRole('link', { name: SUBJECT })).toHaveCount(0);
     await filter.selectOption({ value: 'all' });
     await expect(page.getByRole('link', { name: SUBJECT })).toBeVisible();
+  });
+
+  test('old tickets without a category are reviewed and classified in one step', async ({ page }) => {
+    // Two tickets as they were before the classifier existed: no category at all.
+    const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+    const ids: number[] = [];
+    try {
+      const owner = (await pool.query<{ ownerId: string }>(`SELECT "ownerId" FROM organizations WHERE id='daybook'`))
+        .rows[0].ownerId;
+      const created = new Date(Date.now() - 40 * 86_400_000).toISOString();
+      for (const [subject, body] of [
+        ['Antiguo: no hay wifi en la sala', 'Desde ayer la red wifi del segundo piso no conecta.'],
+        ['Antiguo: consulta', 'Necesito ayuda con algo.'],
+      ]) {
+        const ticket = await pool.query<{ id: number }>(
+          `INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail",department,status,priority,"createdAt","updatedAt","dueAt")
+           VALUES ($1,$4,$2,'Cliente Antiguo','antiguo@example.test','Soporte técnico','open','normal',$3,$3,$3) RETURNING id`,
+          [owner, subject, created, randomUUID()],
+        );
+        ids.push(ticket.rows[0].id);
+        await pool.query(
+          `INSERT INTO messages ("ownerId","ticketId",author,"authorRole",body,kind,"createdAt") VALUES ($1,$2,'Cliente Antiguo','client',$3,'request',$4)`,
+          [owner, ticket.rows[0].id, body, created],
+        );
+      }
+    } finally {
+      await pool.end();
+    }
+    const [wifi, vague] = ids;
+    const row = (id: number) =>
+      page.locator('.backfill-list li').filter({ hasText: `#${String(id).padStart(4, '0')}` });
+
+    await page.goto('/');
+    const notice = page.getByRole('region', { name: /tickets? sin clasificar/ });
+    await expect(notice).toBeVisible();
+    await notice.getByRole('button', { name: 'Revisar sugerencias' }).click();
+    // A clear suggestion starts ticked; one with little to go on waits for a person.
+    await expect(row(wifi)).toContainText('Conectividad · Red WiFi');
+    await expect(row(wifi).getByRole('checkbox')).toBeChecked();
+    await expect(row(vague)).toContainText('Sugerencia poco segura');
+    await expect(row(vague).getByRole('checkbox')).not.toBeChecked();
+    await expectNoSeriousViolations(page, 'old tickets classification review');
+
+    await notice.getByRole('button', { name: 'Desmarcar todo' }).click();
+    await row(wifi).getByRole('checkbox').check();
+    await notice.getByRole('button', { name: 'Clasificar 1 ticket' }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Se clasificó 1 ticket' })).toBeVisible();
+    await expect(row(wifi)).toHaveCount(0);
+    await expect(row(vague)).toHaveCount(1);
+
+    // The ticket now carries the suggestion, marked as such, and a person can still correct it.
+    await page.goto(`/?ticket=${wifi}`);
+    const panel = page.getByRole('group', { name: 'Clasificación' });
+    await expect(panel.getByRole('combobox', { name: 'Elemento fallado' })).toHaveValue('connectivity:wifi');
+    await expect(panel).toContainText('Sugerida automáticamente');
+    await page.goto(`/?ticket=${vague}`);
+    await expect(
+      page.getByRole('group', { name: 'Clasificación' }).getByRole('combobox', { name: 'Elemento fallado' }),
+    ).toHaveValue('');
   });
 
   test('the four states: unassigned, in progress, solved, closed and reopened', async ({ page }) => {

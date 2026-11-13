@@ -513,6 +513,7 @@ export default function Desk({
               setCreate={setCreate}
               openTicket={openTicket}
               go={go}
+              refresh={refresh}
             />
           ) : (
             <SectionView

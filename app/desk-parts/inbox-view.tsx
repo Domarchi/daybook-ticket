@@ -29,6 +29,7 @@ import { PRIORITY, since, sla, Avatar, Status, Priority, SearchShortcut, Empty, 
 import { Combobox } from '../combobox';
 import { Overview } from './overview';
 import { TicketCards } from './ticket-cards';
+import { ClassifyBackfill } from '../classify-backfill';
 
 export function InboxView({
   view,
@@ -61,6 +62,7 @@ export function InboxView({
   setCreate,
   openTicket,
   go,
+  refresh,
 }: {
   view: View;
   data: Workspace;
@@ -92,6 +94,7 @@ export function InboxView({
   setCreate: (value: boolean) => void;
   openTicket: (ticket: Ticket) => void;
   go: (view: View) => void;
+  refresh: () => Promise<unknown>;
 }) {
   const narrow = useMediaQuery('(max-width: 750px)');
   return (
@@ -333,6 +336,9 @@ export function InboxView({
                   Limpiar
                 </button>
               </div>
+            )}
+            {isAdmin && data.viewer && (
+              <ClassifyBackfill memberId={data.viewer.id} onApplied={() => void refresh().catch(() => undefined)} />
             )}
             {visibleSelected.length > 0 && (
               <div className="bulk-bar">
