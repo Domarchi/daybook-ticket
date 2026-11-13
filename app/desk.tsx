@@ -38,6 +38,7 @@ import { SectionView } from './desk-parts/section-view';
 import { Sidebar } from './desk-parts/sidebar';
 import { TicketForm } from './desk-parts/ticket-form';
 import type { BitaRequest } from './bita';
+import { SkeletonList } from './estados';
 
 // Bita's chat is only downloaded when the server offers it to this person.
 const Bita = dynamic(() => import('./bita'), { ssr: false });
@@ -437,8 +438,8 @@ export default function Desk({
               <p>Preparando tu espacio…</p>
             </div>
           ) : ticketId && !current ? (
-            <div className="panel ticket-search-feedback" role={conversation.error ? 'alert' : 'status'}>
-              {conversation.error || 'Cargando conversación…'}
+            <div className="panel ticket-search-feedback" role={conversation.error ? 'alert' : undefined}>
+              {conversation.error || <SkeletonList label="Cargando conversación…" rows={3} lines={2} />}
               <button className="text-button" onClick={leaveTicket}>
                 Volver a la bandeja
               </button>

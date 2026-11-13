@@ -29,6 +29,7 @@ import { PRIORITY, since, sla, Avatar, Status, Priority, SearchShortcut, Empty, 
 import { Combobox } from '../combobox';
 import { Overview } from './overview';
 import { TicketCards } from './ticket-cards';
+import { SkeletonList } from '../estados';
 
 export function InboxView({
   view,
@@ -390,9 +391,7 @@ export function InboxView({
                 {searchResults.error}
               </p>
             ) : searchResults.loading && filtered.length === 0 ? (
-              <p className="ticket-search-feedback" role="status">
-                Buscando tickets y conversaciones…
-              </p>
+              <SkeletonList label="Buscando tickets y conversaciones…" rows={4} lines={1} />
             ) : filtered.length === 0 ? (
               <Empty title="No hay tickets en esta vista">Prueba otra búsqueda o ajusta los filtros.</Empty>
             ) : narrow ? (

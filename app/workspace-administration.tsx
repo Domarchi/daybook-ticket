@@ -14,6 +14,7 @@ import {
   isEvolutionFeaturesResponse,
 } from '@/lib/workspace-administration-ui';
 import './workspaces.css';
+import { SkeletonList } from './estados';
 async function request<T>(path: string, method = 'GET', body?: unknown): Promise<T> {
   const response = await daybookFetch(path, {
     method,
@@ -172,7 +173,7 @@ export function WorkspaceAdministrationPanel({
           </p>
         )}
         {notice && <p role="status">{notice}</p>}
-        {!data && !error && <p role="status">Consultando preparación…</p>}
+        {!data && !error && <SkeletonList label="Consultando preparación…" rows={2} lines={1} />}
         {data && (
           <>
             <ul>
@@ -419,7 +420,7 @@ export function PlatformOperatorConsole() {
       </section>
       <section className="panel commercial-body" aria-busy={loading}>
         <h2>Pilotos y capacidad</h2>
-        {loading && <p role="status">Consultando pilotos…</p>}
+        {loading && <SkeletonList label="Consultando pilotos…" rows={2} lines={1} />}
         {loadError && (
           <div role="alert" className="error">
             <p>{loadError}</p>

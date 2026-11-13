@@ -8,7 +8,6 @@ import {
   Clock,
   FileText,
   History,
-  LoaderCircle,
   Plus,
   RefreshCw,
   Save,
@@ -24,6 +23,7 @@ export { knowledgeRequest } from '@/lib/knowledge-request';
 import { getDraftOperations } from '@/lib/draft-operations';
 import { KnowledgeDraftStore, type KnowledgeDraft } from '@/lib/knowledge-drafts';
 import './knowledge-reports.css';
+import { EmptyState, SkeletonList } from './estados';
 
 const STATES = { draft: 'Borrador', review: 'En revisión', approved: 'Aprobado', changes: 'Con cambios solicitados' };
 function Feedback({ error }: { error: string }) {
@@ -190,12 +190,9 @@ export function KnowledgePanel({
       </div>
       <Feedback error={current?.error || ''} />
       {!current ? (
-        <p className="kr-empty" role="status">
-          <LoaderCircle className="spin" size={17} />
-          Buscando soluciones…
-        </p>
+        <SkeletonList label="Buscando soluciones…" rows={2} lines={1} />
       ) : !current.items.length ? (
-        <p className="kr-empty">No hay artículos para esta búsqueda.</p>
+        <EmptyState icon={<BookOpen size={22} />} title="Sin artículos" text="No hay artículos para esta búsqueda." />
       ) : (
         <div className="kr-cards">
           {current.items.map(article => (
@@ -544,7 +541,7 @@ function KnowledgeReader({
       </header>
       <Feedback error={error || state.error} />
       {!data && !state.error ? (
-        <p role="status">Cargando artículo…</p>
+        <SkeletonList label="Cargando artículo…" rows={1} lines={4} />
       ) : (
         article && (
           <>
@@ -901,7 +898,7 @@ export function KnowledgeSuggestions({ memberId, query }: { memberId: string; qu
       </h3>
       <Feedback error={current?.error || ''} />
       {!current ? (
-        <p role="status">Buscando guías…</p>
+        <SkeletonList label="Buscando guías…" rows={2} lines={1} />
       ) : !current.items.length ? (
         <p>No encontramos una guía relacionada. Puedes continuar con tu solicitud.</p>
       ) : (
@@ -1023,11 +1020,9 @@ export function LegacyKnowledgePanel({ memberId }: { memberId: string }) {
       </div>
       <Feedback error={current?.error || ''} />
       {!current ? (
-        <p className="kr-empty" role="status">
-          Cargando biblioteca…
-        </p>
+        <SkeletonList label="Cargando biblioteca…" rows={3} lines={2} />
       ) : !current.items.length ? (
-        <p className="kr-empty">No hay guías para esta búsqueda.</p>
+        <EmptyState icon={<BookOpen size={22} />} title="Sin guías" text="No hay guías para esta búsqueda." />
       ) : (
         <div className="kr-cards">
           {current.items.map(article => (

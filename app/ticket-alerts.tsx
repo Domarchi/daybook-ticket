@@ -19,6 +19,7 @@ import type { TicketAlert } from '@/lib/types';
 import { SUPPORT_EVENT_LABELS } from '@/lib/notification-event-labels';
 import { PushMenu } from './push-menu';
 import './ticket-alerts.css';
+import { EmptyState, SkeletonList } from './estados';
 
 const alertTitle = (item: TicketAlert) =>
   item.event === 'ticket_created'
@@ -304,26 +305,18 @@ export function TicketAlerts({
                 </li>
               ))}
             </ul>
+          ) : alerts.loading ? (
+            <SkeletonList label="Buscando avisos…" rows={3} lines={1} />
           ) : (
-            <div className="ticket-alert-empty">
-              {alerts.loading ? (
-                <LoaderCircle size={25} className="spin" aria-hidden="true" />
-              ) : (
-                <Bell size={25} aria-hidden="true" />
-              )}
-              <strong>
-                {alerts.loading
-                  ? 'Buscando avisos…'
-                  : alerts.filter === 'unread'
-                    ? 'Estás al día'
-                    : 'Aún no hay avisos'}
-              </strong>
-              <p>
-                {alerts.filter === 'unread'
+            <EmptyState
+              icon={<Bell size={22} />}
+              title={alerts.filter === 'unread' ? 'Estás al día' : 'Aún no hay avisos'}
+              text={
+                alerts.filter === 'unread'
                   ? 'Los avisos nuevos sin leer aparecerán aquí.'
-                  : 'Los tickets y mensajes nuevos aparecerán aquí.'}
-              </p>
-            </div>
+                  : 'Los tickets y mensajes nuevos aparecerán aquí.'
+              }
+            />
           )}
           {alerts.hasMore && (
             <button

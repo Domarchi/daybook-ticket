@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { readTicketResource } from '@/hooks/use-ticket-search';
 import { EVOLUTION_FEATURES, type EvolutionFeatures } from '@/lib/evolution-feature-model';
+import { SkeletonList } from './estados';
 
 type Theme = 'system' | 'light' | 'dark';
 export function ThemeBootstrap() {
@@ -108,7 +109,7 @@ export function EvolutionFeaturesPanel({
       </p>
       {error && <p role="alert">{error}</p>}
       {!state ? (
-        <p role="status">Consultando funciones…</p>
+        <SkeletonList label="Consultando funciones…" rows={2} lines={1} />
       ) : !state.available ? (
         <p role="status">
           Estas funciones aún no están disponibles en este espacio: falta una actualización de la base de datos que hace

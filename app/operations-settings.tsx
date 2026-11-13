@@ -24,6 +24,7 @@ import type { AgentAvailability } from '@/lib/assignment-rules';
 import { ClientRequestError } from '@/lib/client-request';
 import { ConfirmDialog } from './desk-parts/shared';
 import './operations-settings.css';
+import { EmptyState, SkeletonList } from './estados';
 type Saved = () => void | Promise<unknown>;
 interface OperationsSettingsProps {
   companies: CustomerCompany[];
@@ -150,12 +151,7 @@ function Notice({ message, error = false }: { message: string; error?: boolean }
   ) : null;
 }
 function Loading({ text = 'Cargando configuración…' }: { text?: string }) {
-  return (
-    <p className="ops-loading" role="status">
-      <Loader2 className="ops-spin" size={17} aria-hidden="true" />
-      {text}
-    </p>
-  );
+  return <SkeletonList label={text} rows={2} lines={1} />;
 }
 function ServicePolicySettings({
   companies,
@@ -755,11 +751,11 @@ function AssignmentRulesSettings({ companies, members, departments, memberId, on
             ))}
           </div>
           {!rules?.length && !editing && (
-            <div className="ops-empty">
-              <Route size={25} aria-hidden="true" />
-              <strong>El reparto sigue en tus manos</strong>
-              <p>Crea una regla y elige cuándo activarla. Tus tickets actuales conservarán su responsable.</p>
-            </div>
+            <EmptyState
+              icon={<Route size={22} />}
+              title="El reparto sigue en tus manos"
+              text="Crea una regla y elige cuándo activarla. Tus tickets actuales conservarán su responsable."
+            />
           )}
           {!activeStaff.length && (
             <p className="ops-help">Necesitas una cuenta activa del equipo para configurar el reparto.</p>

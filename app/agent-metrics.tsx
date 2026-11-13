@@ -6,6 +6,7 @@ import { ArrowDownToLine, BarChart3, Clock3, RefreshCw, ShieldCheck, Users } fro
 import type { CustomerCompany } from '@/lib/types';
 import { agentMetricsCsv, metricsDate, shiftMetricsDate, type AgentMetricsReport } from '@/lib/agent-metrics-model';
 import './agent-metrics.css';
+import { EmptyState, SkeletonTable } from './estados';
 
 const number = new Intl.NumberFormat('es-CL', { maximumFractionDigits: 1 });
 const hours = (value: number | null) => (value === null ? 'Sin datos' : `${number.format(value)} h`);
@@ -161,10 +162,8 @@ export function AgentMetricsPanel({ companies, memberId }: { companies: Customer
         </div>
       )}
       {loading && (
-        <section className="panel agent-metrics-empty" role="status" aria-live="polite">
-          <RefreshCw className="spinning" size={24} />
-          <h2>Calculando las métricas</h2>
-          <p>Estamos consultando la actividad del período seleccionado.</p>
+        <section className="panel">
+          <SkeletonTable label="Calculando las métricas del período…" rows={4} columns={5} />
         </section>
       )}
       {report && (
@@ -199,11 +198,11 @@ export function AgentMetricsPanel({ companies, memberId }: { companies: Customer
               <span>{rows.length} integrantes</span>
             </div>
             {rows.length === 0 ? (
-              <div className="agent-metrics-empty">
-                <Users size={28} />
-                <h3>Aún no hay integrantes para mostrar</h3>
-                <p>Las cuentas del equipo aparecerán aquí cuando estén disponibles.</p>
-              </div>
+              <EmptyState
+                icon={<Users size={22} />}
+                title="Aún no hay integrantes para mostrar"
+                text="Las cuentas del equipo aparecerán aquí cuando estén disponibles."
+              />
             ) : (
               <>
                 {total.replies === 0 && total.resolutions === 0 && (

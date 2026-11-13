@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import '@daybook/design/tokens.css';
+import '@daybook/design/estados.css';
 import './globals.css';
 import './service-plus.css';
 import './ticket-chat.css';

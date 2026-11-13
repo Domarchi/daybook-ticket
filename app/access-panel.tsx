@@ -6,6 +6,7 @@ import { Check, Copy, Mail, Plus, RefreshCw, ShieldCheck, UserPlus, Users, X } f
 import type { MailStatus, Member, MemberRole, Workspace } from '../lib/types';
 import './access-panel.css';
 import { CompaniesPanel, MemberCompanyEditor } from './team-tools';
+import { EmptyState } from './estados';
 
 export const ROLE_LABELS: Record<MemberRole, string> = {
   owner: 'Propietario',
@@ -352,7 +353,13 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
             </tbody>
           </table>
         </div>
-        {rows.length === 0 && <div className="access-empty">No hay personas en esta vista.</div>}
+        {rows.length === 0 && (
+          <EmptyState
+            icon={<Users size={22} />}
+            title="Nadie en esta vista"
+            text="No hay personas con este rol o estado."
+          />
+        )}
       </section>
       <div className="info-note access-privacy">
         <ShieldCheck size={18} />

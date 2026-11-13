@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import { type ReactNode, useEffect, useId, useRef, useSyncExternalStore } from 'react';
 import { type Message, type Ticket, type TicketPriority } from '../../lib/types';
 import { isFinished, statusLabel, statusView, STATUS_VIEW_CLASS } from '../../lib/ticket-status';
+import { EmptyState } from '../estados';
 
 export const PRIORITY: Record<TicketPriority, string> = {
   urgent: 'Urgente',
@@ -213,16 +214,7 @@ export function SearchShortcut() {
   return <kbd>{apple ? '⌘ K' : 'Ctrl K'}</kbd>;
 }
 export function Empty({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
-  return (
-    <div className="empty">
-      <span className="empty-icon">
-        <Inbox size={27} />
-      </span>
-      <h3>{title}</h3>
-      <p>{children}</p>
-      {action}
-    </div>
-  );
+  return <EmptyState icon={<Inbox size={22} />} title={title} text={children} action={action} />;
 }
 export function Stat({
   label,

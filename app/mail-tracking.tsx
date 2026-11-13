@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 import type { MailDeliveryItem } from '../lib/mail-delivery';
 import { MailTrackingList } from './mail-delivery-list';
 import './mail-tracking.css';
+import { EmptyState, SkeletonList } from './estados';
+import { Mail } from 'lucide-react';
 
 /** Staff-only surface; the API separately enforces fresh membership + ticket
  * access. No message bodies, activation links or private attachments are read. */
@@ -79,13 +81,13 @@ export function MailTracking({ ticketId, refreshKey = 0 }: { ticketId: number; r
           {active.error}
         </p>
       )}
-      {!active && (
-        <p className="mail-tracking-empty" role="status">
-          Consultando correos…
-        </p>
-      )}
+      {!active && <SkeletonList label="Consultando correos…" rows={2} lines={1} />}
       {active && !active.messages.length && !active.error && (
-        <p className="mail-tracking-empty">Aún no hay avisos por correo para este ticket.</p>
+        <EmptyState
+          icon={<Mail size={22} />}
+          title="Sin avisos por correo"
+          text="Aún no hay avisos por correo para este ticket."
+        />
       )}
       {!!active?.messages.length && <MailTrackingList messages={active.messages} />}
     </section>
