@@ -11,13 +11,17 @@ import { receiveInboundEmail } from '../lib/inbound-email.ts';
 import { enqueueInboundMail, drainInboundMailJobs, retryInboundMailJob } from '../lib/inbound-email-jobs.ts';
 import { inboundConfiguration, makeInboundAddress } from '../lib/inbound-email-validation.ts';
 import { InboundRetryError } from '../lib/inbound-email-errors.ts';
+import { databaseCheckCi } from './database-check-target.mjs';
+const databaseCi = databaseCheckCi();
 
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
-assert.equal(
-  new URL(process.env.DATABASE_URL).hostname,
-  'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
-);
-assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+  assert.equal(
+    new URL(process.env.DATABASE_URL).hostname,
+    'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
+  );
+  assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+}
 assert.ok(
   !process.env.RESEND_API_KEY &&
     !process.env.RESEND_INBOUND_API_KEY &&
@@ -199,7 +203,16 @@ async function assertProcessed(envelope) {
   assert.equal((await pool.query('SELECT "isTest" FROM tickets WHERE id=$1', [row.ticketId])).rows[0].isTest, true);
   return row;
 }
+// An empty CI database has no daybook workspace; this run creates a fictitious one and removes it afterwards.
+let ciDaybookOwner = null;
 try {
+  if (databaseCi && !(await pool.query("SELECT 1 FROM organizations WHERE id='daybook'")).rowCount) {
+    ciDaybookOwner = `ci-daybook-${randomUUID()}`;
+    await pool.query(
+      'INSERT INTO organizations (id,"ownerId",name,"createdAt") VALUES (\'daybook\',$1,\'Daybook ficticio CI\',$2)',
+      [ciDaybookOwner, new Date().toISOString()],
+    );
+  }
   const organization = (await pool.query('SELECT "ownerId" FROM organizations WHERE id=\'daybook\'')).rows[0];
   assert.ok(organization, 'An existing isolated QA Daybook workspace is required.');
   ownerId = organization.ownerId;
@@ -479,6 +492,11 @@ try {
         .rows[0].n,
       0,
     );
+  }
+  if (ciDaybookOwner) {
+    for (const table of ['agentAvailability', 'assignmentRules', 'notificationSettings', 'settings'])
+      await pool.query(`DELETE FROM "${table}" WHERE "ownerId"=$1`, [ciDaybookOwner]);
+    await pool.query('DELETE FROM organizations WHERE id=\'daybook\' AND "ownerId"=$1', [ciDaybookOwner]);
   }
   objects.clear();
   await pool.end();

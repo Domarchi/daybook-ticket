@@ -29,6 +29,7 @@ import { PRIORITY, since, sla, Avatar, Status, Priority, SearchShortcut, Empty, 
 import { Combobox } from '../combobox';
 import { Overview } from './overview';
 import { TicketCards } from './ticket-cards';
+import { ClassifyBackfill } from '../classify-backfill';
 import { SkeletonList } from '../estados';
 
 export function InboxView({
@@ -62,6 +63,7 @@ export function InboxView({
   setCreate,
   openTicket,
   go,
+  refresh,
 }: {
   view: View;
   data: Workspace;
@@ -93,6 +95,7 @@ export function InboxView({
   setCreate: (value: boolean) => void;
   openTicket: (ticket: Ticket) => void;
   go: (view: View) => void;
+  refresh: () => Promise<unknown>;
 }) {
   // The ticket table needs about 800 px. Next to the rail (232 px, or 214 px on
   // tablets) that only fits from 1024 px up; narrower windows get the same cards
@@ -337,6 +340,9 @@ export function InboxView({
                   Limpiar
                 </button>
               </div>
+            )}
+            {isAdmin && data.viewer && (
+              <ClassifyBackfill memberId={data.viewer.id} onApplied={() => void refresh().catch(() => undefined)} />
             )}
             {visibleSelected.length > 0 && (
               <div className="bulk-bar">

@@ -15,13 +15,18 @@ import {
   updateAgentAvailability,
   listAgentAvailability,
 } from '../lib/assignment-rules.ts';
+import { databaseCheckCi } from './database-check-target.mjs';
+import { seedQaWorkspaceProfiles } from './qa-workspace-profile.mjs';
+const databaseCi = databaseCheckCi();
 
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
-assert.equal(
-  new URL(process.env.DATABASE_URL).hostname,
-  'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
-);
-assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+  assert.equal(
+    new URL(process.env.DATABASE_URL).hostname,
+    'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
+  );
+  assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+}
 assert.ok(!process.env.RESEND_API_KEY && !process.env.DAYBOOK_EMAIL_FROM && !process.env.VAPID_PRIVATE_KEY);
 const ownerId = randomUUID(),
   otherOwnerId = randomUUID();
@@ -95,6 +100,7 @@ try {
       [id, own, now],
     );
   }
+  await seedQaWorkspaceProfiles(pool, [ownerId, otherOwnerId]);
   const users = new Map([[owner, userId]]);
   for (const [id, role, organizationId, own] of [
     [owner, 'owner', orgId, ownerId],
@@ -286,6 +292,7 @@ try {
     await pool.query('DELETE FROM "customerCompanies" WHERE "ownerId"=$1', [own]);
     await pool.query('DELETE FROM settings WHERE "ownerId"=$1', [own]);
     await pool.query('DELETE FROM members WHERE "ownerId"=$1', [own]);
+    await pool.query('DELETE FROM "workspaceProfiles" WHERE "ownerId"=$1', [own]);
     await pool.query('DELETE FROM organizations WHERE "ownerId"=$1', [own]);
     assert.equal(
       (await pool.query('SELECT count(*)::integer AS n FROM tickets WHERE "ownerId"=$1', [own])).rows[0].n,

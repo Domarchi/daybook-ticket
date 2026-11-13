@@ -499,6 +499,7 @@ export default function Desk({
               setCreate={setCreate}
               openTicket={openTicket}
               go={go}
+              refresh={refresh}
             />
           ) : (
             <SectionView
@@ -532,6 +533,7 @@ export default function Desk({
           request={bitaRequest}
           onOpenTicket={id => navigateDesk({ ticketId: id })}
           onOpenKnowledge={() => go('knowledge')}
+          onTicketChanged={() => void refresh().catch(() => undefined)}
         />
       )}
       {create && (

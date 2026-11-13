@@ -15,12 +15,17 @@ import {
 } from '../lib/ticket-search.ts';
 import { parseTicketSearch } from '../lib/ticket-search-query.ts';
 import { getTicketFeed } from '../lib/ticket-feed.ts';
+import { databaseCheckCi } from './database-check-target.mjs';
+import { seedQaWorkspaceProfiles } from './qa-workspace-profile.mjs';
+const databaseCi = databaseCheckCi();
 
 const host = 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech';
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
-assert.equal(new URL(process.env.DATABASE_URL).hostname, host);
-assert.equal(new URL(process.env.DATABASE_URL).pathname, '/daybook_ticket');
-assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, host);
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+  assert.equal(new URL(process.env.DATABASE_URL).hostname, host);
+  assert.equal(new URL(process.env.DATABASE_URL).pathname, '/daybook_ticket');
+  assert.equal(process.env.DAYBOOK_QA_DATABASE_HOST, host);
+}
 for (const name of ['RESEND_API_KEY', 'DAYBOOK_EMAIL_FROM', 'VAPID_PRIVATE_KEY']) assert.ok(!process.env[name]);
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 });
 const ownerId = randomUUID(),
@@ -64,6 +69,7 @@ try {
     ownerId,
     stamp,
   ]);
+  await seedQaWorkspaceProfiles(pool, [ownerId]);
   for (const company of [companyA, companyB])
     await pool.query(
       'INSERT INTO "customerCompanies"(id,"organizationId","ownerId",name,"createdAt","updatedAt") VALUES($1,$2,$3,\'QA search company\',$4,$4)',
@@ -136,7 +142,8 @@ try {
   const allCounts = await getTicketCounts(staff),
     departments = await getTicketDepartments(staff);
   assert.equal(allCounts.all, 63);
-  assert.equal(allCounts.open + allCounts.resolved, 63);
+  assert.equal(allCounts.active + allCounts.resolved + allCounts.closed, 63);
+  assert.equal(allCounts.unassigned + allCounts.inProgress, allCounts.active);
   assert.equal(departments[0].total, 63);
   const feed = await getTicketFeed(staff);
   assert.equal(feed.tickets.length, 50);
@@ -195,6 +202,7 @@ try {
   await pool.query('DELETE FROM tickets WHERE "ownerId"=$1', [ownerId]);
   await pool.query('DELETE FROM members WHERE "ownerId"=$1 AND id=ANY($2::text[])', [ownerId, memberIds]);
   await pool.query('DELETE FROM "customerCompanies" WHERE "ownerId"=$1', [ownerId]);
+  await pool.query('DELETE FROM "workspaceProfiles" WHERE "ownerId"=$1', [ownerId]);
   await pool.query('DELETE FROM organizations WHERE id=$1 AND "ownerId"=$2', [orgId, ownerId]);
   assert.equal(
     (await pool.query('SELECT count(*)::int AS count FROM tickets WHERE "ownerId"=$1', [ownerId])).rows[0].count,

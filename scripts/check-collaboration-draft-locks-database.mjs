@@ -10,12 +10,16 @@ import { publicMember } from '../lib/access.ts';
 import { acquireTicketWorkLock } from '../lib/work-lock.ts';
 import { lockAccess, lockTicket } from '../lib/ticket-mutations.ts';
 import { setTicketFollowing, validateMessageCollaboration } from '../lib/ticket-collaboration.ts';
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
-assert.equal(
-  new URL(process.env.DATABASE_URL).hostname,
-  'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
-);
-assert.equal(new URL(process.env.DATABASE_URL).pathname, '/daybook_ticket');
+import { databaseCheckCi } from './database-check-target.mjs';
+const databaseCi = databaseCheckCi();
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+  assert.equal(
+    new URL(process.env.DATABASE_URL).hostname,
+    'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech',
+  );
+  assert.equal(new URL(process.env.DATABASE_URL).pathname, '/daybook_ticket');
+}
 for (const key of ['RESEND_API_KEY', 'RESEND_INBOUND_API_KEY', 'VAPID_PRIVATE_KEY']) assert.ok(!process.env[key]);
 const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 2 }),
   tx = await pool.connect(),

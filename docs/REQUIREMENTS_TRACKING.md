@@ -51,3 +51,55 @@ Los motivos y notas admiten hasta 500 caracteres.
 ## Pruebas
 
 `scripts/fulfillment-model.test.ts` recorre los 25 cambios de etapa posibles, los motivos, las fechas (incluido el cambio de día en Santiago), el atraso, los retrasos, la entrega con y sin equipo, la confirmación de recepción, la línea de seguimiento y el ID del equipo.
+
+## F6-B2: seguimiento en el ticket y sección «Requerimientos»
+
+- **Seguir como requerimiento:** el panel aparece en un ticket abierto que tiene un requerimiento en «Clasificación». Crea la fila en `ticketFulfillment` en «Solicitado», con fecha comprometida opcional.
+- **Mover de etapa:**
+  - las reglas son las de `stageChangeProblem`;
+  - «Entregado» no se ofrece aquí, porque registra el equipo (F6-B4);
+  - cada cambio controla la versión (409) y bloquea la fila.
+- **Fecha comprometida:**
+  - la primera se fija libremente;
+  - para cambiarla después hay que pasar por «Informar retraso», así el cliente siempre ve el motivo.
+- **Informar retraso:** guarda el motivo, la nota y la nueva fecha. «Atrasado» se calcula al leer, con la fecha de hoy en America/Santiago.
+- **Historial:**
+  - cada paso queda en `ticketEvents`, con las acciones `fulfillment`, `fulfillment_delay` y `fulfillment_date`;
+  - los valores se guardan en JSON para que el portal (F6-B3) arme su línea de tiempo;
+  - `lib/fulfillment-display.ts` los convierte en texto.
+- **Sección «Requerimientos»:** listas En curso, Solicitados, En gestión, Listos para entregar, Atrasados y Cerrados. Cada lista muestra su conteo, y cada fila lleva al ticket.
+- **Respaldo y exportación de negocio:** incluyen `ticketFulfillment`. Los respaldos anteriores, que tienen una tabla menos, siguen validándose y restaurándose.
+- **API:**
+  - `GET` para quien puede abrir el ticket;
+  - `POST` y `PATCH /api/tickets/[id]/fulfillment` solo para el equipo de soporte;
+  - `GET /api/fulfillments?filter=` para la sección.
+
+## F6-B3: el portal del cliente
+
+- **Pedir:** el formulario de nuevo ticket pregunta «Tipo de solicitud». Las opciones son «Una falla o consulta», donde clasifica el sistema, o «Un pedido: Equipos / Cuentas de usuarios / Aplicaciones / Permisos de carpetas / Otros». Un pedido:
+  - queda clasificado como ese requerimiento, con `categorySource='manual'`, así que el clasificador no lo cambia;
+  - empieza en «Solicitado» en la misma transacción.
+- **Mis requerimientos:** lista los pedidos que el cliente puede ver, propios o de su empresa si es encargado. Usa la misma regla de acceso que los tickets e indica etapa, fecha comprometida y si está atrasado.
+- **En el ticket del portal:** «Seguimiento de tu requerimiento» muestra:
+  - la misma línea de etapas;
+  - la frase de la etapa actual;
+  - la fecha comprometida, o «Te avisaremos cuando la tengamos» si aún no hay;
+  - el motivo y la nota del último retraso;
+  - el historial, del más reciente al más antiguo, sin nombres del equipo.
+- **Lo que ve el cliente:** los motivos de volver atrás, de cancelar y de un retraso. El panel del equipo lo avisa («Motivo (lo verá el cliente)», «Nota para el cliente»).
+
+## F6-B4: entrega, recepción, resumen y CSV
+
+- **Marcar entregado:** ocurre en una sola transacción.
+  - Si lo pedido es un equipo, se pide su ID, su tipo y, de forma opcional, su serie.
+  - El equipo se registra o se asigna a quien lo pidió con las mismas reglas que una invitación (F6-A1): nunca se le quita a otra persona, y uno que ya es del solicitante se reutiliza. Además, queda vinculado al ticket.
+  - El seguimiento pasa a «Entregado».
+  - El ticket se resuelve con `patchTicketInTransaction`, el mismo camino que «Marcar solucionado»: SLA, encuesta de satisfacción, eventos y automatizaciones.
+  - Si falta la cuenta del cliente o su empresa, no se entrega y el mensaje dice qué falta.
+- **Confirmar recepción:** es opcional y solo la hace quien pidió el requerimiento, una vez y después de la entrega. Queda en el historial.
+- **Resumen en «Requerimientos»:**
+  - cuántos se entregaron;
+  - el tiempo medio desde «Solicitado» hasta «Entregado»;
+  - el porcentaje de abiertos que están atrasados;
+  - los tres motivos de retraso más comunes.
+- **Exportar CSV:** baja una fila por requerimiento, con las celdas protegidas contra fórmulas de planilla. Hay una lista nueva, «Todos».

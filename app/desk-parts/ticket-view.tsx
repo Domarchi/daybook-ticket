@@ -10,6 +10,8 @@ import { type TicketPatch } from '@/lib/ticket-overlay';
 import { type Member, type Ticket, type TicketPriority, type TicketStatus, type Workspace } from '../../lib/types';
 import { TicketRelationsPanel } from '../automation';
 import { MailTracking } from '../mail-tracking';
+import { TicketEquipment } from '../own-equipment';
+import { FulfillmentPanel } from '../fulfillment-panel';
 import { TicketServiceContextPanel } from '../service-context';
 import { AssignmentControls, TicketActivity, TicketCompanyLink } from '../team-tools';
 import { TicketChat } from '../ticket-chat';
@@ -251,6 +253,16 @@ export function TicketView({
                 );
               }}
             />
+            {data.viewer && (
+              <FulfillmentPanel
+                key={`${data.viewer.id}:${current.id}:fulfillment`}
+                memberId={data.viewer.id}
+                ticketId={current.id}
+                refreshKey={current.version}
+                busy={busy}
+                run={run}
+              />
+            )}
             <Combobox
               label="Cuenta del cliente"
               value={current.requesterMemberId || ''}
@@ -318,6 +330,13 @@ export function TicketView({
               <strong>{current.requesterName}</strong>
             </div>
             <a href={`mailto:${current.requesterEmail}`}>{current.requesterEmail}</a>
+            {data.viewer && (
+              <TicketEquipment
+                key={`${data.viewer.id}:${current.id}:${current.version}`}
+                memberId={data.viewer.id}
+                ticketId={current.id}
+              />
+            )}
           </div>
         </TicketDetails>
       </div>

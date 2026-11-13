@@ -18,6 +18,10 @@ import { TicketChat } from './ticket-chat';
 import { TicketSatisfactionPanel } from './satisfaction';
 import { EmailInboundPanel } from './email-inbound';
 import { PublicTicketProgress } from './public-ticket-progress';
+import { OwnEquipmentStrip, useOwnEquipment } from './own-equipment';
+import { ClientRequirementsList, ClientRequirementTracking } from './client-requirements';
+import { REQUIREMENTS } from '@/lib/ticket-category-model';
+import { equipmentLabel } from '@/lib/client-equipment-model';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -116,6 +120,12 @@ export default function ClientPortal({
     return Number.isSafeInteger(id) && id > 0 ? id : null;
   });
   const [creating, setCreating] = useState(false);
+  const ownEquipment = useOwnEquipment(data.viewer!.id);
+  // The equipment a new ticket is about. Untouched, it follows the only piece the client has (if just one).
+  const [assetChoice, setAssetChoice] = useState<string | null>(null);
+  // What kind of request a new ticket is: a fault or question (''), or a requirement to follow (F6-B3).
+  const [requestKind, setRequestKind] = useState('');
+  const assetId = assetChoice ?? (ownEquipment.length === 1 ? ownEquipment[0].id : '');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
   const [busy, setBusy] = useState(false);
@@ -225,6 +235,8 @@ export default function ClientPortal({
         ...(organizationRequest.requestTypeId || Object.keys(organizationRequest.fieldValues || {}).length
           ? organizationRequest
           : {}),
+        ...(assetId && ownEquipment.some(item => item.id === assetId) ? { assetId } : {}),
+        ...(requestKind ? { requirement: requestKind } : {}),
       };
       const operations = getDraftOperations();
       const result = await post<{ ticket: Ticket }>('/api/tickets', {
@@ -235,6 +247,8 @@ export default function ClientPortal({
       clearNewTicketDraft(createScope);
       operations.clear(createScope);
       setOrganizationRequest({});
+      setAssetChoice(null);
+      setRequestKind('');
       setDraft({ subject: '', body: '', priority: 'normal', department: data.settings.departments[0] || '' });
       setCreating(false);
       setSection('tickets');
@@ -307,7 +321,7 @@ export default function ClientPortal({
   return (
     <div className="client-shell">
       <header className="client-header">
-        <button className="client-brand" onClick={() => navigate('tickets')} aria-label="Daybook Ticket, mis tickets">
+        <button className="client-brand" onClick={() => navigate('tickets')}>
           <Brand dark />
         </button>
         <nav aria-label="Portal de clientes">
@@ -468,6 +482,30 @@ export default function ClientPortal({
                     </select>
                   </label>
                 </div>
+                <label>
+                  Tipo de solicitud
+                  <select value={requestKind} onChange={event => setRequestKind(event.target.value)}>
+                    <option value="">Una falla o consulta</option>
+                    {REQUIREMENTS.map(item => (
+                      <option key={item.id} value={item.id}>
+                        Un pedido: {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {ownEquipment.length > 0 && (
+                  <label>
+                    ¿Sobre qué equipo?
+                    <select value={assetId} onChange={event => setAssetChoice(event.target.value)}>
+                      <option value="">No es sobre un equipo</option>
+                      {ownEquipment.map(item => (
+                        <option key={item.id} value={item.id}>
+                          {equipmentLabel(item)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <div className="client-description">
                   <label htmlFor="new-ticket-description">Descripción</label>
                   <MessageEditor
@@ -548,6 +586,12 @@ export default function ClientPortal({
                 </p>
               </div>
             </div>
+            <ClientRequirementTracking
+              key={`tracking:${data.viewer!.id}:${current.id}`}
+              memberId={data.viewer!.id}
+              ticketId={current.id}
+              refreshKey={current.version}
+            />
             <PublicTicketProgress
               key={`progress:${data.viewer!.id}:${current.id}`}
               ticketId={current.id}
@@ -712,6 +756,18 @@ export default function ClientPortal({
                 </p>
               </div>
             </div>
+            <OwnEquipmentStrip items={ownEquipment} />
+            <ClientRequirementsList
+              key={`requirements:${accessKey}`}
+              memberId={data.viewer!.id}
+              refreshKey={counts.all}
+              onOpen={ticketId => {
+                if (busy) return;
+                setSelectedId(ticketId);
+                setCreating(false);
+                setError('');
+              }}
+            />
             {data.evolution?.features.organization && (
               <SavedViewPicker
                 key={accessKey}

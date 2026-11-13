@@ -169,13 +169,15 @@ export function TicketAlerts({
           }}
           aria-expanded={open}
           aria-controls={panelId}
-          aria-label={`Avisos${count ? `, ${count} sin leer` : ''}`}
         >
+          {/* The name is the visible text plus hidden words, so it always contains what is shown (WCAG 2.5.3). */}
           <Bell size={17} aria-hidden="true" />
           <span>Avisos</span>
           {count > 0 && (
-            <span className="ticket-alert-badge" aria-hidden="true">
+            <span className="ticket-alert-badge">
+              <span className="sr-only"> </span>
               {count > 99 ? '99+' : count}
+              <span className="sr-only"> sin leer</span>
             </span>
           )}
         </button>

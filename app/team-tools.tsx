@@ -1,4 +1,5 @@
 'use client';
+import { describeFulfillmentEvent } from '../lib/fulfillment-display';
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { Building2, Check, Clock3, Edit3, Plus, RefreshCw, UserCheck } from 'lucide-react';
@@ -34,6 +35,10 @@ const actionLabels: Record<string, string> = {
   task_updated: 'Tarea interna actualizada',
   isTest: 'Marca de prueba',
   category: 'Clasificación actualizada',
+  fulfillment: 'Seguimiento del requerimiento',
+  fulfillment_delay: 'Retraso informado',
+  fulfillment_date: 'Fecha comprometida',
+  fulfillment_receipt: 'Recepción confirmada',
   automatic_assignment: 'Asignación automática',
   status: 'Estado actualizado',
   priority: 'Prioridad actualizada',
@@ -209,6 +214,7 @@ export function TicketActivity({
   const [events, setEvents] = useState<Activity[]>([]);
   const displayValue = (action: string, value: string | null) => {
     if (action === 'isTest') return value === 'true' ? 'Prueba' : 'Uso real';
+    if (action.startsWith('fulfillment')) return describeFulfillmentEvent(action, value);
     if (action === 'automatic_assignment') {
       try {
         const target = JSON.parse(value || 'null');

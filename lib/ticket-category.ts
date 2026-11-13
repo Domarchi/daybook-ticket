@@ -12,3 +12,10 @@ export function suggestedCategoryValues(
   const result = classifyTicketText(input);
   return [result.fault?.group ?? null, result.fault?.element ?? null, result.requirement, 'bot', result.confidence];
 }
+/**
+ * When the person says what they are asking for (a requirement from the portal, F6-B3), that choice is the
+ * classification: chosen by a person, so the classifier never overwrites it.
+ */
+export function requestedCategoryValues(requirement: string): [null, null, string, 'manual', null] {
+  return [null, null, requirement, 'manual', null];
+}

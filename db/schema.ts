@@ -835,6 +835,8 @@ export const customerAssets = pgTable(
     vendor: text('vendor').notNull().default(''),
     model: text('model').notNull().default(''),
     serial: text('serial').notNull().default(''),
+    /** Inventory ID ("ID del equipo"), normalized by lib/asset-tag.ts; unique per workspace (migration 0016). */
+    assetTag: text('assetTag'),
     siteId: text('siteId').references(() => companySites.id),
     assignedContactMemberId: text('assignedContactMemberId').references(() => members.id),
     responsibleMemberId: text('responsibleMemberId').references(() => members.id),
@@ -848,6 +850,7 @@ export const customerAssets = pgTable(
   },
   t => [
     index('customer_assets_owner_company').on(t.ownerId, t.companyId, t.id),
+    uniqueIndex('customer_assets_owner_tag').on(t.ownerId, t.assetTag),
     check(
       'customer_asset_warranty_date',
       sql`${t.warrantyUntil} IS NULL OR ${t.warrantyUntil} ~ '^\\d{4}-\\d{2}-\\d{2}$'`,
@@ -930,6 +933,34 @@ export const ticketAssetLinks = pgTable(
   t => [
     primaryKey({ columns: [t.ticketId, t.assetId] }),
     index('ticket_asset_links_asset').on(t.ownerId, t.assetId, t.ticketId),
+  ],
+);
+/** Follow-up of a requirement (F6, migration 0016). Rules and texts: lib/fulfillment-model.ts. */
+export const ticketFulfillment = pgTable(
+  'ticketFulfillment',
+  {
+    ticketId: integer('ticketId')
+      .primaryKey()
+      .references(() => tickets.id),
+    ownerId: text('ownerId').notNull(),
+    stage: text('stage').notNull(),
+    expectedOn: text('expectedOn'),
+    delayReason: text('delayReason'),
+    delayNote: text('delayNote'),
+    delayedAt: text('delayedAt'),
+    deliveredAt: text('deliveredAt'),
+    deliveredBy: text('deliveredBy').references(() => members.id),
+    receivedAt: text('receivedAt'),
+    assetId: text('assetId').references(() => customerAssets.id),
+    cancelReason: text('cancelReason'),
+    cancelledFrom: text('cancelledFrom'),
+    version: integer('version').notNull().default(0),
+    createdAt: text('createdAt').notNull(),
+    updatedAt: text('updatedAt').notNull(),
+  },
+  t => [
+    index('ticket_fulfillment_owner_stage').on(t.ownerId, t.stage, t.expectedOn),
+    check('ticket_fulfillment_expected_on', sql`${t.expectedOn} IS NULL OR ${t.expectedOn} ~ '^\\d{4}-\\d{2}-\\d{2}$'`),
   ],
 );
 export const ticketContractLinks = pgTable(

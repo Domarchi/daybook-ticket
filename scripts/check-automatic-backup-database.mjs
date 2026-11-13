@@ -15,13 +15,20 @@ import { decryptBackup } from '../lib/backup-format.ts';
 import { createWorkspaceBackup, backupRestoreStorage } from '../lib/workspace-backup.ts';
 import { automaticBackupStorage } from '../lib/automatic-backup-storage.ts';
 import { withQaCleanup } from './qa-cleanup-transaction.mjs';
+import { databaseCheckCi } from './database-check-target.mjs';
+import { seedQaWorkspaceProfiles } from './qa-workspace-profile.mjs';
+const databaseCi = databaseCheckCi();
 
-assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+if (!databaseCi) {
+  assert.equal(process.env.DAYBOOK_QA_ALLOW_TEST_DATABASE, '1');
+}
 const realStorage = process.argv.slice(2).includes('--real-qa-storage');
 assert.ok(process.argv.slice(2).every(value => value === '--real-qa-storage'));
 const url = new URL(process.env.DATABASE_URL);
-assert.equal(url.hostname, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
-assert.equal(url.pathname, '/daybook_ticket');
+if (!databaseCi) {
+  assert.equal(url.hostname, 'ep-falling-water-bbfa4ijl-pooler.c-15.us-east-1.aws.neon.tech');
+  assert.equal(url.pathname, '/daybook_ticket');
+}
 assert.ok(!process.env.RESEND_API_KEY && !process.env.RESEND_INBOUND_API_KEY && !process.env.VAPID_PRIVATE_KEY);
 if (realStorage) {
   assert.notEqual(process.env.VERCEL_ENV, 'production');
@@ -128,6 +135,7 @@ try {
     'INSERT INTO organizations (id,"ownerId",name,"createdAt") VALUES ($1,$1,\'Respaldo automático QA\',$2)',
     [ownerId, timestamp],
   );
+  await seedQaWorkspaceProfiles(pool, [ownerId]);
   await pool.query(
     'INSERT INTO members (id,"organizationId","ownerId","userId",email,name,role,status,"createdAt","updatedAt") VALUES ($1,$2,$2,$3,$4,\'QA ficticio\',\'owner\',\'active\',$5,$5)',
     [memberId, ownerId, userId, `${memberId}@example.test`, timestamp],
@@ -296,6 +304,7 @@ try {
       'messages',
       'tickets',
       'members',
+      'workspaceProfiles',
       'organizations',
     ]) {
       await tx.query(`DELETE FROM "${table}" WHERE "ownerId"=$1`, [ownerId]);

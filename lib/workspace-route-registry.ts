@@ -88,6 +88,15 @@ import * as knowledge5 from '@/app/api/reports/company/route';
 import * as knowledge6 from '@/app/api/reports/monthly/[id]/download/route';
 import * as knowledge7 from '@/app/api/reports/monthly/[id]/route';
 import * as knowledge8 from '@/app/api/reports/monthly/route';
+import * as equipment0 from '@/app/api/equipment/[id]/route';
+import * as equipment1 from '@/app/api/equipment/route';
+import * as equipment2 from '@/app/api/equipment/mine/route';
+import * as equipment3 from '@/app/api/tickets/[id]/equipment/route';
+import * as fulfillment0 from '@/app/api/tickets/[id]/fulfillment/route';
+import * as fulfillment1 from '@/app/api/fulfillments/route';
+import * as fulfillment2 from '@/app/api/fulfillments/mine/route';
+import * as fulfillment3 from '@/app/api/tickets/[id]/fulfillment/receipt/route';
+import * as backfill0 from '@/app/api/tickets/classify/route';
 export const WORKSPACE_ROUTE_REGISTRY = [
   { pattern: new RegExp('^knowledge/([^/]+)/publications$'), names: ['id'], handlers: knowledge0 },
   { pattern: new RegExp('^knowledge/([^/]+)/review$'), names: ['id'], handlers: knowledge1 },
@@ -139,6 +148,15 @@ export const WORKSPACE_ROUTE_REGISTRY = [
   { pattern: new RegExp('^companies$'), names: [], handlers: r15 },
   { pattern: new RegExp('^email-inbound/([^/]+)/retry$'), names: ['id'], handlers: r16 },
   { pattern: new RegExp('^email-inbound$'), names: [], handlers: r17 },
+  { pattern: new RegExp('^equipment/mine$'), names: [], handlers: equipment2 },
+  { pattern: new RegExp('^tickets/([^/]+)/fulfillment$'), names: ['id'], handlers: fulfillment0 },
+  { pattern: new RegExp('^tickets/([^/]+)/fulfillment/receipt$'), names: ['id'], handlers: fulfillment3 },
+  { pattern: new RegExp('^tickets/classify$'), names: [], handlers: backfill0 },
+  { pattern: new RegExp('^fulfillments$'), names: [], handlers: fulfillment1 },
+  { pattern: new RegExp('^fulfillments/mine$'), names: [], handlers: fulfillment2 },
+  { pattern: new RegExp('^tickets/([^/]+)/equipment$'), names: ['id'], handlers: equipment3 },
+  { pattern: new RegExp('^equipment/([^/]+)$'), names: ['id'], handlers: equipment0 },
+  { pattern: new RegExp('^equipment$'), names: [], handlers: equipment1 },
   { pattern: new RegExp('^escalations$'), names: [], handlers: r18 },
   { pattern: new RegExp('^evolution/features$'), names: [], handlers: r19 },
   { pattern: new RegExp('^members/([^/]+)/invite$'), names: ['id'], handlers: r20 },

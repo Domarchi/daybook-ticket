@@ -21,6 +21,9 @@ let similarId = 0;
 let targetId = 0;
 let overdueId = 0;
 let longId = 0;
+let companyId = '';
+let featuresBefore: string | null = null;
+const COMPANY = 'Minera Ficticia Los Andes';
 
 const REQUESTER = 'Valentina Ortúzar';
 const REQUESTER_EMAIL = 'valentina.ortuzar@cliente-ficticio.test';
@@ -32,6 +35,58 @@ function reply(body: Record<string, unknown>) {
   const lastText = JSON.stringify(last.content);
   const usage = { input_tokens: 900, output_tokens: 60, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
   const base = { id: 'msg_fake', type: 'message', role: 'assistant', model: body.model, stop_sequence: null, usage };
+  if (lastText.includes('tool_result') && lastText.includes('propuesta'))
+    return {
+      ...base,
+      stop_reason: 'end_turn',
+      content: [{ type: 'text', text: 'Te dejé las propuestas para confirmar. No cambié nada todavía.' }],
+    };
+  const act = /Asigna el #(\d+)/.exec(lastText);
+  if (act && !lastText.includes('tool_result')) {
+    const numero = Number(act[1]);
+    return {
+      ...base,
+      stop_reason: 'tool_use',
+      content: [
+        {
+          type: 'tool_use',
+          id: 'toolu_a',
+          name: 'proponer_accion',
+          input: { numero, accion: 'asignar', responsable: 'propietaria' },
+        },
+        {
+          type: 'tool_use',
+          id: 'toolu_b',
+          name: 'proponer_accion',
+          input: { numero, accion: 'categoria', falla_grupo: 'equipment', falla_elemento: 'computer' },
+        },
+        {
+          type: 'tool_use',
+          id: 'toolu_c',
+          name: 'proponer_accion',
+          input: { numero, accion: 'nota', nota: 'Revisar el disco del notebook.' },
+        },
+      ],
+    };
+  }
+  if (lastText.includes('entradas_del_mes'))
+    return {
+      ...base,
+      stop_reason: 'end_turn',
+      content: [
+        {
+          type: 'text',
+          text: `${COMPANY} tuvo 2 tickets nuevos este mes y ninguno resuelto todavía. Hoy tiene 2 abiertos. El PDF oficial se descarga con el botón de abajo.`,
+        },
+      ],
+    };
+  const company = /informe de ([^"\\]+?)(?:\.|"|$)/i.exec(lastText);
+  if (company && !lastText.includes('tool_result'))
+    return {
+      ...base,
+      stop_reason: 'tool_use',
+      content: [{ type: 'tool_use', id: 'toolu_2', name: 'informe_empresa', input: { empresa: company[1] } }],
+    };
   if (String(body.system).includes('Resumes un ticket largo'))
     return {
       ...base,
@@ -128,6 +183,30 @@ async function seed() {
     ];
     for (const [index, [kind, author, role, body]] of turns.entries())
       await message(longId, kind, author, role, body, -280 + index * 10);
+    // A customer company with two tickets this month, and the reports feature on (the Reports screen needs it too).
+    companyId = crypto.randomUUID();
+    await pool.query(
+      `INSERT INTO "customerCompanies" (id,"organizationId","ownerId",name,"createdAt","updatedAt") VALUES ($1,'daybook',$2,$3,$4,$4)`,
+      [companyId, owner, COMPANY, iso(-2000)],
+    );
+    await pool.query(`UPDATE tickets SET "customerCompanyId"=$1 WHERE id = ANY($2::int[]) AND "ownerId"=$3`, [
+      companyId,
+      [targetId, longId],
+      owner,
+    ]);
+    featuresBefore =
+      (
+        await pool.query<{ featuresJson: string }>(
+          `SELECT "featuresJson" FROM "evolutionFeatures" WHERE "ownerId"=$1`,
+          [owner],
+        )
+      ).rows[0]?.featuresJson ?? null;
+    const features = { ...JSON.parse(featuresBefore || '{}'), knowledge: true };
+    await pool.query(
+      `INSERT INTO "evolutionFeatures" ("ownerId","featuresJson",version,"updatedAt") VALUES ($1,$2,1,$3)
+       ON CONFLICT ("ownerId") DO UPDATE SET "featuresJson"=EXCLUDED."featuresJson","updatedAt"=EXCLUDED."updatedAt"`,
+      [owner, JSON.stringify(features), iso(0)],
+    );
     await pool.query(
       `INSERT INTO articles ("ownerId",title,category,body,"reviewState","createdAt","updatedAt")
        VALUES ($1,'Impresora que no imprime','Impresoras','Vaciar la cola, reiniciar el servicio y reinstalar el driver.','approved',$2,$2)`,
@@ -169,6 +248,21 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await new Promise(resolve => fake?.close(resolve));
+  // Leave the reports feature as the other suites found it.
+  const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+  try {
+    if (featuresBefore === null)
+      await pool.query(
+        `DELETE FROM "evolutionFeatures" WHERE "ownerId"=(SELECT "ownerId" FROM organizations WHERE id='daybook')`,
+      );
+    else
+      await pool.query(
+        `UPDATE "evolutionFeatures" SET "featuresJson"=$1 WHERE "ownerId"=(SELECT "ownerId" FROM organizations WHERE id='daybook')`,
+        [featuresBefore],
+      );
+  } finally {
+    await pool.end();
+  }
 });
 
 test.describe('Bita, the staff assistant', () => {
@@ -417,6 +511,118 @@ test.describe('Bita, the staff assistant', () => {
     for (const secret of [REQUESTER, REQUESTER_EMAIL]) expect(wire).not.toContain(secret);
     await expectNoSeriousViolations(page, 'Resumen de Bita en el ticket');
     await page.screenshot({ path: testInfo.outputPath('bita-resumen-ticket.png') });
+  });
+
+  test("real clicks: the company report in the chat, and its official PDF downloaded on the person's click", async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Abrir el chat con Bita' }).click();
+    const panel = page.getByRole('dialog', { name: /Bita/ });
+    const before = recorded.length;
+    await panel.getByLabel('Tu pregunta').fill('Dame el informe de los andes.');
+    await panel.getByRole('button', { name: 'Enviar' }).click();
+    await expect(panel).toContainText(`${COMPANY} tuvo 2 tickets nuevos este mes`);
+
+    // The tool result carries counts only: no requester, no email, no company id.
+    const sent = recorded.slice(before);
+    const result = JSON.stringify(sent.at(-1)!.body.messages);
+    expect(result).toContain('entradas_del_mes');
+    expect(result).toContain('"entradas_del_mes\\":2');
+    for (const secret of [REQUESTER, REQUESTER_EMAIL, companyId]) expect(result).not.toContain(secret);
+
+    const button = panel.getByRole('button', { name: new RegExp(`Descargar el informe PDF de ${COMPANY}`) });
+    await expect(button).toBeVisible();
+    await expectNoSeriousViolations(page, 'Informe de empresa en el chat');
+    await page.screenshot({ path: testInfo.outputPath('bita-informe-empresa.png') });
+    const [download] = await Promise.all([page.waitForEvent('download'), button.click()]);
+    expect(download.suggestedFilename()).toMatch(/^daybook-informe-20\d{2}-\d{2}\.pdf$/);
+    const bytes = await (await import('node:fs/promises')).readFile((await download.path())!);
+    expect(bytes.subarray(0, 4).toString()).toBe('%PDF');
+    await expect(panel.getByRole('status').filter({ hasText: 'Informe descargado' })).toBeVisible();
+
+    // A second click downloads the same report: the official snapshot is created once.
+    const [again] = await Promise.all([page.waitForEvent('download'), button.click()]);
+    expect(again.suggestedFilename()).toBe(download.suggestedFilename());
+    const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+    try {
+      const { rows } = await pool.query(`SELECT count(*)::int AS n FROM "companyMonthlyReports" WHERE "companyId"=$1`, [
+        companyId,
+      ]);
+      expect(rows[0].n).toBe(1);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  test('real clicks: Bita proposes three changes; only the confirmed ones happen, as the person', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Abrir el chat con Bita' }).click();
+    const panel = page.getByRole('dialog', { name: /Bita/ });
+    await panel.getByLabel('Tu pregunta').fill(`Asigna el #${longId} a la propietaria, clasifícalo y deja una nota.`);
+    await panel.getByRole('button', { name: 'Enviar' }).click();
+    await expect(panel).toContainText('Te dejé las propuestas para confirmar.');
+
+    const assign = panel.getByRole('region', { name: new RegExp(`Propuesta de Bita: Asignar #${longId}`) });
+    const classify = panel.getByRole('region', { name: new RegExp(`Propuesta de Bita: Clasificar #${longId}`) });
+    const note = panel.getByRole('region', {
+      name: new RegExp(`Propuesta de Bita: Agregar una nota interna a #${longId}`),
+    });
+    await expect(assign).toContainText('Responsable: sin asignar →');
+    await expect(classify).toContainText('Equipos y periféricos · Computador');
+    await expect(note).toContainText('Revisar el disco del notebook.');
+    // The ticket number shows once per card (in the summary); the subject is the link to the ticket.
+    expect(((await assign.innerText()).match(new RegExp(`#${longId}\\b`, 'g')) ?? []).length).toBe(1);
+    // The cards follow the order Bita proposed them in.
+    const titles = await panel
+      .getByRole('region', { name: /Propuesta de Bita/ })
+      .evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label')));
+    expect(titles.map(title => title?.split(':')[1]?.trim().split(' ')[0])).toEqual([
+      'Asignar',
+      'Clasificar',
+      'Agregar',
+    ]);
+    await expectNoSeriousViolations(page, 'Propuestas de Bita');
+    await page.screenshot({ path: testInfo.outputPath('bita-propuestas.png') });
+
+    // Nothing happened yet: proposing writes nothing.
+    const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+    const row = async () =>
+      (
+        await pool.query(
+          `SELECT t."assigneeMemberId",t."faultGroup",t."faultElement",t."categorySource",
+             (SELECT count(*)::int FROM messages m WHERE m."ticketId"=t.id AND m.kind='note' AND m.body LIKE 'Revisar el disco%') AS notes
+           FROM tickets t WHERE t.id=$1`,
+          [longId],
+        )
+      ).rows[0];
+    try {
+      expect(await row()).toMatchObject({ assigneeMemberId: null, categorySource: null, notes: 0 });
+
+      await assign.getByRole('button', { name: 'Confirmar' }).click();
+      await expect(assign).toContainText('Hecho. Queda en el historial del ticket a tu nombre.');
+      // The second change on the same ticket carries the version the first one left.
+      await classify.getByRole('button', { name: 'Confirmar' }).click();
+      await expect(classify).toContainText('Hecho.');
+      await note.getByRole('button', { name: 'Descartar' }).click();
+      await expect(panel.getByText(`Descartaste: Agregar una nota interna a #${longId}.`)).toBeVisible();
+      await page.screenshot({ path: testInfo.outputPath('bita-propuestas-confirmadas.png') });
+      await assign.getByRole('button', { name: 'Notebook lento después de la actualización' }).click();
+      await expect(page).toHaveURL(new RegExp(`ticket=${longId}$`));
+
+      const after = await row();
+      expect(after.assigneeMemberId).not.toBeNull();
+      expect(after).toMatchObject({
+        faultGroup: 'equipment',
+        faultElement: 'computer',
+        categorySource: 'manual',
+        notes: 0,
+      });
+    } finally {
+      await pool.end();
+    }
   });
 
   test('the daily limit holds and says so', async ({ request }) => {

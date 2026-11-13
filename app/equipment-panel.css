@@ -1,0 +1,54 @@
+/* Equipos (F6-A2). Colours come from tokens, so light and dark need no separate rules. */
+.equipment-panel { display: grid; gap: 20px; min-width: 0; }
+.equipment-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.equipment-search { position: relative; flex: 1 1 280px; display: flex; align-items: center; }
+.equipment-search > svg { position: absolute; left: 12px; color: var(--color-text-muted); pointer-events: none; }
+.equipment-search input { width: 100%; min-height: var(--touch-target); padding: 10px 12px 10px 36px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); font: inherit; font-size: var(--db-text-body); }
+.equipment-search input:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
+.equipment-filters { display: inline-flex; border: 1px solid var(--color-border); border-radius: var(--radius-md); overflow: hidden; }
+.equipment-filters button { min-height: var(--touch-target); padding: 0 14px; border: 0; background: var(--color-surface); color: var(--color-text-muted); font-size: var(--db-text-meta); cursor: pointer; }
+.equipment-filters button + button { border-left: 1px solid var(--color-border); }
+.equipment-filters button.active { background: var(--color-accent-soft); color: var(--color-accent); font-weight: var(--db-weight-semibold); }
+.equipment-filters button:focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
+.equipment-error { margin: 0; padding: 12px 14px; border: 1px solid var(--color-danger-border); border-radius: var(--radius-md); background: var(--color-danger-bg); color: var(--color-danger-text); font-size: var(--db-text-meta); }
+.equipment-list .section-head, .equipment-missing .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.equipment-list .section-head h2, .equipment-missing .section-head h2 { display: inline-flex; align-items: center; gap: 8px; font-size: var(--db-text-emphasis); }
+.equipment-list .section-head > span, .equipment-missing .section-head > span { color: var(--color-text-muted); font-size: var(--db-text-meta); }
+.equipment-rows, .equipment-client-list { list-style: none; margin: 0; padding: 0; }
+.equipment-row, .equipment-client-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 20px; border-top: 1px solid var(--color-border); }
+.equipment-identity, .equipment-client-list li > div { display: grid; gap: 4px; min-width: 0; }
+.equipment-identity strong { font-size: var(--db-text-body); letter-spacing: .3px; color: var(--color-text); }
+.equipment-identity span, .equipment-client-list span, .equipment-client-list small { font-size: var(--db-text-meta); color: var(--color-text-muted); overflow-wrap: anywhere; }
+.equipment-client-list strong { font-size: var(--db-text-body); color: var(--color-text); }
+.equipment-assign { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.equipment-assign select { min-height: var(--touch-target); min-width: 190px; padding: 8px 10px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); font: inherit; font-size: var(--db-text-meta); }
+.equipment-assign button, .equipment-client-list .secondary { min-height: var(--touch-target); }
+.equipment-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 17px; padding: 20px; }
+.equipment-form label { display: grid; gap: 7px; font-size: var(--db-text-meta); color: var(--color-text); }
+.equipment-form input, .equipment-form select { min-height: var(--touch-target); padding: 10px 12px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text); font: inherit; font-size: var(--db-text-body); }
+.equipment-form input::placeholder { color: var(--color-text-muted); }
+.equipment-form .form-footer { grid-column: 1 / -1; }
+.equipment-panel .panel-help { padding: 0 20px 18px; }
+@media (max-width: 750px) {
+  .equipment-row, .equipment-client-list li { flex-direction: column; align-items: stretch; padding: 14px 16px; }
+  .equipment-assign { width: 100%; }
+  .equipment-assign label, .equipment-assign select { flex: 1; min-width: 0; width: 100%; }
+  .equipment-form { grid-template-columns: 1fr; padding: 16px; }
+  .equipment-search input, .equipment-form input, .equipment-form select, .equipment-assign select { font-size: var(--db-text-emphasis); }
+  .equipment-filters { width: 100%; }
+  .equipment-filters button { flex: 1; }
+  .equipment-toolbar > .primary { width: 100%; justify-content: center; }
+}
+/* F6-A2b: the client's equipment in the portal and the equipment of a ticket */
+.own-equipment { display: grid; gap: 10px; margin: 0 0 20px; padding: 16px 18px; border: 1px solid var(--color-border); border-radius: var(--db-radius-card); background: var(--color-surface); }
+.own-equipment h2 { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-size: var(--db-text-body); color: var(--color-text); }
+.own-equipment ul { display: flex; flex-wrap: wrap; gap: 10px; list-style: none; margin: 0; padding: 0; }
+.own-equipment li { display: grid; gap: 2px; padding: 9px 12px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-bg); }
+.own-equipment strong { font-size: var(--db-text-body); letter-spacing: .3px; color: var(--color-text); }
+.own-equipment span { font-size: var(--db-text-caption); color: var(--color-text-muted); }
+.ticket-equipment { display: grid; gap: 8px; padding: 18px 0 0; margin-top: 18px; border-top: 1px solid var(--color-border); }
+.ticket-equipment ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ticket-equipment li { display: flex; align-items: flex-start; gap: 8px; color: var(--color-text-muted); }
+.ticket-equipment li > span { display: grid; gap: 2px; }
+.ticket-equipment strong { font-size: var(--db-text-meta); color: var(--color-text); }
+.ticket-equipment small { font-size: var(--db-text-caption); color: var(--color-text-muted); }
