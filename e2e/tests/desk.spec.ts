@@ -445,6 +445,74 @@ test.describe('the support desk', () => {
     }
   });
 
+  test('delivering a requested monitor assigns it to the client, solves the ticket, and the client confirms', async ({
+    page,
+    browser,
+  }) => {
+    expect(rosaPassword).not.toBe('');
+    const subject = 'Necesito un segundo monitor';
+    const rosaContext = await browser.newContext();
+    const rosa = await rosaContext.newPage();
+    try {
+      await rosa.goto(new URL('/login', rosaInvitation).toString());
+      await rosa.getByLabel('Correo electrónico').fill('rosa@example.test');
+      await rosa.getByLabel('Contraseña').fill(rosaPassword);
+      await rosa.getByRole('button', { name: 'Entrar a mi espacio' }).click();
+      await rosa.waitForURL(url => url.pathname === '/', { timeout: 30_000 });
+      await rosa.getByRole('button', { name: 'Nuevo ticket' }).first().click();
+      const form = rosa.locator('form.client-new-ticket');
+      await form.getByRole('combobox', { name: 'Tipo de solicitud' }).selectOption({ label: 'Un pedido: Equipos' });
+      await form.getByRole('combobox', { name: /Sobre qué equipo/ }).selectOption({ label: 'No es sobre un equipo' });
+      await form.getByLabel('Asunto').fill(subject);
+      await form.getByRole('textbox', { name: 'Descripción' }).fill('Para trabajar con dos pantallas.');
+      await form.getByRole('button', { name: 'Crear ticket' }).click();
+      const created = rosa.getByText(/Tu ticket #\d{4} fue creado/);
+      await expect(created).toBeVisible();
+      const ticket = Number(/#(\d{4})/.exec((await created.textContent()) ?? '')?.[1]);
+
+      // The team delivers it with the monitor's inventory ID: assigned to Rosa, and the ticket is solved.
+      await page.goto(`/?ticket=${ticket}`);
+      const panel = page.getByRole('region', { name: 'Seguimiento del requerimiento' });
+      await panel.getByLabel('ID del equipo entregado').fill('mon-9');
+      await panel.getByLabel('Tipo de equipo').selectOption({ label: 'Monitor' });
+      await panel.getByRole('button', { name: 'Marcar entregado' }).click();
+      await expect(page.getByText('Requerimiento entregado y ticket solucionado')).toBeVisible();
+      await expect(panel.locator('[aria-current="step"]')).toHaveCount(0);
+      await expect(panel).toContainText('equipo MON-9');
+      await expect(panel).toContainText('Sin confirmar (es opcional)');
+      await expect(page.getByRole('button', { name: 'Marcar solucionado' })).toHaveCount(0);
+      await expect(page.locator('.ticket-equipment')).toContainText('MON-9 · Monitor');
+
+      // Rosa sees the delivery, confirms it (once), and the monitor is now hers.
+      await rosa.goto(new URL('/', rosaInvitation).toString());
+      await expect(rosa.getByRole('region', { name: 'Mis equipos' })).toContainText('MON-9');
+      await rosa
+        .getByRole('region', { name: 'Mis requerimientos' })
+        .getByRole('button', { name: new RegExp(subject) })
+        .click();
+      const tracking = rosa.getByRole('region', { name: 'Seguimiento de tu requerimiento' });
+      await expect(tracking).toContainText('Fue entregado.');
+      await expect(tracking).toContainText('MON-9');
+      await tracking.getByRole('button', { name: 'Confirmar recepción' }).click();
+      await expect(tracking).toContainText('Confirmaste que lo recibiste.');
+      await expect(tracking.getByRole('button', { name: 'Confirmar recepción' })).toHaveCount(0);
+      await expectNoSeriousViolations(rosa, 'Requerimiento entregado en el portal');
+    } finally {
+      await rosaContext.close();
+    }
+
+    // The section counts it and exports the list.
+    await page.goto('/?view=requirements');
+    const summary = page.getByRole('region', { name: 'Resumen de requerimientos' });
+    await expect(summary).toContainText('entregados');
+    await expect(summary).toContainText('Proveedor');
+    const download = page.waitForEvent('download');
+    await summary.getByRole('button', { name: 'Exportar CSV' }).click();
+    const file = await download;
+    expect(file.suggestedFilename()).toMatch(/^requerimientos-\d{4}-\d{2}-\d{2}\.csv$/);
+    await expectNoSeriousViolations(page, 'Requerimientos con resumen');
+  });
+
   test.describe('dark mode', () => {
     test.use({ colorScheme: 'dark' });
     test('the inbox and an open ticket pass the accessibility gate in dark mode', async ({ page }) => {

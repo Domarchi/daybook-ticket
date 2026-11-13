@@ -87,3 +87,19 @@ Los motivos y notas admiten hasta 500 caracteres.
   - el motivo y la nota del último retraso;
   - el historial, del más reciente al más antiguo, sin nombres del equipo.
 - **Lo que ve el cliente:** los motivos de volver atrás, de cancelar y de un retraso. El panel del equipo lo avisa («Motivo (lo verá el cliente)», «Nota para el cliente»).
+
+## F6-B4: entrega, recepción, resumen y CSV
+
+- **Marcar entregado:** ocurre en una sola transacción.
+  - Si lo pedido es un equipo, se pide su ID, su tipo y, de forma opcional, su serie.
+  - El equipo se registra o se asigna a quien lo pidió con las mismas reglas que una invitación (F6-A1): nunca se le quita a otra persona, y uno que ya es del solicitante se reutiliza. Además, queda vinculado al ticket.
+  - El seguimiento pasa a «Entregado».
+  - El ticket se resuelve con `patchTicketInTransaction`, el mismo camino que «Marcar solucionado»: SLA, encuesta de satisfacción, eventos y automatizaciones.
+  - Si falta la cuenta del cliente o su empresa, no se entrega y el mensaje dice qué falta.
+- **Confirmar recepción:** es opcional y solo la hace quien pidió el requerimiento, una vez y después de la entrega. Queda en el historial.
+- **Resumen en «Requerimientos»:**
+  - cuántos se entregaron;
+  - el tiempo medio desde «Solicitado» hasta «Entregado»;
+  - el porcentaje de abiertos que están atrasados;
+  - los tres motivos de retraso más comunes.
+- **Exportar CSV:** baja una fila por requerimiento, con las celdas protegidas contra fórmulas de planilla. Hay una lista nueva, «Todos».

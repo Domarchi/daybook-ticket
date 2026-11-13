@@ -80,7 +80,14 @@ export function ClientRequirementTracking({
   ticketId: number;
   refreshKey?: string | number;
 }) {
-  const view = useJson<FulfillmentView>(memberId, `/api/tickets/${ticketId}/fulfillment`, refreshKey);
+  const [reload, setReload] = useState(0);
+  const [confirming, setConfirming] = useState(false);
+  const [receiptError, setReceiptError] = useState('');
+  const view = useJson<FulfillmentView>(
+    memberId,
+    `/api/tickets/${ticketId}/fulfillment`,
+    `${refreshKey ?? ''}:${reload}`,
+  );
   const current = view?.fulfillment;
   if (!view || !current) return null;
   return (
@@ -119,7 +126,56 @@ export function ClientRequirementTracking({
             <dd>{current.cancelReason}</dd>
           </div>
         )}
+        {current.stage === 'delivered' && view.deliveredAssetTag && (
+          <div>
+            <dt>Equipo entregado</dt>
+            <dd>{view.deliveredAssetTag}</dd>
+          </div>
+        )}
+        {current.receivedAt && (
+          <div>
+            <dt>Recepción</dt>
+            <dd>Confirmaste que lo recibiste.</dd>
+          </div>
+        )}
       </dl>
+      {view.canConfirmReceipt && (
+        <div className="client-receipt">
+          <p className="fulfillment-help">¿Ya lo tienes? Confírmalo para que el equipo sepa que llegó bien.</p>
+          <button
+            type="button"
+            className="primary"
+            disabled={confirming}
+            onClick={async () => {
+              setConfirming(true);
+              setReceiptError('');
+              try {
+                const response = await daybookFetch(`/api/tickets/${ticketId}/fulfillment/receipt`, {
+                  method: 'POST',
+                  headers: { 'X-Daybook-Member-Id': memberId, 'Content-Type': 'application/json' },
+                  body: '{}',
+                });
+                if (!response.ok) {
+                  const body = (await response.json().catch(() => ({}))) as { error?: string };
+                  throw new Error(body.error || 'No se pudo confirmar la recepción.');
+                }
+                setReload(value => value + 1);
+              } catch (error) {
+                setReceiptError((error as Error).message);
+              } finally {
+                setConfirming(false);
+              }
+            }}
+          >
+            Confirmar recepción
+          </button>
+          {receiptError && (
+            <p className="equipment-error" role="alert">
+              {receiptError}
+            </p>
+          )}
+        </div>
+      )}
       {view.events.length > 0 && (
         <ol className="client-tracking-history" aria-label="Historial del requerimiento">
           {view.events

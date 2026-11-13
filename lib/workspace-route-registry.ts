@@ -95,6 +95,7 @@ import * as equipment3 from '@/app/api/tickets/[id]/equipment/route';
 import * as fulfillment0 from '@/app/api/tickets/[id]/fulfillment/route';
 import * as fulfillment1 from '@/app/api/fulfillments/route';
 import * as fulfillment2 from '@/app/api/fulfillments/mine/route';
+import * as fulfillment3 from '@/app/api/tickets/[id]/fulfillment/receipt/route';
 export const WORKSPACE_ROUTE_REGISTRY = [
   { pattern: new RegExp('^knowledge/([^/]+)/publications$'), names: ['id'], handlers: knowledge0 },
   { pattern: new RegExp('^knowledge/([^/]+)/review$'), names: ['id'], handlers: knowledge1 },
@@ -148,6 +149,7 @@ export const WORKSPACE_ROUTE_REGISTRY = [
   { pattern: new RegExp('^email-inbound$'), names: [], handlers: r17 },
   { pattern: new RegExp('^equipment/mine$'), names: [], handlers: equipment2 },
   { pattern: new RegExp('^tickets/([^/]+)/fulfillment$'), names: ['id'], handlers: fulfillment0 },
+  { pattern: new RegExp('^tickets/([^/]+)/fulfillment/receipt$'), names: ['id'], handlers: fulfillment3 },
   { pattern: new RegExp('^fulfillments$'), names: [], handlers: fulfillment1 },
   { pattern: new RegExp('^fulfillments/mine$'), names: [], handlers: fulfillment2 },
   { pattern: new RegExp('^tickets/([^/]+)/equipment$'), names: ['id'], handlers: equipment3 },

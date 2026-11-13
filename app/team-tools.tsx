@@ -33,6 +33,7 @@ const actionLabels: Record<string, string> = {
   fulfillment: 'Seguimiento del requerimiento',
   fulfillment_delay: 'Retraso informado',
   fulfillment_date: 'Fecha comprometida',
+  fulfillment_receipt: 'Recepción confirmada',
   automatic_assignment: 'Asignación automática',
   status: 'Estado actualizado',
   priority: 'Prioridad actualizada',

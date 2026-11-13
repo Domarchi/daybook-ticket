@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { describeFulfillmentEvent, formatDay } from '../lib/fulfillment-display';
-import { FULFILLMENT_LIST_FILTERS, isFulfillmentListFilter } from '../lib/fulfillment';
+import { describeFulfillmentEvent, formatDay, fulfillmentCsv } from '../lib/fulfillment-display';
+import { FULFILLMENT_LIST_FILTERS, isFulfillmentListFilter, summarizeFulfillments } from '../lib/fulfillment';
 import { WORKSPACE_ROUTE_REGISTRY } from '../lib/workspace-route-registry';
 import { createTicketSchema } from '../lib/server';
 import { requestedCategoryValues } from '../lib/ticket-category';
@@ -45,7 +45,10 @@ test('follow-up history lines read like a parcel tracker', () => {
 });
 
 test('the list filters are a closed set', () => {
-  assert.deepEqual([...FULFILLMENT_LIST_FILTERS], ['active', 'requested', 'in_progress', 'ready', 'overdue', 'closed']);
+  assert.deepEqual(
+    [...FULFILLMENT_LIST_FILTERS],
+    ['active', 'requested', 'in_progress', 'ready', 'overdue', 'closed', 'all'],
+  );
   assert.equal(isFulfillmentListFilter('overdue'), true);
   assert.equal(isFulfillmentListFilter('delivered'), false);
 });
@@ -97,5 +100,80 @@ test('"Mis requerimientos" uses the same ticket access as the portal and is reac
   assert.notEqual(
     mine,
     WORKSPACE_ROUTE_REGISTRY.find(item => item.pattern.test('fulfillments')),
+  );
+});
+
+test('delivery and receipt read clearly in the history (F6-B4)', () => {
+  assert.equal(
+    describeFulfillmentEvent('fulfillment', JSON.stringify({ stage: 'delivered', assetTag: 'MON-9' })),
+    'Entregado · equipo MON-9',
+  );
+  assert.equal(
+    describeFulfillmentEvent('fulfillment', JSON.stringify({ stage: 'delivered', assetTag: null })),
+    'Entregado',
+  );
+  assert.equal(describeFulfillmentEvent('fulfillment_receipt', '{}'), 'Recepción confirmada por quien lo pidió');
+});
+
+test('the summary counts deliveries, mean days, the late share of open ones and the top delay reasons', () => {
+  const base = { overdue: false, deliveredAt: null as string | null, createdAt: '2026-11-01T12:00:00.000Z' };
+  const summary = summarizeFulfillments(
+    [
+      { ...base, stage: 'delivered', deliveredAt: '2026-11-03T12:00:00.000Z' },
+      { ...base, stage: 'delivered', deliveredAt: '2026-11-06T00:00:00.000Z' },
+      { ...base, stage: 'in_progress', overdue: true },
+      { ...base, stage: 'requested' },
+      { ...base, stage: 'ready' },
+      { ...base, stage: 'cancelled' },
+    ],
+    ['supplier', 'logistics', 'supplier', 'out_of_stock', 'supplier', 'logistics', 'approval_pending'],
+  );
+  assert.equal(summary.delivered, 2);
+  assert.equal(summary.averageDeliveryDays, 3.3, '(2 + 4.5) / 2 days, one decimal');
+  assert.equal(summary.overduePercent, 33, '1 of 3 open ones');
+  assert.deepEqual(
+    summary.topDelayReasons.map(item => `${item.label}:${item.count}`),
+    ['Proveedor:3', 'Logística:2', 'Aprobación pendiente:1'],
+  );
+  const empty = summarizeFulfillments([], []);
+  assert.deepEqual(empty, { delivered: 0, averageDeliveryDays: null, overduePercent: null, topDelayReasons: [] });
+});
+
+test('the CSV has one row per requirement and neutralises spreadsheet formulas', () => {
+  const csv = fulfillmentCsv([
+    {
+      ticketId: 7,
+      subject: '=HYPERLINK("http://x")',
+      requesterName: 'Rosa Pérez',
+      requirement: 'equipment',
+      stage: 'delivered',
+      expectedOn: '2026-11-20',
+      overdue: false,
+      delayReason: 'supplier',
+      deliveredAt: '2026-11-19T15:00:00.000Z',
+    },
+  ]);
+  const [header, row] = csv.split('\r\n');
+  assert.match(header, /^"Ticket","Asunto","Solicitante","Requerimiento","Etapa"/);
+  assert.equal(
+    row,
+    '"#0007","\'=HYPERLINK(""http://x"")","Rosa Pérez","Equipos","Entregado","2026-11-20","No","Proveedor","2026-11-19"',
+  );
+});
+
+test('delivery and receipt routes: staff delivers, only the requester confirms, and delivery solves the ticket', () => {
+  const route = readFileSync('app/api/tickets/[id]/fulfillment/route.ts', 'utf8');
+  assert.match(route, /z\.literal\('deliver'\)/);
+  const receipt = WORKSPACE_ROUTE_REGISTRY.find(item => item.pattern.test('tickets/12/fulfillment/receipt'));
+  assert.deepEqual(receipt?.names, ['id']);
+  assert.equal(typeof (receipt?.handlers as Record<string, unknown>).POST, 'function');
+  const server = readFileSync('lib/fulfillment.ts', 'utf8').replace(/\s+/g, ' ');
+  assert.match(server, /ticket\.requesterMemberId !== access\.member\.id/, 'only the requester confirms');
+  assert.match(server, /await patchTicketInTransaction\(tx, fresh, ticketId, \{ status: 'resolved' \}\)/);
+  assert.match(server, /assignInviteEquipment\(tx,/, 'equipment goes through the same rules as an invitation');
+  const mutations = readFileSync('lib/ticket-mutations.ts', 'utf8').replace(/\s+/g, ' ');
+  assert.match(
+    mutations,
+    /return db\(\)\.transaction\(tx => patchTicketInTransaction\(tx, access, id, data, claim\)\)/,
   );
 });
