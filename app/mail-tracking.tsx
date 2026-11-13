@@ -65,11 +65,7 @@ export function MailTracking({ ticketId, refreshKey = 0 }: { ticketId: number; r
           <h3>Correos de este ticket</h3>
           <p>La confirmación de entrega indica recepción por el servidor de correo; no confirma lectura.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setRefresh(value => value + 1)}
-          disabled={loading}
-        >
+        <button type="button" onClick={() => setRefresh(value => value + 1)} disabled={loading}>
           {/* El nombre accesible tiene que contener el texto visible (WCAG 2.5.3):
               con un aria-label fijo, mientras dice «Actualizando…» el lector y la
               pantalla decían cosas distintas, y axe lo marcaba cuando pasaba justo
