@@ -213,7 +213,7 @@ export function FulfillmentPanel({
             </label>
             {needsReason && (
               <label className="fulfillment-wide">
-                Motivo
+                Motivo (lo verá el cliente)
                 <input
                   value={reason}
                   onChange={event => setReason(event.target.value)}

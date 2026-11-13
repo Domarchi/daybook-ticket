@@ -73,3 +73,17 @@ Los motivos y notas admiten hasta 500 caracteres.
   - `GET` para quien puede abrir el ticket;
   - `POST` y `PATCH /api/tickets/[id]/fulfillment` solo para el equipo de soporte;
   - `GET /api/fulfillments?filter=` para la sección.
+
+## F6-B3: el portal del cliente
+
+- **Pedir:** el formulario de nuevo ticket pregunta «Tipo de solicitud». Las opciones son «Una falla o consulta», donde clasifica el sistema, o «Un pedido: Equipos / Cuentas de usuarios / Aplicaciones / Permisos de carpetas / Otros». Un pedido:
+  - queda clasificado como ese requerimiento, con `categorySource='manual'`, así que el clasificador no lo cambia;
+  - empieza en «Solicitado» en la misma transacción.
+- **Mis requerimientos:** lista los pedidos que el cliente puede ver, propios o de su empresa si es encargado. Usa la misma regla de acceso que los tickets e indica etapa, fecha comprometida y si está atrasado.
+- **En el ticket del portal:** «Seguimiento de tu requerimiento» muestra:
+  - la misma línea de etapas;
+  - la frase de la etapa actual;
+  - la fecha comprometida, o «Te avisaremos cuando la tengamos» si aún no hay;
+  - el motivo y la nota del último retraso;
+  - el historial, del más reciente al más antiguo, sin nombres del equipo.
+- **Lo que ve el cliente:** los motivos de volver atrás, de cancelar y de un retraso. El panel del equipo lo avisa («Motivo (lo verá el cliente)», «Nota para el cliente»).

@@ -1,6 +1,7 @@
 import { organizationSubmissionSchema } from './work-organization-model';
 import { collaborationMessageFields } from './collaboration-model';
 import { inviteEquipmentSchema } from './client-equipment-model';
+import { REQUIREMENTS } from './ticket-category-model';
 import { getDatabase } from '../db';
 import type { Database } from '../db/database';
 import { z } from 'zod';
@@ -45,6 +46,7 @@ const memberId = z
   .union([z.string().uuid('Selecciona una cuenta válida.'), z.literal('')])
   .nullable()
   .transform(v => v || null);
+const REQUIREMENT_IDS = REQUIREMENTS.map(item => item.id) as [string, ...string[]];
 export const createTicketSchema = z
   .object({
     ...organizationSubmissionSchema.shape,
@@ -63,6 +65,8 @@ export const createTicketSchema = z
     bodyFormat: z.enum(['plain', 'markdown']).optional(),
     /** The requester's equipment the ticket is about (F6-A2b). */
     assetId: z.string().uuid().optional(),
+    /** A requirement asked for on purpose (F6-B3): classified as such and followed from "Solicitado". */
+    requirement: z.enum(REQUIREMENT_IDS).optional(),
   })
   .strict();
 export const patchTicketSchema = z

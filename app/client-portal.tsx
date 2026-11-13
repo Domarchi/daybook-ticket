@@ -19,6 +19,8 @@ import { TicketSatisfactionPanel } from './satisfaction';
 import { EmailInboundPanel } from './email-inbound';
 import { PublicTicketProgress } from './public-ticket-progress';
 import { OwnEquipmentStrip, useOwnEquipment } from './own-equipment';
+import { ClientRequirementsList, ClientRequirementTracking } from './client-requirements';
+import { REQUIREMENTS } from '@/lib/ticket-category-model';
 import { equipmentLabel } from '@/lib/client-equipment-model';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -120,6 +122,8 @@ export default function ClientPortal({
   const ownEquipment = useOwnEquipment(data.viewer!.id);
   // The equipment a new ticket is about. Untouched, it follows the only piece the client has (if just one).
   const [assetChoice, setAssetChoice] = useState<string | null>(null);
+  // What kind of request a new ticket is: a fault or question (''), or a requirement to follow (F6-B3).
+  const [requestKind, setRequestKind] = useState('');
   const assetId = assetChoice ?? (ownEquipment.length === 1 ? ownEquipment[0].id : '');
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('all');
@@ -231,6 +235,7 @@ export default function ClientPortal({
           ? organizationRequest
           : {}),
         ...(assetId && ownEquipment.some(item => item.id === assetId) ? { assetId } : {}),
+        ...(requestKind ? { requirement: requestKind } : {}),
       };
       const operations = getDraftOperations();
       const result = await post<{ ticket: Ticket }>('/api/tickets', {
@@ -242,6 +247,7 @@ export default function ClientPortal({
       operations.clear(createScope);
       setOrganizationRequest({});
       setAssetChoice(null);
+      setRequestKind('');
       setDraft({ subject: '', body: '', priority: 'normal', department: data.settings.departments[0] || '' });
       setCreating(false);
       setSection('tickets');
@@ -475,6 +481,17 @@ export default function ClientPortal({
                     </select>
                   </label>
                 </div>
+                <label>
+                  Tipo de solicitud
+                  <select value={requestKind} onChange={event => setRequestKind(event.target.value)}>
+                    <option value="">Una falla o consulta</option>
+                    {REQUIREMENTS.map(item => (
+                      <option key={item.id} value={item.id}>
+                        Un pedido: {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 {ownEquipment.length > 0 && (
                   <label>
                     ¿Sobre qué equipo?
@@ -564,6 +581,12 @@ export default function ClientPortal({
                 </p>
               </div>
             </div>
+            <ClientRequirementTracking
+              key={`tracking:${data.viewer!.id}:${current.id}`}
+              memberId={data.viewer!.id}
+              ticketId={current.id}
+              refreshKey={current.version}
+            />
             <PublicTicketProgress
               key={`progress:${data.viewer!.id}:${current.id}`}
               ticketId={current.id}
@@ -729,6 +752,17 @@ export default function ClientPortal({
               </div>
             </div>
             <OwnEquipmentStrip items={ownEquipment} />
+            <ClientRequirementsList
+              key={`requirements:${accessKey}`}
+              memberId={data.viewer!.id}
+              refreshKey={counts.all}
+              onOpen={ticketId => {
+                if (busy) return;
+                setSelectedId(ticketId);
+                setCreating(false);
+                setError('');
+              }}
+            />
             {data.evolution?.features.organization && (
               <SavedViewPicker
                 key={accessKey}

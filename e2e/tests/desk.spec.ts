@@ -22,6 +22,7 @@ test.describe.configure({ mode: 'serial' });
 test.describe('the support desk', () => {
   // Rosa's invitation link, kept for the portal test further down (the tests in this file run in order).
   let rosaInvitation = '';
+  let rosaPassword = '';
   test('an empty inbox is accessible and invites the first ticket', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Bandeja de entrada' })).toBeVisible();
@@ -285,6 +286,7 @@ test.describe('the support desk', () => {
     try {
       await rosa.goto(rosaInvitation);
       const password = `Rosa-e2e-${crypto.randomUUID()}`;
+      rosaPassword = password;
       await rosa.getByLabel('Contraseña', { exact: true }).fill(password);
       await rosa.getByLabel('Repite tu contraseña').fill(password);
       await rosa.getByRole('button', { name: 'Activar mi cuenta' }).click();
@@ -378,6 +380,69 @@ test.describe('the support desk', () => {
     await expect(row).toContainText('En gestión');
     await expect(row).toContainText('Retraso: Proveedor');
     await expectNoSeriousViolations(page, 'Requerimientos');
+  });
+
+  test('a client asks for a requirement in the portal and follows it, delay included', async ({ page, browser }) => {
+    expect(rosaPassword).not.toBe('');
+    const subject = 'Necesito acceso al sistema de remuneraciones';
+    const rosaContext = await browser.newContext();
+    const rosa = await rosaContext.newPage();
+    try {
+      await rosa.goto(new URL('/login', rosaInvitation).toString());
+      await rosa.getByLabel('Correo electrónico').fill('rosa@example.test');
+      await rosa.getByLabel('Contraseña').fill(rosaPassword);
+      await rosa.getByRole('button', { name: 'Entrar a mi espacio' }).click();
+      await rosa.waitForURL(url => url.pathname === '/', { timeout: 30_000 });
+
+      await rosa.getByRole('button', { name: 'Nuevo ticket' }).first().click();
+      const form = rosa.locator('form.client-new-ticket');
+      await form
+        .getByRole('combobox', { name: 'Tipo de solicitud' })
+        .selectOption({ label: 'Un pedido: Cuentas de usuarios' });
+      await form.getByRole('combobox', { name: /Sobre qué equipo/ }).selectOption({ label: 'No es sobre un equipo' });
+      await form.getByLabel('Asunto').fill(subject);
+      await form.getByRole('textbox', { name: 'Descripción' }).fill('Para revisar mis liquidaciones de sueldo.');
+      await form.getByRole('button', { name: 'Crear ticket' }).click();
+      const created = rosa.getByText(/Tu ticket #\d{4} fue creado/);
+      await expect(created).toBeVisible();
+      const ticket = Number(/#(\d{4})/.exec((await created.textContent()) ?? '')?.[1]);
+
+      // The follow-up starts on its own: the tracking line is there from the first moment.
+      const tracking = rosa.getByRole('region', { name: 'Seguimiento de tu requerimiento' });
+      await expect(tracking.locator('[aria-current="step"]')).toContainText('Solicitado');
+      await expect(tracking).toContainText('Te avisaremos cuando la tengamos');
+
+      // The team moves it and reports a delay; Rosa sees why.
+      await page.goto(`/?ticket=${ticket}`);
+      const panel = page.getByRole('region', { name: 'Seguimiento del requerimiento' });
+      await panel.getByRole('combobox', { name: 'Mover a' }).selectOption({ label: 'En gestión' });
+      await panel.getByRole('button', { name: 'Cambiar etapa' }).click();
+      await expect(panel.locator('[aria-current="step"]')).toContainText('En gestión');
+      await panel.getByRole('button', { name: 'Informar retraso' }).click();
+      await panel.getByRole('combobox', { name: 'Motivo del retraso' }).selectOption({ label: 'Aprobación pendiente' });
+      const [year, month, date] = todayIn('America/Santiago', new Date()).split('-').map(Number);
+      await panel
+        .getByLabel('Nueva fecha comprometida')
+        .fill(new Date(Date.UTC(year, month - 1, date + 7)).toISOString().slice(0, 10));
+      await panel.getByLabel(/Nota para el cliente/).fill('Falta la firma de tu jefatura');
+      await panel.getByRole('button', { name: 'Informar retraso' }).click();
+      await expect(panel).toContainText('Aprobación pendiente · Falta la firma de tu jefatura');
+
+      // From the portal home, "Mis requerimientos" lists it and opens it.
+      await rosa.goto(new URL('/', rosaInvitation).toString());
+      const list = rosa.getByRole('region', { name: 'Mis requerimientos' });
+      await expect(list).toContainText('Cuentas de usuarios · En gestión');
+      await list.getByRole('button', { name: new RegExp(subject) }).click();
+      const followed = rosa.getByRole('region', { name: 'Seguimiento de tu requerimiento' });
+      await expect(followed.locator('[aria-current="step"]')).toContainText('En gestión');
+      await expect(followed).toContainText('Aprobación pendiente · Falta la firma de tu jefatura');
+      await expect(followed.getByRole('list', { name: 'Historial del requerimiento' })).toContainText(
+        'Retraso: Aprobación pendiente',
+      );
+      await expectNoSeriousViolations(rosa, 'Requerimiento en el portal');
+    } finally {
+      await rosaContext.close();
+    }
   });
 
   test.describe('dark mode', () => {

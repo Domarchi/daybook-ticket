@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import { describeFulfillmentEvent, formatDay } from '../lib/fulfillment-display';
 import { FULFILLMENT_LIST_FILTERS, isFulfillmentListFilter } from '../lib/fulfillment';
 import { WORKSPACE_ROUTE_REGISTRY } from '../lib/workspace-route-registry';
+import { createTicketSchema } from '../lib/server';
+import { requestedCategoryValues } from '../lib/ticket-category';
 
 test('follow-up history lines read like a parcel tracker', () => {
   assert.equal(formatDay('2026-11-20'), '20 nov 2026');
@@ -66,4 +68,34 @@ test('follow-up routes are reachable in a workspace; writes are staff-only and d
   assert.match(server, /Para cambiar la fecha comprometida usa «Informar retraso»/, 'a date moves only with a reason');
   assert.match(server, /FOR UPDATE/, 'changes lock the follow-up row');
   assert.match(server, /checkVersion\(existing, input\.expectedVersion\)/, 'changes check the version');
+});
+
+test('a requirement asked for in the portal is classified by the person and followed from the start (F6-B3)', () => {
+  assert.deepEqual(requestedCategoryValues('user_accounts'), [null, null, 'user_accounts', 'manual', null]);
+  const base = {
+    operationId: '0b6f3a3e-9d0c-4a51-8f2e-6d7c5b4a3f21',
+    subject: 'Necesito acceso al sistema de remuneraciones',
+    department: 'Soporte',
+    body: 'Para revisar mis liquidaciones.',
+  };
+  for (const requirement of ['equipment', 'user_accounts', 'applications', 'folder_permissions', 'other'])
+    assert.equal(createTicketSchema.safeParse({ ...base, requirement }).success, true, requirement);
+  assert.equal(createTicketSchema.safeParse({ ...base, requirement: 'pizza' }).success, false);
+  const route = readFileSync('app/api/tickets/route.ts', 'utf8').replace(/\s+/g, ' ');
+  assert.match(route, /data\.requirement \? requestedCategoryValues\(data\.requirement\) : suggestedCategoryValues/);
+  const insert = route.indexOf('INSERT INTO tickets'),
+    start = route.indexOf('startRequestedFulfillment(tx, fresh, ticket.id, now)');
+  assert.ok(insert > 0 && start > insert, 'the follow-up starts after the ticket exists, in the same transaction');
+});
+
+test('"Mis requerimientos" uses the same ticket access as the portal and is reachable in a workspace', () => {
+  const server = readFileSync('lib/fulfillment.ts', 'utf8').replace(/\s+/g, ' ');
+  assert.match(server, /const scope = ticketAccessSql\(access, 't', 2\)/);
+  assert.match(server, /WHERE f\."ownerId" = \$1 AND \$\{scope\.sql\}/);
+  const mine = WORKSPACE_ROUTE_REGISTRY.find(item => item.pattern.test('fulfillments/mine'));
+  assert.equal(typeof (mine?.handlers as Record<string, unknown>).GET, 'function');
+  assert.notEqual(
+    mine,
+    WORKSPACE_ROUTE_REGISTRY.find(item => item.pattern.test('fulfillments')),
+  );
 });

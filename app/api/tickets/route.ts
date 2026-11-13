@@ -1,9 +1,10 @@
 import { enqueueAutomationEvent, drainAutomationBestEffort } from '@/lib/automation';
-import { CATEGORY_INSERT_COLUMNS, suggestedCategoryValues } from '@/lib/ticket-category';
+import { CATEGORY_INSERT_COLUMNS, requestedCategoryValues, suggestedCategoryValues } from '@/lib/ticket-category';
 import { prepareTicketOrganization, saveTicketOrganization } from '@/lib/work-organization';
 import { getEvolutionFeatures, requireEvolutionFeature } from '@/lib/evolution-features';
 import { ApiError, db, handle, json, parseBody, createTicketSchema, checkAssignment } from '@/lib/server';
 import { linkTicketEquipment } from '@/lib/equipment-inventory';
+import { startRequestedFulfillment } from '@/lib/fulfillment';
 import { getSettingsInTransaction } from '@/lib/settings-transaction';
 import { getEffectiveServicePolicy } from '@/lib/service-policies';
 import { resolutionDeadline } from '@/lib/ticket-sla';
@@ -119,7 +120,9 @@ export async function POST(request: Request) {
           now,
           dueAt,
           JSON.stringify(policy),
-          ...suggestedCategoryValues({ subject: data.subject, body: data.body }),
+          ...(data.requirement
+            ? requestedCategoryValues(data.requirement)
+            : suggestedCategoryValues({ subject: data.subject, body: data.body })),
         ],
       );
       const ticket = rows[0];
@@ -130,6 +133,7 @@ export async function POST(request: Request) {
           requesterMemberId: requester.requesterMemberId,
           now,
         });
+      if (data.requirement) await startRequestedFulfillment(tx, fresh, ticket.id, now);
       if (organization) await saveTicketOrganization(tx, fresh, ticket.id, organization);
       if (requesterIsTest) {
         await tx.query('UPDATE tickets SET "isTest"=true WHERE id=$1 AND "ownerId"=$2', [ticket.id, access.ownerId]);

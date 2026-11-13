@@ -1,5 +1,5 @@
 import type { PoolClient } from 'pg';
-import { requireStaff, type AccessContext } from './access';
+import { requireStaff, ticketAccessSql, type AccessContext } from './access';
 import {
   DELAY_REASONS,
   delayProblem,
@@ -289,3 +289,46 @@ export async function listFulfillments(
 }
 
 export const DELAY_REASON_IDS = DELAY_REASONS.map(reason => reason.id);
+
+/**
+ * Inside the ticket-creation transaction (F6-B3): a requirement asked for on purpose starts its follow-up in
+ * "Solicitado" at once, so the person sees the tracking line from the first moment.
+ */
+export async function startRequestedFulfillment(tx: PoolClient, fresh: AccessContext, ticketId: number, now: string) {
+  await tx.query(
+    `INSERT INTO "ticketFulfillment" ("ticketId","ownerId",stage,"createdAt","updatedAt") VALUES ($1,$2,'requested',$3,$3)`,
+    [ticketId, fresh.ownerId, now],
+  );
+  await recordEvent(tx, fresh, ticketId, 'fulfillment', null, { stage: 'requested', expectedOn: null });
+}
+
+export type OwnFulfillment = {
+  ticketId: number;
+  subject: string;
+  requirement: string | null;
+  stage: FulfillmentStage;
+  expectedOn: string | null;
+  delayReason: string | null;
+  delayNote: string | null;
+  updatedAt: string;
+  overdue: boolean;
+};
+/** "Mis requerimientos": the followed requirements of the tickets this person can see (their own, or the company's). */
+export async function listOwnFulfillments(access: AccessContext): Promise<{ items: OwnFulfillment[]; today: string }> {
+  const scope = ticketAccessSql(access, 't', 2),
+    day = today();
+  const rows = (
+    await db()
+      .prepare(
+        `SELECT f."ticketId", t.subject, t.requirement, f.stage, f."expectedOn", f."delayReason", f."delayNote", f."updatedAt"
+           FROM "ticketFulfillment" f
+           JOIN tickets t ON t.id = f."ticketId" AND t."ownerId" = f."ownerId"
+          WHERE f."ownerId" = $1 AND ${scope.sql}
+          ORDER BY (f.stage IN ('delivered','cancelled')), f."updatedAt" DESC, f."ticketId" DESC
+          LIMIT 50`,
+      )
+      .bind(access.ownerId, ...scope.values)
+      .all<Omit<OwnFulfillment, 'overdue'>>()
+  ).results;
+  return { items: rows.map(row => ({ ...row, overdue: isOverdue(row, day) })), today: day };
+}
