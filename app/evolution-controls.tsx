@@ -12,9 +12,13 @@ type Theme = 'system' | 'light' | 'dark';
 export function ThemeBootstrap() {
   useEffect(() => {
     const query = matchMedia('(prefers-color-scheme: dark)');
+    // `data-theme` lleva el tema que se ve (claro u oscuro), igual que Parte Diario
+    // y Travel; la preferencia elegida (incluido «sistema») va en
+    // `data-theme-preference`. Sin preferencia explícita se sigue al sistema.
     const apply = () => {
-      if (!document.documentElement.dataset.theme || document.documentElement.dataset.theme === 'system')
-        document.documentElement.dataset.colorScheme = query.matches ? 'dark' : 'light';
+      const root = document.documentElement;
+      if (!root.dataset.themePreference || root.dataset.themePreference === 'system')
+        root.dataset.theme = query.matches ? 'dark' : 'light';
     };
     apply();
     query.addEventListener('change', apply);
@@ -28,8 +32,9 @@ export function ThemeControl({ memberId, preferred }: { memberId: string; prefer
   useEffect(() => {
     const query = matchMedia('(prefers-color-scheme: dark)');
     const apply = () => {
-      document.documentElement.dataset.theme = theme;
-      document.documentElement.dataset.colorScheme = theme === 'system' ? (query.matches ? 'dark' : 'light') : theme;
+      const root = document.documentElement;
+      root.dataset.themePreference = theme;
+      root.dataset.theme = theme === 'system' ? (query.matches ? 'dark' : 'light') : theme;
     };
     apply();
     query.addEventListener('change', apply);

@@ -228,6 +228,25 @@ test.describe('the support desk', () => {
     await expect(page.getByText('Reinicio de impresora')).toHaveCount(0);
   });
 
+  test('choosing a theme by hand marks data-theme like the other Daybook apps and survives a reload', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const html = page.locator('html');
+    const appearance = page.getByRole('combobox', { name: 'Apariencia' });
+    await appearance.selectOption('dark');
+    await expect(html).toHaveAttribute('data-theme', 'dark');
+    await expect(html).toHaveAttribute('data-theme-preference', 'dark');
+    await expect(html).not.toHaveAttribute('data-color-scheme', /./);
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
+    await page.reload();
+    await expect(page.getByRole('combobox', { name: 'Apariencia' })).toHaveValue('dark');
+    await expect(html).toHaveAttribute('data-theme', 'dark');
+    await page.getByRole('combobox', { name: 'Apariencia' }).selectOption('system');
+    await expect(html).toHaveAttribute('data-theme', 'light');
+    await expect(html).toHaveAttribute('data-theme-preference', 'system');
+  });
+
   test.describe('dark mode', () => {
     test.use({ colorScheme: 'dark' });
     test('the inbox and an open ticket pass the accessibility gate in dark mode', async ({ page }) => {

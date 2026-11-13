@@ -44,14 +44,14 @@
   --touch-target: 44px;
 }
 
-:root[data-color-scheme="dark"] {
+:root[data-theme="dark"] {
   --color-danger-bg: #291716;
   --color-danger-border: #91483f;
   --color-danger-text: #ffb4aa;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-color-scheme="light"]) {
+  :root:not([data-theme="light"]) {
     --color-danger-bg: #291716;
     --color-danger-border: #91483f;
     --color-danger-text: #ffb4aa;

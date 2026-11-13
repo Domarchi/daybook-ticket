@@ -53,8 +53,8 @@ const resolve = (values: Record<string, string>, scheme: Scheme) =>
 
 const tokens = read('tokens.css');
 const lightRaw = block(tokens, ':root {');
-const darkOverrides = block(tokens, ':root[data-color-scheme="dark"]');
-const darkMedia = block(tokens.slice(tokens.indexOf('@media')), ':root:not([data-color-scheme="light"])');
+const darkOverrides = block(tokens, ':root[data-theme="dark"]');
+const darkMedia = block(tokens.slice(tokens.indexOf('@media')), ':root:not([data-theme="light"])');
 const light = resolve(lightRaw, 'light');
 const dark = resolve({ ...lightRaw, ...darkOverrides }, 'dark');
 
@@ -92,7 +92,7 @@ test('semantic tokens match the legacy palette they alias (no silent drift)', ()
   const legacyRaw = block(read('globals.css'), ':root{');
   const legacyLight = resolve(legacyRaw, 'light');
   const legacyDark = resolve(
-    { ...legacyRaw, ...block(read('evolution-theme.css'), ':root[data-color-scheme="dark"]{') },
+    { ...legacyRaw, ...block(read('evolution-theme.css'), ':root[data-theme="dark"]{') },
     'dark',
   );
   const map: Record<string, string> = {
@@ -142,8 +142,8 @@ test('the sign-in page has no fixed white surfaces, so dark mode cannot leave li
     );
   }
   for (const scope of [
-    '@media(prefers-color-scheme:dark){:root:not([data-color-scheme="light"]) .auth-submit{',
-    ':root[data-color-scheme="dark"] .auth-submit{',
+    '@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .auth-submit{',
+    ':root[data-theme="dark"] .auth-submit{',
   ]) {
     assert.ok(css.includes(scope), `dark sign-in button rule: ${scope}`);
   }
@@ -154,10 +154,10 @@ test('the light-surface brand swaps to the light-ink mark in dark mode', () => {
   assert.match(theme, /\.daybook-brand img\.daybook-mark-dark\{display:none\}/);
   assert.match(
     theme,
-    /:root\[data-color-scheme="dark"\] \.daybook-brand:not\(\.daybook-brand-dark\) img\.daybook-mark-dark\{display:block\}/,
+    /:root\[data-theme="dark"\] \.daybook-brand:not\(\.daybook-brand-dark\) img\.daybook-mark-dark\{display:block\}/,
   );
   assert.match(
     theme,
-    /:root:not\(\[data-color-scheme="light"\]\) \.daybook-brand:not\(\.daybook-brand-dark\) img\.daybook-mark-light\{display:none\}/,
+    /:root:not\(\[data-theme="light"\]\) \.daybook-brand:not\(\.daybook-brand-dark\) img\.daybook-mark-light\{display:none\}/,
   );
 });
