@@ -24,6 +24,7 @@ import {
 import { MessageContent } from './message-content';
 import { MessageAttachments } from './attachments';
 import { TicketCollaborationTools, TicketMessageContext } from './ticket-collaboration';
+import { EmptyState } from './estados';
 
 export interface TicketChatProps {
   ticketId?: number;
@@ -344,10 +345,11 @@ export function TicketChat({
             </p>
           )}
           {!visible.length && !loading && (
-            <div className="ticket-chat-empty">
-              <MessageSquare size={28} aria-hidden="true" />
-              <p>Esta conversación aún no tiene mensajes.</p>
-            </div>
+            <EmptyState
+              icon={<MessageSquare size={22} />}
+              title="Sin mensajes"
+              text="Esta conversación aún no tiene mensajes."
+            />
           )}
           {groups.map(group => (
             <div className="ticket-chat-day" key={group.key}>

@@ -1,23 +1,23 @@
 /* Clasificar tickets antiguos (administradores). Tokens only: light and dark from the same rules. */
-.classify-backfill { display: grid; gap: 12px; margin: 0 0 14px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-surface); color: var(--color-text); }
+.classify-backfill { display: grid; gap: 12px; margin: 0 0 14px; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: var(--db-radius-card); background: var(--color-surface); color: var(--color-text); }
 .backfill-head { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; }
 .backfill-head > svg { flex: none; margin-top: 2px; color: var(--color-accent); }
 .backfill-head > div:first-of-type { flex: 1 1 220px; min-width: 0; }
-.backfill-head h2 { margin: 0; font-size: 14px; color: var(--color-text); }
-.backfill-head p, .backfill-note { margin: 2px 0 0; font-size: 13px; line-height: 1.5; color: var(--color-text-muted); }
+.backfill-head h2 { margin: 0; font-size: var(--db-text-body); color: var(--color-text); }
+.backfill-head p, .backfill-note { margin: 2px 0 0; font-size: var(--db-text-meta); line-height: 1.5; color: var(--color-text-muted); }
 .backfill-head-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .backfill-head-actions button, .backfill-actions button { min-height: var(--touch-target); }
 .backfill-list { list-style: none; margin: 0; padding: 0; display: grid; max-height: 420px; overflow: auto; border-top: 1px solid var(--color-border); }
 .backfill-list li { display: flex; align-items: flex-start; gap: 10px; padding: 10px 2px; border-bottom: 1px solid var(--color-border); }
 .backfill-list input { flex: none; width: 18px; height: 18px; margin: 2px 0 0; accent-color: var(--color-accent); }
 .backfill-list input:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
-.backfill-list label { display: grid; gap: 3px; min-width: 0; cursor: pointer; font-size: 13px; }
+.backfill-list label { display: grid; gap: 3px; min-width: 0; cursor: pointer; font-size: var(--db-text-meta); }
 .backfill-list strong { color: var(--color-text); overflow-wrap: anywhere; }
 .backfill-list span { color: var(--color-text); }
-.backfill-list small { font-size: 12px; color: var(--color-text-muted); overflow-wrap: anywhere; }
+.backfill-list small { font-size: var(--db-text-caption); color: var(--color-text-muted); overflow-wrap: anywhere; }
 .backfill-low { font-style: normal; color: var(--color-danger-text); }
 .backfill-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; flex-wrap: wrap; }
-.backfill-done, .backfill-error { margin: 0; font-size: 13px; line-height: 1.5; }
+.backfill-done, .backfill-error { margin: 0; font-size: var(--db-text-meta); line-height: 1.5; }
 .backfill-done { color: var(--color-text); }
 .backfill-error { color: var(--color-danger-text); }
 @media (max-width: 750px) {

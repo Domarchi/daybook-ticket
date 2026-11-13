@@ -4,6 +4,7 @@ import { daybookFetch } from '@/lib/browser-request';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Mail, RefreshCw } from 'lucide-react';
 import './email-inbound.css';
+import { SkeletonList } from './estados';
 
 type Receipt = {
   providerId: string;
@@ -150,7 +151,7 @@ export function EmailInboundPanel({ memberId, administrator = false }: { memberI
           <RefreshCw size={16} />
         </button>
       </div>
-      {loading && <p role="status">Consultando correo entrante…</p>}
+      {loading && <SkeletonList label="Consultando correo entrante…" rows={2} lines={1} />}
       {error && <p role="alert">{error}</p>}
       {state &&
         (state.configured ? (

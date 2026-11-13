@@ -6,14 +6,19 @@ import { useEffect, useState } from 'react';
 import { Monitor, Moon, Sun } from 'lucide-react';
 import { readTicketResource } from '@/hooks/use-ticket-search';
 import { EVOLUTION_FEATURES, type EvolutionFeatures } from '@/lib/evolution-feature-model';
+import { SkeletonList } from './estados';
 
 type Theme = 'system' | 'light' | 'dark';
 export function ThemeBootstrap() {
   useEffect(() => {
     const query = matchMedia('(prefers-color-scheme: dark)');
+    // `data-theme` lleva el tema que se ve (claro u oscuro), igual que Parte Diario
+    // y Travel; la preferencia elegida (incluido «sistema») va en
+    // `data-theme-preference`. Sin preferencia explícita se sigue al sistema.
     const apply = () => {
-      if (!document.documentElement.dataset.theme || document.documentElement.dataset.theme === 'system')
-        document.documentElement.dataset.colorScheme = query.matches ? 'dark' : 'light';
+      const root = document.documentElement;
+      if (!root.dataset.themePreference || root.dataset.themePreference === 'system')
+        root.dataset.theme = query.matches ? 'dark' : 'light';
     };
     apply();
     query.addEventListener('change', apply);
@@ -27,8 +32,9 @@ export function ThemeControl({ memberId, preferred }: { memberId: string; prefer
   useEffect(() => {
     const query = matchMedia('(prefers-color-scheme: dark)');
     const apply = () => {
-      document.documentElement.dataset.theme = theme;
-      document.documentElement.dataset.colorScheme = theme === 'system' ? (query.matches ? 'dark' : 'light') : theme;
+      const root = document.documentElement;
+      root.dataset.themePreference = theme;
+      root.dataset.theme = theme === 'system' ? (query.matches ? 'dark' : 'light') : theme;
     };
     apply();
     query.addEventListener('change', apply);
@@ -59,9 +65,9 @@ export function ThemeControl({ memberId, preferred }: { memberId: string; prefer
           }
         }}
       >
-        <option value="system">Automático</option>
-        <option value="dark">Oscuro</option>
+        <option value="system">Sistema</option>
         <option value="light">Claro</option>
+        <option value="dark">Oscuro</option>
       </select>
       {error && <span role="status">{error}</span>}
     </div>
@@ -108,7 +114,7 @@ export function EvolutionFeaturesPanel({
       </p>
       {error && <p role="alert">{error}</p>}
       {!state ? (
-        <p role="status">Consultando funciones…</p>
+        <SkeletonList label="Consultando funciones…" rows={2} lines={1} />
       ) : !state.available ? (
         <p role="status">
           Estas funciones aún no están disponibles en este espacio: falta una actualización de la base de datos que hace

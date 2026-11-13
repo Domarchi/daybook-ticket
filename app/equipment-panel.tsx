@@ -2,6 +2,7 @@
 import { daybookFetch } from '@/lib/browser-request';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Laptop, Plus, Search, UserRoundX, X } from 'lucide-react';
+import { EmptyState, SkeletonList } from './estados';
 import {
   EQUIPMENT_KINDS,
   type EquipmentClient,
@@ -162,15 +163,25 @@ export function EquipmentPanel({
           </h2>
           <span>{data ? `${data.equipment.length} ${data.equipment.length === 1 ? 'equipo' : 'equipos'}` : ''}</span>
         </div>
-        {!data && state.loading && <p className="panel-help">Cargando equipos…</p>}
+        {!data && state.loading && <SkeletonList label="Cargando equipos…" rows={3} lines={1} />}
         {data && !data.equipment.length && (
-          <p className="panel-help">
-            {filter === 'archived' && !query
-              ? 'No hay equipos dados de baja.'
-              : query || filter !== 'all'
-                ? 'Ningún equipo coincide con la búsqueda.'
-                : 'Aún no hay equipos. Se registran al invitar a un cliente o con «Registrar equipo».'}
-          </p>
+          <EmptyState
+            icon={<Laptop size={22} />}
+            title={
+              filter === 'archived' && !query
+                ? 'Sin equipos dados de baja'
+                : query || filter !== 'all'
+                  ? 'Sin coincidencias'
+                  : 'Aún no hay equipos'
+            }
+            text={
+              filter === 'archived' && !query
+                ? 'No hay equipos dados de baja.'
+                : query || filter !== 'all'
+                  ? 'Ningún equipo coincide con la búsqueda.'
+                  : 'Se registran al invitar a un cliente o con «Registrar equipo».'
+            }
+          />
         )}
         {data && data.equipment.length > 0 && (
           <ul className="equipment-rows">

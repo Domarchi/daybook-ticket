@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import test from 'node:test';
 
@@ -31,10 +32,31 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+// Shared colors come from @daybook/design as var(--db-*). Resolve them against the
+// package for each scheme so the contrast checks compare real colors.
+type Scheme = 'light' | 'dark';
+// Colors change per scheme; `escala` (type, radius, spacing) is one for both.
+const shared: Record<Scheme | 'escala', Record<string, string>> = JSON.parse(
+  readFileSync(createRequire(import.meta.url).resolve('@daybook/design/tokens.json'), 'utf8'),
+);
+const resolve = (values: Record<string, string>, scheme: Scheme) =>
+  Object.fromEntries(
+    Object.entries(values).map(([name, value]) => [
+      name,
+      value.replace(/var\(--db-([\w-]+)\)/g, (_, key: string) => {
+        const value = shared[scheme][key] ?? shared.escala?.[key];
+        assert.ok(value, `@daybook/design does not define --db-${key}`);
+        return value;
+      }),
+    ]),
+  );
+
 const tokens = read('tokens.css');
-const light = block(tokens, ':root {');
-const dark = block(tokens, ':root[data-color-scheme="dark"]');
-const darkMedia = block(tokens.slice(tokens.indexOf('@media')), ':root:not([data-color-scheme="light"])');
+const lightRaw = block(tokens, ':root {');
+const darkOverrides = block(tokens, ':root[data-theme="dark"]');
+const darkMedia = block(tokens.slice(tokens.indexOf('@media')), ':root:not([data-theme="light"])');
+const light = resolve(lightRaw, 'light');
+const dark = resolve({ ...lightRaw, ...darkOverrides }, 'dark');
 
 const pairs: Array<[string, string, number, string]> = [
   ['--color-text', '--color-bg', 4.5, 'body text'],
@@ -63,12 +85,16 @@ for (const [scheme, palette] of [
 }
 
 test('the prefers-color-scheme dark block repeats the explicit dark block exactly', () => {
-  assert.deepEqual(darkMedia, dark);
+  assert.deepEqual(darkMedia, darkOverrides);
 });
 
 test('semantic tokens match the legacy palette they alias (no silent drift)', () => {
-  const legacyLight = block(read('globals.css'), ':root{');
-  const legacyDark = block(read('evolution-theme.css'), ':root[data-color-scheme="dark"]{');
+  const legacyRaw = block(read('globals.css'), ':root{');
+  const legacyLight = resolve(legacyRaw, 'light');
+  const legacyDark = resolve(
+    { ...legacyRaw, ...block(read('evolution-theme.css'), ':root[data-theme="dark"]{') },
+    'dark',
+  );
   const map: Record<string, string> = {
     '--color-bg': '--paper',
     '--color-surface': '--surface',
@@ -95,7 +121,11 @@ test('every token used by the token-based sheets is defined', () => {
   ]) {
     const used = [...read(sheet).matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]);
     assert.ok(used.length > 0, `${sheet} should use tokens`);
-    for (const name of used) assert.ok(name in light, `${name} (used by ${sheet}) is not defined in tokens.css`);
+    for (const name of used) {
+      // --db-* come from @daybook/design: they must exist there (colors or scale).
+      const shared_ = name.startsWith('--db-') && (name.slice(5) in shared.light || name.slice(5) in shared.escala);
+      assert.ok(name in light || shared_, `${name} (used by ${sheet}) is not defined in tokens.css or @daybook/design`);
+    }
   }
 });
 
@@ -112,8 +142,8 @@ test('the sign-in page has no fixed white surfaces, so dark mode cannot leave li
     );
   }
   for (const scope of [
-    '@media(prefers-color-scheme:dark){:root:not([data-color-scheme="light"]) .auth-submit{',
-    ':root[data-color-scheme="dark"] .auth-submit{',
+    '@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .auth-submit{',
+    ':root[data-theme="dark"] .auth-submit{',
   ]) {
     assert.ok(css.includes(scope), `dark sign-in button rule: ${scope}`);
   }
@@ -124,10 +154,10 @@ test('the light-surface brand swaps to the light-ink mark in dark mode', () => {
   assert.match(theme, /\.daybook-brand img\.daybook-mark-dark\{display:none\}/);
   assert.match(
     theme,
-    /:root\[data-color-scheme="dark"\] \.daybook-brand:not\(\.daybook-brand-dark\) img\.daybook-mark-dark\{display:block\}/,
+    /:root\[data-theme="dark"\] \.daybook-brand:not\(\.daybook-brand-dark\) img\.daybook-mark-dark\{display:block\}/,
   );
   assert.match(
     theme,
-    /:root:not\(\[data-color-scheme="light"\]\) \.daybook-brand:not\(\.daybook-brand-dark\) img\.daybook-mark-light\{display:none\}/,
+    /:root:not\(\[data-theme="light"\]\) \.daybook-brand:not\(\.daybook-brand-dark\) img\.daybook-mark-light\{display:none\}/,
   );
 });

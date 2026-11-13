@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { BookOpen, Plus, Search, Trash2 } from 'lucide-react';
 import { clientRequest } from '@/lib/client-request';
 import type { RunAction } from './team-tools';
+import { ConfirmDialog } from './desk-parts/shared';
 export type SavedReplyItem = { id: string; title: string; category: string; body: string };
 const searchable = (value: string) =>
   value
@@ -171,30 +172,22 @@ export function SavedRepliesManager({
               <button type="button" className="text-button" disabled={busy} onClick={() => setEditing(reply)}>
                 Editar
               </button>
-              {removing === reply.id ? (
-                <>
-                  <span>¿Eliminar esta respuesta?</span>
-                  <button
-                    type="button"
-                    className="text-button danger-text"
-                    disabled={busy}
-                    onClick={async () => {
-                      if (
-                        await run(
-                          () => clientRequest(`/api/saved-replies/${reply.id}`, 'DELETE'),
-                          'Respuesta eliminada',
-                        )
-                      )
-                        setRemoving(null);
-                    }}
-                  >
-                    Confirmar eliminación
-                  </button>
-                  <button type="button" className="text-button" disabled={busy} onClick={() => setRemoving(null)}>
-                    Cancelar
-                  </button>
-                </>
-              ) : (
+              {removing === reply.id && (
+                <ConfirmDialog
+                  title="Eliminar respuesta guardada"
+                  description={`«${reply.title}» deja de estar disponible para todo el equipo. No se puede deshacer.`}
+                  confirmLabel="Eliminar respuesta"
+                  busy={busy}
+                  onClose={() => setRemoving(null)}
+                  onConfirm={async () => {
+                    // Se cierra también si falla: el aviso de error queda detrás
+                    // de un diálogo nativo abierto, y ahí nadie lo lee.
+                    await run(() => clientRequest(`/api/saved-replies/${reply.id}`, 'DELETE'), 'Respuesta eliminada');
+                    setRemoving(null);
+                  }}
+                />
+              )}
+              {
                 <button
                   type="button"
                   className="text-button"
@@ -204,7 +197,7 @@ export function SavedRepliesManager({
                 >
                   <Trash2 size={15} />
                 </button>
-              )}
+              }
             </div>
           </li>
         ))}

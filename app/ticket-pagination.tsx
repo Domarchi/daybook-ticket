@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, LoaderCircle, RefreshCw, Users } from 'lucide-re
 import { readTicketResource } from '@/hooks/use-ticket-search';
 import type { ContactPage } from '@/lib/ticket-search';
 import './ticket-search.css';
+import { SkeletonTable } from './estados';
 
 export function TicketPagination({
   index,
@@ -114,9 +115,7 @@ export function ContactDirectory({
         </p>
       )}
       {loading && !page ? (
-        <p role="status" className="ticket-search-feedback">
-          Cargando contactos…
-        </p>
+        <SkeletonTable label="Cargando contactos…" rows={4} columns={4} />
       ) : page && page.total === 0 ? (
         <p className="ticket-search-feedback">Los solicitantes de tus tickets aparecerán aquí.</p>
       ) : (

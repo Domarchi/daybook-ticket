@@ -4,6 +4,7 @@ import { daybookFetch } from '@/lib/browser-request';
 import { useCallback, useEffect, useState } from 'react';
 import { Clock, Download, LoaderCircle, ShieldCheck } from 'lucide-react';
 import './automatic-backup-panel.css';
+import { SkeletonList } from './estados';
 
 interface Status {
   settings: {
@@ -124,11 +125,7 @@ export function AutomaticBackupPanel({ memberId }: { memberId: string }) {
           se conserva en la configuración privada del servicio; guárdala también fuera de Daybook para poder recuperar
           el espacio.
         </p>
-        {!data && !error && (
-          <p role="status">
-            <LoaderCircle size={16} className="spin" /> Consultando respaldos…
-          </p>
-        )}
+        {!data && !error && <SkeletonList label="Consultando respaldos…" rows={2} lines={1} />}
         {data && (
           <>
             <p className="automatic-backup-state" role="status">

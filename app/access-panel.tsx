@@ -7,6 +7,7 @@ import type { MailStatus, Member, MemberRole, Workspace } from '../lib/types';
 import './access-panel.css';
 import { CompaniesPanel, MemberCompanyEditor } from './team-tools';
 import { EQUIPMENT_KINDS } from '../lib/client-equipment-model';
+import { EmptyState } from './estados';
 
 export const ROLE_LABELS: Record<MemberRole, string> = {
   owner: 'Propietario',
@@ -15,7 +16,7 @@ export const ROLE_LABELS: Record<MemberRole, string> = {
   client: 'Cliente',
 };
 const MEMBER_STATUS = { invited: 'Invitación pendiente', active: 'Activo', revoked: 'Acceso revocado' };
-type Run = (action: () => Promise<unknown>, message: string) => Promise<boolean>;
+type Run = (action: () => Promise<unknown>, message: string, undo?: { run: () => void }) => Promise<boolean>;
 
 async function request<T = unknown>(path: string, method: string, body: unknown): Promise<T> {
   const response = await daybookFetch(path, {
@@ -95,6 +96,11 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
         if (invitation?.memberId === member.id && body.status === 'revoked') setInvitation(null);
       },
       body.status === 'revoked' ? 'Acceso revocado' : 'Acceso actualizado',
+      // Revocar se revierte con «Restaurar acceso», así que no se pregunta: se
+      // hace y el aviso ofrece «Deshacer» durante 10 s (Fase 5).
+      body.status === 'revoked' && member.status !== 'revoked'
+        ? { run: () => void update(member, { status: member.status }) }
+        : undefined,
     );
 
   const copy = async () => {
@@ -424,7 +430,13 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
             </tbody>
           </table>
         </div>
-        {rows.length === 0 && <div className="access-empty">No hay personas en esta vista.</div>}
+        {rows.length === 0 && (
+          <EmptyState
+            icon={<Users size={22} />}
+            title="Nadie en esta vista"
+            text="No hay personas con este rol o estado."
+          />
+        )}
       </section>
       <div className="info-note access-privacy">
         <ShieldCheck size={18} />

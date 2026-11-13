@@ -10,7 +10,7 @@ Implementa ficha ampliada de empresa, sedes, contactos responsables, inventario,
 - `TicketServiceContextPanel({ memberId, ticketId, companyId })`: vínculos de un ticket con equipos y contratos de su empresa. No renderizar en el portal del cliente.
 - `ContractDocuments({ memberId, contractId, administrator })`: documentos privados; la carga solo se monta para administradores.
 
-Las hojas de estilo respetan `data-color-scheme` además del tema del sistema. Los enlaces de correo abren `/?serviceContext=1&company=<id>`; el contenedor debe seleccionar esta vista interna y empresa. Los enlaces de incidencias conservan `/?ticket=<n>`.
+Las hojas de estilo respetan `data-theme` (el tema que se ve: `light` o `dark`, igual que Parte Diario y Travel) además del tema del sistema; la preferencia elegida va en `data-theme-preference`. Los enlaces de correo abren `/?serviceContext=1&company=<id>`; el contenedor debe seleccionar esta vista interna y empresa. Los enlaces de incidencias conservan `/?ticket=<n>`.
 
 ## Interfaces
 

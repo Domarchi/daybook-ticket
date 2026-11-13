@@ -5,11 +5,11 @@
 
 /* The subject cell is a real link now (it was a button); same look as before. */
 .subject-cell a { display: block; width: 100%; text-align: left; padding: 0; }
-.subject-cell a > span { display: block; font-size: 14px; font-weight: 550; line-height: 1.5; color: var(--color-text); white-space: nowrap; max-width: 280px; text-overflow: ellipsis; overflow: hidden; }
+.subject-cell a > span { display: block; font-size: var(--db-text-body); font-weight: var(--db-weight-medium); line-height: 1.5; color: var(--color-text); white-space: nowrap; max-width: 280px; text-overflow: ellipsis; overflow: hidden; }
 
 /* One card per ticket under 750 px (the table keeps its place from 751 px up). */
 .ticket-cards-wrap { display: grid; }
-.ticket-cards-select-all { display: flex; align-items: center; gap: var(--space-3); min-height: var(--touch-target); padding: 0 var(--space-4); font-size: 13px; color: var(--color-text-muted); border-top: 1px solid var(--color-border); }
+.ticket-cards-select-all { display: flex; align-items: center; gap: var(--space-3); min-height: var(--touch-target); padding: 0 var(--space-4); font-size: var(--db-text-meta); color: var(--color-text-muted); border-top: 1px solid var(--color-border); }
 .ticket-cards-select-all input, .ticket-card-check input { width: 22px; height: 22px; }
 .ticket-cards { list-style: none; margin: 0; padding: var(--space-2) var(--space-3) var(--space-3); display: grid; gap: var(--space-3); }
 .ticket-card { display: flex; align-items: stretch; min-width: 0; border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); box-shadow: var(--shadow-sm); }
@@ -19,8 +19,8 @@
 .ticket-card-main:focus-visible { outline: var(--focus-ring); outline-offset: -2px; border-radius: var(--radius-lg); }
 .ticket-card-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .ticket-card-top .ticket-number { margin-right: 0; }
-.ticket-card-subject { font-size: 15px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.ticket-card-meta { font-size: 13px; color: var(--color-text-muted); overflow-wrap: anywhere; }
-.ticket-card-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; font-size: 12px; color: var(--color-text-muted); }
-.ticket-card-time .late-text { color: var(--color-danger-text); font-weight: 600; }
-.ticket-card .assignee { color: var(--color-text-muted); font-size: 12px; }
+.ticket-card-subject { font-size: var(--db-text-body); font-weight: var(--db-weight-semibold); line-height: 1.35; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.ticket-card-meta { font-size: var(--db-text-meta); color: var(--color-text-muted); overflow-wrap: anywhere; }
+.ticket-card-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; font-size: var(--db-text-caption); color: var(--color-text-muted); }
+.ticket-card-time .late-text { color: var(--color-danger-text); font-weight: var(--db-weight-semibold); }
+.ticket-card .assignee { color: var(--color-text-muted); font-size: var(--db-text-caption); }

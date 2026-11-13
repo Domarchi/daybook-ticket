@@ -9,6 +9,7 @@ import { KeyRound, LoaderCircle, ShieldCheck, Monitor, Download } from 'lucide-r
 import type { SecurityAction } from '@/lib/security-model';
 import { safeTicketReturnPath } from '@/lib/return-path';
 import './security-center.css';
+import { SkeletonList } from './estados';
 type Status = {
   enabled: boolean;
   recoveryAcknowledged: boolean;
@@ -149,11 +150,7 @@ export function SecurityCenter({
               {notice}
             </p>
           )}
-          {!status && !error && (
-            <p role="status">
-              <LoaderCircle size={17} className="spin" /> Consultando tu cuenta…
-            </p>
-          )}
+          {!status && !error && <SkeletonList label="Consultando tu cuenta…" rows={1} lines={2} />}
           {status && (
             <>
               <p>
@@ -734,7 +731,7 @@ export function SecurityHealthPanel({ memberId }: { memberId: string }) {
             {error}
           </p>
         )}
-        {!data && !error && <p role="status">Consultando estado…</p>}
+        {!data && !error && <SkeletonList label="Consultando estado…" rows={1} lines={2} />}
         {data && (
           <>
             <div className="security-health-grid">

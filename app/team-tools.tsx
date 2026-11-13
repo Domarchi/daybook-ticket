@@ -6,9 +6,14 @@ import { Building2, Check, Clock3, Edit3, Plus, RefreshCw, UserCheck } from 'luc
 import type { Member, Ticket } from '@/lib/types';
 import { Combobox } from './combobox';
 import { clientRequest, ClientRequestError } from '@/lib/client-request';
+import { SkeletonList } from './estados';
 
 export type CompanyItem = { id: string; name: string; createdAt: string; updatedAt: string };
-export type RunAction = (action: () => Promise<unknown>, message: string) => Promise<boolean>;
+export type RunAction = (
+  action: () => Promise<unknown>,
+  message: string,
+  undo?: { run: () => void },
+) => Promise<boolean>;
 type Activity = {
   id: string;
   actorName: string;
@@ -286,7 +291,7 @@ export function TicketActivity({
       </div>
       {error && <p role="alert">{error}</p>}
       {loading ? (
-        <p>Cargando actividad…</p>
+        <SkeletonList label="Cargando actividad…" rows={3} lines={1} />
       ) : events.length ? (
         <ol>
           {events.map(event => (

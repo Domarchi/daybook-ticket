@@ -7,7 +7,8 @@ import { STAGE_LABELS, delayReasonLabel } from '../lib/fulfillment-model';
 import { formatDay, fulfillmentCsv } from '../lib/fulfillment-display';
 import { REQUIREMENTS } from '../lib/ticket-category-model';
 import type { FulfillmentListFilter, FulfillmentListItem, FulfillmentSummary } from '../lib/fulfillment';
-import { Download } from 'lucide-react';
+import { ClipboardList, Download } from 'lucide-react';
+import { EmptyState, SkeletonList } from './estados';
 import { DeskLink } from './desk-parts/shared';
 import './fulfillment-panel.css';
 
@@ -142,13 +143,17 @@ export function RequirementsPanel({ memberId, refreshKey }: { memberId: string; 
         <div className="section-head">
           <h2 id="requirements-list-title">{FILTERS.find(item => item.id === filter)?.label}</h2>
         </div>
-        {!data && loading && <p className="panel-help">Cargando requerimientos…</p>}
+        {!data && loading && <SkeletonList label="Cargando requerimientos…" rows={3} lines={1} />}
         {data && !data.items.length && (
-          <p className="panel-help">
-            {filter === 'active'
-              ? 'No hay requerimientos en curso. Desde un ticket clasificado como requerimiento, usa «Seguir como requerimiento».'
-              : 'No hay requerimientos en esta lista.'}
-          </p>
+          <EmptyState
+            icon={<ClipboardList size={22} />}
+            title={filter === 'active' ? 'Sin requerimientos en curso' : 'Sin requerimientos'}
+            text={
+              filter === 'active'
+                ? 'Desde un ticket clasificado como requerimiento, usa «Seguir como requerimiento».'
+                : 'No hay requerimientos en esta lista.'
+            }
+          />
         )}
         {data && data.items.length > 0 && (
           <ul className="requirements-rows">

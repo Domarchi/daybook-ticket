@@ -20,6 +20,7 @@ import { selectCompanyForm } from '@/lib/work-organization-model';
 import { getDraftOperations } from '@/lib/draft-operations';
 import type { TicketFilters } from '@/hooks/use-ticket-search';
 import { daybookFetch } from '@/lib/browser-request';
+import { ConfirmDialog } from './desk-parts/shared';
 import './work-organization.css';
 
 const EMPTY_CATALOG: OrganizationCatalog = { tags: [], requestTypes: [], fields: [], forms: [] };
@@ -1223,27 +1224,25 @@ export function SavedViewPicker({
           <Save size={14} />
           {view ? 'Actualizar con filtros actuales' : 'Guardar filtros actuales'}
         </button>
-        {view &&
-          (confirmDelete ? (
-            <>
-              <span>¿Eliminar esta vista personal?</span>
-              <button
-                className="text-button"
-                type="button"
-                disabled={busy}
-                onClick={() => void mutate('DELETE', `/api/saved-views/${view.id}`, { expectedVersion: view.version })}
-              >
-                Confirmar eliminación
-              </button>
-              <button className="text-button" type="button" onClick={() => setConfirmDelete(false)}>
-                Cancelar
-              </button>
-            </>
-          ) : (
-            <button className="text-button" type="button" disabled={busy} onClick={() => setConfirmDelete(true)}>
-              Eliminar vista
-            </button>
-          ))}
+        {view && (
+          <button className="text-button" type="button" disabled={busy} onClick={() => setConfirmDelete(true)}>
+            Eliminar vista
+          </button>
+        )}
+        {view && confirmDelete && (
+          <ConfirmDialog
+            title="Eliminar vista personal"
+            description={`La vista «${view.name}» se borra de tu cuenta. Los tickets no cambian. No se puede deshacer.`}
+            confirmLabel="Eliminar vista"
+            busy={busy}
+            onClose={() => setConfirmDelete(false)}
+            onConfirm={async () => {
+              // Se cierra también si falla, para que el error se lea fuera del diálogo.
+              await mutate('DELETE', `/api/saved-views/${view.id}`, { expectedVersion: view.version });
+              setConfirmDelete(false);
+            }}
+          />
+        )}
       </div>
       <p className="organization-help">
         Las vistas se guardan solo en tu cuenta. Los permisos se comprueban nuevamente al aplicarlas.

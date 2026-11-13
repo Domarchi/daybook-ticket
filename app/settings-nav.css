@@ -1,6 +1,6 @@
 /* Section navigation of Configuración. Tokens only: dark mode comes from their values. */
 .settings-nav { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 20px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border); }
-.settings-nav a { display: inline-flex; align-items: center; min-height: var(--touch-target); padding: 0 14px; border: 1px solid transparent; border-radius: var(--radius-lg); font-size: 13px; font-weight: 550; color: var(--color-text-muted); }
+.settings-nav a { display: inline-flex; align-items: center; min-height: var(--touch-target); padding: 0 14px; border: 1px solid transparent; border-radius: var(--radius-lg); font-size: var(--db-text-meta); font-weight: var(--db-weight-medium); color: var(--color-text-muted); }
 .settings-nav a:hover { color: var(--color-text); background: var(--color-accent-soft); }
 .settings-nav a[aria-current="page"] { color: var(--color-accent); background: var(--color-accent-soft); border-color: var(--color-border); }
 .settings-nav a:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
