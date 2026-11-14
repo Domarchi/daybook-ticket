@@ -99,9 +99,11 @@ export function Sidebar({
       className={`sidebar ${mobile ? 'is-open' : ''}`}
       {...(mobile ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Menú de navegación' } : {})}
     >
-      <button className="brand" onClick={() => go('inbox')}>
-        <Brand dark />
-      </button>
+      <div className="db-brand-block db-on-dark">
+        <button className="brand" onClick={() => go('inbox')}>
+          <Brand dark />
+        </button>
+      </div>
       <div className="workspace">
         <span className="workspace-icon">
           <Headphones size={19} />

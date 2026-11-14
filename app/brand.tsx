@@ -1,41 +1,31 @@
-import Image from 'next/image';
-/** Shared Daybook symbol copied unchanged from the Consorcio C17 brand source.
- * The Ticket product name is composed separately from the parent symbol. */
-export default function Brand({ dark = false, compact = false }: { dark?: boolean; compact?: boolean }) {
+/**
+ * El logo de la familia Daybook, con el marcado común de @daybook/design/marca.css:
+ * Parte Diario, Travel y Ticket miden lo mismo y se leen como una misma batería
+ * de herramientas. El símbolo viene del CSS (cambia solo con el tema) y DAYBOOK /
+ * TICKET son texto; el nombre accesible lo da aria-label.
+ *
+ * - `dark`: sobre fondo oscuro en los dos temas (el riel, la cabecera del portal).
+ * - `compact`: solo el símbolo; `large` lo lleva a 56 px (la tarjeta de entrada).
+ */
+export default function Brand({
+  dark = false,
+  compact = false,
+  large = false,
+}: {
+  dark?: boolean;
+  compact?: boolean;
+  large?: boolean;
+}) {
+  const onDark = dark ? ' db-on-dark' : '';
+  if (compact)
+    return <span className={`db-mark${large ? ' db-mark--large' : ''}${onDark}`} role="img" aria-label="Daybook" />;
   return (
-    <span
-      className={`daybook-brand${dark ? ' daybook-brand-dark' : ''}${compact ? ' daybook-brand-compact' : ''}`}
-      role="img"
-      aria-label="Daybook Ticket"
-    >
-      <Image
-        unoptimized
-        className={dark ? undefined : 'daybook-mark-light'}
-        src={`/brand/daybook-mark-on-${dark ? 'dark' : 'light'}.svg`}
-        width="48"
-        height="48"
-        alt=""
-        aria-hidden="true"
-      />
-      {/* On light surfaces the ink mark is used; when the page follows the dark theme the same spot turns dark,
-          so the light-ink mark takes its place (CSS in evolution-theme.css picks one). */}
-      {!dark && (
-        <Image
-          unoptimized
-          className="daybook-mark-dark"
-          src="/brand/daybook-mark-on-dark.svg"
-          width="48"
-          height="48"
-          alt=""
-          aria-hidden="true"
-        />
-      )}
-      {!compact && (
-        <span className="daybook-brand-type">
-          <strong>DAYBOOK</strong>
-          <span>TICKET</span>
-        </span>
-      )}
+    <span className={`db-lockup${onDark}`} role="img" aria-label="Daybook Ticket">
+      <span className="db-mark" aria-hidden="true" />
+      <span className="db-lockup__type" aria-hidden="true">
+        <span className="db-lockup__name">Daybook</span>
+        <span className="db-lockup__product">Ticket</span>
+      </span>
     </span>
   );
 }

@@ -148,16 +148,3 @@ test('the sign-in page has no fixed white surfaces, so dark mode cannot leave li
     assert.ok(css.includes(scope), `dark sign-in button rule: ${scope}`);
   }
 });
-
-test('the light-surface brand swaps to the light-ink mark in dark mode', () => {
-  const theme = read('evolution-theme.css');
-  assert.match(theme, /\.daybook-brand img\.daybook-mark-dark\{display:none\}/);
-  assert.match(
-    theme,
-    /:root\[data-theme="dark"\] \.daybook-brand:not\(\.daybook-brand-dark\) img\.daybook-mark-dark\{display:block\}/,
-  );
-  assert.match(
-    theme,
-    /:root:not\(\[data-theme="light"\]\) \.daybook-brand:not\(\.daybook-brand-dark\) img\.daybook-mark-light\{display:none\}/,
-  );
-});

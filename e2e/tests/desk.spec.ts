@@ -33,6 +33,21 @@ test.describe('the support desk', () => {
     await expectNoSeriousViolations(page, 'Bandeja vacía');
   });
 
+  test('the rail opens with the shared Daybook brand block, the same size as Parte Diario and Travel', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const block = page.locator('#daybook-navigation > .db-brand-block.db-on-dark');
+    await expect(block).toHaveCSS('min-height', '108px');
+    const logo = block.getByRole('img', { name: 'Daybook Ticket', exact: true });
+    await expect(logo).toHaveClass(/\bdb-lockup\b/);
+    await expect(logo.locator('.db-mark')).toHaveCSS('width', '48px');
+    await expect(logo.locator('.db-lockup__product')).toHaveText('Ticket');
+    await expect(block.locator('img')).toHaveCount(0);
+    await block.getByRole('button', { name: 'Daybook Ticket' }).click();
+    await expect(page.getByRole('heading', { name: 'Bandeja de entrada' })).toBeVisible();
+  });
+
   test('a ticket is created and shows in the inbox', async ({ page }) => {
     await page.goto('/');
     await createTicket(page);
