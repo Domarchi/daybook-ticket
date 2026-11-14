@@ -129,18 +129,23 @@ test('every token used by the token-based sheets is defined', () => {
   }
 });
 
-test('the sign-in page has no fixed white surfaces, so dark mode cannot leave light text on a white card', () => {
+test('the sign-in page has no fixed white surfaces, and its header and footer sit in the page margin like the other Daybook apps', () => {
   const css = read('login/login.css');
   assert.doesNotMatch(css, /background:\s*#fff(?:fff)?\b/i);
-  for (const piece of ['.auth-topbar', '.auth-form-wrap{', '.auth-footer']) {
+  const rule = (piece: string) => {
     const at = css.indexOf(piece);
     assert.ok(at >= 0, `${piece} missing`);
-    assert.match(
-      css.slice(at, css.indexOf('}', at)),
-      /background:var\(--color-surface\)/,
-      `${piece} uses the surface token`,
-    );
+    return css.slice(at, css.indexOf('}', at));
+  };
+  assert.match(rule('.auth-form-wrap{'), /background:var\(--color-surface\)/, 'the card uses the surface token');
+  // Header and footer are lines inside the page margin, as in Parte Diario and
+  // Travel: no background of their own, so they follow the page in both themes.
+  assert.match(rule('.auth-shell{'), /padding:0 clamp\(18px,5vw,72px\) 22px/, 'the page carries the side margin');
+  for (const piece of ['.auth-topbar{', '.auth-footer{']) {
+    assert.doesNotMatch(rule(piece), /background/, `${piece} has no background of its own`);
+    assert.doesNotMatch(rule(piece), /clamp\(/, `${piece} does not repeat the side margin`);
   }
+  assert.doesNotMatch(css, /\.auth-topbar\{background/, 'no theme-specific header background');
   for (const scope of [
     '@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .auth-submit{',
     ':root[data-theme="dark"] .auth-submit{',
