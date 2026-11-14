@@ -283,7 +283,6 @@
     --accent-soft: #241f13;
   }
   :root:not([data-theme="light"]) .client-shell .client-header { background: #000; border-color: var(--line); }
-  :root:not([data-theme="light"]) .client-shell .client-header .client-brand { color: var(--ink); }
   :root:not([data-theme="light"]) .client-shell .client-header nav button.is-active { color: #0a0a0a; }
   :root:not([data-theme="light"]) .client-shell .secondary,
   :root:not([data-theme="light"]) .client-shell .search-box,
@@ -397,7 +396,6 @@
     --accent-soft: #241f13;
   }
   :root[data-theme="dark"] .client-shell .client-header { background: #000; border-color: var(--line); }
-  :root[data-theme="dark"] .client-shell .client-header .client-brand { color: var(--ink); }
   :root[data-theme="dark"] .client-shell .client-header nav button.is-active { color: #0a0a0a; }
   :root[data-theme="dark"] .client-shell .secondary,
   :root[data-theme="dark"] .client-shell .search-box,

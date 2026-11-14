@@ -132,9 +132,9 @@ export default function LoginForm({
       <main className="auth-main">
         <div className="auth-form-wrap">
           <div className="auth-icon">
-            <Brand compact />
+            <Brand compact large />
           </div>
-          <span className="auth-eyebrow">DAYBOOK TICKET · CENTRO DE SOPORTE</span>
+          <span className="auth-eyebrow">Acceso seguro</span>
           <h1>{heading}</h1>
           <p>
             {secondFactor
@@ -302,7 +302,8 @@ export default function LoginForm({
         </div>
       </main>
       <footer className="auth-footer">
-        Daybook Ticket<span aria-hidden="true">·</span>Servicios Daybook
+        <span>Daybook Ticket</span>
+        <span>Centro de soporte</span>
       </footer>
     </div>
   );

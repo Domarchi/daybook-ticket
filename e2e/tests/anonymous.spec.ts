@@ -17,6 +17,27 @@ test.describe('without a session', () => {
     await expectNoSeriousViolations(page, 'Inicio de sesión en modo oscuro');
   });
 
+  test('the sign-in page wears the Daybook family logo, sized by @daybook/design', async ({ page }) => {
+    await page.goto('/login');
+    const logo = page.locator('.auth-topbar').getByRole('img', { name: 'Daybook Ticket', exact: true });
+    await expect(logo).toHaveClass(/\bdb-lockup\b/);
+    await expect(logo.locator('.db-lockup__product')).toHaveText('Ticket');
+    await expect(logo.locator('.db-mark')).toHaveCSS('width', '48px');
+    await expect(logo.locator('.db-mark')).toHaveCSS('height', '48px');
+    const mark = page.locator('.auth-icon').getByRole('img', { name: 'Daybook', exact: true });
+    await expect(mark).toHaveCSS('width', '56px');
+    await expect(page.locator('.auth-eyebrow')).toHaveText(/acceso seguro/i);
+    // No full-logo picture: the symbol comes from CSS and DAYBOOK / TICKET are text.
+    await expect(page.locator('.auth-shell img')).toHaveCount(0);
+    // The symbol follows the theme.
+    const lightMark = await logo.locator('.db-mark').evaluate(el => getComputedStyle(el).backgroundImage);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+    const darkMark = await page.locator('.auth-topbar .db-mark').evaluate(el => getComputedStyle(el).backgroundImage);
+    expect(darkMark).not.toBe(lightMark);
+  });
+
   test('a wrong password is refused without saying which part was wrong', async ({ page }) => {
     await page.goto('/login');
     await page.getByLabel('Correo electrónico').fill('nadie@example.test');
