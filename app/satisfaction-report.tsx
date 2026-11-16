@@ -142,7 +142,6 @@ export function SatisfactionReportPanel({
     <section className="satisfaction-report" aria-labelledby="satisfaction-report-title">
       <div className="section-head">
         <div>
-          <span className="eyebrow">LA VOZ DE TUS CLIENTES</span>
           <h2 id="satisfaction-report-title">
             <Star size={20} />
             Satisfacción de la atención

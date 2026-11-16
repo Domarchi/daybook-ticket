@@ -241,7 +241,7 @@ export function WorkspaceAdministrationPanel({
                   </label>
                   <small>
                     El remitente debe estar verificado en el proveedor y autorizado en la configuración privada por el
-                    operador. No se cambia DNS ni se crean proveedores desde aquí.
+                    operador. Este formulario no cambia DNS ni crea proveedores.
                   </small>
                   <label>
                     <input name="mailEnabled" type="checkbox" defaultChecked={data.profile.mailEnabled} />

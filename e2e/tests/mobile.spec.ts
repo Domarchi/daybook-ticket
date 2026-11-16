@@ -36,7 +36,7 @@ test.describe('the desk on a 375 px phone', () => {
     await page.goto('/');
     await page.getByRole('list', { name: 'Tickets' }).getByRole('link', { name: SUBJECT }).click();
     await expect(page.getByRole('heading', { name: SUBJECT, level: 1 })).toBeVisible();
-    await expect(page.getByPlaceholder('Escribe una respuesta clara y cercana…')).toBeVisible();
+    await expect(page.getByPlaceholder('Escribe la respuesta al cliente…')).toBeVisible();
     await expectNoSidewaysScroll(page);
     await expectNoSeriousViolations(page, 'Ticket en móvil');
   });

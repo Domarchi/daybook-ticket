@@ -93,7 +93,7 @@ async function post(messages: ChatEntry[]) {
           .map(({ role, content }) => ({ role, content: content.slice(0, MAX_LENGTH) })),
       }),
     },
-    `${ASSISTANT_NAME} no pudo contestar: se cortó la conexión. Intenta de nuevo.`,
+    `${ASSISTANT_NAME} no pudo responder: se cortó la conexión. Intenta de nuevo.`,
   );
   return readDaybookJson(response, { validate: isChatResponse });
 }
@@ -191,7 +191,7 @@ export default function Bita({
         setError(
           failure instanceof BrowserJsonError || failure instanceof Error
             ? failure.message
-            : `${ASSISTANT_NAME} no pudo contestar. Intenta de nuevo.`,
+            : `${ASSISTANT_NAME} no pudo responder. Intenta de nuevo.`,
         );
       } finally {
         setSending(false);
@@ -263,7 +263,7 @@ export default function Bita({
               <BitaAvatar size={38} thinking={sending} />
               <div>
                 <h2>{ASSISTANT_NAME}</h2>
-                <small>Bandeja, SLA y sugerencias para resolver tickets</small>
+                <small>Asistente de la mesa de ayuda</small>
               </div>
             </div>
             <button
@@ -311,7 +311,7 @@ export default function Bita({
                     Revisando la bandeja…
                   </p>
                 ) : summaryState === 'failed' ? (
-                  <p className="bita-summary-loading">No pude leer la bandeja ahora; igual puedes preguntarme.</p>
+                  <p className="bita-summary-loading">Bita no pudo leer la bandeja; igual puedes preguntarle.</p>
                 ) : null}
                 <div className="bita-questions">
                   {SUGGESTED_QUESTIONS.map(question => (
@@ -390,7 +390,7 @@ export default function Bita({
           </form>
           <div className="bita-footer">
             {remaining !== null ? `Te quedan ${remaining} ${remaining === 1 ? 'mensaje' : 'mensajes'} hoy. ` : ''}
-            {ASSISTANT_NAME} puede equivocarse: revisa el ticket antes de actuar. Nunca responde al cliente por ti.
+            {ASSISTANT_NAME} puede equivocarse: revisa el ticket antes de actuar.
           </div>
         </section>
       )}

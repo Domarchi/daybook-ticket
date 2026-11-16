@@ -47,7 +47,7 @@ export async function assertWorkspaceOperational(
   ).rows[0];
   if (profile?.id === 'daybook') return;
   if (!profile?.state || (profile.state !== 'active' && !(allowSetup && profile.state === 'draft')))
-    throw new ApiError(423, 'Este espacio está en incorporación o en pausa. Sus datos se conservan.');
+    throw new ApiError(423, 'Este espacio está en preparación o en pausa. Sus datos se conservan.');
 }
 /** Separate from quota row locks: readers must not upgrade a shared profile row
  * to FOR UPDATE when a quota trigger runs later in the same transaction. */

@@ -164,8 +164,7 @@ export function StaffComposer({
       )}
       {!persistent && (
         <p className="draft-notice" role="status">
-          Tu navegador no permite guardar este borrador al recargar. Conservaremos el texto mientras esta página siga
-          abierta.
+          Este navegador no guarda borradores: si recargas o cierras la página, pierdes el texto.
         </p>
       )}
       {message.replyToMessageId && (
@@ -254,9 +253,7 @@ export function StaffComposer({
           notifyTicketPresenceActivity(ticket.id, message.kind);
         }}
         placeholder={
-          message.kind === 'note'
-            ? 'Añade contexto para el seguimiento del caso…'
-            : 'Escribe una respuesta clara y cercana…'
+          message.kind === 'note' ? 'Añade contexto para el seguimiento del caso…' : 'Escribe la respuesta al cliente…'
         }
       />
       <AttachmentComposer controls={attachments} disabled={busy} />

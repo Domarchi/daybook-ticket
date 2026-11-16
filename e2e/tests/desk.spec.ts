@@ -79,7 +79,7 @@ test.describe('the support desk', () => {
   test('a reply and an internal note are saved and shown in the conversation', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('link', { name: SUBJECT }).click();
-    const composer = page.getByPlaceholder('Escribe una respuesta clara y cercana…');
+    const composer = page.getByPlaceholder('Escribe la respuesta al cliente…');
     await composer.fill('Hola Andrea, ya revisamos tu impresora y te enviamos los pasos.');
     await page.getByRole('button', { name: 'Enviar respuesta' }).click();
     // The composer empties only once the send has fully finished; reloading before that would restore the draft.
@@ -457,7 +457,7 @@ test.describe('the support desk', () => {
         .getByRole('textbox', { name: 'Descripción' })
         .fill('Desde esta mañana no prende, ni conectado al cargador.');
       await form.getByRole('button', { name: 'Crear ticket' }).click();
-      const created = rosa.getByText(/Tu ticket #\d{4} fue creado/);
+      const created = rosa.getByText(/Ticket #\d{4} creado/);
       await expect(created).toBeVisible();
       const ticket = Number(/#(\d{4})/.exec((await created.textContent()) ?? '')?.[1]);
       expect(ticket).toBeGreaterThan(0);
@@ -629,14 +629,14 @@ test.describe('the support desk', () => {
       await form.getByLabel('Asunto').fill(subject);
       await form.getByRole('textbox', { name: 'Descripción' }).fill('Para revisar mis liquidaciones de sueldo.');
       await form.getByRole('button', { name: 'Crear ticket' }).click();
-      const created = rosa.getByText(/Tu ticket #\d{4} fue creado/);
+      const created = rosa.getByText(/Ticket #\d{4} creado/);
       await expect(created).toBeVisible();
       const ticket = Number(/#(\d{4})/.exec((await created.textContent()) ?? '')?.[1]);
 
       // The follow-up starts on its own: the tracking line is there from the first moment.
       const tracking = rosa.getByRole('region', { name: 'Seguimiento de tu requerimiento' });
       await expect(tracking.locator('[aria-current="step"]')).toContainText('Solicitado');
-      await expect(tracking).toContainText('Te avisaremos cuando la tengamos');
+      await expect(tracking).toContainText('Por confirmar');
 
       // The team moves it and reports a delay; Rosa sees why.
       await page.goto(`/?ticket=${ticket}`);
@@ -692,7 +692,7 @@ test.describe('the support desk', () => {
       await form.getByLabel('Asunto').fill(subject);
       await form.getByRole('textbox', { name: 'Descripción' }).fill('Para trabajar con dos pantallas.');
       await form.getByRole('button', { name: 'Crear ticket' }).click();
-      const created = rosa.getByText(/Tu ticket #\d{4} fue creado/);
+      const created = rosa.getByText(/Ticket #\d{4} creado/);
       await expect(created).toBeVisible();
       const ticket = Number(/#(\d{4})/.exec((await created.textContent()) ?? '')?.[1]);
 

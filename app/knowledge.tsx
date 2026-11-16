@@ -109,11 +109,7 @@ export function KnowledgePanel({
             <BookOpen size={20} />
             Conocimiento
           </h2>
-          <p>
-            {staff
-              ? 'Soluciones del equipo, con versiones y publicación por empresa.'
-              : 'Guías y soluciones compartidas con tu empresa.'}
-          </p>
+          {!staff && <p>Guías y soluciones compartidas con tu empresa.</p>}
         </div>
         {staff && (
           <span className="kr-private">

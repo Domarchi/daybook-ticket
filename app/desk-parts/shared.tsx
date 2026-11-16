@@ -146,10 +146,7 @@ export function Modal({
       }}
     >
       <div className="modal-head">
-        <div>
-          <span className="eyebrow">TU CENTRO DE SOPORTE</span>
-          <h2 id={titleId}>{title}</h2>
-        </div>
+        <h2 id={titleId}>{title}</h2>
         <button aria-label="Cerrar" className="icon-button" onClick={onClose}>
           <X size={20} />
         </button>
@@ -215,7 +212,7 @@ export function SearchShortcut() {
   );
   return <kbd>{apple ? '⌘ K' : 'Ctrl K'}</kbd>;
 }
-export function Empty({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
+export function Empty({ title, children, action }: { title: string; children?: ReactNode; action?: ReactNode }) {
   return <EmptyState icon={<Inbox size={22} />} title={title} text={children} action={action} />;
 }
 export function Stat({
@@ -242,15 +239,12 @@ export function Stat({
     </article>
   );
 }
-export function PageTitle({ title, subtitle, action }: { title: string; subtitle: string; action?: ReactNode }) {
+export function PageTitle({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
   return (
     <div className="page-heading">
       <div>
-        <span className="eyebrow">
-          <span className="tiny-line" /> TU ESPACIO, BIEN ORGANIZADO
-        </span>
         <h1>{title}</h1>
-        <p>{subtitle}</p>
+        {subtitle && <p>{subtitle}</p>}
       </div>
       {action}
     </div>

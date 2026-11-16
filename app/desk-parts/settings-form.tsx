@@ -54,7 +54,6 @@ export function SettingsForm({
             <Sparkles size={22} />
           </span>
           <h2>Identidad de marca</h2>
-          <p>El nombre y la voz de tu producto.</p>
         </div>
         <div className="form">
           <label>

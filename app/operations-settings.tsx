@@ -91,7 +91,7 @@ function useOperationsRequests(memberId?: string) {
           const message =
             value && typeof value === 'object' && 'error' in value && typeof value.error === 'string'
               ? value.error
-              : 'No se pudo completar la operación. Intenta nuevamente.';
+              : 'No se pudo completar la operación. Intenta de nuevo.';
           throw new ClientRequestError(message, response.status);
         }
         if (!alive.current || controller.signal.aborted) throw new DOMException('Solicitud cancelada', 'AbortError');
@@ -107,11 +107,6 @@ function useOperationsRequests(memberId?: string) {
 export function OperationsSettingsPanel(props: OperationsSettingsProps) {
   return (
     <div className="operations-settings" key={props.memberId || 'current-account'}>
-      <div className="ops-intro">
-        <span className="eyebrow">SERVICIO Y EQUIPO</span>
-        <h2>Una atención que se adapta a cada empresa</h2>
-        <p>Define los plazos, organiza el reparto y decide quién recibe nuevas solicitudes.</p>
-      </div>
       <ServicePolicySettings companies={props.companies} memberId={props.memberId} onSaved={props.onSaved} />
       <AssignmentRulesSettings {...props} />
       <TeamAvailabilitySettings memberId={props.memberId} onSaved={props.onSaved} />
@@ -1101,7 +1096,7 @@ function TeamAvailabilitySettings({ memberId, onSaved }: Pick<OperationsSettings
           ))}
         </div>
       )}
-      {agents?.length === 0 && <p className="ops-help">Aquí aparecerán las cuentas activas del equipo.</p>}
+      {agents?.length === 0 && <p className="ops-help">No hay cuentas activas en el equipo.</p>}
     </section>
   );
 }

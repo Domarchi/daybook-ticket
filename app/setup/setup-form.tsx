@@ -8,7 +8,6 @@ export default function SetupForm() {
         <div className="setup-brand">
           <Brand />
         </div>
-        <span className="auth-eyebrow">SERVICIOS DAYBOOK</span>
         <h1>Activa tu cuenta.</h1>
         <p>Abre el enlace de invitación que recibiste para crear tu contraseña de Daybook Ticket.</p>
         <p>

@@ -321,9 +321,9 @@ export async function completeAttachment(
         .run();
       throw new ApiError(422, 'El tamaño del archivo no coincide con la reserva. Vuelve a adjuntarlo.');
     }
-    throw new ApiError(503, 'No se pudo comprobar la carga. Intenta completar el archivo nuevamente.');
+    throw new ApiError(503, 'No se pudo comprobar la carga. Intenta de nuevo.');
   }
-  if (!bytes) throw new ApiError(409, 'La carga aún no está disponible. Intenta nuevamente.');
+  if (!bytes) throw new ApiError(409, 'La carga aún no está disponible. Intenta de nuevo.');
   await database
     .prepare(
       `UPDATE attachments SET status='uploaded',"uploadedAt"=COALESCE("uploadedAt",$1),"updatedAt"=$1 WHERE id=$2 AND status='reserved'`,
@@ -477,7 +477,7 @@ export async function downloadAttachment(
   try {
     file = await store.read(row.pathname);
   } catch {
-    throw new ApiError(503, 'No se pudo descargar el archivo. Intenta nuevamente.');
+    throw new ApiError(503, 'No se pudo descargar el archivo. Intenta de nuevo.');
   }
   if (!file) throw new ApiError(404, 'El archivo no está disponible.');
   try {
@@ -488,7 +488,7 @@ export async function downloadAttachment(
         key => current[key as keyof AttachmentRow] !== row[key as keyof AttachmentRow],
       )
     )
-      throw new ApiError(409, 'El archivo cambió durante la descarga. Vuelve a intentarlo.');
+      throw new ApiError(409, 'El archivo cambió durante la descarga. Intenta de nuevo.');
   } catch (error) {
     await file.stream.cancel().catch(() => {});
     throw error;

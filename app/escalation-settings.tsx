@@ -179,8 +179,8 @@ export function EscalationSettingsPanel({ memberId, members }: { memberId: strin
           </div>
         </fieldset>
         <p className="service-plus-muted">
-          Funciona las 24 horas con el programador actual. Cada etapa se avisa una vez por destinatario y episodio
-          pendiente. Al activar, los tickets anteriores se incorporan cuando el cliente vuelve a escribir.
+          Revisa los plazos las 24 horas. Cada destinatario recibe un solo aviso por etapa mientras el ticket siga
+          pendiente. Los tickets anteriores a la activación entran cuando el cliente vuelve a escribir.
         </p>
         {error && (
           <p className="service-plus-error" role="alert">

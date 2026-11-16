@@ -172,7 +172,7 @@ export async function resolveWorkspaceAccess(
       throw new ApiError(403, 'Este espacio no está disponible.');
     const setupPath = request && isWorkspaceSetupPath(new URL(request.url).pathname);
     if (profile.state !== 'active' && !(profile.state === 'draft' && access.role === 'owner' && setupPath))
-      throw new ApiError(423, 'Este espacio está en incorporación o en pausa. Sus datos se conservan.');
+      throw new ApiError(423, 'Este espacio está en preparación o en pausa. Sus datos se conservan.');
     if (profile.state === 'draft' && access.role === 'owner') access.workspaceSetup = true;
   }
   if (!options.allowSecuritySetup) {

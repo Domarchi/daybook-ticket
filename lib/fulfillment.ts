@@ -194,7 +194,7 @@ function checkVersion(row: FulfillmentRow | undefined, expectedVersion: number):
   if (Number(row.version) !== expectedVersion)
     throw new ApiError(
       409,
-      'Alguien actualizó este seguimiento hace un momento. Recarga el ticket y vuelve a intentarlo.',
+      'Alguien actualizó este seguimiento hace un momento. Recarga el ticket e intenta de nuevo.',
     );
   return row;
 }

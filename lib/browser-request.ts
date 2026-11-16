@@ -5,7 +5,7 @@ import { followSecurityResponse } from './security-navigation';
 export async function daybookFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
-  message = 'No se pudo conectar con Daybook. Vuelve a intentarlo.',
+  message = 'No se pudo conectar con Daybook. Intenta de nuevo.',
 ) {
   let response: Response;
   const target = workspaceRequestInput(input);
@@ -18,4 +18,4 @@ export async function daybookFetch(
   return followSecurityResponse(response, target);
 }
 export const UNCERTAIN_SEND_MESSAGE =
-  'Se interrumpió la conexión. El envío no se ha confirmado y tu borrador se conserva. Vuelve a intentarlo al recuperar la conexión.';
+  'Se interrumpió la conexión. El envío no se ha confirmado y tu borrador se conserva. Intenta de nuevo al recuperar la conexión.';

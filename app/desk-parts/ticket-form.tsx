@@ -235,7 +235,7 @@ export function TicketForm({
             required
             maxLength={20000}
             rows={5}
-            placeholder="¿Qué está pasando? Añade el contexto necesario para ayudar."
+            placeholder="Qué falla, desde cuándo y qué se ha probado."
             disabled={busy}
           />
         </label>

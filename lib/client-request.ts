@@ -19,7 +19,7 @@ export async function clientRequest<T>(path: string, method = 'GET', body?: unkn
     const message =
       value && typeof value === 'object' && 'error' in value && typeof value.error === 'string'
         ? value.error
-        : 'No se pudo completar la operación. Intenta nuevamente.';
+        : 'No se pudo completar la operación. Intenta de nuevo.';
     throw new ClientRequestError(message, response.status);
   }
   return value as T;

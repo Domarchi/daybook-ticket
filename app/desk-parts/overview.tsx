@@ -35,7 +35,6 @@ export function Overview({ data, now, onOpen }: { data: Workspace; now: number; 
               </div>
             );
           })}
-          <small>Distribución calculada a partir de tus conversaciones.</small>
         </div>
       </section>
       <section className="panel">
@@ -54,19 +53,16 @@ export function Overview({ data, now, onOpen }: { data: Workspace; now: number; 
             </div>
           </div>
           <p>
-            {resolved} de {total} conversaciones
-            <br />
-            se han completado.
+            {resolved} de {total} tickets.
           </p>
         </div>
       </section>
       <section className="panel recent">
         <div className="section-head">
-          <h2>Últimas conversaciones</h2>
-          <span>Actividad reciente</span>
+          <h2>Últimos tickets</h2>
         </div>
         {data.tickets.length === 0 ? (
-          <Empty title="Todo listo para empezar">Aquí verás las conversaciones más recientes.</Empty>
+          <Empty title="Sin tickets" />
         ) : (
           data.tickets.slice(0, 5).map(t => (
             <button className="recent-row" key={t.id} onClick={() => onOpen(t)}>

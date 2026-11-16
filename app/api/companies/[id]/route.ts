@@ -44,7 +44,7 @@ export async function DELETE(request: Request, context: RouteContext) {
     if (!removed)
       throw new ApiError(
         409,
-        'La empresa tiene contactos, tickets, fichas de servicio o mediciones; conserva su historial.',
+        'No se puede eliminar: la empresa tiene contactos, tickets, fichas de servicio o mediciones.',
       );
     return json({ ok: true });
   });
