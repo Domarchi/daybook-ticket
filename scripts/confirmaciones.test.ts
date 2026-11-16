@@ -50,7 +50,12 @@ test('solucionar varios tickets a la vez se confirma antes, porque solucionar no
   assert.match(inbox, /onClick=\{\(\) => setConfirmingResolve\(true\)\}/, 'el botón abre la confirmación');
   assert.doesNotMatch(inbox, /onClick=\{\(\) => \{\s*void resolveSelected\(\);/, 'ya no soluciona al primer toque');
   assert.match(inbox, /<ConfirmDialog\s+title="Marcar como solucionados"/);
-  assert.match(inbox, /confirmLabel=\{`Solucionar \$\{selectedCount\}`\}/, 'el botón rojo nombra la acción');
+  assert.match(inbox, /confirmLabel=\{`Solucionar \$\{resolving\.count\}`\}/, 'el botón rojo nombra la acción');
+  // Con uno solo, la frase va en singular: «Vas a marcar 1 ticket como solucionado. Al cliente…».
+  assert.match(inbox, /one \? 'solucionado' : 'solucionados'/);
+  assert.match(inbox, /one \? 'Al cliente' : 'A cada cliente'/);
+  // Si la selección se vacía con la pregunta abierta, no vuelve a aparecer al marcar el siguiente ticket.
+  assert.match(inbox, /if \(confirmingResolve && visibleSelected\.length === 0\) setConfirmingResolve\(false\);/);
 });
 
 test('cerrar sesión usa el ícono LogOut y pregunta con los textos de Parte Diario, en el riel y en el portal', async () => {
@@ -77,5 +82,13 @@ test('cerrar sesión usa el ícono LogOut y pregunta con los textos de Parte Dia
   assert.match(
     touch,
     /\.sidebar \.profile > button \{ min-width: var\(--touch-target\); min-height: var\(--touch-target\); \}/,
+  );
+  // El ícono del portal también llega a 44 px con el dedo (la regla base lo dejaba en 42 × 38).
+  const portalCss = await read('app/client-portal.css');
+  const coarse = portalCss.lastIndexOf('@media (pointer: coarse)');
+  assert.ok(coarse > portalCss.indexOf('.client-account > button { display: flex'), 'va después de la regla base');
+  assert.match(
+    portalCss.slice(coarse),
+    /\.client-account > button \{ min-width: var\(--touch-target\); min-height: var\(--touch-target\); \}/,
   );
 });

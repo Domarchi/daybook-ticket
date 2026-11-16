@@ -528,9 +528,20 @@ test.describe('the support desk', () => {
     await expect(form.getByRole('combobox', { name: /Sobre qué equipo/ })).toHaveCount(0);
     // «Cuenta del cliente» is the same searchable list as in the ticket: typing part of the email finds her.
     const account = form.getByRole('combobox', { name: 'Cuenta del cliente' });
-    await account.click();
-    await account.pressSequentially('rosa@example');
+    const dialog = page.getByRole('dialog', { name: 'Nuevo ticket' });
     const accounts = page.getByRole('listbox', { name: 'Cuenta del cliente' });
+    // The list opens right under the field, inside the modal (not hidden behind its top layer), and Escape closes
+    // only the list: the half-written ticket stays open.
+    await account.click();
+    await expect(accounts).toBeVisible();
+    const field = (await account.boundingBox())!;
+    const list = (await accounts.boundingBox())!;
+    expect(list.y - (field.y + field.height)).toBeGreaterThanOrEqual(0);
+    expect(list.y - (field.y + field.height)).toBeLessThan(12);
+    await page.keyboard.press('Escape');
+    await expect(accounts).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    await account.pressSequentially('rosa@example');
     await expect(accounts.getByRole('option')).toHaveCount(1);
     await expect(accounts.getByRole('option', { name: /Rosa Pérez/ })).toContainText('rosa@example.test');
     await accounts.getByRole('option', { name: /Rosa Pérez/ }).click();
@@ -819,13 +830,21 @@ test.describe('the support desk', () => {
       }
 
       await page.goto('/');
-      for (const id of ids) await page.getByRole('checkbox', { name: `Seleccionar ticket ${id}` }).check();
       const bar = page.locator('.bulk-bar');
+      const dialog = page.getByRole('dialog', { name: 'Marcar como solucionados' });
+      // With one ticket the question is in singular.
+      await page.getByRole('checkbox', { name: `Seleccionar ticket ${ids[0]}` }).check();
+      await bar.getByRole('button', { name: 'Marcar como solucionados' }).click();
+      await expect(dialog).toContainText(
+        'Vas a marcar 1 ticket como solucionado. Al cliente se le pedirá que evalúe la atención',
+      );
+      await expect(dialog.getByRole('button', { name: 'Solucionar 1 ticket' })).toBeVisible();
+      await dialog.getByRole('button', { name: 'Cancelar' }).click();
+      await expect(dialog).toBeHidden();
+      await page.getByRole('checkbox', { name: `Seleccionar ticket ${ids[1]}` }).check();
       await expect(bar).toContainText('2 seleccionados');
       await bar.getByRole('button', { name: 'Marcar como solucionados' }).click();
-
-      const dialog = page.getByRole('dialog', { name: 'Marcar como solucionados' });
-      await expect(dialog).toContainText('Vas a marcar 2 tickets como solucionados');
+      await expect(dialog).toContainText('Vas a marcar 2 tickets como solucionados. A cada cliente');
       await expect(dialog).toContainText('no se puede deshacer');
       // Focus starts on the safe choice; the red button names the action.
       await expect(dialog.getByRole('button', { name: 'Cancelar' })).toBeFocused();
@@ -978,6 +997,9 @@ test.describe('the support desk', () => {
       }
 
       const signOut = rosa.getByRole('button', { name: 'Cerrar sesión' });
+      const door = (await signOut.boundingBox())!;
+      expect(door.width, 'Cerrar sesión: ancho con el dedo').toBeGreaterThanOrEqual(44);
+      expect(door.height, 'Cerrar sesión: alto con el dedo').toBeGreaterThanOrEqual(44);
       await signOut.click();
       const dialog = rosa.getByRole('dialog', { name: 'Cerrar sesión' });
       await expect(dialog).toContainText('Vas a salir de Daybook Ticket en este dispositivo');

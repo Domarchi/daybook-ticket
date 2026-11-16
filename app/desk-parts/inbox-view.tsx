@@ -44,6 +44,16 @@ import { TicketCards } from './ticket-cards';
 import { ClassifyBackfill } from '../classify-backfill';
 import { SkeletonList } from '../estados';
 
+// The question before solving the selection, in singular for one ticket: «Vas a marcar 1 ticket como
+// solucionado. Al cliente…» or «Vas a marcar 3 tickets como solucionados. A cada cliente…».
+function resolveQuestion(selected: number) {
+  const one = selected === 1;
+  const count = one ? '1 ticket' : `${selected} tickets`;
+  return {
+    count,
+    description: `Vas a marcar ${count} como ${one ? 'solucionado' : 'solucionados'}. ${one ? 'Al cliente' : 'A cada cliente'} se le pedirá que evalúe la atención, y eso no se puede deshacer.`,
+  };
+}
 export function InboxView({
   view,
   data,
@@ -117,7 +127,10 @@ export function InboxView({
   // evaluación al cliente). Varios a la vez se confirman antes, como manda la
   // Fase 5b para lo que no tiene vuelta atrás.
   const [confirmingResolve, setConfirmingResolve] = useState(false);
-  const selectedCount = visibleSelected.length === 1 ? '1 ticket' : `${visibleSelected.length} tickets`;
+  // If the selection empties while the question is open (another agent solved them, the view refreshed), the
+  // question goes away for good: it must not pop up again on the next ticket ticked.
+  if (confirmingResolve && visibleSelected.length === 0) setConfirmingResolve(false);
+  const resolving = resolveQuestion(visibleSelected.length);
   return (
     <>
       <div className="page-heading">
@@ -372,8 +385,8 @@ export function InboxView({
             {confirmingResolve && visibleSelected.length > 0 && (
               <ConfirmDialog
                 title="Marcar como solucionados"
-                description={`Vas a marcar ${selectedCount} como solucionados. A cada cliente se le pedirá que evalúe la atención, y eso no se puede deshacer.`}
-                confirmLabel={`Solucionar ${selectedCount}`}
+                description={resolving.description}
+                confirmLabel={`Solucionar ${resolving.count}`}
                 busyLabel="Guardando…"
                 busy={busy}
                 onClose={() => setConfirmingResolve(false)}

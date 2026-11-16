@@ -101,6 +101,8 @@ test.describe('the reply box on a 390 px phone, used with a finger', () => {
     await expectNoSeriousViolations(page, 'Confirmar cierre de sesión en móvil');
     await stay.click();
     await expect(dialog).toBeHidden();
+    // The menu button that led there takes the focus back, not the hidden drawer behind it.
+    await expect(page.getByRole('button', { name: 'Abrir menú' })).toBeFocused();
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page.getByRole('heading', { name: 'Bandeja de entrada' })).toBeVisible();
   });

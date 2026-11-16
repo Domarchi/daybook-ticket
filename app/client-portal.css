@@ -505,3 +505,10 @@
 /* The notice after an action (Phase 5 of the Daybook standard), the same .toast-region as the team desk.
    The portal has no rail, so the notice sits at the centre of the page, not of the area beside the rail. */
 .client-shell .toast-region { left: 50%; max-width: min(var(--db-toast-max-width), calc(100vw - var(--db-space-6))); }
+
+/* With a finger, «Cerrar sesión» and the other icons of the portal header reach 44 px, as at the foot of the
+   team rail (accessibility.css). The rule above fixed them at 42 px wide and about 38 px tall. */
+@media (pointer: coarse) {
+  .client-account a,
+  .client-account > button { min-width: var(--touch-target); min-height: var(--touch-target); }
+}
