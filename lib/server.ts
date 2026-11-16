@@ -241,6 +241,10 @@ export async function handle(fn: () => Promise<Response>) {
     return response;
   }
 }
+const RETIRED_TAGLINES = new Set([
+  'Un servicio Daybook. Cada conversación, una solución.',
+  'Cada conversación, una solución.',
+]);
 export async function getSettings(ownerId: string): Promise<Settings> {
   const row = await db()
     .prepare('SELECT data FROM settings WHERE "ownerId" = $1')
@@ -248,6 +252,8 @@ export async function getSettings(ownerId: string): Promise<Settings> {
     .first<{ data: string }>();
   if (!row) return structuredClone(DEFAULT_SETTINGS);
   const settings: Settings = { ...structuredClone(DEFAULT_SETTINGS), ...JSON.parse(row.data) };
+  // The old default slogans are dropped on read (no write): a phrase someone typed stays.
+  if (RETIRED_TAGLINES.has(settings.tagline)) settings.tagline = '';
   // Upgrade the former product names without overwriting a customized brand.
   if (['VEXOR', 'NexoDesk'].includes(settings.brandName)) {
     const updated: Settings = {

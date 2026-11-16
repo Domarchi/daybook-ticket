@@ -515,7 +515,13 @@ export default function Desk({
           )}
           <footer className="page-footer">
             <span>
-              {data.settings.brandName} <i /> {data.settings.tagline}
+              {data.settings.brandName}
+              {data.settings.tagline && (
+                <>
+                  {' '}
+                  <i /> {data.settings.tagline}
+                </>
+              )}
             </span>
             <span>Parte de Servicios Daybook.</span>
           </footer>
