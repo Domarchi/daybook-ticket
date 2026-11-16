@@ -131,8 +131,7 @@ export function knowledgeSearchTokens(q: string): string[] {
  * snapshots saved before keep the «Abiertos» / «Pendientes» they were captured with (stored reports never change).
  */
 export type CurrentLoad =
-  | { currentUnassigned: number; currentInProgress: number }
-  | { currentOpen: number; currentPending: number };
+  { currentUnassigned: number; currentInProgress: number } | { currentOpen: number; currentPending: number };
 export type CompanyReportSummary = CurrentLoad & {
   created: number;
   currentOverdue: number;
