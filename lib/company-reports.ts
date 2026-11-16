@@ -7,6 +7,7 @@ import { ApiError, db } from './server';
 import { lockAccess } from './ticket-mutations';
 import { runKnowledgeOperation, requireKnowledgeEnabled } from './knowledge';
 import { productionTicketSql } from './test-data';
+import { activeSql } from './ticket-status';
 import type { MetricsQuery } from './agent-metrics-model';
 import {
   companyReportSchema,
@@ -37,7 +38,7 @@ async function aggregate(
 ): Promise<CompanyOperationalReport> {
   const current = await company(tx, access, period.companyId);
   const query = `WITH scoped AS (
-  SELECT t.id,t.status,t."createdAt"::timestamptz AS "createdAt",t."dueAt"::timestamptz AS "dueAt" FROM tickets t WHERE t."ownerId"=$1 AND t."customerCompanyId"=$2 AND ($5::boolean OR ${productionTicketSql('t')})
+  SELECT t.id,t.status,t."assigneeMemberId",t."createdAt"::timestamptz AS "createdAt",t."dueAt"::timestamptz AS "dueAt" FROM tickets t WHERE t."ownerId"=$1 AND t."customerCompanyId"=$2 AND ($5::boolean OR ${productionTicketSql('t')})
  ), created AS (SELECT * FROM scoped WHERE "createdAt">=$3::timestamptz AND "createdAt"<$4::timestamptz), outcomes AS (
   SELECT o.* FROM "ticketSlaOutcomes" o JOIN tickets t ON t.id=o."ticketId" AND t."ownerId"=o."ownerId" WHERE o."ownerId"=$1 AND o."customerCompanyId"=$2 AND o."resolvedAt"::timestamptz>=$3::timestamptz AND o."resolvedAt"::timestamptz<$4::timestamptz AND ($5::boolean OR ${productionTicketSql('t')})
  ), typed AS (
@@ -57,9 +58,9 @@ async function aggregate(
  ), daily AS (SELECT to_char("createdAt"::timestamptz AT TIME ZONE 'America/Santiago','YYYY-MM-DD') AS label,count(*)::int AS count FROM created GROUP BY 1)
  SELECT json_build_object(
   'created',(SELECT count(*)::int FROM created),
-  'currentOpen',(SELECT count(*)::int FROM scoped WHERE status='open'),
-  'currentPending',(SELECT count(*)::int FROM scoped WHERE status='pending'),
-  'currentOverdue',(SELECT count(*)::int FROM scoped WHERE status IN ('open','pending') AND "dueAt"<$6::timestamptz),
+  'currentUnassigned',(SELECT count(*)::int FROM scoped WHERE ${activeSql()} AND "assigneeMemberId" IS NULL),
+  'currentInProgress',(SELECT count(*)::int FROM scoped WHERE ${activeSql()} AND "assigneeMemberId" IS NOT NULL),
+  'currentOverdue',(SELECT count(*)::int FROM scoped WHERE ${activeSql()} AND "dueAt"<$6::timestamptz),
   'resolutions',(SELECT count(*)::int FROM outcomes),
   'slaMet',(SELECT count(*)::int FROM outcomes WHERE "resolvedAt"::timestamptz<="dueAt"::timestamptz),
   'slaBreached',(SELECT count(*)::int FROM outcomes WHERE "resolvedAt"::timestamptz>"dueAt"::timestamptz),
@@ -89,7 +90,7 @@ async function aggregate(
     generatedAt: now.toISOString(),
     ...row,
     coverageNotes: [
-      'La carga abierta, pendiente y vencida es actual; las entradas y respuestas corresponden al período seleccionado.',
+      'La carga sin asignar, en proceso y vencida es actual; las entradas y respuestas corresponden al período seleccionado.',
       'El SLA usa exclusivamente resoluciones registradas con su plazo congelado. No se han reconstruido mediciones históricas.',
       'Las entradas se agrupan por la empresa actual del ticket. El SLA conserva la empresa y el actor del registro de resolución, sin atribuirlos al responsable actual.',
       'Solo se clasifican tipos y equipos con registros conservados e inalterados antes del cierre del período y de la captura. Las incorporaciones o ediciones posteriores figuran sin clasificación histórica; no se reconstruyen vínculos eliminados.',

@@ -92,11 +92,14 @@ export function companyReportForModel(report: CompanyOperationalReport, month: s
       porcentaje_cumplimiento: percent(summary.slaCompliancePercent),
     },
     respuestas_publicas_del_equipo: summary.publicReplies,
-    carga_actual: {
-      abiertos: summary.currentOpen,
-      pendientes: summary.currentPending,
-      vencidos: summary.currentOverdue,
-    },
+    carga_actual:
+      'currentUnassigned' in summary
+        ? {
+            sin_asignar: summary.currentUnassigned,
+            en_proceso: summary.currentInProgress,
+            vencidos: summary.currentOverdue,
+          }
+        : { abiertos: summary.currentOpen, pendientes: summary.currentPending, vencidos: summary.currentOverdue },
     tipos_mas_frecuentes: top(report.byType),
     equipos_mas_frecuentes: top(report.byAsset),
     sin_tipo: summary.untyped,

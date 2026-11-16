@@ -529,6 +529,10 @@ test.describe('Bita, the staff assistant', () => {
     const result = JSON.stringify(sent.at(-1)!.body.messages);
     expect(result).toContain('entradas_del_mes');
     expect(result).toContain('"entradas_del_mes\\":2');
+    // Today's load in the same words as the inbox: «Sin asignar» and «En proceso», not the retired «Pendientes».
+    expect(result).toContain('sin_asignar');
+    expect(result).toContain('en_proceso');
+    expect(result).not.toContain('pendientes');
     for (const secret of [REQUESTER, REQUESTER_EMAIL, companyId]) expect(result).not.toContain(secret);
 
     const button = panel.getByRole('button', { name: new RegExp(`Descargar el informe PDF de ${COMPANY}`) });
@@ -553,6 +557,14 @@ test.describe('Bita, the staff assistant', () => {
     } finally {
       await pool.end();
     }
+
+    // The Reports screen counts the same load with the same names.
+    await page.goto('/?view=reports');
+    await page.getByLabel('Empresa').selectOption({ label: COMPANY });
+    const metrics = page.locator('.kr-metrics');
+    await expect(metrics).toContainText('Sin asignar actuales');
+    await expect(metrics).toContainText('En proceso actuales');
+    await expect(metrics).not.toContainText('Pendientes actuales');
   });
 
   test('real clicks: Bita proposes three changes; only the confirmed ones happen, as the person', async ({

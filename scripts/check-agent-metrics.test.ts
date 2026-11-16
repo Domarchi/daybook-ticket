@@ -66,7 +66,6 @@ test('CSV cells neutralize spreadsheet formulas and preserve quotes and unknown 
         role: 'agent',
         status: 'active',
         currentOpen: 1,
-        currentPending: 0,
         publicReplies: 0,
         firstResponseCount: 0,
         averageFirstResponseHours: null,
@@ -83,6 +82,10 @@ test('CSV cells neutralize spreadsheet formulas and preserve quotes and unknown 
   assert.ok(csv.includes('America/Santiago'));
   assert.ok(csv.includes('"\'=DANGER()"'));
   assert.ok(csv.includes(',"","0","0",""'));
+  // One current-load column, named like the inbox state; the retired "Pendientes" is gone.
+  assert.ok(csv.includes('"Estado","En proceso actuales","Respuestas públicas"'));
+  assert.ok(!csv.includes('Pendientes') && !csv.includes('Abiertos actuales'));
+  assert.ok(csv.includes('"active","1","0"'));
 });
 
 test('metrics deny a client or agent before any database query', async () => {

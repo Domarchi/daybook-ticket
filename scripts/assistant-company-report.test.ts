@@ -58,8 +58,8 @@ test('the model sees counts and the top types, never the daily rows or the notes
     generatedAt: '2026-11-12T00:00:00Z',
     summary: {
       created: 12,
-      currentOpen: 3,
-      currentPending: 1,
+      currentUnassigned: 3,
+      currentInProgress: 1,
       currentOverdue: 2,
       resolutions: 10,
       slaMet: 9,
@@ -78,7 +78,15 @@ test('the model sees counts and the top types, never the daily rows or the notes
   const data = companyReportForModel(report, '2026-10');
   assert.equal(data.sla.porcentaje_cumplimiento, 90);
   assert.equal(data.tipos_mas_frecuentes.length, MAX_TRENDS);
-  assert.deepEqual(data.carga_actual, { abiertos: 3, pendientes: 1, vencidos: 2 });
+  assert.deepEqual(data.carga_actual, { sin_asignar: 3, en_proceso: 1, vencidos: 2 });
+  // A report captured before the four states keeps its own words.
+  const { currentUnassigned, currentInProgress, ...rest } = report.summary as unknown as Record<string, number>;
+  assert.deepEqual([currentUnassigned, currentInProgress], [3, 1]);
+  const legacy = companyReportForModel(
+    { ...report, summary: { ...rest, currentOpen: 4, currentPending: 2 } } as unknown as CompanyOperationalReport,
+    '2026-10',
+  );
+  assert.deepEqual(legacy.carga_actual, { abiertos: 4, pendientes: 2, vencidos: 2 });
   const wire = JSON.stringify(data);
   assert.ok(!wire.includes('byDay') && !wire.includes('nota larga') && !wire.includes(report.companyId));
 });
