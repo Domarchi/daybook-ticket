@@ -4,7 +4,6 @@ import { FAULT_GROUPS } from '../../lib/ticket-category-model';
 import { isActive } from '../../lib/ticket-status';
 import { type TicketFilters, useTicketSearch } from '@/hooks/use-ticket-search';
 import {
-  Activity,
   ArrowDownToLine,
   ArrowRight,
   Check,
@@ -163,7 +162,13 @@ export function InboxView({
           value={counts.overdue}
           icon={<Zap size={19} />}
           detail={counts.overdue ? 'Necesitan tu atención' : 'Todo dentro del plazo'}
-          color="purple"
+          color="danger"
+          onClick={() => {
+            // The card is the shortcut to the overdue queue, as «SLA vencido» in the rail.
+            if (view !== 'inbox') go('inbox');
+            setQueue('overdue');
+            setSelected([]);
+          }}
         />
       </div>
       {view === 'overview' ? (
@@ -528,43 +533,6 @@ export function InboxView({
               loading={searchResults.loading}
             />
           </section>
-          <aside className="focus-panel">
-            <div className="focus-heading">
-              <span className="focus-icon">
-                <Activity size={18} />
-              </span>
-              <h2>En foco</h2>
-              <span className="tiny-live" />
-            </div>
-            <div className="focus-divider" />
-            <div className="focus-count">
-              <span>{counts.overdue}</span>
-              <div>tickets fuera de plazo</div>
-            </div>
-            <button className="focus-link" onClick={() => setQueue('overdue')}>
-              Revisar prioridad <ArrowRight size={15} />
-            </button>
-            <div className="focus-divider" />
-            <span className="eyebrow">TU PRÓXIMO PASO</span>
-            <div className="next-step">
-              <span>01</span>
-              <div>
-                <strong>{counts.unassigned ? 'Distribuye la carga' : 'Documenta una solución'}</strong>
-                <p>
-                  {counts.unassigned
-                    ? `${counts.unassigned} solicitudes aún no tienen responsable.`
-                    : 'Nada por asignar.'}
-                </p>
-              </div>
-            </div>
-            <button
-              className="focus-link"
-              onClick={() => (counts.unassigned ? setQueue('unassigned') : go('knowledge'))}
-            >
-              {counts.unassigned ? 'Asignar tickets' : 'Crear un artículo'}
-              <ArrowRight size={15} />
-            </button>
-          </aside>
         </div>
       )}
     </>

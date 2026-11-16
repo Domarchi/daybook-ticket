@@ -266,6 +266,50 @@ test.describe('the support desk', () => {
     await expect(page.locator('.ticket-meta .status')).toHaveText('En proceso');
   });
 
+  test('the inbox gives the table the whole width, and the overdue card, in the danger colour, filters the queue', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Bandeja de entrada', level: 1 })).toBeVisible();
+    // No «En foco» panel repeating the overdue count beside the table: the table takes that width.
+    await expect(page.getByRole('heading', { name: 'En foco' })).toHaveCount(0);
+    const table = (await page.locator('.ticket-panel').boundingBox())!;
+    const stats = (await page.locator('.stats').boundingBox())!;
+    expect(Math.abs(table.width - stats.width)).toBeLessThanOrEqual(1);
+    // Counts read as plain numbers, not «03».
+    const values = await page.locator('.stat-card > strong').allTextContents();
+    expect(values).toHaveLength(4);
+    for (const value of values) expect(value).toMatch(/^(0|[1-9]\d*)$/);
+
+    const overdue = page.locator('.stat-card', { hasText: 'SLA vencido' });
+    const danger = await page.evaluate(() => {
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--db-danger)';
+      document.body.append(probe);
+      const color = getComputedStyle(probe).color;
+      probe.remove();
+      return color;
+    });
+    await expect(overdue.locator('.stat-icon')).toHaveCSS('color', danger);
+    await expectNoSeriousViolations(page, 'Bandeja sin el panel En foco');
+
+    // A real click anywhere on the card (here, on its number) opens the overdue queue.
+    const number = (await overdue.locator('strong').boundingBox())!;
+    await page.mouse.click(number.x + number.width / 2, number.y + number.height / 2);
+    await expect(page.locator('.queue-tabs').getByRole('button', { name: /SLA vencido/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    // And it is a button for the keyboard too.
+    await page.locator('.queue-tabs').getByRole('button', { name: /Todos/ }).click();
+    await overdue.getByRole('button', { name: 'SLA vencido' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.queue-tabs').getByRole('button', { name: /SLA vencido/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
   test('settings opens by section and the section stays in the address', async ({ page }) => {
     await page.goto('/');
     const settings = page.getByRole('button', { name: 'Configuración', exact: true });
@@ -482,9 +526,17 @@ test.describe('the support desk', () => {
     const form = page.locator('form.form');
     // Without a linked client there is no equipment to choose.
     await expect(form.getByRole('combobox', { name: /Sobre qué equipo/ })).toHaveCount(0);
-    await form
-      .getByRole('combobox', { name: 'Cuenta del cliente' })
-      .selectOption({ label: 'Rosa Pérez · rosa@example.test' });
+    // «Cuenta del cliente» is the same searchable list as in the ticket: typing part of the email finds her.
+    const account = form.getByRole('combobox', { name: 'Cuenta del cliente' });
+    await account.click();
+    await account.pressSequentially('rosa@example');
+    const accounts = page.getByRole('listbox', { name: 'Cuenta del cliente' });
+    await expect(accounts.getByRole('option')).toHaveCount(1);
+    await expect(accounts.getByRole('option', { name: /Rosa Pérez/ })).toContainText('rosa@example.test');
+    await accounts.getByRole('option', { name: /Rosa Pérez/ }).click();
+    await expect(accounts).toHaveCount(0);
+    await expect(account).toHaveValue('Rosa Pérez');
+    await expect(form.locator('.staff-account-preview')).toContainText('rosa@example.test');
     const equipment = form.getByRole('combobox', { name: /Sobre qué equipo/ });
     // Rosa's only active equipment is chosen; the monitor freed earlier is not offered.
     await expect(equipment.locator('option:checked')).toHaveText('NB-0042 · Computador');

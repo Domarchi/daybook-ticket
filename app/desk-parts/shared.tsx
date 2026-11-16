@@ -238,20 +238,29 @@ export function Stat({
   icon,
   detail,
   color,
+  onClick,
 }: {
   label: string;
   value: number;
   icon: ReactNode;
   detail: string;
   color: string;
+  /** Makes the whole card a shortcut (its label is the button; the card is the area you can press). */
+  onClick?: () => void;
 }) {
   return (
-    <article className="stat-card">
+    <article className={onClick ? 'stat-card is-link' : 'stat-card'}>
       <div>
-        <span>{label}</span>
+        {onClick ? (
+          <button type="button" className="stat-card-link" onClick={onClick}>
+            {label}
+          </button>
+        ) : (
+          <span>{label}</span>
+        )}
         <span className={`stat-icon ${color}`}>{icon}</span>
       </div>
-      <strong>{value.toString().padStart(2, '0')}</strong>
+      <strong>{value}</strong>
       <small>{detail}</small>
     </article>
   );

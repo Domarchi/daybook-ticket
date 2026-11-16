@@ -12,9 +12,11 @@ import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { type Member, type Settings } from '../../lib/types';
 import { equipmentLabel } from '../../lib/client-equipment-model';
+import { companyFieldsAfterRequesterChange } from '../../lib/new-ticket-requester';
 import { REQUIREMENTS } from '../../lib/ticket-category-model';
 import { useClientEquipment } from '../own-equipment';
 import { AttachmentComposer } from '../attachments';
+import { Combobox } from '../combobox';
 import { KnowledgeSuggestions } from '../knowledge';
 import { type OrganizationRequestValue, RequestOrganizationFields } from '../work-organization';
 import { PRIORITY } from './shared';
@@ -49,6 +51,8 @@ export function TicketForm({
     setOrganizationRequest(value);
     writeNewTicketOrganization(scope, value);
   };
+  // Set when choosing another client cleared company fields already filled in, so it is said, not silent.
+  const [clearedCompanyFields, setClearedCompanyFields] = useState(false);
   const attachments = useDraftAttachments(scope, 'request');
   const clients = members.filter(member => member.role === 'client' && member.status !== 'revoked');
   const staff = members.filter(member => member.role !== 'client' && member.status === 'active');
@@ -102,25 +106,36 @@ export function TicketForm({
         Vincula la cuenta del cliente para que pueda consultar y responder este ticket en su portal.
       </p>
       <div className="form-grid">
-        <label className="full">
-          Cuenta del cliente
-          <select
+        <div className="full">
+          {/* The same searchable list as the ticket's own «Cuenta del cliente», with the email as the hint. */}
+          <Combobox
+            label="Cuenta del cliente"
             name="requesterMemberId"
             value={requesterId}
             disabled={busy}
-            onChange={e => {
-              setRequesterId(e.target.value);
-              changeOrganizationRequest({});
+            options={[
+              { value: '', label: 'Registrar sin cuenta vinculada' },
+              ...clients.map(member => ({ value: member.id, label: member.name, hint: member.email })),
+            ]}
+            onChange={value => {
+              const next = clients.find(member => member.id === value);
+              setRequesterId(value);
+              // A choice from the list fires no change on the form, so the draft is kept here.
+              writeNewTicketDraft(scope, { ...readNewTicketDraft(scope), requesterMemberId: value });
+              const company = companyFieldsAfterRequesterChange(
+                requester?.customerCompanyId,
+                next?.customerCompanyId,
+                organizationRequest,
+              );
+              setClearedCompanyFields(company.announce);
+              if (company.clear) changeOrganizationRequest({});
             }}
-          >
-            <option value="">Registrar sin cuenta vinculada</option>
-            {clients.map(member => (
-              <option key={member.id} value={member.id}>
-                {member.name} · {member.email}
-              </option>
-            ))}
-          </select>
-        </label>
+          />
+          {/* Always mounted, so a screen reader announces the line when it appears. */}
+          <p className="form-intro" role="status">
+            {clearedCompanyFields ? 'Se limpiaron los campos de la empresa anterior.' : ''}
+          </p>
+        </div>
         {requester ? (
           <div className="full staff-account-preview">
             <strong>{requester.name}</strong>
