@@ -55,7 +55,7 @@ export function AgentMetricsPanel({ companies, memberId }: { companies: Customer
   const rows = report?.agents || [];
   const total = rows.reduce(
     (sum, row) => ({
-      open: sum.open + row.currentOpen + row.currentPending,
+      open: sum.open + row.currentOpen,
       replies: sum.replies + row.publicReplies,
       resolutions: sum.resolutions + row.resolutions,
       met: sum.met + row.slaMet,
@@ -213,14 +213,12 @@ export function AgentMetricsPanel({ companies, memberId }: { companies: Customer
                 <div className="agent-metrics-table-wrap">
                   <table>
                     <caption>
-                      Las respuestas y resoluciones corresponden al período; abiertos y pendientes muestran la carga
-                      actual.
+                      Las respuestas y resoluciones corresponden al período; «En proceso» muestra la carga actual.
                     </caption>
                     <thead>
                       <tr>
                         <th scope="col">Agente</th>
-                        <th scope="col">Abiertos</th>
-                        <th scope="col">Pendientes</th>
+                        <th scope="col">En proceso</th>
                         <th scope="col">Respuestas públicas</th>
                         <th scope="col">Primera respuesta</th>
                         <th scope="col">Resoluciones</th>
@@ -243,7 +241,6 @@ export function AgentMetricsPanel({ companies, memberId }: { companies: Customer
                             </small>
                           </th>
                           <td>{row.currentOpen}</td>
-                          <td>{row.currentPending}</td>
                           <td>{row.publicReplies}</td>
                           <td>
                             {hours(row.averageFirstResponseHours)}

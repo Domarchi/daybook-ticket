@@ -13,8 +13,8 @@ export interface AgentMetric {
   name: string;
   role: string;
   status: string;
+  /** Active tickets the member is responsible for now («En proceso»; a retired "pending" one still counts). */
   currentOpen: number;
-  currentPending: number;
   publicReplies: number;
   firstResponseCount: number;
   averageFirstResponseHours: number | null;
@@ -122,8 +122,7 @@ export function agentMetricsCsv(report: AgentMetricsReport): string {
     [
       'Agente',
       'Estado',
-      'Abiertos actuales',
-      'Pendientes actuales',
+      'En proceso actuales',
       'Respuestas públicas',
       'Primeras respuestas medidas',
       'Primera respuesta promedio (horas corridas)',
@@ -138,7 +137,6 @@ export function agentMetricsCsv(report: AgentMetricsReport): string {
       row.name,
       row.status,
       row.currentOpen,
-      row.currentPending,
       row.publicReplies,
       row.firstResponseCount,
       row.averageFirstResponseHours,

@@ -283,6 +283,8 @@ try {
   const open = await ticket(company, 'open', contactId),
     pending = await ticket(company, 'pending', contactId),
     resolved = await ticket(company, 'resolved', contactId);
+  // A retired "pending" ticket with someone responsible is active work «En proceso».
+  await client.query('UPDATE tickets SET "assigneeMemberId"=$2 WHERE id=$1', [pending, agentId]);
   await ticket(company, 'resolved', contactId);
   await ticket(otherCompany, 'open', otherContactId);
   await ticket(foreignCompany, 'open', foreignContactId, foreignOwner);
@@ -315,8 +317,9 @@ try {
   const period = monthlyReportPeriod(company, '2026-11', true, now),
     report = await getCompanyOperationalReport(agent, period, now, database);
   assert.equal(report.summary.created, 4);
-  assert.equal(report.summary.currentOpen, 1);
-  assert.equal(report.summary.currentPending, 1);
+  assert.equal(report.summary.currentUnassigned, 1);
+  assert.equal(report.summary.currentInProgress, 1);
+  assert.equal('currentPending' in report.summary, false);
   assert.equal(report.summary.currentOverdue, 2);
   assert.equal(report.summary.resolutions, 1);
   assert.equal(report.summary.slaBreached, 1);
@@ -471,7 +474,7 @@ try {
     database,
   );
   assert.equal(clockReport.summary.created, 2);
-  assert.equal(clockReport.summary.currentOpen, 2);
+  assert.equal(clockReport.summary.currentUnassigned, 2);
   assert.equal(clockReport.summary.currentOverdue, 1);
   assert.equal(clockReport.summary.resolutions, 1);
   assert.equal(clockReport.summary.slaMet, 1);

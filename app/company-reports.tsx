@@ -11,7 +11,12 @@ import {
   CalendarRange,
 } from 'lucide-react';
 import type { CustomerCompany } from '@/lib/types';
-import type { CompanyOperationalReport, CompanyMonthlyReport, CompanyTrend } from '@/lib/knowledge-model';
+import {
+  currentLoadRows,
+  type CompanyOperationalReport,
+  type CompanyMonthlyReport,
+  type CompanyTrend,
+} from '@/lib/knowledge-model';
 import { metricsDate, shiftMetricsDate } from '@/lib/agent-metrics-model';
 import { daybookFetch } from '@/lib/browser-request';
 import { getDraftOperations } from '@/lib/draft-operations';
@@ -155,8 +160,7 @@ export function CompanyReportsPanel({ memberId, companies }: { memberId: string;
             <div className="kr-metrics">
               {[
                 ['Creados (empresa actual)', s.created],
-                ['Abiertos actuales', s.currentOpen],
-                ['Pendientes actuales', s.currentPending],
+                ...currentLoadRows(s),
                 ['Vencidos actuales', s.currentOverdue],
                 ['Resoluciones registradas', s.resolutions],
                 [

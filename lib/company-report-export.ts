@@ -1,7 +1,7 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import { metricsCsvCell } from './agent-metrics-model';
 import { daybookLogoPng } from './mail-templates';
-import { companyReportSchema, type CompanyMonthlyReport, type CompanyTrend } from './knowledge-model';
+import { companyReportSchema, currentLoadRows, type CompanyMonthlyReport, type CompanyTrend } from './knowledge-model';
 
 export function companyReportCsv(snapshot: CompanyMonthlyReport): string {
   const report = companyReportSchema.parse(snapshot.report),
@@ -18,8 +18,7 @@ export function companyReportCsv(snapshot: CompanyMonthlyReport): string {
     [],
     ['Indicador', 'Valor'],
     ['Creados (empresa actual)', s.created],
-    ['Abiertos actuales', s.currentOpen],
-    ['Pendientes actuales', s.currentPending],
+    ...currentLoadRows(s),
     ['Vencidos actuales', s.currentOverdue],
     ['Resoluciones registradas', s.resolutions],
     ['SLA cumplido', s.slaMet],
@@ -215,8 +214,7 @@ export async function companyReportPdf(snapshot: CompanyMonthlyReport): Promise<
     historical = report.classificationBasis === 'verified-period-cutoff',
     metrics: [string, string][] = [
       ['Creados (empresa actual)', count(s.created)],
-      ['Abiertos actuales', count(s.currentOpen)],
-      ['Pendientes actuales', count(s.currentPending)],
+      ...currentLoadRows(s).map(([label, value]): [string, string] => [label, count(value)]),
       ['Vencidos actuales', count(s.currentOverdue)],
       ['Resoluciones registradas', count(s.resolutions)],
       ['Cumplimiento SLA', s.slaCompliancePercent === null ? 'Sin medición' : `${count(s.slaCompliancePercent)}%`],

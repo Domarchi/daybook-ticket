@@ -138,7 +138,9 @@ try {
     b = report.agents.find(row => row.memberId === agentB);
   assert.equal(report.agents.length, 2);
   assert.equal(a.currentOpen, 1);
-  assert.equal(b.currentPending, 1);
+  // The retired "pending" ticket still counts as B's active work.
+  assert.equal(b.currentOpen, 1);
+  assert.equal('currentPending' in b, false);
   assert.equal(a.firstResponseCount, 1);
   assert.equal(a.averageFirstResponseHours, 2);
   assert.equal(b.firstResponseCount, 2);

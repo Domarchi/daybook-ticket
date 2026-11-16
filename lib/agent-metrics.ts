@@ -5,6 +5,7 @@ import { requireAdmin } from './access';
 import { ApiError } from './server';
 import { METRICS_TIME_ZONE, type AgentMetric, type AgentMetricsReport, type MetricsQuery } from './agent-metrics-model';
 import { productionTicketSql } from './test-data';
+import { activeSql } from './ticket-status';
 
 export interface SlaOutcomeInput {
   ownerId: string;
@@ -91,9 +92,8 @@ export async function getAgentMetrics(
         AND p."createdAt">=t."createdAt"
       ORDER BY p."ticketId",p."createdAt",p.id
     ), workload AS (
-      SELECT "assigneeMemberId" AS member_id,count(*) FILTER (WHERE status='open')::int AS open,
-        count(*) FILTER (WHERE status='pending')::int AS pending
-      FROM scoped_tickets WHERE status IN ('open','pending') GROUP BY "assigneeMemberId"
+      SELECT "assigneeMemberId" AS member_id,count(*)::int AS open
+      FROM scoped_tickets WHERE ${activeSql()} AND "assigneeMemberId" IS NOT NULL GROUP BY "assigneeMemberId"
     ), replies AS (
       SELECT p."authorMemberId" AS member_id,count(*)::int AS total FROM messages p JOIN scoped_tickets t ON t.id=p."ticketId"
       WHERE p."ownerId"=$1 AND p.kind='reply' AND p."authorRole" IN ('owner','admin','agent') AND p."authorMemberId" IS NOT NULL
@@ -113,7 +113,7 @@ export async function getAgentMetrics(
         count(*) FILTER (WHERE "resolvedAt"> "dueAt")::int AS breached
       FROM outcomes GROUP BY "actorMemberId"
     ) SELECT m.id AS "memberId",m.name,m.role,m.status,
-      COALESCE(w.open,0)::int AS "currentOpen",COALESCE(w.pending,0)::int AS "currentPending",
+      COALESCE(w.open,0)::int AS "currentOpen",
       COALESCE(p.total,0)::int AS "publicReplies",COALESCE(f.total,0)::int AS "firstResponseCount",f.hours AS "averageFirstResponseHours",
       COALESCE(r.total,0)::int AS resolutions,COALESCE(r.measured,0)::int AS "measurableResolutions",r.hours AS "averageResolutionHours",
       COALESCE(r.met,0)::int AS "slaMet",COALESCE(r.breached,0)::int AS "slaBreached",
