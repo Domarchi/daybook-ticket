@@ -70,7 +70,7 @@ export async function assignInviteEquipment(
   } catch (error) {
     // The work lock serializes invitations, so this only guards a write from elsewhere.
     if ((error as { code?: string }).code === '23505')
-      throw new ApiError(409, `El equipo ${tag} ya está registrado. Vuelve a intentarlo.`);
+      throw new ApiError(409, `El equipo ${tag} ya está registrado. Intenta de nuevo.`);
     throw error;
   }
   await recordEquipmentEvent(tx, input, id, null, row);

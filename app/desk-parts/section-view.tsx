@@ -90,7 +90,7 @@ export function SectionView({
         </>
       ) : view === 'contacts' ? (
         <>
-          <PageTitle title="Personas, no solo tickets" subtitle="El contexto de cada cliente, siempre a mano." />
+          <PageTitle title="Contactos" />
           <ContactDirectory
             key={data.viewer!.id}
             memberId={data.viewer!.id}
@@ -123,10 +123,7 @@ export function SectionView({
         </>
       ) : view === 'knowledge' ? (
         <>
-          <PageTitle
-            title="Conocimiento que conecta"
-            subtitle="Guías revisadas y versiones compartidas con cada empresa."
-          />
+          <PageTitle title="Conocimiento" subtitle="Guías revisadas y versiones compartidas con cada empresa." />
           {isAdmin && <SavedRepliesManager replies={data.savedReplies || []} busy={busy} run={run} />}
           <div>
             {data.evolution?.features.knowledge ? (
@@ -157,10 +154,7 @@ export function SectionView({
         </>
       ) : view === 'operations' && isAdmin ? (
         <>
-          <PageTitle
-            title="Atención y reparto"
-            subtitle="Los plazos de cada empresa y la disponibilidad de tu equipo, en un lugar."
-          />
+          <PageTitle title="Atención y reparto" subtitle="Plazos de cada empresa y disponibilidad del equipo." />
           <OperationsSettingsPanel
             key={data.viewer!.id}
             memberId={data.viewer!.id}

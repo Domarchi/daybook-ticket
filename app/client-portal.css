@@ -62,7 +62,7 @@
 
 .client-main { max-width: 1180px; margin: auto; padding: 43px 28px 0; }
 .client-heading { display: flex; align-items: center; justify-content: space-between; gap: 25px; margin-bottom: 31px; }
-.client-heading h1 { font-size: var(--db-text-display); line-height: 1.3; letter-spacing: -1px; margin: 11px 0 10px; color: var(--ink, #11120f); }
+.client-heading h1 { font-size: var(--db-text-display); line-height: 1.3; letter-spacing: -1px; margin: 0 0 10px; color: var(--ink, #11120f); }
 .client-heading h1:focus,
 .client-reading h1:focus { outline: none; }
 .client-heading p { font-size: var(--db-text-body); color: var(--muted, #69717c); }
@@ -75,7 +75,6 @@
 .client-overview small { display: block; color: var(--muted, #69717c); font-size: var(--db-text-caption); margin-top: 9px; }
 .client-overview .client-overview-help { background: #fff; color: var(--accent, #805a0e); }
 .client-overview-help p { font-size: var(--db-text-meta); font-weight: var(--db-weight-semibold); color: var(--ink, #11120f); }
-.client-overview-help p span { display: block; font-size: var(--db-text-meta); font-weight: var(--db-weight-regular); color: var(--muted, #69717c); margin-top: 4px; }
 
 .client-ticket-list { background: #fff; border: 1px solid var(--line, #e6e8ec); border-radius: var(--db-radius-card); overflow: hidden; }
 .client-list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 22px 24px 18px; }
@@ -117,7 +116,7 @@
 .client-detail-actions { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
 .client-detail-actions .client-back { margin: 0; }
 .client-ticket-meta { display: flex; align-items: center; gap: 12px; font-size: var(--db-text-meta); color: var(--muted, #69717c); }
-.client-heading.detail h1 { font-size: var(--db-text-display); overflow-wrap: anywhere; }
+.client-heading.detail h1 { font-size: var(--db-text-display); overflow-wrap: anywhere; margin-top: 11px; }
 .client-detail-grid { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 24px; }
 .client-conversation { border: 1px solid var(--line, #e6e8ec); background: #fff; border-radius: var(--db-radius-card); overflow: hidden; }
 .client-section-heading { display: flex; align-items: center; gap: 10px; padding: 21px 24px; color: var(--accent, #805a0e); border-bottom: 1px solid var(--line, #e6e8ec); }
@@ -140,7 +139,6 @@
 .client-ticket-summary { align-self: start; background: #fff; border: 1px solid var(--line, #e6e8ec); border-top: 3px solid #efc56e; border-radius: var(--db-radius-card); padding: 25px 23px; color: var(--accent, #805a0e); }
 .client-ticket-summary > svg { margin-bottom: 19px; }
 .client-ticket-summary h2 { color: var(--ink, #11120f); font-size: var(--db-text-heading); margin-bottom: 10px; }
-.client-ticket-summary > p { font-size: var(--db-text-meta); line-height: 1.8; color: var(--muted, #69717c); }
 .client-ticket-summary dl { margin: 23px 0; padding-top: 16px; border-top: 1px solid var(--line, #e6e8ec); }
 .client-ticket-summary dl > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; }
 .client-ticket-summary dt { font-size: var(--db-text-caption); color: var(--muted, #69717c); }
@@ -189,7 +187,6 @@
   .client-overview > div { padding: 20px; gap: 13px; }
   .client-overview { grid-template-columns: 1fr 1fr; }
   .client-overview .client-overview-help { grid-column: 1 / -1; padding: 18px 20px; }
-  .client-overview-help p span { display: inline; margin-left: 8px; }
   .client-detail-grid { grid-template-columns: minmax(0, 1fr) 255px; gap: 18px; }
   .client-ticket-summary { padding: 23px 18px; }
   .client-article-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -210,7 +207,6 @@
   .client-overview strong { font-size: var(--db-text-display); }
   .client-overview small { line-height: 1.5; margin-top: 5px; }
   .client-overview .client-overview-help { padding: 17px; }
-  .client-overview-help p span { display: block; margin: 1px 0 0; }
   .client-list-toolbar { padding: 18px 16px 16px; }
   .client-list-toolbar h2 { font-size: var(--db-text-heading); }
   .client-list-toolbar .secondary { padding: 9px 11px; }
@@ -230,7 +226,6 @@
   .client-ticket-summary { order: -1; padding: 19px 20px; }
   .client-ticket-summary > svg,
   .client-ticket-summary > h2,
-  .client-ticket-summary > p,
   .client-private-note { display: none; }
   .client-ticket-summary dl { display: flex; flex-wrap: wrap; gap: 18px; justify-content: space-between; margin: 0; padding: 0; border: 0; }
   .client-ticket-summary dl > div { display: flex; align-items: flex-start; flex-direction: column; padding: 0; gap: 7px; }

@@ -83,7 +83,7 @@ export async function knowledgeRequest<T>(
       },
       verb === 'GET'
         ? undefined
-        : 'Se interrumpió la conexión. No se ha confirmado esta operación. Revisa el resultado y vuelve a intentarlo.',
+        : 'Se interrumpió la conexión. No se ha confirmado esta operación. Revisa el resultado e intenta de nuevo.',
     );
   return readDaybookJson(response, {
     mutation: verb !== 'GET',

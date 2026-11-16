@@ -154,7 +154,7 @@ export async function createEquipment(
       ).rows[0];
     } catch (error) {
       if ((error as { code?: string }).code === '23505')
-        throw new ApiError(409, `El equipo ${tag} ya está registrado. Vuelve a intentarlo.`);
+        throw new ApiError(409, `El equipo ${tag} ya está registrado. Intenta de nuevo.`);
       throw error;
     }
     await recordEquipmentEvent(
@@ -202,7 +202,7 @@ export async function assignEquipment(
     ).rows[0];
     if (!before) throw new ApiError(404, 'Ese equipo no existe en este espacio o fue dado de baja.');
     if (Number(before.version) !== input.expectedVersion)
-      throw new ApiError(409, 'Alguien cambió este equipo hace un momento. Actualiza la lista y vuelve a intentarlo.');
+      throw new ApiError(409, 'Alguien cambió este equipo hace un momento. Actualiza la lista e intenta de nuevo.');
     const assignee = await readAssignee(tx, fresh, input.assignedMemberId);
     if (input.assignedMemberId) {
       const problem = assigneeProblem(assignee, before.companyId);
@@ -258,7 +258,7 @@ export async function setEquipmentArchived(
     ).rows[0];
     if (!before) throw new ApiError(404, 'Ese equipo no existe en este espacio.');
     if (Number(before.version) !== input.expectedVersion)
-      throw new ApiError(409, 'Alguien cambió este equipo hace un momento. Actualiza la lista y vuelve a intentarlo.');
+      throw new ApiError(409, 'Alguien cambió este equipo hace un momento. Actualiza la lista e intenta de nuevo.');
     if (Boolean(before.archived) === input.archived)
       return { id, version: Number(before.version), archived: input.archived };
     const now = new Date().toISOString();

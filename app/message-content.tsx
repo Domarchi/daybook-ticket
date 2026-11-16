@@ -202,7 +202,7 @@ export function MessageEditor({
           {value.trim() ? (
             <MessageContent body={value} format="markdown" />
           ) : (
-            <p className="muted">Tu mensaje aparecerá aquí.</p>
+            <p className="muted">Sin texto para previsualizar.</p>
           )}
         </div>
       ) : (

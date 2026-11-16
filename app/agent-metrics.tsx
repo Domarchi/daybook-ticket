@@ -76,12 +76,8 @@ export function AgentMetricsPanel({ companies, memberId }: { companies: Customer
     <div className="agent-metrics">
       <div className="page-heading">
         <div>
-          <div className="eyebrow">
-            <span className="tiny-line" />
-            EL SERVICIO, EN NÚMEROS
-          </div>
           <h1>Métricas del equipo</h1>
-          <p>Revisa la carga actual, las respuestas y el cumplimiento de cada agente.</p>
+          <p>Carga, respuestas y SLA por agente.</p>
         </div>
         <div className="heading-actions">
           <button className="secondary" type="button" disabled={!report} onClick={exportCsv}>
@@ -198,11 +194,7 @@ export function AgentMetricsPanel({ companies, memberId }: { companies: Customer
               <span>{rows.length} integrantes</span>
             </div>
             {rows.length === 0 ? (
-              <EmptyState
-                icon={<Users size={22} />}
-                title="Aún no hay integrantes para mostrar"
-                text="Las cuentas del equipo aparecerán aquí cuando estén disponibles."
-              />
+              <EmptyState icon={<Users size={22} />} title="Sin agentes en el equipo" />
             ) : (
               <>
                 {total.replies === 0 && total.resolutions === 0 && (

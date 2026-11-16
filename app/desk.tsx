@@ -141,12 +141,12 @@ export default function Desk({
       try {
         await refresh();
       } catch {
-        setError('El cambio se guardó. Reintentaremos actualizar la vista automáticamente; no necesitas reenviarlo.');
+        setError('Cambio guardado. La vista se actualizará sola; no lo reenvíes.');
       }
       notify(message, undo ?? null);
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Algo salió mal.');
+      setError(e instanceof Error ? e.message : 'No se pudo completar la acción. Intenta de nuevo.');
       return false;
     } finally {
       setBusy(false);
@@ -229,13 +229,11 @@ export default function Desk({
             }
           : null,
       );
-      refresh().catch(() =>
-        setError('El cambio se guardó. Reintentaremos actualizar la vista automáticamente; no necesitas reenviarlo.'),
-      );
+      refresh().catch(() => setError('Cambio guardado. La vista se actualizará sola; no lo reenvíes.'));
       return true;
     } catch (failure) {
       setOverlays(all => ({ ...all, [ticket.id]: settleChange(all[ticket.id], keys, seq) }));
-      setError(failure instanceof Error ? failure.message : 'Algo salió mal.');
+      setError(failure instanceof Error ? failure.message : 'No se pudo guardar el cambio. Intenta de nuevo.');
       // If the answer was lost the change may still have been saved: show what the server has.
       refresh().catch(() => undefined);
       return false;
@@ -252,9 +250,7 @@ export default function Desk({
     try {
       await refresh();
     } catch {
-      setError(
-        'Los cambios se guardaron. Reintentaremos actualizar la vista automáticamente; no necesitas reenviarlos.',
-      );
+      setError('Cambios guardados. La vista se actualizará sola; no los reenvíes.');
     }
     setBusy(false);
     if (failed.length === 0) {
@@ -330,8 +326,7 @@ export default function Desk({
       setBusy(false);
     }
   };
-  const loadDemo = () =>
-    run(() => request('/api/demo', 'POST', {}), 'Ejemplos cargados. Puedes editarlos y explorar el sistema.');
+  const loadDemo = () => run(() => request('/api/demo', 'POST', {}), 'Ejemplos cargados.');
   const signOut = async () => {
     setBusy(true);
     setError('');
@@ -370,7 +365,7 @@ export default function Desk({
         </p>
         <div>
           <button className="secondary" onClick={() => window.location.reload()}>
-            Volver a intentar
+            Reintentar
           </button>
           <button className="primary" disabled={busy} onClick={signOut}>
             Cambiar de cuenta
@@ -520,7 +515,13 @@ export default function Desk({
           )}
           <footer className="page-footer">
             <span>
-              {data.settings.brandName} <i /> {data.settings.tagline}
+              {data.settings.brandName}
+              {data.settings.tagline && (
+                <>
+                  {' '}
+                  <i /> {data.settings.tagline}
+                </>
+              )}
             </span>
             <span>Parte de Servicios Daybook.</span>
           </footer>
@@ -537,7 +538,7 @@ export default function Desk({
         />
       )}
       {create && (
-        <Modal error={error} title="Una nueva conversación" onClose={() => setCreate(false)} wide>
+        <Modal error={error} title="Nuevo ticket" onClose={() => setCreate(false)} wide>
           <TicketForm
             knowledgeEnabled={Boolean(data.evolution?.features.knowledge)}
             organizationEnabled={Boolean(data.evolution?.features.organization)}

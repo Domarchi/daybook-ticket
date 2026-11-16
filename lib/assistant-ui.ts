@@ -33,7 +33,7 @@ export function hourInChile(now: Date = new Date()): number {
 
 export function introduction(name: string, hour: number): string {
   const greeting = greetingFor(hour);
-  return `${name ? `${greeting}, ${name}` : greeting}. Soy ${ASSISTANT_NAME} y llevo la bitácora de la mesa de ayuda: te cuento cómo va la bandeja y el SLA, y te sugiero cómo resolver un ticket a partir de los ya solucionados. No respondo a clientes ni cambio tickets.`;
+  return `${name ? `${greeting}, ${name}` : greeting}. Soy ${ASSISTANT_NAME}: resumo cómo va la bandeja y el SLA, y sugiero cómo resolver un ticket a partir de los ya solucionados. No respondo a clientes, y cada cambio en un ticket lo confirmas tú.`;
 }
 
 export const SUGGESTED_QUESTIONS = [

@@ -58,7 +58,10 @@ export function BitaSuggestions({
       );
       setRecapState('ready');
     } catch (failure) {
-      setRecap({ text: null, note: failure instanceof Error ? failure.message : 'Bita no pudo resumir el ticket.' });
+      setRecap({
+        text: null,
+        note: failure instanceof Error ? failure.message : 'Bita no pudo resumir el ticket. Intenta de nuevo.',
+      });
       setRecapState('failed');
     }
   };

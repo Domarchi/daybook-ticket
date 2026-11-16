@@ -162,7 +162,7 @@ export const settingsSchema = z
 
 export function db(): Database {
   if (!process.env.DATABASE_URL)
-    throw new ApiError(503, 'El almacenamiento no está disponible. Intenta nuevamente en unos minutos.');
+    throw new ApiError(503, 'El almacenamiento no está disponible. Intenta de nuevo en unos minutos.');
   return getDatabase();
 }
 /** A stale pilot tab must use explicit domain APIs. The Referer never selects
@@ -236,14 +236,15 @@ export async function handle(fn: () => Promise<Response>) {
       return json({ error: 'Este espacio está en pausa. Sus datos se conservan.' }, 423);
     const requestId = newRequestId();
     logEvent('error', 'api_failure', { requestId, ...describeError(error) });
-    const response = json(
-      { error: 'No se pudieron guardar o consultar los datos. Intenta nuevamente.', requestId },
-      500,
-    );
+    const response = json({ error: 'No se pudieron guardar o consultar los datos. Intenta de nuevo.', requestId }, 500);
     response.headers.set('X-Request-Id', requestId);
     return response;
   }
 }
+const RETIRED_TAGLINES = new Set([
+  'Un servicio Daybook. Cada conversación, una solución.',
+  'Cada conversación, una solución.',
+]);
 export async function getSettings(ownerId: string): Promise<Settings> {
   const row = await db()
     .prepare('SELECT data FROM settings WHERE "ownerId" = $1')
@@ -251,6 +252,8 @@ export async function getSettings(ownerId: string): Promise<Settings> {
     .first<{ data: string }>();
   if (!row) return structuredClone(DEFAULT_SETTINGS);
   const settings: Settings = { ...structuredClone(DEFAULT_SETTINGS), ...JSON.parse(row.data) };
+  // The old default slogans are dropped on read (no write): a phrase someone typed stays.
+  if (RETIRED_TAGLINES.has(settings.tagline)) settings.tagline = '';
   // Upgrade the former product names without overwriting a customized brand.
   if (['VEXOR', 'NexoDesk'].includes(settings.brandName)) {
     const updated: Settings = {

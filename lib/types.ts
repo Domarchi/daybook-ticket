@@ -168,7 +168,7 @@ export interface Workspace {
 }
 export const DEFAULT_SETTINGS: Settings = {
   brandName: 'Daybook Ticket',
-  tagline: 'Un servicio Daybook. Cada conversación, una solución.',
+  tagline: '',
   agents: ['Yo'],
   notificationMemberIds: [],
   departments: ['Soporte técnico', 'Facturación', 'Ventas'],

@@ -54,7 +54,6 @@ export function SettingsForm({
             <Sparkles size={22} />
           </span>
           <h2>Identidad de marca</h2>
-          <p>El nombre y la voz de tu producto.</p>
         </div>
         <div className="form">
           <label>
@@ -70,12 +69,7 @@ export function SettingsForm({
           </label>
           <label>
             Frase de marca
-            <input
-              required
-              maxLength={180}
-              value={s.tagline}
-              onChange={event => setS({ ...s, tagline: event.target.value })}
-            />
+            <input maxLength={180} value={s.tagline} onChange={event => setS({ ...s, tagline: event.target.value })} />
           </label>
         </div>
       </section>

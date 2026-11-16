@@ -23,8 +23,7 @@ const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin']
 
 export const metadata: Metadata = {
   title: 'Daybook Ticket — Servicios Daybook',
-  description:
-    'Daybook Ticket, el centro de atención al cliente de Servicios Daybook. Cada conversación, una solución.',
+  description: 'Daybook Ticket, la mesa de ayuda de Servicios Daybook.',
   manifest: '/manifest.webmanifest',
   appleWebApp: { capable: true, title: 'Daybook Ticket', statusBarStyle: 'default' },
   icons: {

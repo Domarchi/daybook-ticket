@@ -42,7 +42,7 @@ export function SettingsView({
   const section = resolveSettingsSection(requested, available);
   return (
     <>
-      <PageTitle title="Configuración" subtitle="Marca, correo, avisos y funciones del espacio." />
+      <PageTitle title="Configuración" />
       <nav className="settings-nav" aria-label="Secciones de configuración">
         {available.map(item => (
           <DeskLink

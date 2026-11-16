@@ -160,10 +160,7 @@ export async function createBusinessExport(
     const deadline = Date.now() + 180000;
     for (const file of sent) {
       if (Date.now() > deadline)
-        throw new ApiError(
-          503,
-          'La exportación necesita más tiempo. Vuelve a intentarlo o solicita una copia operativa.',
-        );
+        throw new ApiError(503, 'La exportación necesita más tiempo. Intenta de nuevo o solicita una copia operativa.');
       const content = await readAttachmentBytes(storage ?? attachmentStorage(), file.pathname, file.size);
       if (!content)
         throw new ApiError(503, 'No se pudo comprobar un archivo privado. No se ofrecerá una exportación incompleta.');

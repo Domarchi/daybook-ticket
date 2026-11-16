@@ -105,15 +105,7 @@ export function InboxView({
     <>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">
-            <span className="tiny-line" /> CADA CONVERSACIÓN CUENTA
-          </div>
-          <h1>{view === 'inbox' ? 'Bandeja de entrada' : 'Tu soporte, en perspectiva'}</h1>
-          <p>
-            {view === 'inbox'
-              ? 'Todo lo que tu equipo necesita para dar una gran respuesta.'
-              : 'Una vista clara del trabajo y las conversaciones que importan.'}
-          </p>
+          <h1>{view === 'inbox' ? 'Bandeja de entrada' : 'Resumen'}</h1>
         </div>
         <div className="heading-actions">
           <button className="secondary" disabled={busy} onClick={exportCsv}>
@@ -372,16 +364,7 @@ export function InboxView({
                   <span className="art-dot one" />
                   <span className="art-dot two" />
                 </div>
-                <span className="eyebrow">LAS BUENAS RELACIONES EMPIEZAN AQUÍ</span>
-                <h2>
-                  Un nuevo espacio.
-                  <br />
-                  Muchas conversaciones por venir.
-                </h2>
-                <p>
-                  Crea tu primer ticket y convierte cada solicitud
-                  <br className="desktop" /> en una experiencia de atención excepcional.
-                </p>
+                <h2>Aún no hay tickets</h2>
                 <div>
                   <button className="primary" disabled={busy} onClick={() => setCreate(true)}>
                     <Plus size={16} />
@@ -389,7 +372,7 @@ export function InboxView({
                   </button>
                   {isAdmin && (
                     <button className="text-button" disabled={busy} onClick={loadDemo}>
-                      Explorar con ejemplos <ArrowRight size={15} />
+                      Cargar ejemplos <ArrowRight size={15} />
                     </button>
                   )}
                 </div>
@@ -527,17 +510,10 @@ export function InboxView({
               <h2>En foco</h2>
               <span className="tiny-live" />
             </div>
-            <p>
-              Las pequeñas acciones
-              <br />
-              hacen la diferencia.
-            </p>
             <div className="focus-divider" />
             <div className="focus-count">
               <span>{counts.overdue}</span>
-              <div>
-                tickets fuera de plazo<small>Prioriza las conversaciones pendientes.</small>
-              </div>
+              <div>tickets fuera de plazo</div>
             </div>
             <button className="focus-link" onClick={() => setQueue('overdue')}>
               Revisar prioridad <ArrowRight size={15} />
@@ -547,11 +523,11 @@ export function InboxView({
             <div className="next-step">
               <span>01</span>
               <div>
-                <strong>{counts.unassigned ? 'Distribuye la carga' : 'Comparte lo que sabes'}</strong>
+                <strong>{counts.unassigned ? 'Distribuye la carga' : 'Documenta una solución'}</strong>
                 <p>
                   {counts.unassigned
                     ? `${counts.unassigned} solicitudes aún no tienen responsable.`
-                    : 'Una buena guía puede resolver la siguiente pregunta.'}
+                    : 'Nada por asignar.'}
                 </p>
               </div>
             </div>
@@ -562,12 +538,6 @@ export function InboxView({
               {counts.unassigned ? 'Asignar tickets' : 'Crear un artículo'}
               <ArrowRight size={15} />
             </button>
-            <div className="focus-quote">
-              <span>“</span>Un gran soporte empieza
-              <br />
-              por escuchar.
-              <div className="quote-line" />
-            </div>
           </aside>
         </div>
       )}

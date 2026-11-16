@@ -103,7 +103,6 @@ export function CompanyReportsPanel({ memberId, companies }: { memberId: string;
             <BarChart3 size={20} />
             Servicio por empresa
           </h2>
-          <p>Situación actual, tendencias y mediciones registradas.</p>
         </div>
         <span className="kr-private">
           <ShieldCheck size={14} />
@@ -267,7 +266,7 @@ function MonthlyReports({
       }
       const url = URL.createObjectURL(
           await response.blob().catch(() => {
-            throw new Error('La descarga se interrumpió. Vuelve a intentarlo.');
+            throw new Error('La descarga se interrumpió. Intenta de nuevo.');
           }),
         ),
         link = document.createElement('a');

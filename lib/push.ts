@@ -292,7 +292,7 @@ export async function sendPushTest(
       503,
       code === 'expired_subscription'
         ? 'El permiso de este navegador venció. Desactiva y activa los avisos de nuevo.'
-        : 'No se pudo enviar la prueba. Intenta nuevamente en un minuto.',
+        : 'No se pudo enviar la prueba. Intenta de nuevo en un minuto.',
     );
   }
   return { ok: true };

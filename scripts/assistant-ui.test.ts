@@ -24,7 +24,7 @@ test('greeting by first name and by the hour in Chile', () => {
   assert.equal(greetingFor(23), 'Buenas noches');
   assert.equal(hourInChile(new Date('2026-11-11T12:30:00Z')), 9);
   assert.match(introduction('Mario', 9), /^Buenos días, Mario\. Soy Bita/);
-  assert.match(introduction('', 9), /No respondo a clientes ni cambio tickets\./);
+  assert.match(introduction('', 9), /No respondo a clientes, y cada cambio en un ticket lo confirmas tú\./);
   assert.equal(askForSolution(42), 'Sugiéreme cómo resolver el ticket #42.');
 });
 

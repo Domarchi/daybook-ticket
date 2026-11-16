@@ -28,7 +28,9 @@ export default function LoginForm({
   const heading = secondFactor
     ? 'Verifica tu identidad.'
     : invite
-      ? 'Tu espacio está listo.'
+      ? signingUp
+        ? 'Activa tu cuenta.'
+        : 'Acepta la invitación.'
       : resetToken
         ? 'Una nueva contraseña.'
         : mode === 'forgot'
@@ -124,10 +126,6 @@ export default function LoginForm({
         <a href="/login">
           <Brand />
         </a>
-        <span className="auth-private">
-          <ShieldCheck size={16} />
-          Acceso privado
-        </span>
       </header>
       <main className="auth-main">
         <div className="auth-form-wrap">
@@ -136,19 +134,19 @@ export default function LoginForm({
           </div>
           <span className="auth-eyebrow">Acceso seguro</span>
           <h1>{heading}</h1>
-          <p>
-            {secondFactor
-              ? useRecovery
-                ? 'Usa uno de los códigos de recuperación que guardaste.'
-                : 'Introduce el código de tu aplicación autenticadora.'
-              : invite
-                ? `Hola, ${invite.name}. ${signingUp ? 'Crea tu contraseña' : 'Inicia sesión con tu contraseña habitual'} para aceptar esta invitación.`
-                : resetToken
-                  ? 'Elige una contraseña de al menos 12 caracteres.'
-                  : mode === 'forgot'
-                    ? 'Te enviaremos un enlace para volver a entrar.'
-                    : 'Accede con tu correo y contraseña para continuar.'}
-          </p>
+          {(secondFactor || invite || resetToken || mode === 'forgot') && (
+            <p>
+              {secondFactor
+                ? useRecovery
+                  ? 'Usa uno de los códigos de recuperación que guardaste.'
+                  : 'Introduce el código de tu aplicación autenticadora.'
+                : invite
+                  ? `Hola, ${invite.name}. ${signingUp ? 'Crea tu contraseña' : 'Inicia sesión con tu contraseña habitual'} para aceptar esta invitación.`
+                  : resetToken
+                    ? 'Elige una contraseña de al menos 12 caracteres.'
+                    : 'Te enviaremos un enlace para volver a entrar.'}
+            </p>
+          )}
           {invalidInvite && (
             <div className="auth-error" role="alert">
               La invitación venció o ya fue utilizada. Si ya tienes una cuenta, inicia sesión. Si no, pide un enlace
@@ -291,7 +289,7 @@ export default function LoginForm({
           )}
           <div className="auth-invite-note">
             <ShieldCheck size={17} />
-            <p>El acceso es por invitación. Tu equipo de Daybook puede habilitar una cuenta para ti.</p>
+            <p>El acceso es por invitación: pídesela al equipo de Daybook.</p>
           </div>
           <details className="auth-owner">
             <summary>¿Eres el propietario del espacio?</summary>

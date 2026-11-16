@@ -50,7 +50,7 @@ export async function orgRequest<T>(
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     },
     method === 'GET'
-      ? 'No se pudo conectar con Daybook. Vuelve a intentarlo.'
+      ? 'No se pudo conectar con Daybook. Intenta de nuevo.'
       : 'El cambio no se ha confirmado. Actualiza la vista para comprobar si se guardó antes de repetirlo.',
   );
   return readDaybookJson(response, { mutation: method !== 'GET', validate: domainResponseValidator<T>(path, method) });

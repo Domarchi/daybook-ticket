@@ -21,7 +21,7 @@ export const DRAFT_MAX_CHARACTERS = 2500;
 export const NAME_PLACEHOLDER = '[nombre]';
 
 export const NOTICE_DRAFT_EMPTY =
-  'Bita no alcanzó a escribir un borrador para este ticket. Escríbelo tú o intenta de nuevo.';
+  'Bita no pudo escribir un borrador para este ticket. Escríbelo tú o intenta de nuevo.';
 
 /** Stable between requests (the date changes once a day) so the prompt cache hits. No names of people. */
 export function draftSystemPrompt(today: string): string {
@@ -33,7 +33,7 @@ export function draftSystemPrompt(today: string): string {
     `- Empieza exactamente con «Hola ${NAME_PLACEHOLDER},» en la primera línea. No escribas el nombre del cliente: el sistema lo completa.`,
     '- Escribe en español de Chile, en nombre del equipo (primera persona del plural: «revisamos», «te ayudamos»), tuteando, cercano y profesional, sin emojis ni modismos fuertes.',
     '- Breve: entre 3 y 8 líneas. Responde a lo último que pidió o contó el cliente. Si hacen falta pasos para el cliente, ponlos numerados, uno por línea, empezando con «1. ».',
-    '- Termina con una línea de cierre corta (por ejemplo «Quedamos atentos.») y sin firma: la firma la pone la persona.',
+    '- Cierra con el próximo paso o lo que falta del cliente, sin despedida ni firma: la firma la pone la persona.',
     '- Texto plano: nada de **negritas**, # títulos, tablas ni bloques de código.',
     '',
     'Qué puedes decir:',

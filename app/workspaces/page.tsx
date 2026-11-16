@@ -25,9 +25,7 @@ export default async function Workspaces() {
           </li>
         ))}
       </ul>
-      {!data.workspaces.length && (
-        <p>No tienes una membresía activa. Abre la invitación concreta que te envió el equipo.</p>
-      )}
+      {!data.workspaces.length && <p>No tienes espacios activos. Abre el enlace de invitación que recibiste.</p>}
       {data.operator && (
         <p>
           <Link href="/operator">Consola de operador</Link>

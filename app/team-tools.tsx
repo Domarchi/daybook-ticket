@@ -314,7 +314,7 @@ export function TicketActivity({
           ))}
         </ol>
       ) : (
-        <p>Los nuevos cambios de este ticket aparecerán aquí.</p>
+        <p>Sin cambios registrados.</p>
       )}
     </section>
   );

@@ -16,7 +16,7 @@ export const MIN_RECAP_MESSAGES = 4;
 export const RECAP_MAX_OUTPUT_TOKENS = 1500;
 export const RECAP_MAX_CHARACTERS = 2000;
 
-export const NOTICE_RECAP_EMPTY = 'Bita no alcanzó a resumir este ticket. Intenta de nuevo en un momento.';
+export const NOTICE_RECAP_EMPTY = 'Bita no pudo resumir este ticket. Intenta de nuevo.';
 
 /** The rule that spares a model call: with few messages, reading them is faster than a recap. */
 export function recapNotNeeded(total: number): string | null {
