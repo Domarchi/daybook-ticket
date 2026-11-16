@@ -276,10 +276,7 @@ export function AutomationPanel({
             </div>
           </dl>
           {settings.data && !settings.data.jobConfigured && (
-            <p className="automation-help">
-              El ejecutor programado está pendiente de configuración. La activación de infraestructura se revisa por
-              separado.
-            </p>
+            <p className="automation-help">Las reglas no se ejecutan hasta que el operador configure el programador.</p>
           )}
         </div>
         <div className="automation-tabs">
@@ -500,7 +497,7 @@ export function AutomationPanel({
         )}
         {!current.loading && !current.data?.items.length && (
           <p className="automation-help">
-            {tab === 'history' ? 'Las ejecuciones futuras aparecerán aquí.' : 'Todavía no hay entradas en esta vista.'}
+            {tab === 'history' ? 'Sin ejecuciones.' : tab === 'rules' ? 'Sin reglas.' : 'Sin plantillas.'}
           </p>
         )}
         <Pager

@@ -90,7 +90,7 @@ export function publicTicketProgress(input: PublicProgressInput): PublicTicketPr
       : ticket.status === 'resolved'
         ? 'Tu caso está solucionado. Si necesitas más ayuda, responde aquí para retomarlo.'
         : input.lastPublicAuthorRole === 'client' || !input.firstResponseAt
-          ? 'El equipo revisará tu último mensaje y continuará la atención aquí.'
+          ? 'El equipo revisará tu último mensaje.'
           : 'Revisa la respuesta del equipo y cuéntanos si necesitas algo más.';
   return {
     ticketId: ticket.id,

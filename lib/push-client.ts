@@ -60,10 +60,7 @@ export async function activePushRegistration() {
     return await Promise.race([
       navigator.serviceWorker.ready,
       new Promise<never>((_, reject) => {
-        timeout = setTimeout(
-          () => reject(new Error('El navegador no pudo preparar los avisos. Vuelve a intentarlo.')),
-          15_000,
-        );
+        timeout = setTimeout(() => reject(new Error('No se pudieron preparar los avisos. Intenta de nuevo.')), 15_000);
       }),
     ]);
   } finally {

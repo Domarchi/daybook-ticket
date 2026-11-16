@@ -128,7 +128,6 @@ export function TicketSatisfactionPanel({
   return (
     <section className="ticket-satisfaction" aria-labelledby={`satisfaction-${ticketId}`}>
       <div>
-        <span className="eyebrow">TU OPINIÓN CUENTA</span>
         <h2 id={`satisfaction-${ticketId}`}>¿Cómo fue la atención?</h2>
         <p>Este ticket fue resuelto. Cuéntanos cómo te fue con el equipo de Daybook.</p>
       </div>

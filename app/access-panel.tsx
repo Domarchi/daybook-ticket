@@ -118,12 +118,7 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
     <>
       <div className="page-heading">
         <div>
-          <span className="eyebrow">
-            <span className="tiny-line" />
-            CADA PERSONA, SU ACCESO
-          </span>
           <h1>Equipo y clientes</h1>
-          <p>Invita a las personas que atenderán solicitudes y a los clientes que las crearán.</p>
         </div>
         <button
           className="primary"
@@ -162,7 +157,7 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
       {creating && (
         <section className="panel access-invite">
           <div className="section-head">
-            <h2>Una nueva persona en Daybook</h2>
+            <h2>Invitar persona</h2>
             <ShieldCheck size={18} />
           </div>
           <form className="form" onSubmit={invite}>
@@ -431,11 +426,7 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
           </table>
         </div>
         {rows.length === 0 && (
-          <EmptyState
-            icon={<Users size={22} />}
-            title="Nadie en esta vista"
-            text="No hay personas con este rol o estado."
-          />
+          <EmptyState icon={<Users size={22} />} title="Nadie en esta vista" text="No hay personas con este rol." />
         )}
       </section>
       <div className="info-note access-privacy">
@@ -459,7 +450,7 @@ export function MailPanel({ status, busy, run }: { status: MailStatus | null; bu
       <div className="section-head">
         <h2>
           <Mail size={18} />
-          Correos que mantienen conectado al equipo
+          Correo saliente
         </h2>
         <span className={`access-status ${status?.configured ? 'active' : 'invited'}`}>
           {status?.configured ? 'Configurado' : 'Pendiente de configuración'}
@@ -511,8 +502,7 @@ export function MailPanel({ status, busy, run }: { status: MailStatus | null; bu
             <small>
               {status?.webhookConfigured
                 ? 'El seguimiento distingue los envíos aceptados de las entregas confirmadas. Una entrega no confirma que la persona haya leído el correo.'
-                : 'El seguimiento de entrega está pendiente de conexión. Los envíos antiguos permanecen sin confirmación.'}{' '}
-              Los pendientes también pueden procesarse desde aquí.
+                : 'El seguimiento de entrega está pendiente de conexión. Los envíos antiguos permanecen sin confirmación.'}
             </small>
           </div>
           <button

@@ -159,7 +159,7 @@ function AttachmentPreview({ attachment, onClose }: { attachment: PreviewFile; o
           credentials: 'same-origin',
           signal: controller.signal,
         });
-        if (!response.ok) throw new Error('No se pudo abrir el archivo. Comprueba tu acceso o vuelve a intentarlo.');
+        if (!response.ok) throw new Error('No se pudo abrir el archivo. Comprueba tu acceso o intenta de nuevo.');
         const type = response.headers.get('Content-Type') || '';
         if (!['image/png', 'image/jpeg', 'image/webp', 'application/pdf'].includes(type))
           throw new Error('Este formato no tiene vista previa.');
@@ -209,7 +209,7 @@ function AttachmentPreview({ attachment, onClose }: { attachment: PreviewFile; o
                 setAttempt(attempt + 1);
               }}
             >
-              Volver a intentar
+              Reintentar
             </button>
           </div>
         ) : !file ? (

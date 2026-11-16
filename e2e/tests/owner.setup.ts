@@ -6,7 +6,7 @@ import { readRunState } from '../support/state';
 setup('the owner activates the workspace from the invitation link', async ({ page }) => {
   const { invitationUrl, password } = readRunState();
   await page.goto(invitationUrl);
-  await expect(page.getByRole('heading', { name: 'Tu espacio está listo.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Activa tu cuenta.' })).toBeVisible();
   await expect(page.getByLabel('Correo electrónico')).toHaveValue(OWNER_EMAIL);
   await page.getByLabel('Contraseña', { exact: true }).fill(password);
   await page.getByLabel('Repite tu contraseña').fill(password);

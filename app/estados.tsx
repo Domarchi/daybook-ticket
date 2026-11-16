@@ -70,7 +70,7 @@ export function EmptyState({
 }: {
   icon: ReactNode;
   title: string;
-  text: ReactNode;
+  text?: ReactNode;
   action?: ReactNode;
   className?: string;
 }) {
@@ -80,7 +80,7 @@ export function EmptyState({
         {icon}
       </span>
       <h3 className="db-empty__title">{title}</h3>
-      <p className="db-empty__text">{text}</p>
+      {text && <p className="db-empty__text">{text}</p>}
       {action && <div className="db-empty__action">{action}</div>}
     </div>
   );

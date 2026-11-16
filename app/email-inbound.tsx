@@ -230,7 +230,7 @@ export function EmailInboundPanel({ memberId, administrator = false }: { memberI
               ))}
             </ul>
           ) : (
-            <p>Aún no hay ingresos registrados por el nuevo procesamiento.</p>
+            <p>No hay ingresos registrados.</p>
           )}
         </div>
       )}

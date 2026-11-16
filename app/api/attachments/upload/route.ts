@@ -46,7 +46,7 @@ export async function POST(request: Request) {
         await handleUpload({ body, request, token: config.token, onBeforeGenerateToken: async () => constraints }),
       );
     } catch {
-      throw new ApiError(503, 'No se pudo autorizar la carga. Intenta nuevamente.');
+      throw new ApiError(503, 'No se pudo autorizar la carga. Intenta de nuevo.');
     }
   });
 }

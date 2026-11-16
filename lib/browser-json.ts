@@ -16,18 +16,18 @@ export interface BrowserJsonContract<T> {
 }
 const invalidSuccess = (mutation: boolean) =>
   mutation
-    ? 'No se pudo confirmar el resultado. La información de esta pantalla se conserva. Revisa el resultado y vuelve a intentarlo.'
-    : 'No se pudo leer una respuesta válida de Daybook. Vuelve a intentarlo.';
+    ? 'No se pudo confirmar el resultado. La información de esta pantalla se conserva. Revisa el resultado e intenta de nuevo.'
+    : 'No se pudo leer una respuesta válida de Daybook. Intenta de nuevo.';
 const httpFailure = (status: number) =>
   status === 401
-    ? 'Tu sesión expiró. Vuelve a iniciar sesión.'
+    ? 'Tu sesión venció. Vuelve a entrar.'
     : status === 403
       ? 'Ya no tienes acceso a esta operación.'
       : status === 428
         ? 'Verifica nuevamente tu acceso para continuar.'
         : status === 429
-          ? 'Hay demasiadas solicitudes. Espera un momento y vuelve a intentarlo.'
-          : 'No se pudo completar la operación. Vuelve a intentarlo.';
+          ? 'Hay demasiadas solicitudes. Espera un momento e intenta de nuevo.'
+          : 'No se pudo completar la operación. Intenta de nuevo.';
 
 /** Reads JSON exactly once and confirms success only after its declared DTO contract passes.
  * Transport stays with the caller (daybookFetch/workspaceFetch). No retry or redirect occurs here.

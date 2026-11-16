@@ -117,7 +117,7 @@ export function ContactDirectory({
       {loading && !page ? (
         <SkeletonTable label="Cargando contactos…" rows={4} columns={4} />
       ) : page && page.total === 0 ? (
-        <p className="ticket-search-feedback">Los solicitantes de tus tickets aparecerán aquí.</p>
+        <p className="ticket-search-feedback">Aún no hay solicitantes.</p>
       ) : (
         <div className="contact-grid">
           {page?.items.map(contact => (
@@ -129,7 +129,7 @@ export function ContactDirectory({
                 <span>{contact.active} activos</span>
               </div>
               <button type="button" className="text-button" onClick={() => onSearch(contact.email)}>
-                Ver conversaciones
+                Ver tickets
                 <ArrowRight size={15} />
               </button>
             </article>

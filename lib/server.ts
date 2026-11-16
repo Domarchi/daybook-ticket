@@ -162,7 +162,7 @@ export const settingsSchema = z
 
 export function db(): Database {
   if (!process.env.DATABASE_URL)
-    throw new ApiError(503, 'El almacenamiento no está disponible. Intenta nuevamente en unos minutos.');
+    throw new ApiError(503, 'El almacenamiento no está disponible. Intenta de nuevo en unos minutos.');
   return getDatabase();
 }
 /** A stale pilot tab must use explicit domain APIs. The Referer never selects
@@ -236,10 +236,7 @@ export async function handle(fn: () => Promise<Response>) {
       return json({ error: 'Este espacio está en pausa. Sus datos se conservan.' }, 423);
     const requestId = newRequestId();
     logEvent('error', 'api_failure', { requestId, ...describeError(error) });
-    const response = json(
-      { error: 'No se pudieron guardar o consultar los datos. Intenta nuevamente.', requestId },
-      500,
-    );
+    const response = json({ error: 'No se pudieron guardar o consultar los datos. Intenta de nuevo.', requestId }, 500);
     response.headers.set('X-Request-Id', requestId);
     return response;
   }

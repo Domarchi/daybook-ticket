@@ -6,24 +6,6 @@
   color:var(--ink,#191a17);
 }
 
-.ops-intro{
-  padding:6px 2px 0;
-}
-
-.ops-intro h2{
-  font-size:var(--db-text-display);
-  line-height:1.25;
-  letter-spacing:-.7px;
-  margin:8px 0;
-}
-
-.ops-intro p{
-  color:var(--muted,#74756e);
-  font-size:var(--db-text-body);
-  line-height:1.6;
-  margin:0;
-}
-
 .ops-panel{
   padding:24px;
   min-width:0;
@@ -774,9 +756,6 @@
 @media(max-width:640px){
   .ops-panel{
     padding:18px 15px;
-  }
-  .ops-intro h2{
-    font-size:var(--db-text-title);
   }
   .ops-section-heading{
     display:grid;

@@ -313,11 +313,6 @@ export function TicketAlerts({
             <EmptyState
               icon={<Bell size={22} />}
               title={alerts.filter === 'unread' ? 'Estás al día' : 'Aún no hay avisos'}
-              text={
-                alerts.filter === 'unread'
-                  ? 'Los avisos nuevos sin leer aparecerán aquí.'
-                  : 'Los tickets y mensajes nuevos aparecerán aquí.'
-              }
             />
           )}
           {alerts.hasMore && (

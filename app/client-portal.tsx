@@ -253,13 +253,11 @@ export default function ClientPortal({
       setCreating(false);
       setSection('tickets');
       setSelectedId(result.ticket.id);
-      setNotice(`Tu ticket ${number(result.ticket.id)} fue creado. Nuestro equipo podrá atenderlo aquí.`);
+      setNotice(`Ticket ${number(result.ticket.id)} creado.`);
       try {
         await onRefresh();
       } catch {
-        setError(
-          'Tu ticket se guardó. Reintentaremos actualizar la vista automáticamente; no necesitas crearlo otra vez.',
-        );
+        setError('Ticket guardado. La vista se actualizará sola; no lo crees otra vez.');
       }
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'No se pudo crear el ticket.');
@@ -276,13 +274,11 @@ export default function ClientPortal({
     setError('');
     try {
       await post(`/api/tickets/${current.id}/messages`, { ...payload, kind: 'reply' });
-      setNotice('Tu respuesta se guardó y está disponible para nuestro equipo.');
+      setNotice('Respuesta enviada.');
       try {
         await onRefresh();
       } catch {
-        setError(
-          'Tu respuesta se guardó. Reintentaremos actualizar la conversación automáticamente; no necesitas reenviarla.',
-        );
+        setError('Respuesta guardada. La vista se actualizará sola; no la reenvíes.');
       }
       return true;
     } catch (failure) {
@@ -426,11 +422,9 @@ export default function ClientPortal({
             </button>
             <div className="client-heading">
               <div>
-                <span className="eyebrow">ESTAMOS PARA AYUDARTE</span>
                 <h1 ref={headingRef} tabIndex={-1}>
-                  Cuéntanos qué necesitas
+                  Nuevo ticket
                 </h1>
-                <p>Tu solicitud tendrá un número de seguimiento y una conversación con nuestro equipo.</p>
               </div>
               <span className="client-heading-icon">
                 <MessageSquare size={27} />
@@ -515,7 +509,7 @@ export default function ClientPortal({
                     onChange={value => updateDraft({ ...draft, body: value })}
                     disabled={busy}
                     rows={7}
-                    placeholder="Incluye qué sucede, desde cuándo y cómo podemos ayudarte."
+                    placeholder="Qué pasa, desde cuándo y qué necesitas."
                   />
                 </div>
               </fieldset>
@@ -651,8 +645,7 @@ export default function ClientPortal({
               </section>
               <aside className="client-ticket-summary">
                 <Headphones size={25} />
-                <h2>Seguimos tu caso</h2>
-                <p>Consulta aquí el estado y las respuestas de nuestro equipo.</p>
+                <h2>Datos del ticket</h2>
                 <dl>
                   <div>
                     <dt>Estado</dt>
@@ -684,19 +677,15 @@ export default function ClientPortal({
           <>
             <div className="client-heading">
               <div>
-                <span className="eyebrow">RESPUESTAS A TU ALCANCE</span>
                 <h1 ref={headingRef} tabIndex={-1}>
                   Centro de ayuda
                 </h1>
-                <p>Guías aprobadas para tu empresa y acceso directo a nuestro equipo.</p>
               </div>
             </div>
             {data.evolution?.features.knowledge ? (
               <KnowledgePanel key={`${accessKey}:help`} memberId={data.viewer!.id} />
             ) : (
-              <p className="info-note">
-                Las guías están en pausa. Puedes crear una solicitud y continuar recibiendo atención.
-              </p>
+              <p className="info-note">Las guías no están disponibles por ahora.</p>
             )}
             <div className="client-help-cta">
               <p>¿Necesitas más ayuda?</p>
@@ -710,15 +699,9 @@ export default function ClientPortal({
           <>
             <div className="client-heading">
               <div>
-                <span className="eyebrow">TU ESPACIO DE SOPORTE</span>
                 <h1 ref={headingRef} tabIndex={-1}>
                   Hola, {displayName.split(' ')[0]}.
                 </h1>
-                <p>
-                  {isCompanyManager
-                    ? `Consulta y responde los tickets de ${companyName || 'tu empresa'}.`
-                    : 'Tus solicitudes y nuestras respuestas, siempre a mano.'}
-                </p>
               </div>
               <button className="primary" onClick={newTicket} disabled={busy}>
                 <Plus size={17} />
@@ -746,14 +729,7 @@ export default function ClientPortal({
               </div>
               <div className="client-overview-help">
                 <ShieldCheck size={22} />
-                <p>
-                  {isCompanyManager ? 'Un espacio para tu empresa.' : 'Un espacio personal.'}
-                  <span>
-                    {isCompanyManager
-                      ? 'Aquí ves tus tickets y los vinculados a tu empresa.'
-                      : 'Aquí ves únicamente tus tickets.'}
-                  </span>
-                </p>
+                <p>{isCompanyManager ? `Tus tickets y los de ${companyName || 'tu empresa'}.` : 'Solo tus tickets.'}</p>
               </div>
             </div>
             <OwnEquipmentStrip items={ownEquipment} />
@@ -831,12 +807,8 @@ export default function ClientPortal({
               ) : visibleTickets.length === 0 ? (
                 <EmptyState
                   icon={<TicketIcon size={22} />}
-                  title={counts.all ? 'No hay tickets con esos filtros' : 'Tu primera conversación empieza aquí'}
-                  text={
-                    counts.all
-                      ? 'Prueba otra búsqueda o elige un estado diferente.'
-                      : 'Crea una solicitud para recibir ayuda de nuestro equipo.'
-                  }
+                  title={counts.all ? 'No hay tickets con esos filtros' : 'Aún no tienes tickets'}
+                  text={counts.all ? 'Prueba otra búsqueda o elige un estado diferente.' : undefined}
                   action={
                     counts.all === 0 && (
                       <button className="primary" disabled={busy} onClick={newTicket}>
@@ -886,14 +858,13 @@ export default function ClientPortal({
             <EmailInboundPanel key={`inbound:${data.viewer!.id}`} memberId={data.viewer!.id} />
             <button className="client-resource-link" onClick={() => navigate('help')}>
               <BookOpen size={19} />
-              <span>Encuentra respuestas en nuestro centro de ayuda.</span>
+              <span>Ir al centro de ayuda</span>
               <ArrowRight size={17} />
             </button>
           </>
         )}
         <footer className="client-footer">
           <span>{data.settings.brandName} · Servicios Daybook</span>
-          <span>Un soporte más cercano.</span>
         </footer>
       </main>
     </div>
@@ -957,8 +928,7 @@ function ClientComposer({
     >
       {!persistent && (
         <p className="draft-notice" role="status">
-          Tu navegador no permite guardar este borrador al recargar. Conservaremos el texto mientras esta página siga
-          abierta.
+          Este navegador no guarda borradores: si recargas o cierras la página, pierdes el texto.
         </p>
       )}
       {message.replyToMessageId && (

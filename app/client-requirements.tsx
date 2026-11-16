@@ -108,7 +108,7 @@ export function ClientRequirementTracking({
         {!isFinalStage(current.stage) && (
           <div>
             <dt>Fecha comprometida</dt>
-            <dd>{current.expectedOn ? formatDay(current.expectedOn) : 'Te avisaremos cuando la tengamos'}</dd>
+            <dd>{current.expectedOn ? formatDay(current.expectedOn) : 'Por confirmar'}</dd>
           </div>
         )}
         {current.delayReason && !isFinalStage(current.stage) && (
