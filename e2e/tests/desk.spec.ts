@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { expectNoSeriousViolations } from '../support/axe';
 import { readRunState } from '../support/state';
 import { todayIn } from '../../lib/fulfillment-model';
@@ -26,6 +26,8 @@ test.describe('the support desk', () => {
   // Rosa's invitation link, kept for the portal test further down (the tests in this file run in order).
   let rosaInvitation = '';
   let rosaPassword = '';
+  // Rosa signed in on a phone, shared by the two portal tests on a phone that follow each other.
+  let rosaPhoneSession: Awaited<ReturnType<BrowserContext['storageState']>> | undefined;
   test('an empty inbox is accessible and invites the first ticket', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Bandeja de entrada' })).toBeVisible();
@@ -793,7 +795,7 @@ test.describe('the support desk', () => {
     }
   });
 
-  test('on a phone the client reply box fits a finger, and signing out of the portal asks first', async ({
+  test('the portal says under each field what a new ticket lacks, and its notices sit bottom centre, in view', async ({
     browser,
   }) => {
     expect(rosaPassword).not.toBe('');
@@ -803,12 +805,109 @@ test.describe('the support desk', () => {
       isMobile: true,
     });
     const rosa = await rosaContext.newPage();
+    // The notice is fixed at the bottom centre of the screen, whatever was scrolled.
+    const expectBottomCentre = async (notice: Locator, name: string) => {
+      await expect(notice, name).toBeVisible();
+      const box = (await notice.boundingBox())!;
+      expect(Math.abs(box.x + box.width / 2 - 195), `${name}: centrado`).toBeLessThanOrEqual(2);
+      expect(box.y, `${name}: dentro de la pantalla`).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height, `${name}: abajo`).toBeLessThanOrEqual(844);
+      expect(box.y + box.height, `${name}: abajo`).toBeGreaterThan(844 - 120);
+    };
     try {
       await rosa.goto(new URL('/login', rosaInvitation).toString());
       await rosa.getByLabel('Correo electrónico').fill('rosa@example.test');
       await rosa.getByLabel('Contraseña').fill(rosaPassword);
       await rosa.getByRole('button', { name: 'Entrar a mi espacio' }).click();
       await rosa.waitForURL(url => url.pathname === '/', { timeout: 30_000 });
+
+      // «Crear ticket» is not a dead button: pressed with nothing written, it says what is missing.
+      await rosa.getByRole('button', { name: 'Nuevo ticket' }).first().click();
+      const form = rosa.locator('form.client-new-ticket');
+      const create = form.getByRole('button', { name: 'Crear ticket' });
+      const subject = form.getByRole('textbox', { name: 'Asunto' });
+      const description = form.getByRole('textbox', { name: 'Descripción' });
+      await expect(create).toBeEnabled();
+      await create.click();
+      const subjectError = form.getByText('Escribe el asunto', { exact: true });
+      const descriptionError = form.getByText('Escribe la descripción', { exact: true });
+      await expect(subjectError).toBeVisible();
+      await expect(descriptionError).toBeVisible();
+      await expect(subject).toBeFocused();
+      await expect(subject).toHaveAttribute('aria-invalid', 'true');
+      await expect(subject).toHaveAccessibleDescription('Escribe el asunto');
+      await expect(description).toHaveAttribute('aria-invalid', 'true');
+      // The message sits right under its field.
+      const field = (await subject.boundingBox())!;
+      const message = (await subjectError.boundingBox())!;
+      expect(message.y).toBeGreaterThanOrEqual(field.y + field.height);
+      expect(message.y - (field.y + field.height)).toBeLessThan(20);
+      // Department and priority are still asked; a line says when «Urgente» is meant.
+      await expect(form.getByRole('combobox', { name: 'Prioridad' })).toHaveAccessibleDescription(
+        'Elige «Urgente» solo si no puedes seguir trabajando.',
+      );
+      await expectNoSeriousViolations(rosa, 'Nuevo ticket del portal con campos por llenar');
+
+      await subject.fill('La pantalla parpadea al abrir el correo');
+      await expect(subjectError).toHaveCount(0);
+      await expect(subject).toHaveAttribute('aria-invalid', 'false');
+      await create.click();
+      await expect(description).toBeFocused();
+      await description.fill('Parpadea cada vez que abro un correo con imágenes.');
+      await expect(descriptionError).toHaveCount(0);
+      await create.click();
+      const created = rosa.getByRole('status').filter({ hasText: /Ticket #\d{4} creado/ });
+      await expectBottomCentre(created.locator('.toast'), 'Aviso de ticket creado');
+
+      // A reply at the end of the chat: the confirmation is in view, not at the top of the page.
+      await rosa
+        .getByRole('navigation', { name: 'Portal de clientes' })
+        .getByRole('button', { name: 'Mis tickets' })
+        .click();
+      await rosa.getByRole('button', { name: /El notebook no enciende/ }).click();
+      const composer = rosa.locator('form.client-composer');
+      const reply = composer.getByRole('textbox', { name: 'Añadir una respuesta' });
+      await reply.fill('Lo probé con otro cargador y sigue igual.');
+      await composer.getByRole('button', { name: 'Enviar respuesta' }).click();
+      const sent = rosa.getByRole('status').filter({ hasText: 'Respuesta enviada.' });
+      await expectBottomCentre(sent.locator('.toast'), 'Aviso de respuesta enviada');
+
+      // A failed send: the error is the red notice with a warning icon, and it stays until it is closed.
+      await rosa.route('**/api/tickets/*/messages', route =>
+        route.request().method() === 'POST' ? route.abort() : route.fallback(),
+      );
+      await reply.fill('Este envío no llega.');
+      await composer.getByRole('button', { name: 'Enviar respuesta' }).click();
+      const failed = rosa.getByRole('alert').filter({ hasText: 'Se interrumpió la conexión' });
+      const errorNotice = failed.locator('.toast.error');
+      await expectBottomCentre(errorNotice, 'Aviso de error');
+      await expect(errorNotice.locator('svg').first()).toHaveClass(/lucide-(triangle-alert|alert-triangle)/);
+      await expect(sent).toHaveCount(0);
+      await expectNoSeriousViolations(rosa, 'Aviso de error en el portal');
+      await failed.getByRole('button', { name: 'Cerrar aviso' }).click();
+      await expect(failed).toHaveCount(0);
+      await rosa.unroute('**/api/tickets/*/messages');
+      await reply.fill('');
+      // Sign-in allows 5 tries a minute; the next phone test reuses this session instead of signing in again.
+      rosaPhoneSession = await rosaContext.storageState();
+    } finally {
+      await rosaContext.close();
+    }
+  });
+
+  test('on a phone the client reply box fits a finger, and signing out of the portal asks first', async ({
+    browser,
+  }) => {
+    expect(rosaPhoneSession).toBeDefined();
+    const rosaContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+      storageState: rosaPhoneSession,
+    });
+    const rosa = await rosaContext.newPage();
+    try {
+      await rosa.goto(new URL('/', rosaInvitation).toString());
       expect(await rosa.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
 
       await rosa.getByRole('button', { name: /El notebook no enciende/ }).click();

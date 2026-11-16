@@ -60,6 +60,7 @@ export function MessageEditor({
   rows = 6,
   id,
   compact = false,
+  errorId,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -69,6 +70,8 @@ export function MessageEditor({
   rows?: number;
   id?: string;
   compact?: boolean;
+  /** The id of the message that says what the field lacks; while set, the field is marked invalid. */
+  errorId?: string;
 }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const shortcutFocus = useRef<{ body: string; waiting: boolean } | null>(null);
@@ -210,7 +213,8 @@ export function MessageEditor({
           ref={area}
           id={inputId}
           aria-label={label}
-          aria-describedby={helpId}
+          aria-describedby={errorId ? `${helpId} ${errorId}` : helpId}
+          aria-invalid={errorId ? true : undefined}
           aria-keyshortcuts={compact ? 'Control+Enter Meta+Enter' : undefined}
           required
           maxLength={20000}
