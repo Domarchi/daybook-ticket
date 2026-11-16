@@ -33,6 +33,7 @@ Pestañas de la bandeja: Todos, Sin asignar, En proceso, Solucionados, Cerrados 
 
 - **Informe por empresa** (pantalla, CSV, PDF y Bita): la carga actual se cuenta como «Sin asignar actuales» y «En proceso actuales» (tickets activos sin y con responsable); «Vencidos actuales» cuenta todos los activos con plazo cumplido. Un ticket antiguo en «En espera» cuenta como activo, igual que en la bandeja.
 - **Informes mensuales guardados antes** de este cambio no se reescriben: conservan sus «Abiertos actuales» y «Pendientes actuales» tal como se capturaron, y su CSV y PDF los muestran con esas palabras. El esquema acepta una de las dos formas, nunca una mezcla (`currentLoadRows` en `lib/knowledge-model.ts`).
+- **Reversión**: es un cambio de formato en un solo sentido para los informes mensuales que se generen desde esta versión. Los builds anteriores (hasta `bb5e7d3`) validan con un esquema estricto que exige `currentOpen`/`currentPending` y rechazarían esas capturas nuevas (detalle, CSV y PDF responderían error; los datos y su huella quedan intactos). Después del primer informe mensual nuevo, revertir solo a un build que acepte ambas formas, o corregir hacia delante. Una pestaña abierta con el build anterior muestra error en Informes hasta recargar; un reintento de la captura es idempotente y no la duplica.
 - **Métricas por agente**: una sola columna «En proceso» (CSV: «En proceso actuales») con los tickets activos de cada persona; la columna «Pendientes» se retiró. Las métricas se calculan al consultarlas: no hay datos guardados que migrar.
 
 ## Pendiente
