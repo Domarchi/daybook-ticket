@@ -69,12 +69,7 @@ export function SettingsForm({
           </label>
           <label>
             Frase de marca
-            <input
-              required
-              maxLength={180}
-              value={s.tagline}
-              onChange={event => setS({ ...s, tagline: event.target.value })}
-            />
+            <input maxLength={180} value={s.tagline} onChange={event => setS({ ...s, tagline: event.target.value })} />
           </label>
         </div>
       </section>
