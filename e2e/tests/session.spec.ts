@@ -3,7 +3,7 @@ import { OWNER_EMAIL } from '../support/env';
 import { readRunState } from '../support/state';
 
 /** Runs last: signing out revokes the session on the server, so it must not share the session of the other projects. */
-test('signing in with the password works and signing out ends the session', async ({ page }) => {
+test('signing in with the password works and signing out, once confirmed, ends the session', async ({ page }) => {
   const { password } = readRunState();
   await page.goto('/login');
   await page.getByLabel('Correo electrónico').fill(OWNER_EMAIL);
@@ -11,7 +11,18 @@ test('signing in with the password works and signing out ends the session', asyn
   await page.getByRole('button', { name: 'Entrar a mi espacio' }).click();
   await expect(page.getByRole('heading', { name: 'Bandeja de entrada' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Cerrar sesión' }).click();
+  // The door icon asks first, with the same words as Parte Diario; Escape keeps you in.
+  const rail = page.getByRole('button', { name: 'Cerrar sesión' });
+  await rail.click();
+  const dialog = page.getByRole('dialog', { name: 'Cerrar sesión' });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(rail).toBeFocused();
+  await expect(page).not.toHaveURL(/\/login/);
+
+  await rail.click();
+  await dialog.getByRole('button', { name: 'Cerrar sesión' }).click();
   await expect(page).toHaveURL(/\/login/);
   await page.goto('/');
   await expect(page).toHaveURL(/\/login/);

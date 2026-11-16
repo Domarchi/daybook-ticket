@@ -71,6 +71,7 @@ import './client-portal.css';
 import { useTicketSearch, useTicketConversation, type TicketFilters } from '@/hooks/use-ticket-search';
 import { TicketPagination } from './ticket-pagination';
 import { EmptyState, SkeletonList } from './estados';
+import { SignOutDialog } from './desk-parts/shared';
 
 const PRIORITY: Record<TicketPriority, string> = { low: 'Baja', normal: 'Normal', high: 'Alta', urgent: 'Urgente' };
 const date = (value: string) =>
@@ -297,6 +298,7 @@ export default function ClientPortal({
       setError('');
     }
   };
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const signOut = async () => {
     if (operation.current) return;
     operation.current = true;
@@ -353,11 +355,25 @@ export default function ClientPortal({
             {displayName}
             <small>{email}</small>
           </button>
-          <button disabled={busy} onClick={signOut} aria-label="Cerrar sesión" title="Cerrar sesión">
-            <LogOut size={18} />
+          <button
+            disabled={busy}
+            onClick={() => setConfirmingSignOut(true)}
+            aria-label="Cerrar sesión"
+            title="Cerrar sesión"
+          >
+            <LogOut size={18} aria-hidden="true" />
           </button>
         </div>
       </header>
+      {confirmingSignOut && (
+        <SignOutDialog
+          onClose={() => setConfirmingSignOut(false)}
+          onConfirm={() => {
+            setConfirmingSignOut(false);
+            void signOut();
+          }}
+        />
+      )}
 
       <main className="client-main">
         <div className="workspace-sync">

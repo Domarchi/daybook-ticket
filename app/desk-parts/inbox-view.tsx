@@ -19,13 +19,26 @@ import {
   Search,
   Zap,
 } from 'lucide-react';
-import { type RefObject } from 'react';
+import { type RefObject, useState } from 'react';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { type Member, type Ticket, type Workspace } from '../../lib/types';
 import { MyAvailabilityPanel } from '../operations-settings';
 import { TicketPagination } from '../ticket-pagination';
 import { SavedViewPicker } from '../work-organization';
-import { PRIORITY, since, sla, Avatar, Status, Priority, SearchShortcut, Empty, Stat, DeskLink, View } from './shared';
+import {
+  PRIORITY,
+  since,
+  sla,
+  Avatar,
+  Status,
+  Priority,
+  SearchShortcut,
+  Empty,
+  Stat,
+  DeskLink,
+  View,
+  ConfirmDialog,
+} from './shared';
 import { Combobox } from '../combobox';
 import { Overview } from './overview';
 import { TicketCards } from './ticket-cards';
@@ -101,6 +114,11 @@ export function InboxView({
   // tablets) that only fits from 1024 px up; narrower windows get the same cards
   // the phone uses, instead of pushing the whole page sideways.
   const narrow = useMediaQuery('(max-width: 1023px)');
+  // Solucionar no tiene «Deshacer» (canUndo en lib/ticket-overlay.ts: pide la
+  // evaluación al cliente). Varios a la vez se confirman antes, como manda la
+  // Fase 5b para lo que no tiene vuelta atrás.
+  const [confirmingResolve, setConfirmingResolve] = useState(false);
+  const selectedCount = visibleSelected.length === 1 ? '1 ticket' : `${visibleSelected.length} tickets`;
   return (
     <>
       <div className="page-heading">
@@ -339,17 +357,25 @@ export function InboxView({
             {visibleSelected.length > 0 && (
               <div className="bulk-bar">
                 <strong>{visibleSelected.length} seleccionados</strong>
-                <button
-                  disabled={busy}
-                  onClick={() => {
-                    void resolveSelected();
-                  }}
-                >
+                <button disabled={busy} onClick={() => setConfirmingResolve(true)}>
                   <CheckCheck size={16} />
                   Marcar como solucionados
                 </button>
                 <button onClick={() => setSelected([])}>Cancelar</button>
               </div>
+            )}
+            {confirmingResolve && visibleSelected.length > 0 && (
+              <ConfirmDialog
+                title="Marcar como solucionados"
+                description={`Vas a marcar ${selectedCount} como solucionados. A cada cliente se le pedirá que evalúe la atención, y eso no se puede deshacer.`}
+                confirmLabel={`Solucionar ${selectedCount}`}
+                busyLabel="Guardando…"
+                busy={busy}
+                onClose={() => setConfirmingResolve(false)}
+                onConfirm={() => {
+                  void resolveSelected().finally(() => setConfirmingResolve(false));
+                }}
+              />
             )}
             {counts.all === 0 ? (
               <div className="welcome">

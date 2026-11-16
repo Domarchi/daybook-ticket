@@ -739,6 +739,111 @@ test.describe('the support desk', () => {
     await expectNoSeriousViolations(page, 'Requerimientos con resumen');
   });
 
+  test('solving several tickets at once asks first, and «Cancelar» leaves them as they were', async ({ page }) => {
+    const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+    const ids: number[] = [];
+    const statuses = async () =>
+      (
+        await pool.query<{ status: string }>(`SELECT status FROM tickets WHERE id = ANY($1::int[]) ORDER BY id`, [ids])
+      ).rows.map(row => row.status);
+    try {
+      const owner = (await pool.query<{ ownerId: string }>(`SELECT "ownerId" FROM organizations WHERE id='daybook'`))
+        .rows[0].ownerId;
+      const now = new Date().toISOString();
+      const due = new Date(Date.now() + 86_400_000).toISOString();
+      for (const subject of ['Lote: mouse sin batería', 'Lote: teclado sin la letra ñ']) {
+        const ticket = await pool.query<{ id: number }>(
+          `INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail",department,status,priority,"createdAt","updatedAt","dueAt")
+           VALUES ($1,$4,$2,'Cliente Lote','lote@example.test','Soporte técnico','open','normal',$3,$3,$5) RETURNING id`,
+          [owner, subject, now, randomUUID(), due],
+        );
+        ids.push(ticket.rows[0].id);
+        await pool.query(
+          `INSERT INTO messages ("ownerId","ticketId",author,"authorRole",body,kind,"createdAt") VALUES ($1,$2,'Cliente Lote','client','Se cayó al piso.','request',$3)`,
+          [owner, ticket.rows[0].id, now],
+        );
+      }
+
+      await page.goto('/');
+      for (const id of ids) await page.getByRole('checkbox', { name: `Seleccionar ticket ${id}` }).check();
+      const bar = page.locator('.bulk-bar');
+      await expect(bar).toContainText('2 seleccionados');
+      await bar.getByRole('button', { name: 'Marcar como solucionados' }).click();
+
+      const dialog = page.getByRole('dialog', { name: 'Marcar como solucionados' });
+      await expect(dialog).toContainText('Vas a marcar 2 tickets como solucionados');
+      await expect(dialog).toContainText('no se puede deshacer');
+      // Focus starts on the safe choice; the red button names the action.
+      await expect(dialog.getByRole('button', { name: 'Cancelar' })).toBeFocused();
+      await expect(dialog.getByRole('button', { name: 'Solucionar 2 tickets' })).toBeVisible();
+      await expectNoSeriousViolations(page, 'Confirmar solucionar varios');
+      await dialog.getByRole('button', { name: 'Cancelar' }).click();
+      await expect(dialog).toBeHidden();
+      await expect(bar).toContainText('2 seleccionados');
+      expect(await statuses()).toEqual(['open', 'open']);
+
+      await bar.getByRole('button', { name: 'Marcar como solucionados' }).click();
+      await dialog.getByRole('button', { name: 'Solucionar 2 tickets' }).click();
+      await expect(page.getByRole('status').filter({ hasText: '2 tickets solucionados' })).toBeVisible();
+      await expect(dialog).toBeHidden();
+      await expect(bar).toHaveCount(0);
+      await expect.poll(statuses).toEqual(['resolved', 'resolved']);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  test('on a phone the client reply box fits a finger, and signing out of the portal asks first', async ({
+    browser,
+  }) => {
+    expect(rosaPassword).not.toBe('');
+    const rosaContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+    });
+    const rosa = await rosaContext.newPage();
+    try {
+      await rosa.goto(new URL('/login', rosaInvitation).toString());
+      await rosa.getByLabel('Correo electrónico').fill('rosa@example.test');
+      await rosa.getByLabel('Contraseña').fill(rosaPassword);
+      await rosa.getByRole('button', { name: 'Entrar a mi espacio' }).click();
+      await rosa.waitForURL(url => url.pathname === '/', { timeout: 30_000 });
+      expect(await rosa.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+
+      await rosa.getByRole('button', { name: /El notebook no enciende/ }).click();
+      const composer = rosa.locator('form.client-composer');
+      await expect(composer.getByPlaceholder('Escribe tu respuesta o añade información…')).toBeVisible();
+      await composer.getByRole('toolbar').getByRole('button', { name: 'Formato' }).click();
+      const controls = [
+        ...(await composer.getByRole('toolbar').getByRole('button').all()),
+        composer.locator('label.attachment-picker'),
+        composer.getByRole('button', { name: 'Enviar respuesta' }),
+      ];
+      expect(controls.length).toBeGreaterThan(5);
+      for (const control of controls) {
+        await expect(control).toBeVisible();
+        expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      }
+
+      const signOut = rosa.getByRole('button', { name: 'Cerrar sesión' });
+      await signOut.click();
+      const dialog = rosa.getByRole('dialog', { name: 'Cerrar sesión' });
+      await expect(dialog).toContainText('Vas a salir de Daybook Ticket en este dispositivo');
+      await expect(dialog.getByRole('button', { name: 'Seguir trabajando' })).toBeFocused();
+      await expectNoSeriousViolations(rosa, 'Confirmar cierre de sesión en el portal');
+      await dialog.getByRole('button', { name: 'Seguir trabajando' }).click();
+      await expect(dialog).toBeHidden();
+      await expect(rosa).not.toHaveURL(/\/login/);
+
+      await signOut.click();
+      await dialog.getByRole('button', { name: 'Cerrar sesión' }).click();
+      await expect(rosa).toHaveURL(/\/login/);
+    } finally {
+      await rosaContext.close();
+    }
+  });
+
   test.describe('dark mode', () => {
     test.use({ colorScheme: 'dark' });
     test('the inbox and an open ticket pass the accessibility gate in dark mode', async ({ page }) => {

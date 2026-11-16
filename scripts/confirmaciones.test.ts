@@ -42,3 +42,40 @@ test('revoking access is not confirmed: it offers «Deshacer» back to the previ
   assert.match(desk, /undoAction \? 10_000 : 4000/, 'con «Deshacer» el aviso dura --db-toast-duration-undo');
   assert.match(tools, /undo\?: \{ run: \(\) => void \}/);
 });
+
+test('solucionar varios tickets a la vez se confirma antes, porque solucionar no ofrece «Deshacer»', async () => {
+  const [inbox, overlay] = await Promise.all([read('app/desk-parts/inbox-view.tsx'), read('lib/ticket-overlay.ts')]);
+  // La regla que lo justifica: solucionar no se deshace (pide la evaluación al cliente).
+  assert.match(overlay, /status === 'resolved' \|\| status === 'closed'/);
+  assert.match(inbox, /onClick=\{\(\) => setConfirmingResolve\(true\)\}/, 'el botón abre la confirmación');
+  assert.doesNotMatch(inbox, /onClick=\{\(\) => \{\s*void resolveSelected\(\);/, 'ya no soluciona al primer toque');
+  assert.match(inbox, /<ConfirmDialog\s+title="Marcar como solucionados"/);
+  assert.match(inbox, /confirmLabel=\{`Solucionar \$\{selectedCount\}`\}/, 'el botón rojo nombra la acción');
+});
+
+test('cerrar sesión usa el ícono LogOut y pregunta con los textos de Parte Diario, en el riel y en el portal', async () => {
+  const [shared, sidebar, desk, portal] = await Promise.all([
+    read('app/desk-parts/shared.tsx'),
+    read('app/desk-parts/sidebar.tsx'),
+    read('app/desk.tsx'),
+    read('app/client-portal.tsx'),
+  ]);
+  assert.match(shared, /title="Cerrar sesión"/);
+  assert.match(
+    shared,
+    /description="Vas a salir de Daybook Ticket en este dispositivo y tendrás que ingresar de nuevo para seguir\."/,
+  );
+  assert.match(shared, /confirmLabel="Cerrar sesión"\s+cancelLabel="Seguir trabajando"/);
+  assert.match(shared, /\{cancelLabel\}/, 'ConfirmDialog acepta otro texto para el botón de cancelar');
+  assert.match(sidebar, /<LogOut size=\{16\} aria-hidden="true" \/>/);
+  assert.doesNotMatch(sidebar, /ArrowRight/, 'la flecha «ir a» ya no cierra sesión');
+  assert.match(desk, /signOut=\{askSignOut\}/, 'el riel pide confirmar en vez de salir');
+  assert.match(desk, /<SignOutDialog/);
+  assert.match(portal, /onClick=\{\(\) => setConfirmingSignOut\(true\)\}/);
+  assert.match(portal, /<SignOutDialog/);
+  const touch = await read('app/accessibility.css');
+  assert.match(
+    touch,
+    /\.sidebar \.profile > button \{ min-width: var\(--touch-target\); min-height: var\(--touch-target\); \}/,
+  );
+});
