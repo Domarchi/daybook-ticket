@@ -867,6 +867,57 @@ test.describe('the support desk', () => {
     }
   });
 
+  test('after solving several tickets, focus lands on the head of the list and the result is announced', async ({
+    page,
+  }) => {
+    const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+    const ids: number[] = [];
+    try {
+      const owner = (await pool.query<{ ownerId: string }>(`SELECT "ownerId" FROM organizations WHERE id='daybook'`))
+        .rows[0].ownerId;
+      const now = new Date().toISOString();
+      const due = new Date(Date.now() + 86_400_000).toISOString();
+      for (const subject of ['Foco: cargador que calienta', 'Foco: monitor con rayas']) {
+        const ticket = await pool.query<{ id: number }>(
+          `INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail",department,status,priority,"createdAt","updatedAt","dueAt")
+           VALUES ($1,$4,$2,'Cliente Foco','foco@example.test','Soporte técnico','open','normal',$3,$3,$5) RETURNING id`,
+          [owner, subject, now, randomUUID(), due],
+        );
+        ids.push(ticket.rows[0].id);
+        await pool.query(
+          `INSERT INTO messages ("ownerId","ticketId",author,"authorRole",body,kind,"createdAt") VALUES ($1,$2,'Cliente Foco','client','No funciona.','request',$3)`,
+          [owner, ticket.rows[0].id, now],
+        );
+      }
+
+      await page.goto('/');
+      const bar = page.locator('.bulk-bar');
+      const dialog = page.getByRole('dialog', { name: 'Marcar como solucionados' });
+      for (const id of ids) await page.getByRole('checkbox', { name: `Seleccionar ticket ${id}` }).check();
+      await expect(bar).toContainText('2 seleccionados');
+      await bar.getByRole('button', { name: 'Marcar como solucionados' }).click();
+      await dialog.getByRole('button', { name: 'Solucionar 2 tickets' }).click();
+      await expect(dialog).toBeHidden();
+      await expect(bar).toHaveCount(0);
+      // The status region says what happened.
+      const status = page.locator('.toast-region[role="status"]');
+      await expect(status).toHaveAttribute('aria-live', 'polite');
+      await expect(status).toContainText('2 tickets solucionados');
+      // Focus is not lost on <body>: it sits on the active queue tab, the head of the list.
+      const activeQueue = page.locator('.queue-tabs').getByRole('button', { pressed: true });
+      await expect(activeQueue).toBeFocused();
+      expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
+      // And it stays there once the list has refreshed.
+      await page.waitForTimeout(1500);
+      await expect(activeQueue).toBeFocused();
+      // From there the keyboard goes on through the list.
+      await page.keyboard.press('Tab');
+      expect(await page.evaluate(() => document.activeElement?.closest('.ticket-panel') !== null)).toBe(true);
+    } finally {
+      await pool.end();
+    }
+  });
+
   test('the portal says under each field what a new ticket lacks, and its notices sit bottom centre, in view', async ({
     browser,
   }) => {

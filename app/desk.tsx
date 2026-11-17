@@ -239,6 +239,7 @@ export default function Desk({
       return false;
     }
   };
+  // Resolves true when every ticket was solved: the bulk bar is gone and the inbox moves focus to the list.
   const resolveSelected = async () => {
     const ids = [...visibleSelected];
     setBusy(true);
@@ -256,11 +257,13 @@ export default function Desk({
     if (failed.length === 0) {
       notify(ids.length === 1 ? 'Ticket solucionado' : `${ids.length} tickets solucionados`);
       setSelected([]);
+      return true;
     } else {
       setError(
         `Se solucionaron ${ids.length - failed.length} de ${ids.length}. No se pudieron solucionar: ${failed.map(id => `#${String(id).padStart(4, '0')}`).join(', ')}.`,
       );
       setSelected(failed);
+      return false;
     }
   };
   const exportCsv = async () => {
