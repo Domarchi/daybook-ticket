@@ -18,6 +18,10 @@ test('solucionar varios avisa si todo salió bien y la bandeja lleva el foco a l
   assert.match(inbox, /querySelector<HTMLElement>\('\.queue-tabs \[aria-pressed="true"\]'\)\?\.focus\(\)/);
   // The dialog closes and the focus moves in the same render, only when every ticket was solved.
   assert.match(inbox, /setConfirmingResolve\(false\);\s*if \(solved\) setListFocus\(count => count \+ 1\);/);
+  // The bar's own «Cancelar» takes the bar away too: same landing place, not <body>.
+  assert.match(inbox, /setSelected\(\[\]\);\s*setListFocus\(count => count \+ 1\);\s*\}\}\s*>\s*Cancelar/);
+  // One ticket left in the bar is said in singular.
+  assert.match(inbox, /visibleSelected\.length === 1 \? 'seleccionado' : 'seleccionados'/);
   // The result is said by the status region, which exists before the notice appears.
   assert.match(desk, /<div className="toast-region" role="status" aria-live="polite" aria-atomic="true">/);
 });
@@ -42,5 +46,13 @@ test('los selectores vivos que compartían regla con «En foco» siguen con sus 
       new RegExp(`${scope} \\.setting-icon,${scope} \\.article-icon\\{background:#292315;color:#edc879;`),
     );
     assert.match(theme, new RegExp(`${scope} \\.requester>a\\{color:#edc879\\}`));
+  }
+});
+
+test('en el tema oscuro «Urgente» y «Baja» tienen su propio color, legible sobre negro', async () => {
+  const theme = await read('app/evolution-theme.css');
+  for (const scope of [':root:not\\(\\[data-theme="light"\\]\\)', ':root\\[data-theme="dark"\\]']) {
+    assert.match(theme, new RegExp(`${scope} \\.priority\\.urgent\\{color:#ffb4aa\\}`));
+    assert.match(theme, new RegExp(`${scope} \\.priority\\.low\\{color:#b9c7b5\\}`));
   }
 });

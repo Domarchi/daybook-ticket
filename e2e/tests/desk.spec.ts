@@ -869,51 +869,107 @@ test.describe('the support desk', () => {
 
   test('after solving several tickets, focus lands on the head of the list and the result is announced', async ({
     page,
-  }) => {
+  }, testInfo) => {
     const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
-    const ids: number[] = [];
     try {
       const owner = (await pool.query<{ ownerId: string }>(`SELECT "ownerId" FROM organizations WHERE id='daybook'`))
         .rows[0].ownerId;
-      const now = new Date().toISOString();
-      const due = new Date(Date.now() + 86_400_000).toISOString();
-      for (const subject of ['Foco: cargador que calienta', 'Foco: monitor con rayas']) {
-        const ticket = await pool.query<{ id: number }>(
-          `INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail",department,status,priority,"createdAt","updatedAt","dueAt")
-           VALUES ($1,$4,$2,'Cliente Foco','foco@example.test','Soporte técnico','open','normal',$3,$3,$5) RETURNING id`,
-          [owner, subject, now, randomUUID(), due],
-        );
-        ids.push(ticket.rows[0].id);
-        await pool.query(
-          `INSERT INTO messages ("ownerId","ticketId",author,"authorRole",body,kind,"createdAt") VALUES ($1,$2,'Cliente Foco','client','No funciona.','request',$3)`,
-          [owner, ticket.rows[0].id, now],
-        );
-      }
-
-      await page.goto('/');
+      const seed = async (subjects: string[]) => {
+        const now = new Date().toISOString();
+        const due = new Date(Date.now() + 86_400_000).toISOString();
+        const ids: number[] = [];
+        for (const subject of subjects) {
+          const ticket = await pool.query<{ id: number }>(
+            `INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail",department,status,priority,"createdAt","updatedAt","dueAt")
+             VALUES ($1,$4,$2,'Cliente Foco','foco@example.test','Soporte técnico','open','normal',$3,$3,$5) RETURNING id`,
+            [owner, subject, now, randomUUID(), due],
+          );
+          ids.push(ticket.rows[0].id);
+          await pool.query(
+            `INSERT INTO messages ("ownerId","ticketId",author,"authorRole",body,kind,"createdAt") VALUES ($1,$2,'Cliente Foco','client','No funciona.','request',$3)`,
+            [owner, ticket.rows[0].id, now],
+          );
+        }
+        return ids;
+      };
       const bar = page.locator('.bulk-bar');
       const dialog = page.getByRole('dialog', { name: 'Marcar como solucionados' });
-      for (const id of ids) await page.getByRole('checkbox', { name: `Seleccionar ticket ${id}` }).check();
-      await expect(bar).toContainText('2 seleccionados');
-      await bar.getByRole('button', { name: 'Marcar como solucionados' }).click();
-      await dialog.getByRole('button', { name: 'Solucionar 2 tickets' }).click();
-      await expect(dialog).toBeHidden();
-      await expect(bar).toHaveCount(0);
-      // The status region says what happened.
       const status = page.locator('.toast-region[role="status"]');
-      await expect(status).toHaveAttribute('aria-live', 'polite');
-      await expect(status).toContainText('2 tickets solucionados');
-      // Focus is not lost on <body>: it sits on the active queue tab, the head of the list.
       const activeQueue = page.locator('.queue-tabs').getByRole('button', { pressed: true });
+      const solveSelected = async (count: number) => {
+        await bar.getByRole('button', { name: 'Marcar como solucionados' }).click();
+        await dialog.getByRole('button', { name: `Solucionar ${count} ticket${count === 1 ? '' : 's'}` }).click();
+        await expect(dialog).toBeHidden();
+      };
+
+      // The desk on a wide screen (table) and on a phone (cards): the same bar, the same landing place.
+      for (const [width, height] of [
+        [1440, 900],
+        [390, 844],
+      ] as const) {
+        await page.setViewportSize({ width, height });
+        const ids = await seed([`Foco ${width}: cargador que calienta`, `Foco ${width}: monitor con rayas`]);
+        await page.goto('/');
+        for (const id of ids) await page.getByRole('checkbox', { name: `Seleccionar ticket ${id}` }).click();
+        await expect(bar).toContainText('2 seleccionados');
+        await solveSelected(2);
+        await expect(bar).toHaveCount(0);
+        // The status region, polite and present before the notice, says what happened.
+        await expect(status).toHaveAttribute('aria-live', 'polite');
+        await expect(status).toContainText('2 tickets solucionados');
+        // Focus is not lost on <body>: it sits on the active queue tab, the head of the list, in view.
+        await expect(activeQueue).toBeFocused();
+        await expect(activeQueue).toBeInViewport();
+        expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
+        await page.screenshot({ path: testInfo.outputPath(`foco-tras-solucionar-${width}.png`) });
+        // And it stays there once the list has refreshed.
+        await page.waitForTimeout(1500);
+        await expect(activeQueue).toBeFocused();
+        // From there the keyboard goes on through the list.
+        await page.keyboard.press('Tab');
+        expect(await page.evaluate(() => document.activeElement?.closest('.ticket-panel') !== null)).toBe(true);
+      }
+
+      // If one of them fails, the bar stays with the one left, the error is said, and focus goes back to its button.
+      await page.setViewportSize({ width: 1440, height: 900 });
+      const [kept, refused] = await seed(['Foco: parlante sin sonido', 'Foco: cámara que no enciende']);
+      await page.goto('/');
+      await page.route(`**/api/tickets/${refused}`, route =>
+        route.request().method() === 'PATCH'
+          ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"No se pudo guardar."}' })
+          : route.fallback(),
+      );
+      for (const id of [kept, refused]) await page.getByRole('checkbox', { name: `Seleccionar ticket ${id}` }).click();
+      await solveSelected(2);
+      await expect(page.getByRole('alert').filter({ hasText: 'Se solucionaron 1 de 2' })).toContainText(
+        `No se pudieron solucionar: #${String(refused).padStart(4, '0')}.`,
+      );
+      // One left, said in singular.
+      await expect(bar.locator('strong')).toHaveText('1 seleccionado');
+      await expect(bar.getByRole('button', { name: 'Marcar como solucionados' })).toBeFocused();
+      await page.unroute(`**/api/tickets/${refused}`);
+
+      // The bar's own «Cancelar» also takes the bar away: focus goes to the head of the list, not to <body>.
+      await bar.getByRole('button', { name: 'Cancelar' }).click();
+      await expect(bar).toHaveCount(0);
       await expect(activeQueue).toBeFocused();
-      expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
-      // And it stays there once the list has refreshed.
-      await page.waitForTimeout(1500);
+
+      // Solved on a second try, so the ticket does not stay open for the tests that follow.
+      await page.getByRole('checkbox', { name: `Seleccionar ticket ${refused}` }).click();
+      await solveSelected(1);
+      await expect(status).toContainText('Ticket solucionado');
       await expect(activeQueue).toBeFocused();
-      // From there the keyboard goes on through the list.
-      await page.keyboard.press('Tab');
-      expect(await page.evaluate(() => document.activeElement?.closest('.ticket-panel') !== null)).toBe(true);
+      await expect
+        .poll(async () =>
+          (
+            await pool.query<{ status: string }>(`SELECT status FROM tickets WHERE id = ANY($1::int[]) ORDER BY id`, [
+              [kept, refused],
+            ])
+          ).rows.map(row => row.status),
+        )
+        .toEqual(['resolved', 'resolved']);
     } finally {
+      await page.setViewportSize({ width: 1280, height: 720 });
       await pool.end();
     }
   });
@@ -1019,10 +1075,14 @@ test.describe('the support desk', () => {
 
   test('the portal does not ask the client for a priority, and the server ignores one sent by hand', async ({
     browser,
-  }) => {
+    page,
+  }, testInfo) => {
     expect(rosaPhoneSession).toBeDefined();
     // The session from the test above: signing in again would spend the sign-in limit.
-    const rosaContext = await browser.newContext({ storageState: rosaPhoneSession });
+    const rosaContext = await browser.newContext({
+      storageState: rosaPhoneSession,
+      viewport: { width: 1440, height: 900 },
+    });
     const rosa = await rosaContext.newPage();
     const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
     const saved = async (id: number) =>
@@ -1051,6 +1111,21 @@ test.describe('the support desk', () => {
       await expect(form.getByRole('combobox', { name: 'Prioridad' })).toHaveCount(0);
       await expect(form).not.toContainText('Urgente');
       await expectNoSeriousViolations(rosa, 'Nuevo ticket del portal sin prioridad');
+      // On a wide screen Departamento and Tipo de solicitud share the row (no half row left empty); on a phone they stack.
+      const department = form.getByRole('combobox', { name: 'Departamento' });
+      const kind = form.getByRole('combobox', { name: 'Tipo de solicitud' });
+      let [a, b] = [(await department.boundingBox())!, (await kind.boundingBox())!];
+      expect(Math.abs(a.y - b.y)).toBeLessThan(2);
+      expect(b.x).toBeGreaterThan(a.x + a.width);
+      await form.screenshot({ path: testInfo.outputPath('portal-sin-prioridad-1440.png') });
+      await rosa.setViewportSize({ width: 390, height: 844 });
+      [a, b] = [(await department.boundingBox())!, (await kind.boundingBox())!];
+      expect(b.y).toBeGreaterThan(a.y + a.height);
+      expect(
+        await rosa.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+      ).toBeLessThanOrEqual(1);
+      await expectNoSeriousViolations(rosa, 'Nuevo ticket del portal sin prioridad en un teléfono');
+      await rosa.screenshot({ path: testInfo.outputPath('portal-sin-prioridad-390.png'), fullPage: true });
 
       await form.getByRole('textbox', { name: 'Asunto' }).fill('El escáner no lee los códigos de barra');
       await form
@@ -1102,6 +1177,47 @@ test.describe('the support desk', () => {
       expect(forged.status).toBe(201);
       expect(forged.json.ticket.priority).toBe('normal');
       await expectNormalDeadline(forged.json.ticket.id);
+      await rosa.goto(new URL('/', rosaInvitation).toString());
+      await rosa.screenshot({ path: testInfo.outputPath('portal-detalle-normal-390.png') });
+
+      // The team still sets it: the same request from the desk keeps «urgent», with the urgent deadline.
+      await page.goto('/');
+      const staff = await page.evaluate(
+        async body => {
+          const response = await fetch('/api/tickets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          return {
+            status: response.status,
+            json: (await response.json()) as { ticket: { id: number; priority: string } },
+          };
+        },
+        {
+          subject: 'El equipo marca este ticket como urgente',
+          body: 'Creado desde la mesa de ayuda.',
+          requesterName: 'Cliente Urgente',
+          requesterEmail: 'urgente@example.test',
+          department: (request.postDataJSON() as { department: string }).department,
+          operationId: randomUUID(),
+          priority: 'urgent',
+        },
+      );
+      expect(staff.status).toBe(201);
+      expect(staff.json.ticket.priority).toBe('urgent');
+      const row = await saved(staff.json.ticket.id);
+      expect(row.priority).toBe('urgent');
+      expect(new Date(row.dueAt).toISOString()).toBe(
+        calculateTicketDueAt(
+          new Date(row.slaStartedAt).toISOString(),
+          'urgent',
+          readServicePolicySnapshot(row.slaPolicySnapshot)!,
+        ),
+      );
+      // The two deadlines differ, so the forged ticket really got the normal one.
+      const hours = readServicePolicySnapshot(row.slaPolicySnapshot)!.slaHours;
+      expect(hours.urgent).not.toBe(hours.normal);
     } finally {
       await pool.end();
       await rosaContext.close();

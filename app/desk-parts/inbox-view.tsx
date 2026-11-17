@@ -131,8 +131,8 @@ export function InboxView({
   // question goes away for good: it must not pop up again on the next ticket ticked.
   if (confirmingResolve && visibleSelected.length === 0) setConfirmingResolve(false);
   const resolving = resolveQuestion(visibleSelected.length);
-  // After «Marcar como solucionados» the bar and its button are gone, and the dialog would hand focus back to
-  // nothing (<body>). Focus goes to the active queue tab, the head of the list, which stays put while the list
+  // After «Marcar como solucionados» (or the bar's «Cancelar») the bar and its buttons are gone, and focus would
+  // fall to nothing (<body>). Focus goes to the active queue tab, the head of the list, which stays put while the list
   // refreshes; the «N tickets solucionados» notice in the status region says what happened.
   const ticketPanel = useRef<HTMLElement>(null);
   const [listFocus, setListFocus] = useState(0);
@@ -382,12 +382,22 @@ export function InboxView({
             )}
             {visibleSelected.length > 0 && (
               <div className="bulk-bar">
-                <strong>{visibleSelected.length} seleccionados</strong>
+                <strong>
+                  {visibleSelected.length} {visibleSelected.length === 1 ? 'seleccionado' : 'seleccionados'}
+                </strong>
                 <button disabled={busy} onClick={() => setConfirmingResolve(true)}>
                   <CheckCheck size={16} />
                   Marcar como solucionados
                 </button>
-                <button onClick={() => setSelected([])}>Cancelar</button>
+                <button
+                  onClick={() => {
+                    // The bar goes away with this button: focus goes to the head of the list, not to <body>.
+                    setSelected([]);
+                    setListFocus(count => count + 1);
+                  }}
+                >
+                  Cancelar
+                </button>
               </div>
             )}
             {confirmingResolve && visibleSelected.length > 0 && (
