@@ -2,6 +2,7 @@ import { expect, test, type BrowserContext, type Locator, type Page } from '@pla
 import { expectNoSeriousViolations } from '../support/axe';
 import { readRunState } from '../support/state';
 import { todayIn } from '../../lib/fulfillment-model';
+import { calculateTicketDueAt, readServicePolicySnapshot } from '../../lib/sla-policy';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { DATABASE_URL } from '../support/env';
@@ -913,10 +914,9 @@ test.describe('the support desk', () => {
       const message = (await subjectError.boundingBox())!;
       expect(message.y).toBeGreaterThanOrEqual(field.y + field.height);
       expect(message.y - (field.y + field.height)).toBeLessThan(20);
-      // Department and priority are still asked; a line says when «Urgente» is meant.
-      await expect(form.getByRole('combobox', { name: 'Prioridad' })).toHaveAccessibleDescription(
-        'Elige «Urgente» solo si no puedes seguir trabajando.',
-      );
+      // Department is still asked; priority is the team's to set.
+      await expect(form.getByRole('combobox', { name: 'Departamento' })).toBeVisible();
+      await expect(form.getByRole('combobox', { name: 'Prioridad' })).toHaveCount(0);
       await expectNoSeriousViolations(rosa, 'Nuevo ticket del portal con campos por llenar');
 
       await subject.fill('La pantalla parpadea al abrir el correo');
@@ -962,6 +962,97 @@ test.describe('the support desk', () => {
       // Sign-in allows 5 tries a minute; the next phone test reuses this session instead of signing in again.
       rosaPhoneSession = await rosaContext.storageState();
     } finally {
+      await rosaContext.close();
+    }
+  });
+
+  test('the portal does not ask the client for a priority, and the server ignores one sent by hand', async ({
+    browser,
+  }) => {
+    expect(rosaPhoneSession).toBeDefined();
+    // The session from the test above: signing in again would spend the sign-in limit.
+    const rosaContext = await browser.newContext({ storageState: rosaPhoneSession });
+    const rosa = await rosaContext.newPage();
+    const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+    const saved = async (id: number) =>
+      (
+        await pool.query<{ priority: string; dueAt: string; slaStartedAt: string; slaPolicySnapshot: unknown }>(
+          `SELECT priority,"dueAt","slaStartedAt","slaPolicySnapshot" FROM tickets WHERE id=$1`,
+          [id],
+        )
+      ).rows[0];
+    // The SLA deadline is the one of the priority actually saved.
+    const expectNormalDeadline = async (id: number) => {
+      const row = await saved(id);
+      expect(row.priority).toBe('normal');
+      const policy = readServicePolicySnapshot(row.slaPolicySnapshot);
+      expect(policy).not.toBeNull();
+      expect(new Date(row.dueAt).toISOString()).toBe(
+        calculateTicketDueAt(new Date(row.slaStartedAt).toISOString(), 'normal', policy!),
+      );
+    };
+    try {
+      await rosa.goto(new URL('/', rosaInvitation).toString());
+      await rosa.getByRole('button', { name: 'Nuevo ticket' }).first().click();
+      const form = rosa.locator('form.client-new-ticket');
+      await expect(form.getByRole('combobox', { name: 'Departamento' })).toBeVisible();
+      await expect(form.getByRole('combobox', { name: 'Tipo de solicitud' })).toBeVisible();
+      await expect(form.getByRole('combobox', { name: 'Prioridad' })).toHaveCount(0);
+      await expect(form).not.toContainText('Urgente');
+      await expectNoSeriousViolations(rosa, 'Nuevo ticket del portal sin prioridad');
+
+      await form.getByRole('textbox', { name: 'Asunto' }).fill('El escáner no lee los códigos de barra');
+      await form
+        .getByRole('textbox', { name: 'Descripción' })
+        .fill('Lee la etiqueta pero no aparece nada en pantalla.');
+      const sending = rosa.waitForRequest(
+        request => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/api/tickets'),
+      );
+      await form.getByRole('button', { name: 'Crear ticket' }).click();
+      const request = await sending;
+      expect(request.postDataJSON()).not.toHaveProperty('priority');
+      await expect(rosa.getByRole('status').filter({ hasText: /Ticket #\d{4} creado/ })).toBeVisible();
+      // The ticket shows the priority the team starts from.
+      await expect(rosa.locator('dt', { hasText: 'Prioridad' }).locator('xpath=following-sibling::dd[1]')).toHaveText(
+        'Normal',
+      );
+      const created = (
+        await pool.query<{ id: number }>(`SELECT id FROM tickets WHERE subject=$1`, [
+          'El escáner no lee los códigos de barra',
+        ])
+      ).rows[0].id;
+      await expectNormalDeadline(created);
+
+      // A request made by hand with «urgent» is saved as «normal», with the normal deadline.
+      const forged = await rosa.evaluate(
+        async ({ url, body }) => {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          return {
+            status: response.status,
+            json: (await response.json()) as { ticket: { id: number; priority: string } },
+          };
+        },
+        {
+          url: request.url(),
+          body: {
+            subject: 'Pedido hecho a mano con prioridad urgente',
+            body: 'Esta petición no pasa por el formulario.',
+            department: (request.postDataJSON() as { department: string }).department,
+            bodyFormat: 'markdown',
+            operationId: randomUUID(),
+            priority: 'urgent',
+          },
+        },
+      );
+      expect(forged.status).toBe(201);
+      expect(forged.json.ticket.priority).toBe('normal');
+      await expectNormalDeadline(forged.json.ticket.id);
+    } finally {
+      await pool.end();
       await rosaContext.close();
     }
   });

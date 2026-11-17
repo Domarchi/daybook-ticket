@@ -158,11 +158,10 @@
 .client-new-ticket input::placeholder,
 .client-new-ticket textarea::placeholder { color: var(--muted, #69717c); }
 .client-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-/* A field and what it lacks or how to fill it: the message sits right under the box, said when «Crear ticket»
+/* A field and what it lacks: the message sits right under the box, said when «Crear ticket»
    is pressed. The red ring is a shadow, so the darker borders of the dark theme do not hide it. */
 .client-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
 .client-field-error { color: var(--db-danger); font-size: var(--db-text-meta); font-weight: var(--db-weight-semibold); line-height: 1.5; }
-.client-field-hint { color: var(--muted, #69717c); font-size: var(--db-text-caption); line-height: 1.5; }
 .client-new-ticket [aria-invalid="true"] { border-color: var(--db-danger); box-shadow: 0 0 0 1px var(--db-danger); }
 .client-description .client-field-error { display: block; margin-top: 7px; }
 .client-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding-top: 23px; margin-top: 25px; border-top: 1px solid var(--line, #e6e8ec); }

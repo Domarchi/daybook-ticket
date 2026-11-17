@@ -8,6 +8,7 @@ import { startRequestedFulfillment } from '@/lib/fulfillment';
 import { getSettingsInTransaction } from '@/lib/settings-transaction';
 import { getEffectiveServicePolicy } from '@/lib/service-policies';
 import { resolutionDeadline } from '@/lib/ticket-sla';
+import { creationPriority } from '@/lib/ticket-priority';
 import { chooseAutomaticAssignee } from '@/lib/automatic-assignment';
 import { requireAccess } from '@/lib/access';
 import { notificationStatements, drainOutboxBestEffort } from '@/lib/mail';
@@ -102,7 +103,9 @@ export async function POST(request: Request) {
         requester.customerCompanyId,
         settings.slaHours,
       );
-      const dueAt = resolutionDeadline(now, data.priority, policy);
+      // The team sets priority: from the portal it is always the default, and the SLA follows the saved value.
+      const priority = creationPriority(fresh.role, data.priority);
+      const dueAt = resolutionDeadline(now, priority, policy);
       const { rows } = await tx.query(
         `INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail","requesterMemberId","customerCompanyId",department,assignee,"assigneeMemberId",status,priority,"createdAt","updatedAt","dueAt","slaPolicySnapshot","slaStartedAt",${CATEGORY_INSERT_COLUMNS}) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'open',$11,$12,$12,$13,$14,$12,$15,$16,$17,$18,$19) RETURNING *`,
         [
@@ -116,7 +119,7 @@ export async function POST(request: Request) {
           data.department,
           assignee,
           assigneeMemberId,
-          data.priority,
+          priority,
           now,
           dueAt,
           JSON.stringify(policy),
