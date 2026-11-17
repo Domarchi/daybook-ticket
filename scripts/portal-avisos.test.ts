@@ -46,8 +46,7 @@ test('el nuevo ticket del portal valida al enviar y dice bajo el campo qué falt
   assert.match(portal, /errorId=\{missing\.body \? 'new-ticket-description-error' : undefined\}/);
   assert.match(editor, /aria-describedby=\{errorId \? `\$\{helpId\} \$\{errorId\}` : helpId\}/);
   assert.match(editor, /aria-invalid=\{errorId \? true : undefined\}/);
-  // Departamento y Prioridad se siguen pidiendo (decisión de producto); una línea explica «Urgente».
-  assert.match(portal, /Elige «Urgente» solo si no puedes seguir trabajando\./);
+  // Departamento se sigue pidiendo; la prioridad la pone el equipo (decisión de producto).
   assert.match(portal, />\s*Departamento\s*<select/);
   assert.match(css, /\.client-field-error \{ color: var\(--db-danger\);/);
   // Un botón apagado no está «cargando»: el cursor de espera lo hacía parecer.

@@ -140,7 +140,6 @@ export default function ClientPortal({
     return {
       subject: saved.subject || '',
       body: saved.body || '',
-      priority: saved.priority || 'normal',
       department: saved.department || data.settings.departments[0] || '',
     };
   });
@@ -264,7 +263,7 @@ export default function ClientPortal({
       setOrganizationRequest({});
       setAssetChoice(null);
       setRequestKind('');
-      setDraft({ subject: '', body: '', priority: 'normal', department: data.settings.departments[0] || '' });
+      setDraft({ subject: '', body: '', department: data.settings.departments[0] || '' });
       setCreating(false);
       setSection('tickets');
       setSelectedId(result.ticket.id);
@@ -485,37 +484,19 @@ export default function ClientPortal({
                       ))}
                     </select>
                   </label>
-                  <div className="client-field">
-                    <label>
-                      Prioridad
-                      <select
-                        value={draft.priority}
-                        onChange={event => updateDraft({ ...draft, priority: event.target.value })}
-                        aria-describedby="new-ticket-priority-hint"
-                      >
-                        {Object.entries(PRIORITY).map(([key, label]) => (
-                          <option key={key} value={key}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <small id="new-ticket-priority-hint" className="client-field-hint">
-                      Elige «Urgente» solo si no puedes seguir trabajando.
-                    </small>
-                  </div>
+                  {/* La prioridad la pone el equipo: el cliente no la elige (el servidor también la ignora). */}
+                  <label>
+                    Tipo de solicitud
+                    <select value={requestKind} onChange={event => setRequestKind(event.target.value)}>
+                      <option value="">Una falla o consulta</option>
+                      {REQUIREMENTS.map(item => (
+                        <option key={item.id} value={item.id}>
+                          Un pedido: {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
-                <label>
-                  Tipo de solicitud
-                  <select value={requestKind} onChange={event => setRequestKind(event.target.value)}>
-                    <option value="">Una falla o consulta</option>
-                    {REQUIREMENTS.map(item => (
-                      <option key={item.id} value={item.id}>
-                        Un pedido: {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
                 {ownEquipment.length > 0 && (
                   <label>
                     ¿Sobre qué equipo?

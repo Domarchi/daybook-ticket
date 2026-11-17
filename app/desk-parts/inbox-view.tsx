@@ -18,7 +18,7 @@ import {
   Search,
   Zap,
 } from 'lucide-react';
-import { type RefObject, useState } from 'react';
+import { type RefObject, useEffect, useRef, useState } from 'react';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { type Member, type Ticket, type Workspace } from '../../lib/types';
 import { MyAvailabilityPanel } from '../operations-settings';
@@ -112,7 +112,7 @@ export function InboxView({
   searchRef: RefObject<HTMLInputElement | null>;
   staffMembers: Member[];
   exportCsv: () => Promise<void>;
-  resolveSelected: () => Promise<void>;
+  resolveSelected: () => Promise<boolean>;
   loadDemo: () => Promise<boolean>;
   setCreate: (value: boolean) => void;
   openTicket: (ticket: Ticket) => void;
@@ -131,6 +131,14 @@ export function InboxView({
   // question goes away for good: it must not pop up again on the next ticket ticked.
   if (confirmingResolve && visibleSelected.length === 0) setConfirmingResolve(false);
   const resolving = resolveQuestion(visibleSelected.length);
+  // After «Marcar como solucionados» (or the bar's «Cancelar») the bar and its buttons are gone, and focus would
+  // fall to nothing (<body>). Focus goes to the active queue tab, the head of the list, which stays put while the list
+  // refreshes; the «N tickets solucionados» notice in the status region says what happened.
+  const ticketPanel = useRef<HTMLElement>(null);
+  const [listFocus, setListFocus] = useState(0);
+  useEffect(() => {
+    if (listFocus) ticketPanel.current?.querySelector<HTMLElement>('.queue-tabs [aria-pressed="true"]')?.focus();
+  }, [listFocus]);
   return (
     <>
       <div className="page-heading">
@@ -191,7 +199,7 @@ export function InboxView({
         </>
       ) : (
         <div className="inbox-grid">
-          <section className="ticket-panel">
+          <section className="ticket-panel" ref={ticketPanel}>
             {data.evolution?.features.organization && (
               <SavedViewPicker
                 key={data.viewer!.id}
@@ -374,12 +382,22 @@ export function InboxView({
             )}
             {visibleSelected.length > 0 && (
               <div className="bulk-bar">
-                <strong>{visibleSelected.length} seleccionados</strong>
+                <strong>
+                  {visibleSelected.length} {visibleSelected.length === 1 ? 'seleccionado' : 'seleccionados'}
+                </strong>
                 <button disabled={busy} onClick={() => setConfirmingResolve(true)}>
                   <CheckCheck size={16} />
                   Marcar como solucionados
                 </button>
-                <button onClick={() => setSelected([])}>Cancelar</button>
+                <button
+                  onClick={() => {
+                    // The bar goes away with this button: focus goes to the head of the list, not to <body>.
+                    setSelected([]);
+                    setListFocus(count => count + 1);
+                  }}
+                >
+                  Cancelar
+                </button>
               </div>
             )}
             {confirmingResolve && visibleSelected.length > 0 && (
@@ -391,7 +409,14 @@ export function InboxView({
                 busy={busy}
                 onClose={() => setConfirmingResolve(false)}
                 onConfirm={() => {
-                  void resolveSelected().finally(() => setConfirmingResolve(false));
+                  void resolveSelected().then(
+                    solved => {
+                      // Same render: the dialog closes first, then the effect moves focus to the list.
+                      setConfirmingResolve(false);
+                      if (solved) setListFocus(count => count + 1);
+                    },
+                    () => setConfirmingResolve(false),
+                  );
                 }}
               />
             )}
