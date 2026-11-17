@@ -4,7 +4,6 @@ import { FAULT_GROUPS } from '../../lib/ticket-category-model';
 import { isActive } from '../../lib/ticket-status';
 import { type TicketFilters, useTicketSearch } from '@/hooks/use-ticket-search';
 import {
-  Activity,
   ArrowDownToLine,
   ArrowRight,
   Check,
@@ -19,19 +18,42 @@ import {
   Search,
   Zap,
 } from 'lucide-react';
-import { type RefObject } from 'react';
+import { type RefObject, useState } from 'react';
 import { useMediaQuery } from '@/hooks/use-media-query';
 import { type Member, type Ticket, type Workspace } from '../../lib/types';
 import { MyAvailabilityPanel } from '../operations-settings';
 import { TicketPagination } from '../ticket-pagination';
 import { SavedViewPicker } from '../work-organization';
-import { PRIORITY, since, sla, Avatar, Status, Priority, SearchShortcut, Empty, Stat, DeskLink, View } from './shared';
+import {
+  PRIORITY,
+  since,
+  sla,
+  Avatar,
+  Status,
+  Priority,
+  SearchShortcut,
+  Empty,
+  Stat,
+  DeskLink,
+  View,
+  ConfirmDialog,
+} from './shared';
 import { Combobox } from '../combobox';
 import { Overview } from './overview';
 import { TicketCards } from './ticket-cards';
 import { ClassifyBackfill } from '../classify-backfill';
 import { SkeletonList } from '../estados';
 
+// The question before solving the selection, in singular for one ticket: «Vas a marcar 1 ticket como
+// solucionado. Al cliente…» or «Vas a marcar 3 tickets como solucionados. A cada cliente…».
+function resolveQuestion(selected: number) {
+  const one = selected === 1;
+  const count = one ? '1 ticket' : `${selected} tickets`;
+  return {
+    count,
+    description: `Vas a marcar ${count} como ${one ? 'solucionado' : 'solucionados'}. ${one ? 'Al cliente' : 'A cada cliente'} se le pedirá que evalúe la atención, y eso no se puede deshacer.`,
+  };
+}
 export function InboxView({
   view,
   data,
@@ -101,6 +123,14 @@ export function InboxView({
   // tablets) that only fits from 1024 px up; narrower windows get the same cards
   // the phone uses, instead of pushing the whole page sideways.
   const narrow = useMediaQuery('(max-width: 1023px)');
+  // Solucionar no tiene «Deshacer» (canUndo en lib/ticket-overlay.ts: pide la
+  // evaluación al cliente). Varios a la vez se confirman antes, como manda la
+  // Fase 5b para lo que no tiene vuelta atrás.
+  const [confirmingResolve, setConfirmingResolve] = useState(false);
+  // If the selection empties while the question is open (another agent solved them, the view refreshed), the
+  // question goes away for good: it must not pop up again on the next ticket ticked.
+  if (confirmingResolve && visibleSelected.length === 0) setConfirmingResolve(false);
+  const resolving = resolveQuestion(visibleSelected.length);
   return (
     <>
       <div className="page-heading">
@@ -145,7 +175,13 @@ export function InboxView({
           value={counts.overdue}
           icon={<Zap size={19} />}
           detail={counts.overdue ? 'Necesitan tu atención' : 'Todo dentro del plazo'}
-          color="purple"
+          color="danger"
+          onClick={() => {
+            // The card is the shortcut to the overdue queue, as «SLA vencido» in the rail.
+            if (view !== 'inbox') go('inbox');
+            setQueue('overdue');
+            setSelected([]);
+          }}
         />
       </div>
       {view === 'overview' ? (
@@ -339,17 +375,25 @@ export function InboxView({
             {visibleSelected.length > 0 && (
               <div className="bulk-bar">
                 <strong>{visibleSelected.length} seleccionados</strong>
-                <button
-                  disabled={busy}
-                  onClick={() => {
-                    void resolveSelected();
-                  }}
-                >
+                <button disabled={busy} onClick={() => setConfirmingResolve(true)}>
                   <CheckCheck size={16} />
                   Marcar como solucionados
                 </button>
                 <button onClick={() => setSelected([])}>Cancelar</button>
               </div>
+            )}
+            {confirmingResolve && visibleSelected.length > 0 && (
+              <ConfirmDialog
+                title="Marcar como solucionados"
+                description={resolving.description}
+                confirmLabel={`Solucionar ${resolving.count}`}
+                busyLabel="Guardando…"
+                busy={busy}
+                onClose={() => setConfirmingResolve(false)}
+                onConfirm={() => {
+                  void resolveSelected().finally(() => setConfirmingResolve(false));
+                }}
+              />
             )}
             {counts.all === 0 ? (
               <div className="welcome">
@@ -502,43 +546,6 @@ export function InboxView({
               loading={searchResults.loading}
             />
           </section>
-          <aside className="focus-panel">
-            <div className="focus-heading">
-              <span className="focus-icon">
-                <Activity size={18} />
-              </span>
-              <h2>En foco</h2>
-              <span className="tiny-live" />
-            </div>
-            <div className="focus-divider" />
-            <div className="focus-count">
-              <span>{counts.overdue}</span>
-              <div>tickets fuera de plazo</div>
-            </div>
-            <button className="focus-link" onClick={() => setQueue('overdue')}>
-              Revisar prioridad <ArrowRight size={15} />
-            </button>
-            <div className="focus-divider" />
-            <span className="eyebrow">TU PRÓXIMO PASO</span>
-            <div className="next-step">
-              <span>01</span>
-              <div>
-                <strong>{counts.unassigned ? 'Distribuye la carga' : 'Documenta una solución'}</strong>
-                <p>
-                  {counts.unassigned
-                    ? `${counts.unassigned} solicitudes aún no tienen responsable.`
-                    : 'Nada por asignar.'}
-                </p>
-              </div>
-            </div>
-            <button
-              className="focus-link"
-              onClick={() => (counts.unassigned ? setQueue('unassigned') : go('knowledge'))}
-            >
-              {counts.unassigned ? 'Asignar tickets' : 'Crear un artículo'}
-              <ArrowRight size={15} />
-            </button>
-          </aside>
         </div>
       )}
     </>

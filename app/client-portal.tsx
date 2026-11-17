@@ -26,12 +26,12 @@ import { equipmentLabel } from '@/lib/client-equipment-model';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowRight,
   BookOpen,
   CheckCircle2,
   ChevronRight,
-  CircleHelp,
   Clock3,
   Headphones,
   LoaderCircle,
@@ -71,6 +71,7 @@ import './client-portal.css';
 import { useTicketSearch, useTicketConversation, type TicketFilters } from '@/hooks/use-ticket-search';
 import { TicketPagination } from './ticket-pagination';
 import { EmptyState, SkeletonList } from './estados';
+import { SignOutDialog } from './desk-parts/shared';
 
 const PRIORITY: Record<TicketPriority, string> = { low: 'Baja', normal: 'Normal', high: 'Alta', urgent: 'Urgente' };
 const date = (value: string) =>
@@ -131,6 +132,8 @@ export default function ClientPortal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  // What a new ticket still lacks, said under the field when «Crear ticket» is pressed (not a dead button).
+  const [missing, setMissing] = useState<{ subject?: string; body?: string }>({});
   const createScope = `${data.viewer!.id}:client:new-ticket`;
   const [draft, setDraft] = useState(() => {
     const saved = readNewTicketDraft(createScope);
@@ -144,6 +147,8 @@ export default function ClientPortal({
   const updateDraft = (next: typeof draft) => {
     setDraft(next);
     writeNewTicketDraft(createScope, next);
+    if (missing.subject && next.subject.trim()) setMissing(current => ({ ...current, subject: undefined }));
+    if (missing.body && next.body.trim()) setMissing(current => ({ ...current, body: undefined }));
   };
   const operation = useRef(false);
   const [organizationRequest, setOrganizationRequest] = useState<OrganizationRequestValue>(() =>
@@ -224,6 +229,16 @@ export default function ClientPortal({
   const createTicket = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (operation.current || !createAttachments.canSubmit) return;
+    const lacking = {
+      subject: draft.subject.trim() ? undefined : 'Escribe el asunto',
+      body: draft.body.trim() ? undefined : 'Escribe la descripción',
+    };
+    if (lacking.subject || lacking.body) {
+      setMissing(lacking);
+      // Focus goes to the first field that lacks text: on a phone the message sits above the button just pressed.
+      document.getElementById(lacking.subject ? 'new-ticket-subject' : 'new-ticket-description')?.focus();
+      return;
+    }
     operation.current = true;
     setBusy(true);
     setError('');
@@ -295,8 +310,10 @@ export default function ClientPortal({
       setCreating(true);
       setSelectedId(null);
       setError('');
+      setMissing({});
     }
   };
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const signOut = async () => {
     if (operation.current) return;
     operation.current = true;
@@ -353,11 +370,25 @@ export default function ClientPortal({
             {displayName}
             <small>{email}</small>
           </button>
-          <button disabled={busy} onClick={signOut} aria-label="Cerrar sesión" title="Cerrar sesión">
-            <LogOut size={18} />
+          <button
+            disabled={busy}
+            onClick={() => setConfirmingSignOut(true)}
+            aria-label="Cerrar sesión"
+            title="Cerrar sesión"
+          >
+            <LogOut size={18} aria-hidden="true" />
           </button>
         </div>
       </header>
+      {confirmingSignOut && (
+        <SignOutDialog
+          onClose={() => setConfirmingSignOut(false)}
+          onConfirm={() => {
+            setConfirmingSignOut(false);
+            void signOut();
+          }}
+        />
+      )}
 
       <main className="client-main">
         <div className="workspace-sync">
@@ -375,24 +406,6 @@ export default function ClientPortal({
             }}
           />
         </div>
-        {error && (
-          <div className="client-feedback error" role="alert">
-            <CircleHelp size={18} />
-            <p>{error}</p>
-            <button aria-label="Cerrar aviso" onClick={() => setError('')}>
-              <X size={17} />
-            </button>
-          </div>
-        )}
-        {notice && (
-          <div className="client-feedback success" role="status">
-            <CheckCircle2 size={18} />
-            <p>{notice}</p>
-            <button aria-label="Cerrar confirmación" onClick={() => setNotice('')}>
-              <X size={17} />
-            </button>
-          </div>
-        )}
 
         {section === 'security' ? (
           <>
@@ -430,7 +443,7 @@ export default function ClientPortal({
                 <MessageSquare size={27} />
               </span>
             </div>
-            <form className="client-new-ticket" onSubmit={createTicket}>
+            <form className="client-new-ticket" onSubmit={createTicket} noValidate>
               <div className="client-identity">
                 <ShieldCheck size={19} />
                 <p>
@@ -439,17 +452,27 @@ export default function ClientPortal({
                 </p>
               </div>
               <fieldset disabled={busy}>
-                <label>
-                  Asunto
-                  <input
-                    required
-                    maxLength={160}
-                    value={draft.subject}
-                    onChange={event => updateDraft({ ...draft, subject: event.target.value })}
-                    placeholder="Describe brevemente lo que necesitas"
-                    autoFocus
-                  />
-                </label>
+                <div className="client-field">
+                  <label>
+                    Asunto
+                    <input
+                      id="new-ticket-subject"
+                      required
+                      maxLength={160}
+                      value={draft.subject}
+                      onChange={event => updateDraft({ ...draft, subject: event.target.value })}
+                      placeholder="Describe brevemente lo que necesitas"
+                      aria-invalid={Boolean(missing.subject)}
+                      aria-describedby={missing.subject ? 'new-ticket-subject-error' : undefined}
+                      autoFocus
+                    />
+                  </label>
+                  {missing.subject && (
+                    <small id="new-ticket-subject-error" className="client-field-error" role="alert">
+                      {missing.subject}
+                    </small>
+                  )}
+                </div>
                 <div className="client-fields">
                   <label>
                     Departamento
@@ -462,19 +485,25 @@ export default function ClientPortal({
                       ))}
                     </select>
                   </label>
-                  <label>
-                    Prioridad
-                    <select
-                      value={draft.priority}
-                      onChange={event => updateDraft({ ...draft, priority: event.target.value })}
-                    >
-                      {Object.entries(PRIORITY).map(([key, label]) => (
-                        <option key={key} value={key}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                  <div className="client-field">
+                    <label>
+                      Prioridad
+                      <select
+                        value={draft.priority}
+                        onChange={event => updateDraft({ ...draft, priority: event.target.value })}
+                        aria-describedby="new-ticket-priority-hint"
+                      >
+                        {Object.entries(PRIORITY).map(([key, label]) => (
+                          <option key={key} value={key}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <small id="new-ticket-priority-hint" className="client-field-hint">
+                      Elige «Urgente» solo si no puedes seguir trabajando.
+                    </small>
+                  </div>
                 </div>
                 <label>
                   Tipo de solicitud
@@ -510,7 +539,13 @@ export default function ClientPortal({
                     disabled={busy}
                     rows={7}
                     placeholder="Qué pasa, desde cuándo y qué necesitas."
+                    errorId={missing.body ? 'new-ticket-description-error' : undefined}
                   />
+                  {missing.body && (
+                    <small id="new-ticket-description-error" className="client-field-error" role="alert">
+                      {missing.body}
+                    </small>
+                  )}
                 </div>
               </fieldset>
               {data.evolution?.features.knowledge && (
@@ -533,10 +568,7 @@ export default function ClientPortal({
               <AttachmentComposer controls={createAttachments} disabled={busy} />
               <div className="client-form-footer">
                 <span>Podrás consultar las respuestas en Mis tickets.</span>
-                <button
-                  className="primary"
-                  disabled={busy || !draft.subject.trim() || !draft.body.trim() || !createAttachments.canSubmit}
-                >
+                <button className="primary" disabled={busy || !createAttachments.canSubmit}>
                   {busy ? <LoaderCircle size={16} className="spin" /> : <Send size={16} />}Crear ticket
                 </button>
               </div>
@@ -867,6 +899,28 @@ export default function ClientPortal({
           <span>{data.settings.brandName} · Servicios Daybook</span>
         </footer>
       </main>
+      {/* The notice after an action, as on the team desk (Phase 5 of the Daybook standard): bottom centre,
+          where it stays in view after a reply at the end of a long chat. A success leaves on its own; an
+          error stays until it is closed. Both regions are always mounted so screen readers announce them. */}
+      <div className="toast-region" role="alert" aria-atomic="true">
+        {error && (
+          <div className="toast error">
+            <AlertTriangle size={18} aria-hidden="true" />
+            <span>{error}</span>
+            <button type="button" className="toast-close" onClick={() => setError('')} aria-label="Cerrar aviso">
+              <X size={16} />
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="toast-region" role="status" aria-live="polite" aria-atomic="true">
+        {notice && !error && (
+          <div className="toast">
+            <CheckCircle2 size={18} aria-hidden="true" />
+            {notice}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

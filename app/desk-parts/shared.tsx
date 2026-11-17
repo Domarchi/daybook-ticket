@@ -169,6 +169,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
+  cancelLabel = 'Cancelar',
   busyLabel = 'Eliminando…',
   busy = false,
   onConfirm,
@@ -177,6 +178,7 @@ export function ConfirmDialog({
   title: string;
   description: string;
   confirmLabel: string;
+  cancelLabel?: string;
   busyLabel?: string;
   busy?: boolean;
   onConfirm: () => void;
@@ -192,7 +194,7 @@ export function ConfirmDialog({
         <p>{description}</p>
         <div className="confirm-dialog-actions">
           <button ref={cancel} type="button" className="secondary" disabled={busy} onClick={onClose}>
-            Cancelar
+            {cancelLabel}
           </button>
           <button type="button" className="danger-button" disabled={busy} onClick={onConfirm}>
             {busy ? busyLabel : confirmLabel}
@@ -200,6 +202,21 @@ export function ConfirmDialog({
         </div>
       </div>
     </Modal>
+  );
+}
+// Cerrar sesión no tiene vuelta atrás y el botón es un ícono al lado del
+// nombre: pregunta antes, con los mismos textos que Parte Diario. Lo usan el
+// riel del equipo y la cabecera del portal del cliente.
+export function SignOutDialog({ onConfirm, onClose }: { onConfirm: () => void; onClose: () => void }) {
+  return (
+    <ConfirmDialog
+      title="Cerrar sesión"
+      description="Vas a salir de Daybook Ticket en este dispositivo y tendrás que ingresar de nuevo para seguir."
+      confirmLabel="Cerrar sesión"
+      cancelLabel="Seguir trabajando"
+      onConfirm={onConfirm}
+      onClose={onClose}
+    />
   );
 }
 // The search shortcut is Cmd+K on Apple devices and Ctrl+K elsewhere (the handler accepts both).
@@ -221,20 +238,29 @@ export function Stat({
   icon,
   detail,
   color,
+  onClick,
 }: {
   label: string;
   value: number;
   icon: ReactNode;
   detail: string;
   color: string;
+  /** Makes the whole card a shortcut (its label is the button; the card is the area you can press). */
+  onClick?: () => void;
 }) {
   return (
-    <article className="stat-card">
+    <article className={onClick ? 'stat-card is-link' : 'stat-card'}>
       <div>
-        <span>{label}</span>
+        {onClick ? (
+          <button type="button" className="stat-card-link" onClick={onClick}>
+            {label}
+          </button>
+        ) : (
+          <span>{label}</span>
+        )}
         <span className={`stat-icon ${color}`}>{icon}</span>
       </div>
-      <strong>{value.toString().padStart(2, '0')}</strong>
+      <strong>{value}</strong>
       <small>{detail}</small>
     </article>
   );

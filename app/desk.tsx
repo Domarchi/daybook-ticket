@@ -29,7 +29,7 @@ import { type Ticket } from '../lib/types';
 import ClientPortal from './client-portal';
 import { LiveStatus } from './live-status';
 import { TicketAlerts } from './ticket-alerts';
-import { View, request, Modal, PRIORITY, views, Avatar, ReplyTarget } from './desk-parts/shared';
+import { View, request, Modal, PRIORITY, views, Avatar, ReplyTarget, SignOutDialog } from './desk-parts/shared';
 import { statusLabel } from '../lib/ticket-status';
 import { faultLabel, requirementLabel, storedCategory } from '../lib/ticket-category-model';
 import { TicketView } from './desk-parts/ticket-view';
@@ -327,6 +327,13 @@ export default function Desk({
     }
   };
   const loadDemo = () => run(() => request('/api/demo', 'POST', {}), 'Ejemplos cargados.');
+  // El botón del riel pregunta antes (SignOutDialog); en el teléfono cierra el
+  // menú primero, para que el diálogo no quede bajo la trampa de foco del cajón.
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+  const askSignOut = () => {
+    setMobile(false);
+    setConfirmingSignOut(true);
+  };
   const signOut = async () => {
     setBusy(true);
     setError('');
@@ -385,7 +392,7 @@ export default function Desk({
         isAdmin={isAdmin}
         data={data}
         busy={busy}
-        signOut={signOut}
+        signOut={askSignOut}
         viewerName={viewerName}
       />
       {drawerOpen && <button className="sidebar-scrim" aria-label="Cerrar menú" tabIndex={-1} onClick={closeMenu} />}
@@ -579,6 +586,15 @@ export default function Desk({
           </div>
         )}
       </div>
+      {confirmingSignOut && (
+        <SignOutDialog
+          onClose={() => setConfirmingSignOut(false)}
+          onConfirm={() => {
+            setConfirmingSignOut(false);
+            void signOut();
+          }}
+        />
+      )}
       <div className="toast-region" role="status" aria-live="polite" aria-atomic="true">
         {toast && !error && (
           <div className="toast">
