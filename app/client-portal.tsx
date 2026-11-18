@@ -18,7 +18,7 @@ import { TicketChat } from './ticket-chat';
 import { TicketSatisfactionPanel } from './satisfaction';
 import { EmailInboundPanel } from './email-inbound';
 import { PublicTicketProgress } from './public-ticket-progress';
-import { OwnEquipmentStrip, useOwnEquipment } from './own-equipment';
+import { ConfirmEquipmentCard, OwnEquipmentStrip, useOwnEquipmentState } from './own-equipment';
 import { ClientRequirementsList, ClientRequirementTracking } from './client-requirements';
 import { REQUIREMENTS } from '@/lib/ticket-category-model';
 import { equipmentLabel } from '@/lib/client-equipment-model';
@@ -121,7 +121,8 @@ export default function ClientPortal({
     return Number.isSafeInteger(id) && id > 0 ? id : null;
   });
   const [creating, setCreating] = useState(false);
-  const ownEquipment = useOwnEquipment(data.viewer!.id);
+  const ownEquipmentState = useOwnEquipmentState(data.viewer!.id),
+    ownEquipment = ownEquipmentState.items;
   // The equipment a new ticket is about. Untouched, it follows the only piece the client has (if just one).
   const [assetChoice, setAssetChoice] = useState<string | null>(null);
   // What kind of request a new ticket is: a fault or question (''), or a requirement to follow (F6-B3).
@@ -745,6 +746,14 @@ export default function ClientPortal({
                 <p>{isCompanyManager ? `Tus tickets y los de ${companyName || 'tu empresa'}.` : 'Solo tus tickets.'}</p>
               </div>
             </div>
+            <ConfirmEquipmentCard
+              memberId={data.viewer!.id}
+              items={ownEquipment}
+              loaded={ownEquipmentState.loaded}
+              hasCompany={Boolean(data.viewer!.customerCompanyId)}
+              onSaved={ownEquipmentState.reload}
+              onNewTicket={newTicket}
+            />
             <OwnEquipmentStrip items={ownEquipment} />
             <ClientRequirementsList
               key={`requirements:${accessKey}`}

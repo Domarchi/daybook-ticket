@@ -40,6 +40,12 @@ export const RATE_RULES = {
     windowMs: 10 * 60_000,
     message: 'Estás importando o renovando invitaciones demasiado seguido. Espera unos minutos.',
   },
+  ownEquipment: {
+    bucket: 'own-equipment',
+    max: 20,
+    windowMs: 10 * 60_000,
+    message: 'Estás registrando datos de equipos demasiado seguido. Espera unos minutos.',
+  },
   report: {
     bucket: 'report',
     max: 10,
