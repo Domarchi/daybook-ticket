@@ -38,7 +38,7 @@ export const RATE_RULES = {
     bucket: 'member-import',
     max: 30,
     windowMs: 10 * 60_000,
-    message: 'Estás revisando demasiados archivos seguidos. Espera unos minutos.',
+    message: 'Estás importando o renovando invitaciones demasiado seguido. Espera unos minutos.',
   },
   report: {
     bucket: 'report',

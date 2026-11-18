@@ -1496,6 +1496,58 @@ test.describe('the support desk', () => {
     await expect(panel.getByRole('status')).toContainText('0 de 3 filas listas');
   });
 
+  test('pending invitation links show when they expire, and the expired ones are renewed together', async ({
+    page,
+  }) => {
+    // Marta's link (from the import) is made to expire; nobody else's changes.
+    const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+    try {
+      await pool.query(
+        `UPDATE invitations SET "expiresAt"='2026-01-01T00:00:00.000Z'
+          WHERE "memberId"=(SELECT id FROM members WHERE email='marta.vega@example.test')`,
+      );
+    } finally {
+      await pool.end();
+    }
+    await page.goto('/security');
+    await page.getByLabel('Contraseña actual').fill(readRunState().password);
+    await page.getByRole('button', { name: 'Verificar contraseña' }).click();
+    await expect(page.getByText('Contraseña verificada para esta sesión.')).toBeVisible();
+    await page.goto('/?view=team');
+    await page
+      .getByRole('combobox', { name: 'Filtrar personas por rol' })
+      .selectOption({ label: 'Invitaciones pendientes' });
+    const marta = page.locator('.access-table tr').filter({ hasText: 'marta.vega@example.test' });
+    const pablo = page.locator('.access-table tr').filter({ hasText: 'pablo.diaz@example.test' });
+    await expect(marta).toContainText('Enlace vencido');
+    await expect(pablo).toContainText('Enlace vigente hasta el');
+    await expect(page.locator('.access-table')).not.toContainText('lucia.rojas@example.test');
+
+    const panel = page.getByRole('region', { name: 'Enlaces de invitación' });
+    await expect(panel).toContainText('1 enlace vencido');
+    await expectNoSeriousViolations(page, 'Enlaces de invitación');
+
+    // Renewing all would break links that still work: it asks first, and «Cancelar» changes nothing.
+    await panel.getByRole('button', { name: /^Renovar todos/ }).click();
+    await expect(panel.getByRole('group', { name: 'Confirmar renovación de todos los enlaces' })).toContainText(
+      '1 enlace vigente dejará de funcionar. ¿Renovar los 2?',
+    );
+    await panel.getByRole('button', { name: 'Cancelar' }).click();
+
+    await panel.getByRole('button', { name: 'Renovar vencidos (1)' }).click();
+    await expect(panel.getByText(/Se renovaron 1 enlaces/)).toBeVisible();
+    const linksDownload = page.waitForEvent('download');
+    await panel.getByRole('button', { name: 'Descargar enlaces (CSV)' }).click();
+    let links = '';
+    for await (const chunk of await (await linksDownload).createReadStream()) links += chunk.toString('utf8');
+    const lines = links.trim().split('\r\n');
+    expect(lines).toHaveLength(2);
+    expect(lines[1]).toMatch(
+      /^"Marta Vega";"marta.vega@example.test";"Minera Sur";"NB-0101";"http[^"]+\/login\?invite=[a-f0-9]{64}"/,
+    );
+    await expect(marta).toContainText('Enlace vigente hasta el');
+  });
+
   test.describe('dark mode', () => {
     test.use({ colorScheme: 'dark' });
     test('the inbox and an open ticket pass the accessibility gate in dark mode', async ({ page }) => {

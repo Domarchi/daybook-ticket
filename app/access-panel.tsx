@@ -9,6 +9,8 @@ import { CompaniesPanel, MemberCompanyEditor } from './team-tools';
 import { EQUIPMENT_KINDS } from '../lib/client-equipment-model';
 import { EmptyState } from './estados';
 import { MemberImportPanel } from './member-import';
+import { PendingInvitationsPanel } from './invitation-links';
+import { invitationState, invitationStateLabel } from '../lib/invitation-links-model';
 
 export const ROLE_LABELS: Record<MemberRole, string> = {
   owner: 'Propietario',
@@ -36,6 +38,8 @@ async function request<T = unknown>(path: string, method: string, body: unknown)
 export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolean; run: Run }) {
   const [creating, setCreating] = useState(false);
   const [importing, setImporting] = useState(false);
+  // When the list was opened: enough to tell which links still work, without re-rendering every minute.
+  const [now] = useState(() => new Date());
   const [inviteRole, setInviteRole] = useState<MemberRole>('client');
   const [filter, setFilter] = useState('all');
   const [invitation, setInvitation] = useState<{ memberId: string; email: string; url: string } | null>(null);
@@ -49,7 +53,8 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
     member =>
       filter === 'all' ||
       (filter === 'staff' && member.role !== 'client') ||
-      (filter === 'client' && member.role === 'client'),
+      (filter === 'client' && member.role === 'client') ||
+      (filter === 'invited' && member.status === 'invited'),
   );
 
   const invite = async (event: FormEvent<HTMLFormElement>) => {
@@ -343,6 +348,7 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
         </section>
       )}
       <CompaniesPanel companies={data.companies || []} busy={busy} run={run} />
+      <PendingInvitationsPanel members={data.members.filter(canManage)} now={now} busy={busy} run={run} />
       <section className="panel">
         <div className="access-list-head">
           <h2>Directorio de accesos</h2>
@@ -354,6 +360,7 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
             <option value="all">Todas las personas</option>
             <option value="staff">Equipo</option>
             <option value="client">Clientes</option>
+            <option value="invited">Invitaciones pendientes</option>
           </select>
         </div>
         <div className="access-table-scroll">
@@ -414,6 +421,13 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
                   </td>
                   <td>
                     <span className={`access-status ${member.status}`}>{MEMBER_STATUS[member.status]}</span>
+                    {invitationState(member, now) && (
+                      <small
+                        className={`access-invitation-state${invitationState(member, now) === 'expired' ? ' is-expired' : ''}`}
+                      >
+                        {invitationStateLabel(invitationState(member, now)!, member.invitationExpiresAt)}
+                      </small>
+                    )}
                   </td>
                   <td>
                     <div className="access-row-actions">

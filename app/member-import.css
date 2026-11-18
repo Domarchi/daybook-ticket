@@ -27,3 +27,5 @@
 .member-import-done { font-weight: 600; }
 .member-import-warning { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
 @media (max-width: 600px) { .member-import-controls { flex-direction: column; align-items: stretch; } }
+.access-invitation-state { display: block; margin-top: 6px; font-size: var(--db-text-caption); color: var(--muted); }
+.access-invitation-state.is-expired { color: var(--color-danger-text); font-weight: 600; }

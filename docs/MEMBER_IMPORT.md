@@ -57,6 +57,24 @@ Para el lanzamiento a toda la empresa, un administrador puede registrar a muchos
   - un enlace vencido se renueva desde la lista, lo que invalida el anterior.
 - **Exportaciones:** los CSV descargados anteponen `'` a las celdas que empiezan con `= + - @`, para que Excel no las ejecute como fórmulas.
 
+## Enlaces pendientes (L3)
+
+Los enlaces vencen a las 72 horas. En un lanzamiento con cientos de personas, varios vencen antes de usarse.
+
+- **Estado del enlace:** en «Directorio de accesos», cada invitación pendiente muestra «Enlace vigente hasta el …» o «Enlace vencido». Se calcula con `invitations.expiresAt`, que solo se lee en la lista del administrador. El filtro «Invitaciones pendientes» las agrupa.
+- **Panel «Enlaces de invitación»:** cuenta las invitaciones pendientes y los enlaces vencidos.
+  - «Renovar vencidos (N)» crea enlaces nuevos solo para los vencidos.
+  - «Renovar todos (N)» también reemplaza enlaces que todavía funcionan, así que primero pide confirmar cuántos dejarán de funcionar.
+  - El resultado se descarga en el mismo CSV que la importación (`daybook-enlaces-renovados.csv`).
+- **Ruta:** `POST /api/members/invitations` con `{ memberIds }`, de 1 a 500 cuentas distintas.
+  - Solo administradores, con reautenticación y el mismo límite de frecuencia que la importación.
+  - Corre en una transacción con el bloqueo de trabajo y bloquea las filas de esas personas.
+  - Aplica `checkMemberChange` a cada una: un administrador no renueva a otro administrador si no es propietario.
+  - Si alguna ya aceptó o no está pendiente, no renueva ninguna.
+- **Correo:**
+  - igual que «Renovar enlace» de una persona, cancela los correos de invitación en cola, porque llevan el enlace anterior;
+  - a diferencia de esa acción, **no encola correos nuevos**.
+
 ## Código
 
 | Parte | Archivo |
@@ -65,6 +83,7 @@ Para el lanzamiento a toda la empresa, un administrador puede registrar a muchos
 | Contexto de la base, revisión y creación | `lib/member-import.ts` |
 | Ruta `POST /api/members/import` (`mode: preview \| apply`) | `app/api/members/import/route.ts` |
 | Pantalla | `app/member-import.tsx`, `app/member-import.css` |
-| Pruebas | `scripts/member-import.test.ts`, e2e «clients are imported in bulk…» en `e2e/tests/desk.spec.ts` |
+| Renovar enlaces en grupo | `lib/invitation-links-model.ts`, `lib/invitation-links.ts`, `app/api/members/invitations/route.ts`, `app/invitation-links.tsx` |
+| Pruebas | `scripts/member-import.test.ts`, `scripts/invitation-links.test.ts`, e2e «clients are imported in bulk…» y «pending invitation links…» en `e2e/tests/desk.spec.ts` |
 
 `parseBody` acepta un límite mayor solo para esta ruta. Las demás siguen con 100.000.

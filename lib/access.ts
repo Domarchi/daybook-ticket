@@ -38,6 +38,9 @@ export function publicMember(row: MemberRecord | Member): Member {
     companyAccess: row.companyAccess ?? 'own',
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+    ...(row.status === 'invited' && 'invitationExpiresAt' in row
+      ? { invitationExpiresAt: row.invitationExpiresAt ?? null }
+      : {}),
   };
 }
 
