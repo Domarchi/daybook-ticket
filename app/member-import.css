@@ -1,0 +1,29 @@
+/* «Importar clientes» (Fase 7). Only theme tokens, so light and dark follow the global theme. */
+.member-import { margin-bottom: 24px; }
+.member-import .section-head { color: var(--accent, #805a0e); }
+.member-import .section-head h2 { color: var(--ink); font-size: var(--db-text-heading); }
+.member-import-intro, .member-import-kinds, .member-import-note { margin: 0 0 12px; color: var(--muted); font-size: var(--db-text-meta); line-height: 1.6; }
+.member-import-controls { display: flex; flex-wrap: wrap; align-items: end; gap: 12px 16px; margin: 8px 0 16px; }
+.member-import-file { display: grid; gap: 6px; font-size: var(--db-text-meta); font-weight: 600; color: var(--ink); }
+.member-import-file input { min-height: 44px; color: var(--ink); }
+.member-import-check { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--ink); font-size: var(--db-text-meta); }
+.member-import-check input { width: 18px; height: 18px; }
+.member-import-error { margin: 0 0 12px; padding: 10px 12px; border: 1px solid var(--color-danger-border); border-radius: 8px; color: var(--ink); }
+.member-import-error a { color: var(--ink); font-weight: 600; }
+.member-import-problems { padding: 12px 14px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); }
+.member-import-problems p { display: flex; gap: 8px; align-items: center; margin: 0 0 6px; font-weight: 600; }
+.member-import-problems ul, .member-import-row-problems { margin: 0; padding-left: 18px; }
+.member-import-summary { margin: 0 0 8px; font-weight: 600; color: var(--ink); }
+.member-import-table-wrap { max-height: 420px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.member-import-table { width: 100%; border-collapse: collapse; font-size: var(--db-text-meta); }
+.member-import-table th, .member-import-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; color: var(--ink); }
+.member-import-table th { position: sticky; top: 0; background: var(--surface); }
+.member-import-table td small { display: block; color: var(--muted); }
+.member-import-table tr.has-problems td:last-child { color: var(--color-danger-text); }
+.member-import-ok { color: var(--muted); }
+.member-import-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 14px; }
+.member-import-actions .member-import-note { margin: 0; }
+.member-import-result p { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 10px; color: var(--ink); line-height: 1.6; }
+.member-import-done { font-weight: 600; }
+.member-import-warning { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
+@media (max-width: 600px) { .member-import-controls { flex-direction: column; align-items: stretch; } }

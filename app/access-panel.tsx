@@ -2,12 +2,13 @@
 import { daybookFetch } from '@/lib/browser-request';
 
 import { useRef, useState, type FormEvent } from 'react';
-import { Check, Copy, Mail, Plus, RefreshCw, ShieldCheck, UserPlus, Users, X } from 'lucide-react';
+import { Check, Copy, FileSpreadsheet, Mail, Plus, RefreshCw, ShieldCheck, UserPlus, Users, X } from 'lucide-react';
 import type { MailStatus, Member, MemberRole, Workspace } from '../lib/types';
 import './access-panel.css';
 import { CompaniesPanel, MemberCompanyEditor } from './team-tools';
 import { EQUIPMENT_KINDS } from '../lib/client-equipment-model';
 import { EmptyState } from './estados';
+import { MemberImportPanel } from './member-import';
 
 export const ROLE_LABELS: Record<MemberRole, string> = {
   owner: 'Propietario',
@@ -34,6 +35,7 @@ async function request<T = unknown>(path: string, method: string, body: unknown)
 
 export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolean; run: Run }) {
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [inviteRole, setInviteRole] = useState<MemberRole>('client');
   const [filter, setFilter] = useState('all');
   const [invitation, setInvitation] = useState<{ memberId: string; email: string; url: string } | null>(null);
@@ -121,19 +123,35 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
         <div>
           <h1>Equipo y clientes</h1>
         </div>
-        <button
-          className="primary"
-          disabled={busy}
-          onClick={() => {
-            // A new form always starts as a client invitation, whatever was chosen last time.
-            if (!creating) setInviteRole('client');
-            setCreating(!creating);
-          }}
-        >
-          {creating ? <X size={17} /> : <UserPlus size={17} />}
-          {creating ? 'Cerrar formulario' : 'Invitar persona'}
-        </button>
+        <div className="heading-actions">
+          <button
+            className="secondary"
+            disabled={busy}
+            aria-expanded={importing}
+            onClick={() => {
+              setImporting(!importing);
+              setCreating(false);
+            }}
+          >
+            <FileSpreadsheet size={17} />
+            {importing ? 'Cerrar importación' : 'Importar clientes'}
+          </button>
+          <button
+            className="primary"
+            disabled={busy}
+            onClick={() => {
+              // A new form always starts as a client invitation, whatever was chosen last time.
+              if (!creating) setInviteRole('client');
+              setCreating(!creating);
+              setImporting(false);
+            }}
+          >
+            {creating ? <X size={17} /> : <UserPlus size={17} />}
+            {creating ? 'Cerrar formulario' : 'Invitar persona'}
+          </button>
+        </div>
       </div>
+      {importing && <MemberImportPanel busy={busy} run={run} onClose={() => setImporting(false)} />}
       <div className="access-summary">
         <div>
           <Users size={21} />

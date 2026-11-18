@@ -19,6 +19,7 @@ import * as r16 from '@/app/api/email-inbound/[id]/retry/route';
 import * as r17 from '@/app/api/email-inbound/route';
 import * as r18 from '@/app/api/escalations/route';
 import * as r19 from '@/app/api/evolution/features/route';
+import * as rMemberImport from '@/app/api/members/import/route';
 import * as r20 from '@/app/api/members/[id]/invite/route';
 import * as r21 from '@/app/api/members/[id]/route';
 import * as r22 from '@/app/api/members/route';
@@ -159,6 +160,7 @@ export const WORKSPACE_ROUTE_REGISTRY = [
   { pattern: new RegExp('^equipment$'), names: [], handlers: equipment1 },
   { pattern: new RegExp('^escalations$'), names: [], handlers: r18 },
   { pattern: new RegExp('^evolution/features$'), names: [], handlers: r19 },
+  { pattern: new RegExp('^members/import$'), names: [], handlers: rMemberImport },
   { pattern: new RegExp('^members/([^/]+)/invite$'), names: ['id'], handlers: r20 },
   { pattern: new RegExp('^members/([^/]+)$'), names: ['id'], handlers: r21 },
   { pattern: new RegExp('^members$'), names: [], handlers: r22 },
