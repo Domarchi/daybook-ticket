@@ -60,11 +60,14 @@ export function daybookAuth() {
       storage: 'database',
       window: 60,
       max: 50,
+      // Limits are per client IP. A whole office signs in from one public address (NAT), so sign-in, account
+      // activation and the second factor allow a morning wave of colleagues; with 12+ character passwords, 60 tries a
+      // minute from one address is still far from guessing one. Password reset and re-checks stay strict.
       customRules: {
-        '/sign-in/email': { window: 60, max: 5 },
-        '/sign-up/email': { window: 60, max: 5 },
+        '/sign-in/email': { window: 60, max: 60 },
+        '/sign-up/email': { window: 60, max: 60 },
         '/request-password-reset': { window: 300, max: 3 },
-        '/two-factor/*': { window: 60, max: 5 },
+        '/two-factor/*': { window: 60, max: 30 },
         '/verify-password': { window: 60, max: 5 },
       },
     },
