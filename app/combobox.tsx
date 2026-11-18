@@ -46,6 +46,10 @@ export function Combobox({
   const inputRef = useRef<HTMLInputElement>(null),
     rootRef = useRef<HTMLDivElement>(null),
     listRef = useRef<HTMLUListElement>(null);
+  // Where the open list is drawn: the page, or the modal dialog that holds the field. A native modal dialog
+  // sits in the top layer, above anything on the page, so a list drawn on the page would be hidden behind it.
+  const [layer, setLayer] = useState<HTMLElement | null>(null);
+  const findLayer = () => rootRef.current?.closest('dialog') ?? document.body;
   // While the list is open the box is for typing: it starts empty and the chosen label stays visible as the placeholder.
   const visible = useMemo(() => (open ? filterOptions(options, query) : []), [open, options, query]);
 
@@ -56,6 +60,7 @@ export function Combobox({
   };
   const openList = () => {
     if (disabled || open) return;
+    setLayer(findLayer());
     setOpen(true);
     setQuery('');
     const at = options.findIndex(option => option.value === value && !option.disabled);
@@ -171,6 +176,7 @@ export function Combobox({
     }
   };
   const onInput = (text: string) => {
+    if (!open) setLayer(findLayer());
     setOpen(true);
     setQuery(text);
     setActive(firstEnabled(filterOptions(options, text)));
@@ -227,6 +233,7 @@ export function Combobox({
           <span aria-hidden="true">▾</span>
         </button>
         {open &&
+          layer &&
           createPortal(
             <ul className="combobox-list" id={listId} role="listbox" aria-label={label ?? ariaLabel} ref={listRef}>
               {visible.length === 0 && (
@@ -255,7 +262,7 @@ export function Combobox({
                 );
               })}
             </ul>,
-            document.body,
+            layer,
           )}
       </div>
       {name !== undefined && <input type="hidden" name={name} value={value} />}

@@ -138,4 +138,14 @@
   .ticket-chat-search { gap: 2px; padding-inline: 10px; flex-wrap: wrap; }
   .ticket-chat-search input { flex-basis: calc(100% - 120px); }
 }
+/* Con el dedo (guantes, una mano), el redactor llega a 44 px. Estas reglas
+   igualan la especificidad de las de arriba, que anulaban el mínimo de
+   accessibility.css. El selector «Respuesta / Nota interna» ocupa todo el
+   ancho, en dos mitades, para no publicarle al cliente lo que era una nota. */
+@media (pointer: coarse) {
+  .ticket-chat .composer-tabs button { flex: 1 1 0; justify-content: center; min-height: var(--touch-target); }
+  .ticket-chat .message-editor-toolbar button { min-height: var(--touch-target); min-width: var(--touch-target); }
+  .ticket-chat .ticket-chat-composer .attachment-picker { min-height: var(--touch-target); }
+  .ticket-chat .composer-footer .primary { min-height: var(--touch-target); }
+}
 @media (prefers-reduced-motion: reduce) { .ticket-chat *, .ticket-chat *::before, .ticket-chat *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }

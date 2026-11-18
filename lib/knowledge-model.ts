@@ -126,10 +126,14 @@ export function knowledgeSearchTokens(q: string): string[] {
     .slice(0, 8);
 }
 
-export interface CompanyReportSummary {
+/**
+ * The current load of a company. Reports since the four ticket states count «Sin asignar» and «En proceso»; monthly
+ * snapshots saved before keep the «Abiertos» / «Pendientes» they were captured with (stored reports never change).
+ */
+export type CurrentLoad =
+  { currentUnassigned: number; currentInProgress: number } | { currentOpen: number; currentPending: number };
+export type CompanyReportSummary = CurrentLoad & {
   created: number;
-  currentOpen: number;
-  currentPending: number;
   currentOverdue: number;
   resolutions: number;
   slaMet: number;
@@ -139,6 +143,18 @@ export interface CompanyReportSummary {
   unknownResolved: number;
   untyped: number;
   withoutAsset: number;
+};
+/** The current-load rows of a report, labelled as they were captured. One place for the screen, CSV, PDF and Bita. */
+export function currentLoadRows(summary: CurrentLoad): [string, number][] {
+  return 'currentUnassigned' in summary
+    ? [
+        ['Sin asignar actuales', summary.currentUnassigned],
+        ['En proceso actuales', summary.currentInProgress],
+      ]
+    : [
+        ['Abiertos actuales', summary.currentOpen],
+        ['Pendientes actuales', summary.currentPending],
+      ];
 }
 export interface CompanyTrend {
   label: string;
@@ -158,6 +174,18 @@ export interface CompanyOperationalReport {
 }
 const count = z.number().int().nonnegative();
 const trend = z.object({ label: z.string().max(220), count }).strict();
+const summaryFields = z.object({
+  created: count,
+  currentOverdue: count,
+  resolutions: count,
+  slaMet: count,
+  slaBreached: count,
+  slaCompliancePercent: z.number().min(0).max(100).nullable(),
+  publicReplies: count,
+  unknownResolved: count,
+  untyped: count,
+  withoutAsset: count,
+});
 export const companyReportSchema = z
   .object({
     classificationBasis: z.literal('verified-period-cutoff').optional(),
@@ -175,22 +203,10 @@ export const companyReportSchema = z
       })
       .strict(),
     generatedAt: z.string(),
-    summary: z
-      .object({
-        created: count,
-        currentOpen: count,
-        currentPending: count,
-        currentOverdue: count,
-        resolutions: count,
-        slaMet: count,
-        slaBreached: count,
-        slaCompliancePercent: z.number().min(0).max(100).nullable(),
-        publicReplies: count,
-        unknownResolved: count,
-        untyped: count,
-        withoutAsset: count,
-      })
-      .strict(),
+    summary: z.union([
+      summaryFields.extend({ currentUnassigned: count, currentInProgress: count }).strict(),
+      summaryFields.extend({ currentOpen: count, currentPending: count }).strict(),
+    ]),
     byType: z.array(trend).max(51),
     byAsset: z.array(trend).max(51),
     byDay: z.array(trend).max(366),

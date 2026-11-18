@@ -1,7 +1,8 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { expectNoSeriousViolations } from '../support/axe';
 import { readRunState } from '../support/state';
 import { todayIn } from '../../lib/fulfillment-model';
+import { calculateTicketDueAt, readServicePolicySnapshot } from '../../lib/sla-policy';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import { DATABASE_URL } from '../support/env';
@@ -26,6 +27,8 @@ test.describe('the support desk', () => {
   // Rosa's invitation link, kept for the portal test further down (the tests in this file run in order).
   let rosaInvitation = '';
   let rosaPassword = '';
+  // Rosa signed in on a phone, shared by the two portal tests on a phone that follow each other.
+  let rosaPhoneSession: Awaited<ReturnType<BrowserContext['storageState']>> | undefined;
   test('an empty inbox is accessible and invites the first ticket', async ({ page }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Bandeja de entrada' })).toBeVisible();
@@ -301,6 +304,50 @@ test.describe('the support desk', () => {
     await expect(page.getByRole('button', { name: 'Exportar' })).toBeEnabled();
   });
 
+  test('the inbox gives the table the whole width, and the overdue card, in the danger colour, filters the queue', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Bandeja de entrada', level: 1 })).toBeVisible();
+    // No «En foco» panel repeating the overdue count beside the table: the table takes that width.
+    await expect(page.getByRole('heading', { name: 'En foco' })).toHaveCount(0);
+    const table = (await page.locator('.ticket-panel').boundingBox())!;
+    const stats = (await page.locator('.stats').boundingBox())!;
+    expect(Math.abs(table.width - stats.width)).toBeLessThanOrEqual(1);
+    // Counts read as plain numbers, not «03».
+    const values = await page.locator('.stat-card > strong').allTextContents();
+    expect(values).toHaveLength(4);
+    for (const value of values) expect(value).toMatch(/^(0|[1-9]\d*)$/);
+
+    const overdue = page.locator('.stat-card', { hasText: 'SLA vencido' });
+    const danger = await page.evaluate(() => {
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--db-danger)';
+      document.body.append(probe);
+      const color = getComputedStyle(probe).color;
+      probe.remove();
+      return color;
+    });
+    await expect(overdue.locator('.stat-icon')).toHaveCSS('color', danger);
+    await expectNoSeriousViolations(page, 'Bandeja sin el panel En foco');
+
+    // A real click anywhere on the card (here, on its number) opens the overdue queue.
+    const number = (await overdue.locator('strong').boundingBox())!;
+    await page.mouse.click(number.x + number.width / 2, number.y + number.height / 2);
+    await expect(page.locator('.queue-tabs').getByRole('button', { name: /SLA vencido/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    // And it is a button for the keyboard too.
+    await page.locator('.queue-tabs').getByRole('button', { name: /Todos/ }).click();
+    await overdue.getByRole('button', { name: 'SLA vencido' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.queue-tabs').getByRole('button', { name: /SLA vencido/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+  });
+
   test('settings opens by section and the section stays in the address', async ({ page }) => {
     await page.goto('/');
     const settings = page.getByRole('button', { name: 'Configuración', exact: true });
@@ -517,9 +564,28 @@ test.describe('the support desk', () => {
     const form = page.locator('form.form');
     // Without a linked client there is no equipment to choose.
     await expect(form.getByRole('combobox', { name: /Sobre qué equipo/ })).toHaveCount(0);
-    await form
-      .getByRole('combobox', { name: 'Cuenta del cliente' })
-      .selectOption({ label: 'Rosa Pérez · rosa@example.test' });
+    // «Cuenta del cliente» is the same searchable list as in the ticket: typing part of the email finds her.
+    const account = form.getByRole('combobox', { name: 'Cuenta del cliente' });
+    const dialog = page.getByRole('dialog', { name: 'Nuevo ticket' });
+    const accounts = page.getByRole('listbox', { name: 'Cuenta del cliente' });
+    // The list opens right under the field, inside the modal (not hidden behind its top layer), and Escape closes
+    // only the list: the half-written ticket stays open.
+    await account.click();
+    await expect(accounts).toBeVisible();
+    const field = (await account.boundingBox())!;
+    const list = (await accounts.boundingBox())!;
+    expect(list.y - (field.y + field.height)).toBeGreaterThanOrEqual(0);
+    expect(list.y - (field.y + field.height)).toBeLessThan(12);
+    await page.keyboard.press('Escape');
+    await expect(accounts).toHaveCount(0);
+    await expect(dialog).toBeVisible();
+    await account.pressSequentially('rosa@example');
+    await expect(accounts.getByRole('option')).toHaveCount(1);
+    await expect(accounts.getByRole('option', { name: /Rosa Pérez/ })).toContainText('rosa@example.test');
+    await accounts.getByRole('option', { name: /Rosa Pérez/ }).click();
+    await expect(accounts).toHaveCount(0);
+    await expect(account).toHaveValue('Rosa Pérez');
+    await expect(form.locator('.staff-account-preview')).toContainText('rosa@example.test');
     const equipment = form.getByRole('combobox', { name: /Sobre qué equipo/ });
     // Rosa's only active equipment is chosen; the monitor freed earlier is not offered.
     await expect(equipment.locator('option:checked')).toHaveText('NB-0042 · Computador');
@@ -774,6 +840,476 @@ test.describe('the support desk', () => {
     const file = await download;
     expect(file.suggestedFilename()).toMatch(/^requerimientos-\d{4}-\d{2}-\d{2}\.csv$/);
     await expectNoSeriousViolations(page, 'Requerimientos con resumen');
+  });
+
+  test('solving several tickets at once asks first, and «Cancelar» leaves them as they were', async ({ page }) => {
+    const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+    const ids: number[] = [];
+    const statuses = async () =>
+      (
+        await pool.query<{ status: string }>(`SELECT status FROM tickets WHERE id = ANY($1::int[]) ORDER BY id`, [ids])
+      ).rows.map(row => row.status);
+    try {
+      const owner = (await pool.query<{ ownerId: string }>(`SELECT "ownerId" FROM organizations WHERE id='daybook'`))
+        .rows[0].ownerId;
+      const now = new Date().toISOString();
+      const due = new Date(Date.now() + 86_400_000).toISOString();
+      for (const subject of ['Lote: mouse sin batería', 'Lote: teclado sin la letra ñ']) {
+        const ticket = await pool.query<{ id: number }>(
+          `INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail",department,status,priority,"createdAt","updatedAt","dueAt")
+           VALUES ($1,$4,$2,'Cliente Lote','lote@example.test','Soporte técnico','open','normal',$3,$3,$5) RETURNING id`,
+          [owner, subject, now, randomUUID(), due],
+        );
+        ids.push(ticket.rows[0].id);
+        await pool.query(
+          `INSERT INTO messages ("ownerId","ticketId",author,"authorRole",body,kind,"createdAt") VALUES ($1,$2,'Cliente Lote','client','Se cayó al piso.','request',$3)`,
+          [owner, ticket.rows[0].id, now],
+        );
+      }
+
+      await page.goto('/');
+      const bar = page.locator('.bulk-bar');
+      const dialog = page.getByRole('dialog', { name: 'Marcar como solucionados' });
+      // With one ticket the question is in singular.
+      await page.getByRole('checkbox', { name: `Seleccionar ticket ${ids[0]}` }).check();
+      await bar.getByRole('button', { name: 'Marcar como solucionados' }).click();
+      await expect(dialog).toContainText(
+        'Vas a marcar 1 ticket como solucionado. Al cliente se le pedirá que evalúe la atención',
+      );
+      await expect(dialog.getByRole('button', { name: 'Solucionar 1 ticket' })).toBeVisible();
+      await dialog.getByRole('button', { name: 'Cancelar' }).click();
+      await expect(dialog).toBeHidden();
+      await page.getByRole('checkbox', { name: `Seleccionar ticket ${ids[1]}` }).check();
+      await expect(bar).toContainText('2 seleccionados');
+      await bar.getByRole('button', { name: 'Marcar como solucionados' }).click();
+      await expect(dialog).toContainText('Vas a marcar 2 tickets como solucionados. A cada cliente');
+      await expect(dialog).toContainText('no se puede deshacer');
+      // Focus starts on the safe choice; the red button names the action.
+      await expect(dialog.getByRole('button', { name: 'Cancelar' })).toBeFocused();
+      await expect(dialog.getByRole('button', { name: 'Solucionar 2 tickets' })).toBeVisible();
+      await expectNoSeriousViolations(page, 'Confirmar solucionar varios');
+      await dialog.getByRole('button', { name: 'Cancelar' }).click();
+      await expect(dialog).toBeHidden();
+      await expect(bar).toContainText('2 seleccionados');
+      expect(await statuses()).toEqual(['open', 'open']);
+
+      await bar.getByRole('button', { name: 'Marcar como solucionados' }).click();
+      await dialog.getByRole('button', { name: 'Solucionar 2 tickets' }).click();
+      await expect(page.getByRole('status').filter({ hasText: '2 tickets solucionados' })).toBeVisible();
+      await expect(dialog).toBeHidden();
+      await expect(bar).toHaveCount(0);
+      await expect.poll(statuses).toEqual(['resolved', 'resolved']);
+    } finally {
+      await pool.end();
+    }
+  });
+
+  test('after solving several tickets, focus lands on the head of the list and the result is announced', async ({
+    page,
+  }, testInfo) => {
+    const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+    try {
+      const owner = (await pool.query<{ ownerId: string }>(`SELECT "ownerId" FROM organizations WHERE id='daybook'`))
+        .rows[0].ownerId;
+      const seed = async (subjects: string[]) => {
+        const now = new Date().toISOString();
+        const due = new Date(Date.now() + 86_400_000).toISOString();
+        const ids: number[] = [];
+        for (const subject of subjects) {
+          const ticket = await pool.query<{ id: number }>(
+            `INSERT INTO tickets ("ownerId","creationKey",subject,"requesterName","requesterEmail",department,status,priority,"createdAt","updatedAt","dueAt")
+             VALUES ($1,$4,$2,'Cliente Foco','foco@example.test','Soporte técnico','open','normal',$3,$3,$5) RETURNING id`,
+            [owner, subject, now, randomUUID(), due],
+          );
+          ids.push(ticket.rows[0].id);
+          await pool.query(
+            `INSERT INTO messages ("ownerId","ticketId",author,"authorRole",body,kind,"createdAt") VALUES ($1,$2,'Cliente Foco','client','No funciona.','request',$3)`,
+            [owner, ticket.rows[0].id, now],
+          );
+        }
+        return ids;
+      };
+      const bar = page.locator('.bulk-bar');
+      const dialog = page.getByRole('dialog', { name: 'Marcar como solucionados' });
+      const status = page.locator('.toast-region[role="status"]');
+      const activeQueue = page.locator('.queue-tabs').getByRole('button', { pressed: true });
+      const solveSelected = async (count: number) => {
+        await bar.getByRole('button', { name: 'Marcar como solucionados' }).click();
+        await dialog.getByRole('button', { name: `Solucionar ${count} ticket${count === 1 ? '' : 's'}` }).click();
+        await expect(dialog).toBeHidden();
+      };
+
+      // The desk on a wide screen (table) and on a phone (cards): the same bar, the same landing place.
+      for (const [width, height] of [
+        [1440, 900],
+        [390, 844],
+      ] as const) {
+        await page.setViewportSize({ width, height });
+        const ids = await seed([`Foco ${width}: cargador que calienta`, `Foco ${width}: monitor con rayas`]);
+        await page.goto('/');
+        for (const id of ids) await page.getByRole('checkbox', { name: `Seleccionar ticket ${id}` }).click();
+        await expect(bar).toContainText('2 seleccionados');
+        await solveSelected(2);
+        await expect(bar).toHaveCount(0);
+        // The status region, polite and present before the notice, says what happened.
+        await expect(status).toHaveAttribute('aria-live', 'polite');
+        await expect(status).toContainText('2 tickets solucionados');
+        // Focus is not lost on <body>: it sits on the active queue tab, the head of the list, in view.
+        await expect(activeQueue).toBeFocused();
+        await expect(activeQueue).toBeInViewport();
+        expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
+        await page.screenshot({ path: testInfo.outputPath(`foco-tras-solucionar-${width}.png`) });
+        // And it stays there once the list has refreshed.
+        await page.waitForTimeout(1500);
+        await expect(activeQueue).toBeFocused();
+        // From there the keyboard goes on through the list.
+        await page.keyboard.press('Tab');
+        expect(await page.evaluate(() => document.activeElement?.closest('.ticket-panel') !== null)).toBe(true);
+      }
+
+      // If one of them fails, the bar stays with the one left, the error is said, and focus goes back to its button.
+      await page.setViewportSize({ width: 1440, height: 900 });
+      const [kept, refused] = await seed(['Foco: parlante sin sonido', 'Foco: cámara que no enciende']);
+      await page.goto('/');
+      await page.route(`**/api/tickets/${refused}`, route =>
+        route.request().method() === 'PATCH'
+          ? route.fulfill({ status: 500, contentType: 'application/json', body: '{"error":"No se pudo guardar."}' })
+          : route.fallback(),
+      );
+      for (const id of [kept, refused]) await page.getByRole('checkbox', { name: `Seleccionar ticket ${id}` }).click();
+      await solveSelected(2);
+      await expect(page.getByRole('alert').filter({ hasText: 'Se solucionaron 1 de 2' })).toContainText(
+        `No se pudieron solucionar: #${String(refused).padStart(4, '0')}.`,
+      );
+      // One left, said in singular.
+      await expect(bar.locator('strong')).toHaveText('1 seleccionado');
+      await expect(bar.getByRole('button', { name: 'Marcar como solucionados' })).toBeFocused();
+      await page.unroute(`**/api/tickets/${refused}`);
+
+      // The bar's own «Cancelar» also takes the bar away: focus goes to the head of the list, not to <body>.
+      await bar.getByRole('button', { name: 'Cancelar' }).click();
+      await expect(bar).toHaveCount(0);
+      await expect(activeQueue).toBeFocused();
+
+      // Solved on a second try, so the ticket does not stay open for the tests that follow.
+      await page.getByRole('checkbox', { name: `Seleccionar ticket ${refused}` }).click();
+      await solveSelected(1);
+      await expect(status).toContainText('Ticket solucionado');
+      await expect(activeQueue).toBeFocused();
+      await expect
+        .poll(async () =>
+          (
+            await pool.query<{ status: string }>(`SELECT status FROM tickets WHERE id = ANY($1::int[]) ORDER BY id`, [
+              [kept, refused],
+            ])
+          ).rows.map(row => row.status),
+        )
+        .toEqual(['resolved', 'resolved']);
+    } finally {
+      await page.setViewportSize({ width: 1280, height: 720 });
+      await pool.end();
+    }
+  });
+
+  test('the portal says under each field what a new ticket lacks, and its notices sit bottom centre, in view', async ({
+    browser,
+  }) => {
+    expect(rosaPassword).not.toBe('');
+    const rosaContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+    });
+    const rosa = await rosaContext.newPage();
+    // The notice is fixed at the bottom centre of the screen, whatever was scrolled.
+    const expectBottomCentre = async (notice: Locator, name: string) => {
+      await expect(notice, name).toBeVisible();
+      const box = (await notice.boundingBox())!;
+      expect(Math.abs(box.x + box.width / 2 - 195), `${name}: centrado`).toBeLessThanOrEqual(2);
+      expect(box.y, `${name}: dentro de la pantalla`).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height, `${name}: abajo`).toBeLessThanOrEqual(844);
+      expect(box.y + box.height, `${name}: abajo`).toBeGreaterThan(844 - 120);
+    };
+    try {
+      await rosa.goto(new URL('/login', rosaInvitation).toString());
+      await rosa.getByLabel('Correo electrónico').fill('rosa@example.test');
+      await rosa.getByLabel('Contraseña').fill(rosaPassword);
+      await rosa.getByRole('button', { name: 'Entrar a mi espacio' }).click();
+      await rosa.waitForURL(url => url.pathname === '/', { timeout: 30_000 });
+
+      // «Crear ticket» is not a dead button: pressed with nothing written, it says what is missing.
+      await rosa.getByRole('button', { name: 'Nuevo ticket' }).first().click();
+      const form = rosa.locator('form.client-new-ticket');
+      const create = form.getByRole('button', { name: 'Crear ticket' });
+      const subject = form.getByRole('textbox', { name: 'Asunto' });
+      const description = form.getByRole('textbox', { name: 'Descripción' });
+      await expect(create).toBeEnabled();
+      await create.click();
+      const subjectError = form.getByText('Escribe el asunto', { exact: true });
+      const descriptionError = form.getByText('Escribe la descripción', { exact: true });
+      await expect(subjectError).toBeVisible();
+      await expect(descriptionError).toBeVisible();
+      await expect(subject).toBeFocused();
+      await expect(subject).toHaveAttribute('aria-invalid', 'true');
+      await expect(subject).toHaveAccessibleDescription('Escribe el asunto');
+      await expect(description).toHaveAttribute('aria-invalid', 'true');
+      // The message sits right under its field.
+      const field = (await subject.boundingBox())!;
+      const message = (await subjectError.boundingBox())!;
+      expect(message.y).toBeGreaterThanOrEqual(field.y + field.height);
+      expect(message.y - (field.y + field.height)).toBeLessThan(20);
+      // Department is still asked; priority is the team's to set.
+      await expect(form.getByRole('combobox', { name: 'Departamento' })).toBeVisible();
+      await expect(form.getByRole('combobox', { name: 'Prioridad' })).toHaveCount(0);
+      await expectNoSeriousViolations(rosa, 'Nuevo ticket del portal con campos por llenar');
+
+      await subject.fill('La pantalla parpadea al abrir el correo');
+      await expect(subjectError).toHaveCount(0);
+      await expect(subject).toHaveAttribute('aria-invalid', 'false');
+      await create.click();
+      await expect(description).toBeFocused();
+      await description.fill('Parpadea cada vez que abro un correo con imágenes.');
+      await expect(descriptionError).toHaveCount(0);
+      await create.click();
+      const created = rosa.getByRole('status').filter({ hasText: /Ticket #\d{4} creado/ });
+      await expectBottomCentre(created.locator('.toast'), 'Aviso de ticket creado');
+
+      // A reply at the end of the chat: the confirmation is in view, not at the top of the page.
+      await rosa
+        .getByRole('navigation', { name: 'Portal de clientes' })
+        .getByRole('button', { name: 'Mis tickets' })
+        .click();
+      await rosa.getByRole('button', { name: /El notebook no enciende/ }).click();
+      const composer = rosa.locator('form.client-composer');
+      const reply = composer.getByRole('textbox', { name: 'Añadir una respuesta' });
+      await reply.fill('Lo probé con otro cargador y sigue igual.');
+      await composer.getByRole('button', { name: 'Enviar respuesta' }).click();
+      const sent = rosa.getByRole('status').filter({ hasText: 'Respuesta enviada.' });
+      await expectBottomCentre(sent.locator('.toast'), 'Aviso de respuesta enviada');
+
+      // A failed send: the error is the red notice with a warning icon, and it stays until it is closed.
+      await rosa.route('**/api/tickets/*/messages', route =>
+        route.request().method() === 'POST' ? route.abort() : route.fallback(),
+      );
+      await reply.fill('Este envío no llega.');
+      await composer.getByRole('button', { name: 'Enviar respuesta' }).click();
+      const failed = rosa.getByRole('alert').filter({ hasText: 'Se interrumpió la conexión' });
+      const errorNotice = failed.locator('.toast.error');
+      await expectBottomCentre(errorNotice, 'Aviso de error');
+      await expect(errorNotice.locator('svg').first()).toHaveClass(/lucide-(triangle-alert|alert-triangle)/);
+      await expect(sent).toHaveCount(0);
+      await expectNoSeriousViolations(rosa, 'Aviso de error en el portal');
+      await failed.getByRole('button', { name: 'Cerrar aviso' }).click();
+      await expect(failed).toHaveCount(0);
+      await rosa.unroute('**/api/tickets/*/messages');
+      await reply.fill('');
+      // Sign-in allows 5 tries a minute; the next phone test reuses this session instead of signing in again.
+      rosaPhoneSession = await rosaContext.storageState();
+    } finally {
+      await rosaContext.close();
+    }
+  });
+
+  test('the portal does not ask the client for a priority, and the server ignores one sent by hand', async ({
+    browser,
+    page,
+  }, testInfo) => {
+    expect(rosaPhoneSession).toBeDefined();
+    // The session from the test above: signing in again would spend the sign-in limit.
+    const rosaContext = await browser.newContext({
+      storageState: rosaPhoneSession,
+      viewport: { width: 1440, height: 900 },
+    });
+    const rosa = await rosaContext.newPage();
+    const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+    const saved = async (id: number) =>
+      (
+        await pool.query<{ priority: string; dueAt: string; slaStartedAt: string; slaPolicySnapshot: unknown }>(
+          `SELECT priority,"dueAt","slaStartedAt","slaPolicySnapshot" FROM tickets WHERE id=$1`,
+          [id],
+        )
+      ).rows[0];
+    // The SLA deadline is the one of the priority actually saved.
+    const expectNormalDeadline = async (id: number) => {
+      const row = await saved(id);
+      expect(row.priority).toBe('normal');
+      const policy = readServicePolicySnapshot(row.slaPolicySnapshot);
+      expect(policy).not.toBeNull();
+      expect(new Date(row.dueAt).toISOString()).toBe(
+        calculateTicketDueAt(new Date(row.slaStartedAt).toISOString(), 'normal', policy!),
+      );
+    };
+    try {
+      await rosa.goto(new URL('/', rosaInvitation).toString());
+      await rosa.getByRole('button', { name: 'Nuevo ticket' }).first().click();
+      const form = rosa.locator('form.client-new-ticket');
+      await expect(form.getByRole('combobox', { name: 'Departamento' })).toBeVisible();
+      await expect(form.getByRole('combobox', { name: 'Tipo de solicitud' })).toBeVisible();
+      await expect(form.getByRole('combobox', { name: 'Prioridad' })).toHaveCount(0);
+      await expect(form).not.toContainText('Urgente');
+      await expectNoSeriousViolations(rosa, 'Nuevo ticket del portal sin prioridad');
+      // On a wide screen Departamento and Tipo de solicitud share the row (no half row left empty); on a phone they stack.
+      const department = form.getByRole('combobox', { name: 'Departamento' });
+      const kind = form.getByRole('combobox', { name: 'Tipo de solicitud' });
+      let [a, b] = [(await department.boundingBox())!, (await kind.boundingBox())!];
+      expect(Math.abs(a.y - b.y)).toBeLessThan(2);
+      expect(b.x).toBeGreaterThan(a.x + a.width);
+      await form.screenshot({ path: testInfo.outputPath('portal-sin-prioridad-1440.png') });
+      await rosa.setViewportSize({ width: 390, height: 844 });
+      [a, b] = [(await department.boundingBox())!, (await kind.boundingBox())!];
+      expect(b.y).toBeGreaterThan(a.y + a.height);
+      expect(
+        await rosa.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth),
+      ).toBeLessThanOrEqual(1);
+      await expectNoSeriousViolations(rosa, 'Nuevo ticket del portal sin prioridad en un teléfono');
+      await rosa.screenshot({ path: testInfo.outputPath('portal-sin-prioridad-390.png'), fullPage: true });
+
+      await form.getByRole('textbox', { name: 'Asunto' }).fill('El escáner no lee los códigos de barra');
+      await form
+        .getByRole('textbox', { name: 'Descripción' })
+        .fill('Lee la etiqueta pero no aparece nada en pantalla.');
+      const sending = rosa.waitForRequest(
+        request => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/api/tickets'),
+      );
+      await form.getByRole('button', { name: 'Crear ticket' }).click();
+      const request = await sending;
+      expect(request.postDataJSON()).not.toHaveProperty('priority');
+      await expect(rosa.getByRole('status').filter({ hasText: /Ticket #\d{4} creado/ })).toBeVisible();
+      // The ticket shows the priority the team starts from.
+      await expect(rosa.locator('dt', { hasText: 'Prioridad' }).locator('xpath=following-sibling::dd[1]')).toHaveText(
+        'Normal',
+      );
+      const created = (
+        await pool.query<{ id: number }>(`SELECT id FROM tickets WHERE subject=$1`, [
+          'El escáner no lee los códigos de barra',
+        ])
+      ).rows[0].id;
+      await expectNormalDeadline(created);
+
+      // A request made by hand with «urgent» is saved as «normal», with the normal deadline.
+      const forged = await rosa.evaluate(
+        async ({ url, body }) => {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          return {
+            status: response.status,
+            json: (await response.json()) as { ticket: { id: number; priority: string } },
+          };
+        },
+        {
+          url: request.url(),
+          body: {
+            subject: 'Pedido hecho a mano con prioridad urgente',
+            body: 'Esta petición no pasa por el formulario.',
+            department: (request.postDataJSON() as { department: string }).department,
+            bodyFormat: 'markdown',
+            operationId: randomUUID(),
+            priority: 'urgent',
+          },
+        },
+      );
+      expect(forged.status).toBe(201);
+      expect(forged.json.ticket.priority).toBe('normal');
+      await expectNormalDeadline(forged.json.ticket.id);
+      await rosa.goto(new URL('/', rosaInvitation).toString());
+      await rosa.screenshot({ path: testInfo.outputPath('portal-detalle-normal-390.png') });
+
+      // The team still sets it: the same request from the desk keeps «urgent», with the urgent deadline.
+      await page.goto('/');
+      const staff = await page.evaluate(
+        async body => {
+          const response = await fetch('/api/tickets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          });
+          return {
+            status: response.status,
+            json: (await response.json()) as { ticket: { id: number; priority: string } },
+          };
+        },
+        {
+          subject: 'El equipo marca este ticket como urgente',
+          body: 'Creado desde la mesa de ayuda.',
+          requesterName: 'Cliente Urgente',
+          requesterEmail: 'urgente@example.test',
+          department: (request.postDataJSON() as { department: string }).department,
+          operationId: randomUUID(),
+          priority: 'urgent',
+        },
+      );
+      expect(staff.status).toBe(201);
+      expect(staff.json.ticket.priority).toBe('urgent');
+      const row = await saved(staff.json.ticket.id);
+      expect(row.priority).toBe('urgent');
+      expect(new Date(row.dueAt).toISOString()).toBe(
+        calculateTicketDueAt(
+          new Date(row.slaStartedAt).toISOString(),
+          'urgent',
+          readServicePolicySnapshot(row.slaPolicySnapshot)!,
+        ),
+      );
+      // The two deadlines differ, so the forged ticket really got the normal one.
+      const hours = readServicePolicySnapshot(row.slaPolicySnapshot)!.slaHours;
+      expect(hours.urgent).not.toBe(hours.normal);
+    } finally {
+      await pool.end();
+      await rosaContext.close();
+    }
+  });
+
+  test('on a phone the client reply box fits a finger, and signing out of the portal asks first', async ({
+    browser,
+  }) => {
+    expect(rosaPhoneSession).toBeDefined();
+    const rosaContext = await browser.newContext({
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      isMobile: true,
+      storageState: rosaPhoneSession,
+    });
+    const rosa = await rosaContext.newPage();
+    try {
+      await rosa.goto(new URL('/', rosaInvitation).toString());
+      expect(await rosa.evaluate(() => matchMedia('(pointer: coarse)').matches)).toBe(true);
+
+      await rosa.getByRole('button', { name: /El notebook no enciende/ }).click();
+      const composer = rosa.locator('form.client-composer');
+      await expect(composer.getByPlaceholder('Escribe tu respuesta o añade información…')).toBeVisible();
+      await composer.getByRole('toolbar').getByRole('button', { name: 'Formato' }).click();
+      const controls = [
+        ...(await composer.getByRole('toolbar').getByRole('button').all()),
+        composer.locator('label.attachment-picker'),
+        composer.getByRole('button', { name: 'Enviar respuesta' }),
+      ];
+      expect(controls.length).toBeGreaterThan(5);
+      for (const control of controls) {
+        await expect(control).toBeVisible();
+        expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+      }
+
+      const signOut = rosa.getByRole('button', { name: 'Cerrar sesión' });
+      const door = (await signOut.boundingBox())!;
+      expect(door.width, 'Cerrar sesión: ancho con el dedo').toBeGreaterThanOrEqual(44);
+      expect(door.height, 'Cerrar sesión: alto con el dedo').toBeGreaterThanOrEqual(44);
+      await signOut.click();
+      const dialog = rosa.getByRole('dialog', { name: 'Cerrar sesión' });
+      await expect(dialog).toContainText('Vas a salir de Daybook Ticket en este dispositivo');
+      await expect(dialog.getByRole('button', { name: 'Seguir trabajando' })).toBeFocused();
+      await expectNoSeriousViolations(rosa, 'Confirmar cierre de sesión en el portal');
+      await dialog.getByRole('button', { name: 'Seguir trabajando' }).click();
+      await expect(dialog).toBeHidden();
+      await expect(rosa).not.toHaveURL(/\/login/);
+
+      await signOut.click();
+      await dialog.getByRole('button', { name: 'Cerrar sesión' }).click();
+      await expect(rosa).toHaveURL(/\/login/);
+    } finally {
+      await rosaContext.close();
+    }
   });
 
   test.describe('dark mode', () => {

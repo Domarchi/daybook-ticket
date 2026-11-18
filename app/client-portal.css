@@ -107,8 +107,6 @@
 .client-footer { display: flex; justify-content: space-between; gap: 18px; border-top: 1px solid var(--line, #e6e8ec); color: var(--muted, #69717c); font-size: var(--db-text-caption); margin-top: 50px; padding: 25px 0; }
 
 .client-feedback { display: flex; align-items: center; gap: 12px; border: 1px solid; border-radius: var(--db-radius-control); padding: 14px 17px; margin-bottom: 25px; font-size: var(--db-text-meta); }
-.client-feedback.error { color: #963b2b; border-color: #efcfc8; background: #fff2ee; }
-.client-feedback.success { color: #25633f; border-color: #cce4d4; background: #edf7f0; }
 .client-feedback p { flex: 1; }
 .client-feedback button { display: flex; align-items: center; justify-content: center; width: 42px; flex-shrink: 0; padding: 10px; }
 .client-back { display: flex; align-items: center; gap: 8px; font-size: var(--db-text-meta); color: var(--muted, #69717c); margin-bottom: 20px; padding: 0 6px 0 0; }
@@ -160,6 +158,12 @@
 .client-new-ticket input::placeholder,
 .client-new-ticket textarea::placeholder { color: var(--muted, #69717c); }
 .client-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+/* A field and what it lacks: the message sits right under the box, said when «Crear ticket»
+   is pressed. The red ring is a shadow, so the darker borders of the dark theme do not hide it. */
+.client-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.client-field-error { color: var(--db-danger); font-size: var(--db-text-meta); font-weight: var(--db-weight-semibold); line-height: 1.5; }
+.client-new-ticket [aria-invalid="true"] { border-color: var(--db-danger); box-shadow: 0 0 0 1px var(--db-danger); }
+.client-description .client-field-error { display: block; margin-top: 7px; }
 .client-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding-top: 23px; margin-top: 25px; border-top: 1px solid var(--line, #e6e8ec); }
 .client-form-footer > span { font-size: var(--db-text-caption); color: var(--muted, #69717c); }
 .client-search { max-width: 100%; margin-bottom: 25px; }
@@ -311,8 +315,6 @@
   :root:not([data-theme="light"]) .client-shell .status.pending { background: #2b210e; color: #f0ce80; }
   :root:not([data-theme="light"]) .client-shell .status.resolved,
   :root:not([data-theme="light"]) .client-shell .client-overview-icon.resolved { background: #10261a; color: #b7dfbd; }
-  :root:not([data-theme="light"]) .client-shell .client-feedback.error { background: #2a1414; border-color: #653333; color: #fca5a5; }
-  :root:not([data-theme="light"]) .client-shell .client-feedback.success { background: #10261a; border-color: #2b6040; color: #b7dfbd; }
   :root:not([data-theme="light"]) .client-shell .message-markdown pre,
   :root:not([data-theme="light"]) .client-shell .message-markdown code,
   :root:not([data-theme="light"]) .client-shell .message-content-rich code { background: #000; color: var(--ink); }
@@ -424,8 +426,6 @@
   :root[data-theme="dark"] .client-shell .status.pending { background: #2b210e; color: #f0ce80; }
   :root[data-theme="dark"] .client-shell .status.resolved,
   :root[data-theme="dark"] .client-shell .client-overview-icon.resolved { background: #10261a; color: #b7dfbd; }
-  :root[data-theme="dark"] .client-shell .client-feedback.error { background: #2a1414; border-color: #653333; color: #fca5a5; }
-  :root[data-theme="dark"] .client-shell .client-feedback.success { background: #10261a; border-color: #2b6040; color: #b7dfbd; }
   :root[data-theme="dark"] .client-shell .message-markdown pre,
   :root[data-theme="dark"] .client-shell .message-markdown code,
   :root[data-theme="dark"] .client-shell .message-content-rich code { background: #000; color: var(--ink); }
@@ -500,3 +500,14 @@
   :root:not([data-theme="light"]) .client-shell .status.closed { background: #262b31; color: #c6ccd4; }
 }
 :root[data-theme="dark"] .client-shell .status.closed { background: #262b31; color: #c6ccd4; }
+
+/* The notice after an action (Phase 5 of the Daybook standard), the same .toast-region as the team desk.
+   The portal has no rail, so the notice sits at the centre of the page, not of the area beside the rail. */
+.client-shell .toast-region { left: 50%; max-width: min(var(--db-toast-max-width), calc(100vw - var(--db-space-6))); }
+
+/* With a finger, «Cerrar sesión» and the other icons of the portal header reach 44 px, as at the foot of the
+   team rail (accessibility.css). The rule above fixed them at 42 px wide and about 38 px tall. */
+@media (pointer: coarse) {
+  .client-account a,
+  .client-account > button { min-width: var(--touch-target); min-height: var(--touch-target); }
+}

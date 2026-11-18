@@ -1,7 +1,6 @@
 'use client';
 import {
   Activity,
-  ArrowRight,
   ArrowUpRight,
   BookOpen,
   Clock3,
@@ -12,6 +11,7 @@ import {
   PackageCheck,
   LayoutDashboard,
   LifeBuoy,
+  LogOut,
   Settings2,
   ShieldCheck,
   Users,
@@ -275,7 +275,7 @@ export function Sidebar({
             <small>{data.viewer ? ROLE_LABELS[data.viewer.role] : 'Preparando acceso'}</small>
           </button>
           <button disabled={busy} onClick={signOut} aria-label="Cerrar sesión" title="Cerrar sesión">
-            <ArrowRight size={16} />
+            <LogOut size={16} aria-hidden="true" />
           </button>
         </div>
         {/* El tema, en el pie del riel junto a la persona, como en Parte Diario y

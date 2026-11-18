@@ -73,7 +73,7 @@ export const TOOLS: Anthropic.Tool[] = [
     name: 'informe_empresa',
     description:
       'Informe de una empresa cliente para un mes: tickets que entraron y se resolvieron, cumplimiento del SLA, ' +
-      'carga abierta y vencida de hoy, tipos y equipos más frecuentes. Solo cifras, sin conversaciones. Úsala para ' +
+      'carga de hoy (sin asignar, en proceso y vencida), tipos y equipos más frecuentes. Solo cifras, sin conversaciones. Úsala para ' +
       '«informe de la empresa X», «cómo le fue a X en octubre». La pantalla ofrece el PDF oficial bajo tu respuesta.',
     input_schema: {
       type: 'object',

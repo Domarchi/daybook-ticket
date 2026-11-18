@@ -7,6 +7,7 @@ import {
   knowledgeSearchTokens,
   monthlyReportPeriod,
   companyReportSchema,
+  currentLoadRows,
   pauseKnowledgeFeaturesJson,
 } from '../lib/knowledge-model';
 import { companyReportCsv, companyReportPdf, wrapPdfText } from '../lib/company-report-export';
@@ -290,4 +291,48 @@ test('frozen reports keep their original classification basis when export labels
   assert.ok(companyReportCsv(legacy).includes('Equipos vinculados actualmente'));
   assert.ok(companyReportCsv(current).includes('Equipos verificables al cierre'));
   assert.equal(JSON.stringify(legacy), before);
+});
+
+/** The fixture is a snapshot saved before the four states; this is the same month counted today. */
+function fourStateFixture() {
+  const fixture = knowledgeReportFixture(),
+    { currentOpen, currentPending, ...rest } = fixture.report.summary as Record<string, number | null>;
+  assert.deepEqual([currentOpen, currentPending], [4, 3]);
+  fixture.report.summary = { ...rest, currentUnassigned: 2, currentInProgress: 5 } as typeof fixture.report.summary;
+  return fixture;
+}
+test('report summaries carry one current-load shape: the four states or the one a snapshot was saved with', () => {
+  const legacy = knowledgeReportFixture().report,
+    current = fourStateFixture().report;
+  assert.ok(companyReportSchema.safeParse(legacy).success, 'snapshots saved before keep loading');
+  assert.ok(companyReportSchema.safeParse(current).success);
+  // Mixed or missing shapes are not a report.
+  for (const summary of [
+    { ...current.summary, currentPending: 0 },
+    { ...legacy.summary, currentUnassigned: 0 },
+    Object.fromEntries(Object.entries(current.summary).filter(([key]) => key !== 'currentInProgress')),
+  ])
+    assert.equal(companyReportSchema.safeParse({ ...current, summary }).success, false);
+  assert.deepEqual(currentLoadRows(current.summary), [
+    ['Sin asignar actuales', 2],
+    ['En proceso actuales', 5],
+  ]);
+  assert.deepEqual(currentLoadRows(legacy.summary), [
+    ['Abiertos actuales', 4],
+    ['Pendientes actuales', 3],
+  ]);
+});
+test('CSV and PDF show a snapshot with the words it was captured with', async () => {
+  const legacy = knowledgeReportFixture(),
+    current = fourStateFixture();
+  const legacyCsv = companyReportCsv(legacy),
+    currentCsv = companyReportCsv(current);
+  assert.ok(legacyCsv.includes('"Abiertos actuales","4"') && legacyCsv.includes('"Pendientes actuales","3"'));
+  assert.ok(currentCsv.includes('"Sin asignar actuales","2"') && currentCsv.includes('"En proceso actuales","5"'));
+  assert.ok(!currentCsv.includes('Pendientes actuales') && !currentCsv.includes('Abiertos actuales'));
+  const legacyPdf = (await pdfPageTexts(await companyReportPdf(legacy))).join('\n'),
+    currentPdf = (await pdfPageTexts(await companyReportPdf(current))).join('\n');
+  assert.ok(legacyPdf.includes('Pendientes actuales') && legacyPdf.includes('Abiertos actuales'));
+  assert.ok(currentPdf.includes('Sin asignar actuales') && currentPdf.includes('En proceso actuales'));
+  assert.ok(!currentPdf.includes('Pendientes actuales'));
 });
