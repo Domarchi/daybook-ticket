@@ -17,6 +17,8 @@ export interface Member {
   companyAccess: CompanyAccess;
   createdAt: string;
   updatedAt: string;
+  /** Only in the admin's member list, for a pending invitation: when its current link stops working (Fase 7). */
+  invitationExpiresAt?: string | null;
 }
 export interface MailStatus {
   configured: boolean;

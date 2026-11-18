@@ -43,7 +43,7 @@ async function send<T>(body: { mode: 'preview' | 'apply'; csv: string; createMis
   return result as T;
 }
 
-function download(name: string, content: string) {
+export function downloadCsv(name: string, content: string) {
   const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' })),
     anchor = document.createElement('a');
   anchor.href = url;
@@ -132,7 +132,7 @@ export function MemberImportPanel({ busy, run, onClose }: { busy: boolean; run: 
               type="button"
               className="primary"
               onClick={() =>
-                download('daybook-enlaces-de-invitacion.csv', importLinksCsv(created.invitations, created.expiresAt))
+                downloadCsv('daybook-enlaces-de-invitacion.csv', importLinksCsv(created.invitations, created.expiresAt))
               }
             >
               <Download size={15} aria-hidden="true" />
@@ -158,7 +158,7 @@ export function MemberImportPanel({ busy, run, onClose }: { busy: boolean; run: 
             <button
               type="button"
               className="secondary"
-              onClick={() => download('daybook-plantilla-clientes.csv', importTemplateCsv())}
+              onClick={() => downloadCsv('daybook-plantilla-clientes.csv', importTemplateCsv())}
             >
               <Download size={15} aria-hidden="true" />
               Descargar plantilla
@@ -320,7 +320,7 @@ function ImportPreviewView({
           <button
             type="button"
             className="secondary"
-            onClick={() => download('daybook-problemas-importacion.csv', importProblemsCsv(preview))}
+            onClick={() => downloadCsv('daybook-problemas-importacion.csv', importProblemsCsv(preview))}
           >
             <Download size={15} aria-hidden="true" />
             Descargar problemas (CSV)

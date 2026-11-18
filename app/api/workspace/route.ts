@@ -28,7 +28,12 @@ export async function GET(request: Request) {
           ? { results: [] as Member[] }
           : database
               .prepare(
-                `SELECT ${memberColumns} FROM members WHERE "ownerId" = $1 ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'agent' THEN 2 ELSE 3 END, name`,
+                // The pending invitation's expiry tells the admin which links still work (Fase 7).
+                `SELECT ${memberColumns},
+                        (SELECT i."expiresAt" FROM invitations i
+                          WHERE i."memberId" = members.id AND i."ownerId" = members."ownerId" AND i."acceptedAt" IS NULL)
+                          AS "invitationExpiresAt"
+                   FROM members WHERE "ownerId" = $1 ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'agent' THEN 2 ELSE 3 END, name`,
               )
               .bind(access.ownerId)
               .all<Member>(),
