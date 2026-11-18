@@ -19,13 +19,14 @@ import {
   hourInChile,
   introduction,
   isChatResponse,
+  isUrgentLine,
   isSummaryResponse,
   splitWithLinks,
   summaryLines,
   type DeskSummaryView,
   type ChatOffer,
 } from '@/lib/assistant-ui';
-import { X } from 'lucide-react';
+import { Send, X } from 'lucide-react';
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { BitaAvatar } from './bita-avatar';
 import { BitaActionCard } from './bita-action';
@@ -162,6 +163,14 @@ export default function Bita({
     return () => controller.abort();
   }, [open]);
 
+  // The field grows with what is typed, up to a cap; empty, it goes back to one line.
+  useEffect(() => {
+    const element = field.current;
+    if (!element) return;
+    element.style.height = 'auto';
+    element.style.height = `${Math.min(element.scrollHeight, 120)}px`;
+  }, [text, open]);
+
   useEffect(() => {
     const zone = log.current;
     if (zone) zone.scrollTop = zone.scrollHeight;
@@ -260,7 +269,7 @@ export default function Bita({
         >
           <header className="bita-header">
             <div className="bita-identity">
-              <BitaAvatar size={38} thinking={sending} />
+              <BitaAvatar size={40} thinking={sending} />
               <div>
                 <h2>{ASSISTANT_NAME}</h2>
                 <small>Asistente de la mesa de ayuda</small>
@@ -286,40 +295,53 @@ export default function Bita({
           >
             {entries.length === 0 && (
               <div className="bita-welcome">
-                <p>{greeting}</p>
-                {summary ? (
-                  <ul className="bita-summary" aria-label="Cómo va la bandeja">
-                    {summaryLines(summary).map(line => (
-                      <li key={line.text}>
-                        {line.text}
-                        {line.tickets.map(id => (
-                          <button
-                            key={id}
-                            type="button"
-                            className="bita-link"
-                            aria-label={`Abrir el ticket ${id}`}
-                            onClick={() => openTicket(id)}
-                          >
-                            #{id}
-                          </button>
-                        ))}
-                      </li>
-                    ))}
-                  </ul>
-                ) : summaryState === 'loading' ? (
-                  <p className="bita-summary-loading" role="status">
-                    Revisando la bandeja…
-                  </p>
-                ) : summaryState === 'failed' ? (
-                  <p className="bita-summary-loading">Bita no pudo leer la bandeja; igual puedes preguntarle.</p>
-                ) : null}
-                <div className="bita-questions">
-                  {SUGGESTED_QUESTIONS.map(question => (
-                    <button key={question} type="button" onClick={() => void send(question)} disabled={sending}>
-                      {question}
-                    </button>
-                  ))}
+                <div className="bita-row">
+                  <BitaAvatar size={28} />
+                  <p className="bita-message hers">{greeting}</p>
                 </div>
+                <section className="bita-block">
+                  <h3 className="bita-label">Ahora</h3>
+                  {summary ? (
+                    <ul className="bita-summary" aria-label="Cómo va la bandeja">
+                      {summaryLines(summary).map(line => (
+                        <li key={line.text} className={isUrgentLine(line.text) ? 'urgent' : undefined}>
+                          <span className="bita-summary-text">{line.text}</span>
+                          {line.tickets.length > 0 && (
+                            <span className="bita-summary-tickets">
+                              {line.tickets.map(id => (
+                                <button
+                                  key={id}
+                                  type="button"
+                                  className="bita-link"
+                                  aria-label={`Abrir el ticket ${id}`}
+                                  onClick={() => openTicket(id)}
+                                >
+                                  #{id}
+                                </button>
+                              ))}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : summaryState === 'loading' ? (
+                    <p className="bita-summary-loading" role="status">
+                      Revisando la bandeja…
+                    </p>
+                  ) : summaryState === 'failed' ? (
+                    <p className="bita-summary-loading">Bita no pudo leer la bandeja; igual puedes preguntarle.</p>
+                  ) : null}
+                </section>
+                <section className="bita-block">
+                  <h3 className="bita-label">Pregúntale</h3>
+                  <div className="bita-questions">
+                    {SUGGESTED_QUESTIONS.map(question => (
+                      <button key={question} type="button" onClick={() => void send(question)} disabled={sending}>
+                        {question}
+                      </button>
+                    ))}
+                  </div>
+                </section>
               </div>
             )}
             {entries.map(entry =>
@@ -329,41 +351,45 @@ export default function Bita({
                   {entry.content}
                 </div>
               ) : (
-                <div key={entry.id} className="bita-row">
-                  <BitaAvatar size={26} />
-                  <div className="bita-column">
+                <div key={entry.id} className="bita-turn">
+                  <div className="bita-row">
+                    <BitaAvatar size={28} />
                     <div className="bita-message hers">
                       <span className="sr-only">{ASSISTANT_NAME}: </span>
                       <TextWithLinks text={entry.content} onOpenTicket={openTicket} onOpenKnowledge={onOpenKnowledge} />
                     </div>
-                    {entry.actions?.map(offer =>
-                      offer.kind === 'company_report' ? (
-                        <BitaReportDownload key={`${offer.companyId}:${offer.month}`} offer={offer} />
-                      ) : (
-                        <BitaActionCard
-                          key={offer.id}
-                          offer={offer}
-                          knownVersion={versions[offer.ticketId]}
-                          onOpenTicket={openTicket}
-                          onDone={(ticketId, version) => {
-                            if (version !== null) setVersions(current => ({ ...current, [ticketId]: version }));
-                            onTicketChanged?.();
-                          }}
-                        />
-                      ),
-                    )}
                   </div>
+                  {entry.actions && entry.actions.length > 0 && (
+                    <div className="bita-offers">
+                      {entry.actions.map(offer =>
+                        offer.kind === 'company_report' ? (
+                          <BitaReportDownload key={`${offer.companyId}:${offer.month}`} offer={offer} />
+                        ) : (
+                          <BitaActionCard
+                            key={offer.id}
+                            offer={offer}
+                            knownVersion={versions[offer.ticketId]}
+                            onOpenTicket={openTicket}
+                            onDone={(ticketId, version) => {
+                              if (version !== null) setVersions(current => ({ ...current, [ticketId]: version }));
+                              onTicketChanged?.();
+                            }}
+                          />
+                        ),
+                      )}
+                    </div>
+                  )}
                 </div>
               ),
             )}
             {sending && (
               <div className="bita-status" role="status">
-                <span>{ASSISTANT_NAME} está revisando los tickets</span>
                 <span className="bita-dots" aria-hidden="true">
                   <i />
                   <i />
                   <i />
                 </span>
+                <span>{ASSISTANT_NAME} está revisando los tickets</span>
               </div>
             )}
             {error && (
@@ -374,19 +400,22 @@ export default function Bita({
           </div>
 
           <form className="bita-form" onSubmit={onSubmit}>
-            <textarea
-              ref={field}
-              value={text}
-              rows={1}
-              maxLength={MAX_LENGTH}
-              placeholder={`Escríbele a ${ASSISTANT_NAME}`}
-              aria-label="Tu pregunta"
-              onChange={event => setText(event.target.value)}
-              onKeyDown={onFieldKey}
-            />
-            <button type="submit" className="primary" disabled={sending || !text.trim()}>
-              Enviar
-            </button>
+            <div className="bita-composer">
+              <textarea
+                ref={field}
+                value={text}
+                rows={1}
+                maxLength={MAX_LENGTH}
+                placeholder={`Escríbele a ${ASSISTANT_NAME}`}
+                aria-label="Tu pregunta"
+                onChange={event => setText(event.target.value)}
+                onKeyDown={onFieldKey}
+              />
+              <button type="submit" className="bita-send" disabled={sending || !text.trim()}>
+                <Send size={16} aria-hidden="true" />
+                <span className="sr-only">Enviar</span>
+              </button>
+            </div>
           </form>
           <div className="bita-footer">
             {remaining !== null ? `Te quedan ${remaining} ${remaining === 1 ? 'mensaje' : 'mensajes'} hoy. ` : ''}

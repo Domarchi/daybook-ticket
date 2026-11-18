@@ -38,48 +38,50 @@ body:has(.bita-launcher, .bita-panel) .content {
   z-index: 70;
   display: flex;
   flex-direction: column;
-  width: min(420px, calc(100vw - var(--space-6)));
-  height: min(640px, calc(100dvh - 2 * var(--space-5)));
+  width: min(440px, calc(100vw - var(--space-6)));
+  height: min(720px, calc(100dvh - 2 * var(--space-5)));
   border: 1px solid var(--color-border);
-  border-radius: var(--db-radius-card);
+  border-radius: 16px;
   background: var(--color-surface);
   color: var(--color-text);
-  box-shadow: 0 18px 48px #11120f2e;
+  box-shadow: 0 24px 64px #11120f47;
   overflow: hidden;
 }
+/* The header is always dark, like the avatar's helmet ring and the launcher: the brand colors do not change with the theme. */
 .bita-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-3) var(--space-2) var(--space-3) var(--space-4);
+  background: #1c1d1a;
+  color: #f3efe4;
 }
 .bita-identity { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
-.bita-header h2 { margin: 0; font-size: var(--db-text-emphasis); font-weight: var(--db-weight-semibold); line-height: 1.2; }
-.bita-header small { display: block; margin-top: 2px; color: var(--color-text-muted); font-size: var(--db-text-caption); }
+.bita-header h2 { margin: 0; color: #f3efe4 !important; font-size: var(--db-text-emphasis); font-weight: var(--db-weight-semibold); line-height: 1.2; }
+.bita-header small { display: block; margin-top: 2px; color: #f3efe4b3 !important; font-size: var(--db-text-caption); }
 .bita-close {
   display: inline-flex; align-items: center; justify-content: center; width: var(--touch-target); height: var(--touch-target);
-  border: 0; border-radius: var(--radius-md); background: none; color: var(--color-text-muted); cursor: pointer;
+  border: 0; border-radius: 50%; background: none; color: #f3efe4cc; cursor: pointer;
 }
-.bita-close:hover { background: var(--color-bg); color: var(--color-text); }
-.bita-close:focus-visible { outline: var(--focus-ring); outline-offset: -2px; }
+.bita-close:hover { background: #ffffff1a; color: #f3efe4; }
+.bita-close:focus-visible { outline: 2px solid #f6d16f; outline-offset: -2px; }
 
 .bita-log {
-  display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-3); min-height: 0; padding: var(--space-4);
+  display: flex; flex: 1 1 auto; flex-direction: column; gap: var(--space-4); min-height: 0; padding: var(--space-4);
   overflow-y: auto; overscroll-behavior: contain;
 }
 .bita-message {
-  max-width: 88%; padding: var(--space-2) var(--space-3); border-radius: var(--db-radius-card); font-size: var(--db-text-body); line-height: 1.55;
+  max-width: 88%; padding: var(--space-2) var(--space-3); border-radius: 16px; font-size: var(--db-text-body); line-height: 1.55;
   white-space: pre-wrap; overflow-wrap: anywhere;
 }
 .bita-message.mine { align-self: flex-end; background: var(--color-accent); color: var(--color-surface); border-bottom-right-radius: 4px; }
-.bita-message.hers { align-self: flex-start; background: var(--color-bg); border: 1px solid var(--color-border); border-bottom-left-radius: 4px; }
+.bita-message.hers { align-self: flex-start; background: var(--color-bg); border: 1px solid var(--color-border); border-radius: var(--db-radius-card); border-top-left-radius: 4px; }
 .bita-row { display: flex; align-items: flex-start; gap: var(--space-2); align-self: flex-start; max-width: 94%; }
 .bita-row .bita-message { max-width: 100%; }
-.bita-status { display: flex; align-items: center; gap: 2px; align-self: flex-start; color: var(--color-text-muted); font-size: var(--db-text-meta); }
-.bita-dots { display: inline-flex; gap: 3px; margin-left: 4px; }
-.bita-dots i { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.5; }
+.bita-status { display: flex; align-items: center; gap: var(--space-2); align-self: flex-start; color: var(--color-text-muted); font-size: var(--db-text-meta); }
+.bita-dots { display: inline-flex; gap: 4px; }
+.bita-dots i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.5; }
 
 /* Ticket numbers and articles in an answer: buttons that look like links. */
 .bita-link {
@@ -89,36 +91,62 @@ body:has(.bita-launcher, .bita-panel) .content {
 .bita-link:hover { text-decoration-thickness: 2px; }
 .bita-link:focus-visible { outline: var(--focus-ring); outline-offset: 2px; border-radius: var(--db-radius-small); }
 
-.bita-welcome { color: var(--color-text); font-size: var(--db-text-body); line-height: 1.55; }
-.bita-welcome p { margin: 0 0 var(--space-3); }
-.bita-summary { display: flex; flex-direction: column; gap: var(--space-2); margin: 0 0 var(--space-3); padding: 0; list-style: none; }
-.bita-summary li {
-  padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md);
-  background: var(--color-accent-soft); font-size: var(--db-text-meta); line-height: 1.5;
+.bita-welcome { display: flex; flex-direction: column; gap: 14px; color: var(--color-text); font-size: var(--db-text-body); line-height: 1.55; }
+.bita-welcome .bita-row { align-self: stretch; max-width: 100%; }
+.bita-welcome .bita-message { font-size: var(--db-text-meta); line-height: 1.55; }
+.bita-block { min-width: 0; }
+.bita-label {
+  margin: 0 0 var(--space-2); color: var(--color-text-muted); font-size: var(--db-text-caption); font-weight: var(--db-weight-semibold);
+  letter-spacing: 0.04em; text-transform: uppercase;
 }
-.bita-summary li .bita-link { margin-left: 6px; }
-.bita-summary-loading { margin: 0 0 var(--space-3); color: var(--color-text-muted); font-size: var(--db-text-meta); }
-.bita-questions { display: flex; flex-direction: column; gap: var(--space-2); }
+/* The desk in one card: rows split by hairlines; the ones that need attention carry a warm bar on the left. */
+.bita-summary { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border: 1px solid var(--color-border); border-radius: var(--db-radius-card); background: var(--color-surface); overflow: hidden; }
+.bita-summary li {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px var(--space-3); min-height: 40px;
+  padding: var(--space-2) var(--space-3); border-left: 3px solid transparent; font-size: var(--db-text-meta); line-height: 1.5;
+}
+.bita-summary li + li { border-top: 1px solid var(--color-border); }
+.bita-summary li.urgent { border-left-color: var(--db-warning); background: color-mix(in srgb, var(--db-warning) 10%, var(--color-surface)); }
+.bita-summary-text { min-width: 0; flex: 1 1 auto; }
+.bita-summary-tickets { display: inline-flex; flex-wrap: wrap; gap: var(--space-2); }
+.bita-summary-tickets .bita-link {
+  display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 1px solid var(--color-border-strong);
+  border-radius: var(--db-radius-pill); background: var(--color-surface); text-decoration: none;
+}
+.bita-summary-tickets .bita-link:hover { border-color: var(--color-accent); }
+.bita-summary-loading { margin: 0; color: var(--color-text-muted); font-size: var(--db-text-meta); }
+.bita-questions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .bita-questions button {
-  min-height: var(--touch-target); padding: var(--space-2) var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md);
+  min-height: 36px; padding: 0 14px; border: 1px solid var(--color-border); border-radius: var(--db-radius-pill);
   background: var(--color-surface); color: var(--color-text); font-size: var(--db-text-meta); text-align: left; cursor: pointer;
 }
-.bita-questions button:hover { border-color: var(--color-border-strong); }
+.bita-questions button:hover { border-color: var(--color-border-strong); background: var(--color-bg); }
+.bita-questions button:disabled { opacity: 0.6; cursor: default; }
 .bita-questions button:focus-visible { outline: var(--focus-ring); outline-offset: var(--focus-offset); }
 
 .bita-error {
   align-self: stretch; padding: var(--space-2) var(--space-3); border: 1px solid var(--color-danger-border); border-radius: var(--radius-md);
   background: var(--color-danger-bg); color: var(--color-danger-text); font-size: var(--db-text-meta);
 }
-.bita-form { display: flex; align-items: flex-end; gap: var(--space-2); padding: var(--space-3); border-top: 1px solid var(--color-border); }
-.bita-form textarea {
-  flex: 1 1 auto; min-width: 0; min-height: var(--touch-target); max-height: 120px; padding: 11px var(--space-3); resize: none;
-  border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background: var(--color-surface); color: var(--color-text);
+.bita-form { padding: var(--space-3) var(--space-3) 0; border-top: 1px solid var(--color-border); }
+/* One box for the field and the send button; the focus ring goes around the whole box, once. */
+.bita-composer {
+  display: flex; align-items: flex-end; gap: 4px; padding: 4px; border: 1px solid var(--color-border-strong); border-radius: 20px;
+  background: var(--color-surface);
+}
+.bita-composer:focus-within { border-color: transparent; outline: var(--focus-ring); outline-offset: 0; }
+.bita-composer textarea {
+  flex: 1 1 auto; min-width: 0; min-height: var(--touch-target); max-height: 120px; padding: 11px 4px 11px var(--space-3); resize: none;
+  border: 0; outline: 0; background: transparent; color: var(--color-text);
   font: inherit; font-size: var(--db-text-body); line-height: 1.4;
 }
-.bita-form textarea:focus-visible { outline: var(--focus-ring); outline-offset: 0; }
-.bita-form .primary { min-height: var(--touch-target); }
-.bita-footer { padding: 0 var(--space-4) var(--space-3); color: var(--color-text-muted); font-size: var(--db-text-caption); line-height: 1.5; }
+.bita-send {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; width: var(--touch-target); height: var(--touch-target);
+  padding: 0; border: 0; border-radius: 50%; background: var(--color-accent); color: var(--color-surface); cursor: pointer;
+}
+.bita-send:hover:not(:disabled) { filter: brightness(1.1); }
+.bita-send:disabled { opacity: 0.4; cursor: default; }
+.bita-footer { padding: var(--space-2) var(--space-4) var(--space-3); color: var(--color-text-muted); font-size: var(--db-text-caption); line-height: 1.5; text-align: center; }
 
 /* "Sugerir solución" inside a ticket. */
 .bita-suggestions {
@@ -143,10 +171,13 @@ body:has(.bita-launcher, .bita-panel) .content {
   .bita-launcher { right: var(--space-4); bottom: calc(var(--space-4) + env(safe-area-inset-bottom)); }
   .bita-panel { inset: 0; width: 100%; height: 100dvh; border: 0; border-radius: 0; }
   .bita-header { padding-top: max(var(--space-3), env(safe-area-inset-top)); }
-  .bita-form { padding-bottom: max(var(--space-3), env(safe-area-inset-bottom)); }
+  .bita-footer { padding-bottom: max(var(--space-3), env(safe-area-inset-bottom)); }
   /* 16 px keeps iOS from zooming in on focus. */
-  .bita-form textarea { font-size: var(--db-text-emphasis); }
+  .bita-composer textarea { font-size: var(--db-text-emphasis); }
   .bita-message { max-width: 92%; }
+  .bita-questions button { min-height: var(--touch-target); }
+  .bita-summary li { min-height: var(--touch-target); }
+  .bita-summary-tickets .bita-link { min-height: 36px; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .bita-avatar.thinking .bita-hat { animation: bita-hat 900ms ease-in-out infinite; }
@@ -154,11 +185,9 @@ body:has(.bita-launcher, .bita-panel) .content {
   .bita-dots i { animation: bita-dot 1.2s ease-in-out infinite; }
   .bita-dots i:nth-child(2) { animation-delay: 0.15s; }
   .bita-dots i:nth-child(3) { animation-delay: 0.3s; }
-  .bita-panel { animation: bita-enter 160ms ease-out both; }
   @keyframes bita-hat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
   @keyframes bita-blink { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(0.1); } }
   @keyframes bita-dot { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
-  @keyframes bita-enter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 }
 
 /* "Borrador con Bita" in the reply composer. The chat composer resets the padding of its direct children, so the row
@@ -193,8 +222,9 @@ body:has(.bita-launcher, .bita-panel) .content {
 .bita-recap .bita-suggestions-note { margin-top: var(--space-2); }
 
 /* Feature 5: the company report under Bita's answer. */
-.bita-column { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
-.bita-column .bita-message { max-width: 100%; }
+/* One turn of Bita: her words with the avatar, and under them, full width, what she offers (report, proposals). */
+.bita-turn { display: flex; flex-direction: column; gap: var(--space-2); align-self: stretch; min-width: 0; }
+.bita-offers { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
 .bita-report { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; max-width: 100%; }
 .bita-report .secondary {
   display: inline-flex; align-items: center; gap: var(--space-2); max-width: 100%; min-height: 36px; padding-block: 6px;
