@@ -207,7 +207,8 @@ export function FulfillmentPanel({
                 ? {
                     assetTag: String(values.get('assetTag') ?? ''),
                     kind: String(values.get('kind') ?? 'computer'),
-                    serial: String(values.get('serial') ?? '').trim() || null,
+                    serial: String(values.get('serial') ?? ''),
+                    model: String(values.get('model') ?? '').trim() || null,
                   }
                 : {};
             void act(
@@ -241,8 +242,25 @@ export function FulfillmentPanel({
                 </select>
               </label>
               <label>
-                N° de serie (opcional)
-                <input name="serial" maxLength={120} autoComplete="off" disabled={busy} />
+                N° de serie
+                <input
+                  name="serial"
+                  required
+                  maxLength={120}
+                  autoComplete="off"
+                  placeholder="Como en la etiqueta del fabricante"
+                  disabled={busy}
+                />
+              </label>
+              <label>
+                Marca y modelo (opcional)
+                <input
+                  name="model"
+                  maxLength={120}
+                  autoComplete="off"
+                  placeholder="Ej.: Dell Latitude 5440"
+                  disabled={busy}
+                />
               </label>
             </>
           )}

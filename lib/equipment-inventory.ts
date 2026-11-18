@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
 import { requireStaff, type AccessContext } from './access';
 import { assetTagProblem, normalizeAssetTag } from './asset-tag';
-import { recordEquipmentEvent } from './client-equipment';
+import { assertSerialAvailable, recordEquipmentEvent } from './client-equipment';
 import {
   assigneeProblem,
   describeEquipmentChange,
@@ -11,6 +11,9 @@ import {
   type EquipmentHistory,
   type EquipmentTicket,
   equipmentKindLabel,
+  normalizeModel,
+  normalizeSerial,
+  serialProblem,
   type EquipmentClient,
   type EquipmentFilter,
   type EquipmentInventory,
@@ -42,14 +45,15 @@ export async function listEquipment(
   const equipment = (
     await database
       .prepare(
-        `SELECT a.id, a."assetTag", a.name, a.category, a.serial, a."companyId", c.name AS "companyName",
+        `SELECT a.id, a."assetTag", a.name, a.category, a.serial, a.model, a."companyId", c.name AS "companyName",
                 m.id AS "assignedMemberId", m.name AS "assignedName", a.archived, a.version, a."updatedAt"
            FROM "customerAssets" a
            JOIN "customerCompanies" c ON c.id = a."companyId" AND c."ownerId" = a."ownerId"
            LEFT JOIN members m ON m.id = a."assignedContactMemberId" AND m."ownerId" = a."ownerId" AND m.status <> 'revoked'
           WHERE a."ownerId" = $1 AND a.archived = ($3 = 'archived')
-            AND ($2::text IS NULL OR a."assetTag" ILIKE $2 OR a.name ILIKE $2 OR a.serial ILIKE $2 OR m.name ILIKE $2 OR c.name ILIKE $2)
-            AND ($3 IN ('all', 'archived') OR ($3 = 'unassigned' AND m.id IS NULL) OR ($3 = 'assigned' AND m.id IS NOT NULL))
+            AND ($2::text IS NULL OR a."assetTag" ILIKE $2 OR a.name ILIKE $2 OR a.serial ILIKE $2 OR a.model ILIKE $2 OR m.name ILIKE $2 OR c.name ILIKE $2)
+            AND ($3 IN ('all', 'archived') OR ($3 = 'unassigned' AND m.id IS NULL) OR ($3 = 'assigned' AND m.id IS NOT NULL)
+                 OR ($3 = 'incomplete' AND btrim(a.serial) = ''))
           ORDER BY a."assetTag" NULLS LAST, a.name, a.id
           LIMIT ${EQUIPMENT_LIST_LIMIT}`,
       )
@@ -107,12 +111,21 @@ async function writeTransaction<T>(access: AccessContext, work: (tx: PoolClient,
 /** Records a piece of equipment by its inventory ID, optionally assigned to a client of its company. */
 export async function createEquipment(
   access: AccessContext,
-  input: { companyId: string; assetTag: string; kind: string; serial?: string; assignedMemberId?: string | null },
+  input: {
+    companyId: string;
+    assetTag: string;
+    kind: string;
+    serial: string;
+    model?: string;
+    assignedMemberId?: string | null;
+  },
 ): Promise<EquipmentItem> {
   requireStaff(access);
-  const tagProblem = assetTagProblem(input.assetTag);
+  const tagProblem = assetTagProblem(input.assetTag) ?? serialProblem(input.serial);
   if (tagProblem) throw new ApiError(400, tagProblem);
-  const tag = normalizeAssetTag(input.assetTag);
+  const tag = normalizeAssetTag(input.assetTag),
+    serial = normalizeSerial(input.serial),
+    model = normalizeModel(input.model);
   return writeTransaction(access, async (tx, fresh) => {
     const company = (
       await tx.query<{ name: string }>(
@@ -125,6 +138,7 @@ export async function createEquipment(
       await tx.query('SELECT 1 FROM "customerAssets" WHERE "ownerId"=$1 AND "assetTag"=$2', [fresh.ownerId, tag])
     ).rows[0];
     if (existing) throw new ApiError(409, `El equipo ${tag} ya está registrado. Búscalo en la lista para asignarlo.`);
+    await assertSerialAvailable(tx, { ownerId: fresh.ownerId, serial });
     const assignee = await readAssignee(tx, fresh, input.assignedMemberId);
     if (input.assignedMemberId) {
       const problem = assigneeProblem(assignee, input.companyId);
@@ -137,15 +151,16 @@ export async function createEquipment(
     try {
       row = (
         await tx.query(
-          `INSERT INTO "customerAssets" (id,"ownerId","companyId",name,category,serial,"assetTag","assignedContactMemberId","reminderBaselineAt","createdAt","updatedAt")
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$9) RETURNING *`,
+          `INSERT INTO "customerAssets" (id,"ownerId","companyId",name,category,serial,model,"assetTag","assignedContactMemberId","reminderBaselineAt","createdAt","updatedAt")
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$10) RETURNING *`,
           [
             id,
             fresh.ownerId,
             input.companyId,
             `${label} ${tag}`,
             label,
-            input.serial ?? '',
+            serial,
+            model,
             tag,
             input.assignedMemberId ?? null,
             now,
@@ -170,6 +185,7 @@ export async function createEquipment(
       name: String(row.name),
       category: String(row.category),
       serial: String(row.serial),
+      model: String(row.model),
       companyId: input.companyId,
       companyName: company.name,
       assignedMemberId: input.assignedMemberId ?? null,
@@ -352,7 +368,7 @@ export async function equipmentHistory(access: AccessContext, id: string): Promi
   };
 }
 
-const OWN_COLUMNS = `a.id, a."assetTag", a.name, a.category, a.serial, c.name AS "companyName"`;
+const OWN_COLUMNS = `a.id, a."assetTag", a.name, a.category, a.serial, a.model, c.name AS "companyName"`;
 
 /** The equipment assigned to the person asking: what a client sees in the portal and can name in a ticket. */
 export async function listOwnEquipment(access: AccessContext): Promise<OwnEquipment[]> {

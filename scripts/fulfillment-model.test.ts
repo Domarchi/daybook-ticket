@@ -115,11 +115,13 @@ test('reporting a delay needs a listed reason, a note for "Otro" and a new date'
   assert.match(delayProblem('delivered', ok, today) ?? '', /abierto/);
 });
 
-test('delivering equipment requires its inventory ID; other requirements do not', () => {
+test('delivering equipment requires its inventory ID and serial number; other requirements do not', () => {
   assert.equal(deliveryNeedsAsset('equipment'), true);
   for (const other of ['user_accounts', 'applications', 'folder_permissions', 'other', null])
     assert.equal(deliveryNeedsAsset(other), false);
-  assert.equal(deliveryProblem('ready', 'equipment', 'NB-0042'), null);
+  assert.equal(deliveryProblem('ready', 'equipment', 'NB-0042', '5CG1234'), null);
+  assert.match(deliveryProblem('ready', 'equipment', 'NB-0042') ?? '', /número de serie/);
+  assert.match(deliveryProblem('ready', 'equipment', 'NB-0042', '  ') ?? '', /número de serie/);
   assert.equal(deliveryProblem('ready', 'applications', null), null);
   assert.match(deliveryProblem('ready', 'equipment', '') ?? '', /ID del equipo entregado/);
   assert.match(deliveryProblem('ready', 'equipment', null) ?? '', /ID del equipo entregado/);

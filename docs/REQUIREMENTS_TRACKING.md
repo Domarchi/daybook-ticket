@@ -43,6 +43,16 @@ Los motivos y notas admiten hasta 500 caracteres.
 - **Normalización:** antes de comparar, se quitan los espacios de los extremos, se juntan los espacios interiores y se pasa a mayúsculas. Así, « nb-0042 » y «NB-0042» son el mismo equipo.
 - **Formato:** letras sin tildes ni ñ, números, espacios y `- _ . /`. Debe empezar con letra o número y tener hasta 64 caracteres.
 
+## Número de serie (Fase 7)
+
+Desde el lanzamiento a toda la empresa, el **número de serie es obligatorio** al invitar a un cliente, al registrar un equipo y al marcar entregado un equipo. La regla vive en `serialProblem` (`lib/client-equipment-model.ts`); la base no cambia.
+
+- **Normalización:** como el ID: sin espacios en los extremos, espacios interiores juntados y mayúsculas. Hasta 120 caracteres, con al menos una letra o número y sin caracteres de control.
+- **Una serie, un equipo:** si otra fila del espacio ya tiene esa serie, se rechaza con 409 y se nombra el equipo (si está dado de baja, se sugiere reactivarlo). La comprobación corre en la transacción que tiene el bloqueo de trabajo del espacio; no hay índice único porque los equipos anteriores pueden no tener serie.
+- **Equipo que ya existe:** si no tenía serie, la recibe; si tenía otra, se rechaza («Revisa el ID o la serie»). Nunca se sobrescribe en silencio.
+- **Marca y modelo:** campo opcional que se guarda en `customerAssets.model` y solo completa un modelo vacío.
+- **Equipos anteriores sin serie:** no se modifican. El inventario los muestra con «Falta la serie» y el filtro «Sin serie» los lista.
+
 ## Línea de seguimiento
 
 - **Pasos:** cada paso queda hecho, actual o pendiente. «Entregado» completa la línea.

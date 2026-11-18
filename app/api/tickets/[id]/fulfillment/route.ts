@@ -36,7 +36,8 @@ const changeSchema = z.discriminatedUnion('action', [
       expectedVersion: version,
       assetTag: z.string().max(200).nullable().optional(),
       kind: z.string().max(40).nullable().optional(),
-      serial: z.string().max(120).nullable().optional(),
+      serial: z.string().max(200).nullable().optional(),
+      model: z.string().max(120).nullable().optional(),
     })
     .strict(),
 ]);

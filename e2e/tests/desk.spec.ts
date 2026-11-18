@@ -496,7 +496,7 @@ test.describe('the support desk', () => {
     await page.getByRole('button', { name: 'Guardar empresa' }).click();
     await expect(page.locator('.company-list strong', { hasText: 'Constructora Andes' })).toBeVisible();
 
-    const invite = async (name: string, email: string) => {
+    const invite = async (name: string, email: string, serial = '5cg  1234x') => {
       await page.getByRole('button', { name: 'Invitar persona' }).click();
       const form = page.locator('.access-invite form');
       await form.getByLabel('Nombre', { exact: true }).fill(name);
@@ -505,6 +505,8 @@ test.describe('the support desk', () => {
       await form.getByRole('combobox', { name: /^Empresa/ }).selectOption({ label: 'Constructora Andes' });
       await form.getByLabel('ID del equipo').fill('  nb-0042 ');
       await form.getByLabel('Tipo de equipo').selectOption({ label: 'Computador' });
+      await form.getByLabel('N° de serie').fill(serial);
+      await form.getByLabel('Marca y modelo (opcional)').fill('Dell Latitude 5440');
       return form;
     };
 
@@ -521,9 +523,14 @@ test.describe('the support desk', () => {
     await page.getByRole('button', { name: 'Cerrar formulario' }).click();
 
     // The same inventory ID, typed differently, is already Rosa's: refused, and nobody is invited.
-    const second = await invite('Tomás Soto', 'tomas@example.test');
+    const second = await invite('Tomás Soto', 'tomas@example.test', 'CN-0001');
     await second.getByRole('button', { name: 'Crear invitación' }).click();
     await expect(page.getByText('El equipo NB-0042 ya está asignado a Rosa Pérez.')).toBeVisible();
+    // A new inventory ID with Rosa's serial number (typed differently) is refused too: the serial is unique.
+    await second.getByLabel('ID del equipo').fill('NB-0043');
+    await second.getByLabel('N° de serie').fill('5CG 1234X ');
+    await second.getByRole('button', { name: 'Crear invitación' }).click();
+    await expect(page.getByText(/La serie 5CG 1234X ya está registrada en el equipo NB-0042/)).toBeVisible();
     await expect(page.getByText('tomas@example.test')).toHaveCount(0);
   });
 
@@ -547,10 +554,16 @@ test.describe('the support desk', () => {
     await form.getByRole('combobox', { name: /^Empresa/ }).selectOption({ label: 'Constructora Andes' });
     await form.getByLabel('ID del equipo').fill('mon-7');
     await form.getByLabel('Tipo de equipo').selectOption({ label: 'Monitor' });
+    // The serial number is required: the browser stops the form until it is filled.
+    await form.getByRole('button', { name: 'Registrar equipo' }).click();
+    await expect(page.getByText('Equipo MON-7 registrado')).toHaveCount(0);
+    await form.getByLabel('N° de serie').fill('cn-0007');
     await form.getByRole('button', { name: 'Registrar equipo' }).click();
     await expect(page.getByText('Equipo MON-7 registrado')).toBeVisible();
     const monitor = rows.filter({ hasText: 'MON-7' });
     await expect(monitor).toContainText('Monitor');
+    await expect(monitor).toContainText('Serie CN-0007');
+    await expect(rosa).toContainText('Dell Latitude 5440 · Serie 5CG 1234X');
 
     // Only the free one under "Sin asignar".
     await page.getByRole('button', { name: 'Sin asignar', exact: true }).click();
@@ -868,6 +881,7 @@ test.describe('the support desk', () => {
       const panel = page.getByRole('region', { name: 'Seguimiento del requerimiento' });
       await panel.getByLabel('ID del equipo entregado').fill('mon-9');
       await panel.getByLabel('Tipo de equipo').selectOption({ label: 'Monitor' });
+      await panel.getByLabel('N° de serie').fill('cn-0009');
       await panel.getByRole('button', { name: 'Marcar entregado' }).click();
       await expect(page.getByText('Requerimiento entregado y ticket solucionado')).toBeVisible();
       await expect(panel.locator('[aria-current="step"]')).toHaveCount(0);
