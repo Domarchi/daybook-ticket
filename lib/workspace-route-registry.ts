@@ -93,6 +93,7 @@ import * as knowledge8 from '@/app/api/reports/monthly/route';
 import * as equipment0 from '@/app/api/equipment/[id]/route';
 import * as equipment1 from '@/app/api/equipment/route';
 import * as equipment2 from '@/app/api/equipment/mine/route';
+import * as equipmentMineId from '@/app/api/equipment/mine/[id]/route';
 import * as equipment3 from '@/app/api/tickets/[id]/equipment/route';
 import * as fulfillment0 from '@/app/api/tickets/[id]/fulfillment/route';
 import * as fulfillment1 from '@/app/api/fulfillments/route';
@@ -151,6 +152,7 @@ export const WORKSPACE_ROUTE_REGISTRY = [
   { pattern: new RegExp('^email-inbound/([^/]+)/retry$'), names: ['id'], handlers: r16 },
   { pattern: new RegExp('^email-inbound$'), names: [], handlers: r17 },
   { pattern: new RegExp('^equipment/mine$'), names: [], handlers: equipment2 },
+  { pattern: new RegExp('^equipment/mine/([^/]+)$'), names: ['id'], handlers: equipmentMineId },
   { pattern: new RegExp('^tickets/([^/]+)/fulfillment$'), names: ['id'], handlers: fulfillment0 },
   { pattern: new RegExp('^tickets/([^/]+)/fulfillment/receipt$'), names: ['id'], handlers: fulfillment3 },
   { pattern: new RegExp('^tickets/classify$'), names: [], handlers: backfill0 },

@@ -5,7 +5,7 @@ import { todayIn } from '../../lib/fulfillment-model';
 import { calculateTicketDueAt, readServicePolicySnapshot } from '../../lib/sla-policy';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
-import { DATABASE_URL } from '../support/env';
+import { BASE_URL, DATABASE_URL } from '../support/env';
 
 const SUBJECT = 'No puedo imprimir la factura de octubre';
 const REQUESTER = 'Andrea Molina';
@@ -27,6 +27,9 @@ test.describe('the support desk', () => {
   // Rosa's invitation link, kept for the portal test further down (the tests in this file run in order).
   let rosaInvitation = '';
   let rosaPassword = '';
+  // Lucía, imported from a spreadsheet, activates her account in the import test and confirms her equipment later.
+  // Her session is reused: one more password sign-in would hit the sign-in rate limit of the last test.
+  let luciaSession: Awaited<ReturnType<BrowserContext['storageState']>> | undefined;
   // Rosa signed in on a phone, shared by the two portal tests on a phone that follow each other.
   let rosaPhoneSession: Awaited<ReturnType<BrowserContext['storageState']>> | undefined;
   test('an empty inbox is accessible and invites the first ticket', async ({ page }) => {
@@ -1483,6 +1486,7 @@ test.describe('the support desk', () => {
       await luciaPage.getByRole('button', { name: 'Activar mi cuenta' }).click();
       await luciaPage.waitForURL(url => url.pathname === '/', { timeout: 30_000 });
       await expect(luciaPage.getByRole('region', { name: 'Mis equipos' })).toContainText('NB-0100');
+      luciaSession = await luciaContext.storageState();
     } finally {
       await luciaContext.close();
     }
@@ -1546,6 +1550,70 @@ test.describe('the support desk', () => {
       /^"Marta Vega";"marta.vega@example.test";"Minera Sur";"NB-0101";"http[^"]+\/login\?invite=[a-f0-9]{64}"/,
     );
     await expect(marta).toContainText('Enlace vigente hasta el');
+  });
+
+  test('a client completes the serial number of their equipment, and registers one when they have none', async ({
+    browser,
+  }) => {
+    expect(luciaSession).toBeDefined();
+    const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+    const lucia = `(SELECT id FROM members WHERE email='lucia.rojas@example.test')`;
+    const context = await browser.newContext({ baseURL: BASE_URL, storageState: luciaSession });
+    try {
+      // Her notebook as if it had been registered before the serial number was required.
+      await pool.query(`UPDATE "customerAssets" SET serial='', model='' WHERE "assetTag"='NB-0100'`);
+      const page = await context.newPage();
+      await page.goto('/');
+
+      const card = page.getByRole('region', { name: 'Confirma tu equipo' });
+      await expect(card).toContainText('Falta el número de serie de tu equipo');
+      await expectNoSeriousViolations(page, 'Confirma tu equipo: completar serie');
+      const form = card.getByRole('form', { name: 'Completar NB-0100 · Computador' });
+      // Rosa's serial: refused without saying whose equipment has it.
+      await form.getByLabel('N° de serie').fill('5cg 1234x');
+      await form.getByRole('button', { name: 'Guardar serie' }).click();
+      await expect(card.getByRole('alert')).toHaveText(/Esa serie ya está registrada en otro equipo/);
+      await expect(card).not.toContainText('NB-0042');
+      await form.getByLabel('N° de serie').fill('5cg-0100');
+      await form.getByLabel('Marca y modelo (opcional)').fill('HP 440 G9');
+      await form.getByRole('button', { name: 'Guardar serie' }).click();
+      await expect(page.getByRole('status').filter({ hasText: 'Datos del equipo guardados' })).toBeVisible();
+      await expect(card).toHaveCount(0);
+      await expect(page.getByRole('region', { name: 'Mis equipos' })).toContainText('HP 440 G9 · Serie 5CG-0100');
+      const saved = await pool.query(`SELECT serial, model FROM "customerAssets" WHERE "assetTag"='NB-0100'`);
+      expect(saved.rows[0]).toEqual({ serial: '5CG-0100', model: 'HP 440 G9' });
+
+      // Without equipment (her notebook given up), she registers the one she uses.
+      await pool.query(`UPDATE "customerAssets" SET archived=true WHERE "assignedContactMemberId"=${lucia}`);
+      await page.reload();
+      await expect(card).toContainText('Registra el equipo que usas');
+      await expectNoSeriousViolations(page, 'Confirma tu equipo: registrar');
+      await card.getByLabel('ID del equipo').fill('nb-0042');
+      await card.getByLabel('Tipo de equipo').selectOption({ label: 'Computador' });
+      await card.getByLabel('N° de serie').fill('5CG-0300');
+      await card.getByRole('button', { name: 'Registrar mi equipo' }).click();
+      await expect(card.getByRole('alert')).toHaveText(/El ID NB-0042 ya está registrado/);
+      await expect(card).not.toContainText('Rosa');
+      await card.getByLabel('ID del equipo').fill('nb-0300');
+      await card.getByRole('button', { name: 'Registrar mi equipo' }).click();
+      await expect(page.getByRole('status').filter({ hasText: 'Equipo registrado' })).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Mis equipos' })).toContainText('NB-0300');
+      const owner = await pool.query(
+        `SELECT m.email, a.serial FROM "customerAssets" a JOIN members m ON m.id=a."assignedContactMemberId" WHERE a."assetTag"='NB-0300'`,
+      );
+      expect(owner.rows[0]).toEqual({ email: 'lucia.rojas@example.test', serial: '5CG-0300' });
+
+      // A client cannot write somebody else's equipment through the API.
+      const rosaAsset = (await pool.query(`SELECT id FROM "customerAssets" WHERE "assetTag"='NB-0042'`)).rows[0].id;
+      const forbidden = await page.request.patch(`/api/equipment/mine/${rosaAsset}`, {
+        data: { serial: 'X-1' },
+        headers: { Origin: new URL(page.url()).origin },
+      });
+      expect(forbidden.status()).toBe(404);
+    } finally {
+      await context.close();
+      await pool.end();
+    }
   });
 
   test.describe('dark mode', () => {

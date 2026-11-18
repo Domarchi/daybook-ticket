@@ -74,3 +74,15 @@
   .equipment-row-main { flex-direction: column; align-items: stretch; }
   .equipment-confirm > div > button { flex: 1 1 auto; }
 }
+/* «Confirma tu equipo» in the client portal (Fase 7, L4). Theme tokens only. */
+.confirm-equipment { display: grid; gap: 12px; margin: 18px 0; padding: 18px; border: 1px solid var(--color-border); border-left: 4px solid var(--accent, #a87926); border-radius: 10px; background: var(--surface); color: var(--color-text); }
+.confirm-equipment h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--db-text-heading); color: var(--color-text); }
+.confirm-equipment p { margin: 0; line-height: 1.6; color: var(--color-text); }
+.confirm-equipment-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; align-items: end; }
+.confirm-equipment-form label { display: grid; gap: 6px; font-size: var(--db-text-meta); font-weight: 600; color: var(--color-text); }
+.confirm-equipment-form input, .confirm-equipment-form select { min-height: 44px; border: 1px solid var(--color-border); border-radius: 8px; padding: 9px 12px; background: var(--surface); color: var(--color-text); font: inherit; }
+.confirm-equipment-form button { min-height: 44px; }
+.confirm-equipment-item { grid-column: 1 / -1; }
+.confirm-equipment-error { color: var(--color-danger-text) !important; font-weight: 600; }
+.confirm-equipment-note { font-size: var(--db-text-caption); color: var(--color-text-muted) !important; }
+.confirm-equipment-done { display: flex; align-items: center; gap: 8px; margin: 18px 0; font-weight: 600; color: var(--color-text); }

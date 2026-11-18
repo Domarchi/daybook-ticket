@@ -234,3 +234,32 @@ export function describeEquipmentChange(before: Snapshot, after: Snapshot, names
   }
   return 'Datos del equipo actualizados';
 }
+
+/**
+ * «Confirma tu equipo» (Fase 7, L4): what the portal still needs from a client. A client without active equipment
+ * registers one; equipment registered before the serial number was required gets it from its holder.
+ */
+export type OwnEquipmentNeed =
+  { kind: 'register' } | { kind: 'complete'; items: OwnEquipment[] } | { kind: 'no-company' } | null;
+export function ownEquipmentNeed(items: OwnEquipment[], hasCompany: boolean): OwnEquipmentNeed {
+  if (!items.length) return hasCompany ? { kind: 'register' } : { kind: 'no-company' };
+  const missing = items.filter(item => !normalizeSerial(item.serial));
+  return missing.length ? { kind: 'complete', items: missing } : null;
+}
+/** What a client sends to register their own equipment: the same fields as the invite form. */
+export const registerOwnEquipmentSchema = inviteEquipmentSchema;
+/** What a client sends to complete equipment that has no serial number yet. */
+export const completeOwnEquipmentSchema = z.object({ serial: serialField, model: modelField }).strict();
+/**
+ * A client is never told which other equipment or person holds an ID or a serial: the team checks it from a ticket.
+ * These are the messages the client sees instead of the staff ones.
+ */
+export const OWN_EQUIPMENT_MESSAGES = {
+  tagTaken: (tag: string) =>
+    `El ID ${tag} ya está registrado. Revisa la etiqueta o crea un ticket para que el equipo lo revise.`,
+  serialTaken:
+    'Esa serie ya está registrada en otro equipo. Revisa la etiqueta o crea un ticket para que lo revisemos.',
+  alreadyHasEquipment: 'Ya tienes un equipo registrado. Para agregar otro, crea un ticket o pídelo como requerimiento.',
+  alreadyComplete: 'Este equipo ya tiene su número de serie. Si no es correcto, crea un ticket para corregirlo.',
+  noCompany: 'Tu cuenta aún no tiene empresa. Crea un ticket para que el equipo registre tu equipo.',
+} as const;

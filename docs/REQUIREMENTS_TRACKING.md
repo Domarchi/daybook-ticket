@@ -53,6 +53,25 @@ Desde el lanzamiento a toda la empresa, el **número de serie es obligatorio** a
 - **Marca y modelo:** campo opcional que se guarda en `customerAssets.model` y solo completa un modelo vacío.
 - **Equipos anteriores sin serie:** no se modifican. El inventario los muestra con «Falta la serie» y el filtro «Sin serie» los lista.
 
+## «Confirma tu equipo» en el portal (Fase 7, L4)
+
+El portal del cliente muestra la tarjeta **Confirma tu equipo** mientras falte un dato.
+
+- **Sin equipo activo:** el cliente registra el suyo con ID, tipo, serie y marca y modelo. El equipo queda asignado a él y en la empresa de su cuenta. Si su cuenta no tiene empresa, la tarjeta lo invita a crear un ticket.
+- **Equipo sin serie:** por ejemplo, uno registrado antes de que la serie fuera obligatoria. El cliente completa la serie y, si falta, la marca y modelo.
+- **Lo que el cliente no puede hacer:**
+  - tomar un ID que ya existe;
+  - registrar un segundo equipo (eso va por ticket o requerimiento);
+  - cambiar una serie ya registrada;
+  - tocar equipos que no son suyos (404).
+- **Mensajes de conflicto:** son genéricos (`OWN_EQUIPMENT_MESSAGES`) y nunca nombran otro equipo ni a otra persona. Corregir datos ya registrados lo hace el equipo, desde un ticket.
+- **Rutas:** `POST /api/equipment/mine` y `PATCH /api/equipment/mine/[id]`.
+  - Solo para clientes activos y con un límite de 20 cada 10 minutos.
+  - Corren en una transacción con el bloqueo de trabajo del espacio y el cliente se vuelve a comprobar bajo ese bloqueo.
+  - Cada cambio queda en el historial del equipo, con el cliente como autor.
+
+Código: `lib/own-equipment.ts`, `ownEquipmentNeed` en `lib/client-equipment-model.ts` y `ConfirmEquipmentCard` en `app/own-equipment.tsx`. Pruebas: `scripts/own-equipment.test.ts` y la e2e «a client completes the serial number…».
+
 ## Línea de seguimiento
 
 - **Pasos:** cada paso queda hecho, actual o pendiente. «Entregado» completa la línea.
