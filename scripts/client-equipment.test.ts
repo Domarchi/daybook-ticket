@@ -18,12 +18,17 @@ import {
   equipmentChangeSchema,
   describeEquipmentChange,
   equipmentHistoryMemberIds,
+  duplicateSerialProblem,
+  normalizeModel,
+  normalizeSerial,
+  serialMismatchProblem,
+  serialProblem,
 } from '../lib/client-equipment-model';
 import { FAULT_GROUPS } from '../lib/ticket-category-model';
 import { ApiError, createTicketSchema, inviteMemberSchema } from '../lib/server';
 import { WORKSPACE_ROUTE_REGISTRY } from '../lib/workspace-route-registry';
 
-const equipment = { assetTag: 'nb-0042', kind: 'computer' as const };
+const equipment = { assetTag: 'nb-0042', kind: 'computer' as const, serial: ' 5cg  1234x ' };
 
 test('equipment kinds are the equipment elements of the ticket classification', () => {
   assert.deepEqual(
@@ -49,6 +54,11 @@ test('a client needs a company and equipment; staff never carry equipment', () =
       '',
     /solo admite/,
   );
+  assert.match(
+    clientInviteProblem({ role: 'client', customerCompanyId: 'c1', equipment: { ...equipment, serial: '   ' } }) ?? '',
+    /número de serie/,
+    'the serial number is required (Fase 7)',
+  );
   assert.equal(clientInviteProblem({ role: 'agent' }), null);
   assert.equal(clientInviteProblem({ role: 'admin' }), null);
   assert.match(clientInviteProblem({ role: 'agent', equipment }) ?? '', /Solo las cuentas de cliente/);
@@ -65,7 +75,35 @@ test('the invite schema accepts the equipment block and nothing unexpected insid
   assert.equal(inviteMemberSchema.safeParse({ ...base, equipment: { ...equipment, serial: ' SN1 ' } }).success, true);
   assert.equal(inviteEquipmentSchema.safeParse({ ...equipment, kind: 'toaster' }).success, false);
   assert.equal(inviteEquipmentSchema.safeParse({ ...equipment, owner: 'x' }).success, false);
-  assert.equal(inviteEquipmentSchema.safeParse({ ...equipment, serial: 'x'.repeat(121) }).success, false);
+  assert.equal(inviteEquipmentSchema.safeParse({ ...equipment, serial: 'x'.repeat(201) }).success, false);
+  assert.equal(
+    inviteEquipmentSchema.safeParse({ assetTag: 'NB-1', kind: 'computer' }).success,
+    false,
+    'serial required',
+  );
+  assert.equal(inviteEquipmentSchema.safeParse({ ...equipment, model: 'Dell Latitude 5440' }).success, true);
+  assert.equal(inviteEquipmentSchema.safeParse({ ...equipment, model: 'x'.repeat(121) }).success, false);
+});
+
+test('serial numbers are required, normalized and compared without case or spacing differences', () => {
+  assert.equal(normalizeSerial(' 5cg  1234x '), '5CG 1234X');
+  assert.equal(serialProblem('5CG1234X'), null);
+  assert.equal(serialProblem('SN-77/A.1'), null);
+  assert.match(serialProblem('') ?? '', /Indica el número de serie/);
+  assert.match(serialProblem(undefined) ?? '', /Indica el número de serie/);
+  assert.match(serialProblem('x'.repeat(121)) ?? '', /hasta 120/);
+  assert.match(serialProblem('---') ?? '', /letras o números/);
+  assert.match(serialProblem('AB\u0007C') ?? '', /letras o números/);
+  assert.equal(normalizeModel('  Dell   Latitude 5440 '), 'Dell Latitude 5440');
+  assert.equal(normalizeModel(undefined), '');
+  assert.equal(serialMismatchProblem('NB-1', '', 'SN1'), null, 'an equipment without serial gets one');
+  assert.equal(serialMismatchProblem('NB-1', 'sn 1', ' SN  1'), null, 'same serial, other spelling');
+  assert.match(serialMismatchProblem('NB-1', 'SN1', 'SN2') ?? '', /NB-1 tiene registrada la serie SN1/);
+  assert.match(
+    duplicateSerialProblem('SN1', { assetTag: 'NB-9', archived: false }),
+    /ya está registrada en el equipo NB-9/,
+  );
+  assert.match(duplicateSerialProblem('SN1', { assetTag: null, archived: true }), /dado de baja. Reactívalo/);
 });
 
 test('an existing inventory ID is assigned only when it is free, active and of the same company', () => {
@@ -77,7 +115,11 @@ test('an existing inventory ID is assigned only when it is free, active and of t
 });
 
 /** A transaction double: answers the lookup with `existing` and records every statement. */
-function fakeTx(existing: Record<string, unknown> | null, failInsert?: { code: string }) {
+function fakeTx(
+  existing: Record<string, unknown> | null,
+  failInsert?: { code: string },
+  duplicate?: { assetTag: string | null; archived: boolean },
+) {
   const calls: { sql: string; values: unknown[] }[] = [];
   const tx = {
     async query(sql: string, values: unknown[] = []) {
@@ -85,9 +127,11 @@ function fakeTx(existing: Record<string, unknown> | null, failInsert?: { code: s
       if (sql.includes('FOR UPDATE OF a')) return { rows: existing ? [existing] : [] };
       if (sql.startsWith('INSERT INTO "customerAssets"')) {
         if (failInsert) throw Object.assign(new Error('duplicate'), failInsert);
-        return { rows: [{ id: values[0], assetTag: values[6] }] };
+        return { rows: [{ id: values[0], assetTag: values[7] }] };
       }
       if (sql.startsWith('SELECT * FROM "customerAssets"')) return { rows: [{ id: values[0], before: true }] };
+      if (sql.startsWith('SELECT "assetTag", archived FROM "customerAssets"'))
+        return { rows: duplicate ? [duplicate] : [] };
       if (sql.startsWith('UPDATE "customerAssets"')) return { rows: [{ id: values[0], after: true }] };
       return { rows: [] };
     },
@@ -99,7 +143,7 @@ const input = {
   companyId: 'c1',
   memberId: 'member-new',
   actorMemberId: 'member-admin',
-  equipment: { ...equipment, serial: 'SN-77' },
+  equipment,
   now: '2026-11-12T16:00:00.000Z',
 };
 
@@ -115,7 +159,8 @@ test('a new inventory ID creates the equipment, assigned and normalized, with a 
     'c1',
     'Computador NB-0042',
     'Computador',
-    'SN-77',
+    '5CG 1234X',
+    '',
     'NB-0042',
     'member-new',
     '2026-11-12T16:00:00.000Z',
@@ -125,13 +170,15 @@ test('a new inventory ID creates the equipment, assigned and normalized, with a 
   assert.equal(event.values[6], null, 'no "before" for a new equipment');
 });
 
+const free = { id: 'asset-9', companyId: 'c1', archived: false, assignedName: null };
 test('a free equipment of the same company is assigned, not duplicated', async () => {
-  const { tx, calls } = fakeTx({ id: 'asset-9', companyId: 'c1', archived: false, assignedName: null });
-  const result = await assignInviteEquipment(tx, input);
+  const { tx, calls } = fakeTx({ ...free, serial: '', model: '' });
+  const result = await assignInviteEquipment(tx, { ...input, equipment: { ...input.equipment, model: 'HP 440' } });
   assert.deepEqual(result, { id: 'asset-9', assetTag: 'NB-0042', created: false });
   assert.equal(calls.filter(call => call.sql.startsWith('INSERT INTO "customerAssets"')).length, 0);
   const update = calls.find(call => call.sql.startsWith('UPDATE "customerAssets"'))!;
-  assert.deepEqual(update.values, ['asset-9', 'member-new', '2026-11-12T16:00:00.000Z']);
+  assert.deepEqual(update.values, ['asset-9', 'member-new', '2026-11-12T16:00:00.000Z', '5CG 1234X', 'HP 440']);
+  assert.match(update.sql, /serial=CASE WHEN btrim\(serial\)='' THEN \$4 ELSE serial END/, 'never overwrites a serial');
   const event = calls.find(call => call.sql.startsWith('INSERT INTO "serviceContextEvents"'))!;
   assert.notEqual(event.values[6], null, 'the history keeps the row before the assignment');
 });
@@ -150,6 +197,35 @@ test('equipment that belongs to someone, to another company or is archived is re
     });
     assert.equal(calls.length, 1, 'only the lookup ran');
   }
+});
+
+test('a different recorded serial, or a serial already on other equipment, is refused without writing', async () => {
+  const mismatch = fakeTx({ ...free, serial: 'OTHER-1', model: '' });
+  await assert.rejects(assignInviteEquipment(mismatch.tx, input), /tiene registrada la serie OTHER-1/);
+  assert.equal(mismatch.calls.length, 1, 'only the lookup ran');
+  const same = fakeTx({ ...free, serial: '5cg 1234x', model: 'HP' });
+  await assignInviteEquipment(same.tx, input);
+  assert.equal(
+    same.calls.filter(call => call.sql.startsWith('SELECT "assetTag", archived')).length,
+    0,
+    'a piece that already has this serial is not checked against itself',
+  );
+  const taken = fakeTx(null, undefined, { assetTag: 'NB-9', archived: false });
+  await assert.rejects(assignInviteEquipment(taken.tx, input), (error: unknown) => {
+    assert.ok(error instanceof ApiError);
+    assert.equal(error.status, 409);
+    assert.match(error.message, /NB-9/);
+    return true;
+  });
+  assert.equal(taken.calls.filter(call => call.sql.startsWith('INSERT')).length, 0);
+  const lookup = taken.calls.find(call => call.sql.startsWith('SELECT "assetTag", archived'))!;
+  assert.deepEqual(lookup.values, ['owner-1', '5CG 1234X', null], 'compared normalized, in this workspace');
+  const invalid = fakeTx(null);
+  await assert.rejects(
+    assignInviteEquipment(invalid.tx, { ...input, equipment: { ...equipment, serial: '' } }),
+    /número de serie/,
+  );
+  assert.equal(invalid.calls.length, 0, 'nothing is read or written without a serial');
 });
 
 test('a concurrent duplicate becomes a clear 409, other database errors are not hidden', async () => {
@@ -189,17 +265,28 @@ test('equipment goes only to an active client of its own company (F6-A2)', () =>
 
 test('inventory requests are strict: known filters, uuids, a version for every reassignment', () => {
   const company = '6f1b8a52-3c1d-4f7e-9a10-2b5c8d9e0f11';
-  assert.deepEqual([...EQUIPMENT_FILTERS], ['all', 'unassigned', 'assigned', 'archived']);
+  assert.deepEqual([...EQUIPMENT_FILTERS], ['all', 'unassigned', 'assigned', 'incomplete', 'archived']);
+  assert.equal(isEquipmentFilter('incomplete'), true);
   assert.equal(isEquipmentFilter('unassigned'), true);
   assert.equal(isEquipmentFilter('archived'), true);
   assert.equal(isEquipmentFilter('deleted'), false);
   assert.equal(
-    createEquipmentSchema.safeParse({ companyId: company, assetTag: 'MON-7', kind: 'monitor' }).success,
+    createEquipmentSchema.safeParse({ companyId: company, assetTag: 'MON-7', kind: 'monitor', serial: 'CN-1' }).success,
     true,
   );
   assert.equal(
-    createEquipmentSchema.safeParse({ companyId: company, assetTag: 'MON-7', kind: 'monitor', assignedMemberId: null })
-      .success,
+    createEquipmentSchema.safeParse({ companyId: company, assetTag: 'MON-7', kind: 'monitor' }).success,
+    false,
+    'serial required',
+  );
+  assert.equal(
+    createEquipmentSchema.safeParse({
+      companyId: company,
+      assetTag: 'MON-7',
+      kind: 'monitor',
+      serial: 'CN-1',
+      assignedMemberId: null,
+    }).success,
     true,
   );
   assert.equal(createEquipmentSchema.safeParse({ companyId: 'c1', assetTag: 'MON-7', kind: 'monitor' }).success, false);

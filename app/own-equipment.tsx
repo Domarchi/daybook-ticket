@@ -102,6 +102,7 @@ export function TicketEquipment({ memberId, ticketId }: { memberId: string; tick
             <Laptop size={15} aria-hidden="true" />
             <span>
               <strong>{equipmentLabel(item)}</strong>
+              {item.model && <small>{item.model}</small>}
               {item.serial && <small>Serie {item.serial}</small>}
             </span>
           </li>

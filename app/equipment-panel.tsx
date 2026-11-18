@@ -21,6 +21,7 @@ const FILTER_LABELS: Record<EquipmentFilter, string> = {
   all: 'Todos',
   unassigned: 'Sin asignar',
   assigned: 'Asignados',
+  incomplete: 'Sin serie',
   archived: 'Dados de baja',
 };
 const ticketNumber = (id: number) => `#${String(id).padStart(4, '0')}`;
@@ -289,7 +290,8 @@ function EquipmentRow({
           <strong>{item.assetTag ?? 'Sin ID'}</strong>
           <span>
             {item.category}
-            {item.serial ? ` · Serie ${item.serial}` : ''} · {item.companyName}
+            {item.model ? ` · ${item.model}` : ''}
+            {item.serial ? ` · Serie ${item.serial}` : ' · Falta la serie'} · {item.companyName}
             {item.archived ? ' · Dado de baja' : ''}
           </span>
         </div>
@@ -460,7 +462,8 @@ function EquipmentForm({
     companyId: string;
     assetTag: string;
     kind: string;
-    serial?: string;
+    serial: string;
+    model?: string;
     assignedMemberId: string | null;
   }) => Promise<void>;
 }) {
@@ -477,12 +480,13 @@ function EquipmentForm({
         onSubmit={(event: FormEvent<HTMLFormElement>) => {
           event.preventDefault();
           const values = new FormData(event.currentTarget);
-          const serial = String(values.get('serial') ?? '').trim();
+          const model = String(values.get('model') ?? '').trim();
           void onSave({
             companyId,
             assetTag: String(values.get('assetTag') ?? ''),
             kind: String(values.get('kind') ?? 'computer'),
-            ...(serial ? { serial } : {}),
+            serial: String(values.get('serial') ?? ''),
+            ...(model ? { model } : {}),
             assignedMemberId: assignee || null,
           });
         }}
@@ -530,8 +534,25 @@ function EquipmentForm({
           </select>
         </label>
         <label>
-          N° de serie (opcional)
-          <input name="serial" maxLength={120} autoComplete="off" disabled={busy} />
+          N° de serie
+          <input
+            name="serial"
+            required
+            maxLength={120}
+            autoComplete="off"
+            placeholder="Como en la etiqueta del fabricante"
+            disabled={busy}
+          />
+        </label>
+        <label>
+          Marca y modelo (opcional)
+          <input
+            name="model"
+            maxLength={120}
+            autoComplete="off"
+            placeholder="Ej.: Dell Latitude 5440"
+            disabled={busy}
+          />
         </label>
         <label>
           Asignar a

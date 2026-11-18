@@ -16,12 +16,53 @@ export function equipmentKindLabel(kind: string): string {
 }
 
 export const SERIAL_MAX_LENGTH = 120;
-/** What the invite form sends. The inventory ID is checked with `assetTagProblem` so the message names the rule. */
+export const MODEL_MAX_LENGTH = 120;
+
+/** Trims, collapses inner spaces and upper-cases, so « 5cg 1234 » and «5CG 1234» are the same serial number. */
+export function normalizeSerial(raw: string): string {
+  return raw.trim().replace(/\s+/g, ' ').toUpperCase();
+}
+/** The serial number is required (Fase 7). Returns the message to show, or null. */
+export function serialProblem(raw: unknown): string | null {
+  const serial = typeof raw === 'string' ? normalizeSerial(raw) : '';
+  if (!serial) return 'Indica el número de serie del equipo.';
+  if (serial.length > SERIAL_MAX_LENGTH) return `El número de serie admite hasta ${SERIAL_MAX_LENGTH} caracteres.`;
+  if (/[\u0000-\u001f\u007f]/.test(serial) || !/[A-Z0-9]/.test(serial))
+    return 'El número de serie debe tener letras o números, como aparece en la etiqueta del fabricante.';
+  return null;
+}
+/** «Marca y modelo»: optional, one line. */
+export function normalizeModel(raw: string | null | undefined): string {
+  return (raw ?? '').trim().replace(/\s+/g, ' ').slice(0, MODEL_MAX_LENGTH);
+}
+
+/**
+ * The serial number to keep for a piece of equipment that may already have one. A different serial from the one
+ * recorded is an error (the ID or the serial was mistyped): it is never overwritten silently.
+ */
+export function serialMismatchProblem(tag: string, recorded: string, given: string): string | null {
+  const before = normalizeSerial(recorded);
+  return before && before !== normalizeSerial(given)
+    ? `El equipo ${tag} tiene registrada la serie ${before}. Revisa el ID o la serie.`
+    : null;
+}
+/** Another piece of equipment of the workspace already has this serial number. */
+export function duplicateSerialProblem(serial: string, other: { assetTag: string | null; archived: boolean }): string {
+  const name = other.assetTag ? `el equipo ${other.assetTag}` : 'otro equipo';
+  return other.archived
+    ? `La serie ${serial} ya está en ${name}, dado de baja. Reactívalo en el inventario en vez de registrarlo de nuevo.`
+    : `La serie ${serial} ya está registrada en ${name}. Revisa la serie o busca ese equipo en el inventario.`;
+}
+
+const serialField = z.string().max(200);
+const modelField = z.string().trim().max(MODEL_MAX_LENGTH).optional();
+/** What the invite form sends. ID and serial are checked with their own rules so the message names the rule. */
 export const inviteEquipmentSchema = z
   .object({
     assetTag: z.string().max(200),
     kind: z.enum(KIND_IDS),
-    serial: z.string().trim().max(SERIAL_MAX_LENGTH).optional(),
+    serial: serialField,
+    model: modelField,
   })
   .strict();
 export type InviteEquipment = z.infer<typeof inviteEquipmentSchema>;
@@ -39,7 +80,7 @@ export function clientInviteProblem(input: {
     return input.equipment ? 'Solo las cuentas de cliente registran un equipo al invitarlas.' : null;
   if (!input.customerCompanyId) return 'Selecciona la empresa del cliente. Si no existe, créala primero en «Empresas».';
   if (!input.equipment) return 'Indica el ID del equipo del cliente.';
-  return assetTagProblem(input.equipment.assetTag);
+  return assetTagProblem(input.equipment.assetTag) ?? serialProblem(input.equipment.serial);
 }
 
 /** What happens to an inventory ID that already exists, decided from its current row. Null means "assign it". */
@@ -61,6 +102,8 @@ export type EquipmentItem = {
   name: string;
   category: string;
   serial: string;
+  /** «Marca y modelo», '' when unknown. */
+  model: string;
   companyId: string;
   companyName: string;
   assignedMemberId: string | null;
@@ -84,7 +127,8 @@ export type EquipmentInventory = {
   /** Clients without any active equipment, including older accounts and those without a company. */
   clientsWithoutEquipment: EquipmentClient[];
 };
-export const EQUIPMENT_FILTERS = ['all', 'unassigned', 'assigned', 'archived'] as const;
+/** «incomplete»: active equipment still without a serial number (registered before it was required). */
+export const EQUIPMENT_FILTERS = ['all', 'unassigned', 'assigned', 'incomplete', 'archived'] as const;
 export type EquipmentFilter = (typeof EQUIPMENT_FILTERS)[number];
 export function isEquipmentFilter(value: unknown): value is EquipmentFilter {
   return typeof value === 'string' && (EQUIPMENT_FILTERS as readonly string[]).includes(value);
@@ -96,7 +140,8 @@ export const createEquipmentSchema = z
     companyId: uuid,
     assetTag: z.string().max(200),
     kind: z.enum(KIND_IDS),
-    serial: z.string().trim().max(SERIAL_MAX_LENGTH).optional(),
+    serial: serialField,
+    model: modelField,
     assignedMemberId: uuid.nullable().optional(),
   })
   .strict();
@@ -128,6 +173,7 @@ export type OwnEquipment = {
   name: string;
   category: string;
   serial: string;
+  model: string;
   companyName: string;
 };
 /** How a piece of equipment is named in a list or a select. */

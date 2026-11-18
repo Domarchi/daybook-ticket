@@ -19,8 +19,14 @@ import {
 import { DEFAULT_SERVICE_TIME_ZONE } from './sla-policy';
 import { lockAccess, patchTicketInTransaction, recordEvent } from './ticket-mutations';
 import { normalizeAssetTag } from './asset-tag';
-import { assignInviteEquipment } from './client-equipment';
-import { EQUIPMENT_KINDS, type InviteEquipment } from './client-equipment-model';
+import { assertSerialAvailable, assignInviteEquipment } from './client-equipment';
+import {
+  EQUIPMENT_KINDS,
+  normalizeModel,
+  normalizeSerial,
+  serialMismatchProblem,
+  type InviteEquipment,
+} from './client-equipment-model';
 import { ApiError, db, getTicket } from './server';
 import { acquireTicketWorkLock } from './work-lock';
 
@@ -443,7 +449,13 @@ export async function listOwnFulfillments(access: AccessContext): Promise<{ item
 export async function deliverFulfillment(
   access: AccessContext,
   ticketId: number,
-  input: { expectedVersion: number; assetTag?: string | null; kind?: string | null; serial?: string | null },
+  input: {
+    expectedVersion: number;
+    assetTag?: string | null;
+    kind?: string | null;
+    serial?: string | null;
+    model?: string | null;
+  },
 ) {
   return inTicketTransaction(access, ticketId, async (tx, fresh, existing) => {
     const row = checkVersion(existing, input.expectedVersion);
@@ -454,7 +466,7 @@ export async function deliverFulfillment(
       )
     ).rows[0];
     if (!ticket) throw new ApiError(404, 'El ticket no existe o no tienes acceso.');
-    const problem = deliveryProblem(row.stage, ticket.requirement, input.assetTag);
+    const problem = deliveryProblem(row.stage, ticket.requirement, input.assetTag, input.serial);
     if (problem) throw new ApiError(400, problem);
     const now = new Date().toISOString();
     let asset: { id: string; assetTag: string } | null = null;
@@ -472,13 +484,26 @@ export async function deliverFulfillment(
       if (!requester.customerCompanyId)
         throw new ApiError(400, 'El cliente no tiene empresa. Asígnale una para registrar su equipo.');
       const tag = normalizeAssetTag(input.assetTag ?? '');
+      const serial = normalizeSerial(input.serial ?? '');
       const mine = (
-        await tx.query<{ id: string }>(
-          `SELECT id FROM "customerAssets" WHERE "ownerId"=$1 AND "assetTag"=$2 AND "assignedContactMemberId"=$3
-             AND "companyId"=$4 AND archived=false`,
+        await tx.query<{ id: string; serial: string }>(
+          `SELECT id, serial FROM "customerAssets" WHERE "ownerId"=$1 AND "assetTag"=$2 AND "assignedContactMemberId"=$3
+             AND "companyId"=$4 AND archived=false FOR UPDATE`,
           [fresh.ownerId, tag, ticket.requesterMemberId, requester.customerCompanyId],
         )
       ).rows[0];
+      if (mine) {
+        const mismatch = serialMismatchProblem(tag, mine.serial, serial);
+        if (mismatch) throw new ApiError(409, mismatch);
+        if (!normalizeSerial(mine.serial)) {
+          await assertSerialAvailable(tx, { ownerId: fresh.ownerId, serial, exceptId: mine.id });
+          await tx.query(
+            `UPDATE "customerAssets" SET serial=$2, model=CASE WHEN btrim(model)='' THEN $3 ELSE model END,
+                    version=version+1, "updatedAt"=$4 WHERE id=$1`,
+            [mine.id, serial, normalizeModel(input.model), now],
+          );
+        }
+      }
       asset = mine
         ? { id: mine.id, assetTag: tag }
         : await assignInviteEquipment(tx, {
@@ -489,7 +514,8 @@ export async function deliverFulfillment(
             equipment: {
               assetTag: tag,
               kind: (isEquipmentKind(input.kind) ? input.kind : 'other_device') as InviteEquipment['kind'],
-              ...(input.serial?.trim() ? { serial: input.serial.trim() } : {}),
+              serial,
+              ...(input.model?.trim() ? { model: input.model } : {}),
             },
             now,
           });

@@ -56,7 +56,7 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
     if (
       await run(async () => {
         const role = form.get('role');
-        const serial = String(form.get('serial') ?? '').trim();
+        const model = String(form.get('model') ?? '').trim();
         const result = await request<{ member: Member; invitationUrl: string }>('/api/members', 'POST', {
           name: form.get('name'),
           email: form.get('email'),
@@ -67,7 +67,8 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
                 equipment: {
                   assetTag: String(form.get('assetTag') ?? ''),
                   kind: form.get('equipmentKind'),
-                  ...(serial ? { serial } : {}),
+                  serial: String(form.get('serial') ?? ''),
+                  ...(model ? { model } : {}),
                 },
               }
             : {}),
@@ -231,12 +232,29 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
                     </select>
                   </label>
                   <label>
-                    N° de serie (opcional)
-                    <input name="serial" maxLength={120} autoComplete="off" disabled={busy} />
+                    N° de serie
+                    <input
+                      name="serial"
+                      required
+                      maxLength={120}
+                      autoComplete="off"
+                      placeholder="Como en la etiqueta del fabricante"
+                      disabled={busy}
+                    />
+                  </label>
+                  <label>
+                    Marca y modelo (opcional)
+                    <input
+                      name="model"
+                      maxLength={120}
+                      autoComplete="off"
+                      placeholder="Ej.: Dell Latitude 5440"
+                      disabled={busy}
+                    />
                   </label>
                   <p id="access-asset-tag-help" className="access-equipment-help">
-                    El código de la etiqueta de inventario. Si ese equipo ya existe sin asignar en la empresa, se le
-                    asigna a este cliente.
+                    El ID es el código de la etiqueta de inventario y la serie, la del fabricante. Si ese equipo ya
+                    existe sin asignar en la empresa, se le asigna a este cliente.
                     {!data.companies.length &&
                       ' Crea la empresa en «Empresas», más abajo, antes de invitar al cliente.'}
                   </p>

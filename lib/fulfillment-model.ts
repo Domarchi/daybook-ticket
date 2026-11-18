@@ -9,6 +9,7 @@
  * person who asked sees both. Pure code: no database, no clock (callers pass "today").
  */
 import { assetTagProblem } from './asset-tag';
+import { serialProblem } from './client-equipment-model';
 
 export const FULFILLMENT_STAGES = ['requested', 'in_progress', 'ready', 'delivered', 'cancelled'] as const;
 export type FulfillmentStage = (typeof FULFILLMENT_STAGES)[number];
@@ -152,13 +153,14 @@ export function deliveryProblem(
   stage: FulfillmentStage,
   requirement: string | null,
   assetTag: string | null | undefined,
+  serial?: string | null,
 ): string | null {
   const change = stageChangeProblem(stage, 'delivered');
   if (change) return change;
   if (!deliveryNeedsAsset(requirement)) return null;
   const problem = assetTagProblem(assetTag ?? '');
-  if (!problem) return null;
-  return (assetTag ?? '').trim() ? problem : 'Indica el ID del equipo entregado.';
+  if (problem) return (assetTag ?? '').trim() ? problem : 'Indica el ID del equipo entregado.';
+  return serialProblem(serial ?? '');
 }
 export function deliveryNeedsAsset(requirement: string | null): boolean {
   return requirement === 'equipment';
