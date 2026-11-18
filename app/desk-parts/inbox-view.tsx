@@ -13,6 +13,7 @@ import {
   Clock3,
   Filter,
   Inbox,
+  LoaderCircle,
   MessageSquare,
   Plus,
   Search,
@@ -80,6 +81,7 @@ export function InboxView({
   searchRef,
   staffMembers,
   exportCsv,
+  exporting,
   resolveSelected,
   loadDemo,
   setCreate,
@@ -112,6 +114,7 @@ export function InboxView({
   searchRef: RefObject<HTMLInputElement | null>;
   staffMembers: Member[];
   exportCsv: () => Promise<void>;
+  exporting: boolean;
   resolveSelected: () => Promise<boolean>;
   loadDemo: () => Promise<boolean>;
   setCreate: (value: boolean) => void;
@@ -146,9 +149,9 @@ export function InboxView({
           <h1>{view === 'inbox' ? 'Bandeja de entrada' : 'Resumen'}</h1>
         </div>
         <div className="heading-actions">
-          <button className="secondary" disabled={busy} onClick={exportCsv}>
-            <ArrowDownToLine size={16} />
-            Exportar
+          <button className="secondary" disabled={busy || exporting} aria-busy={exporting} onClick={exportCsv}>
+            {exporting ? <LoaderCircle size={16} className="spin" /> : <ArrowDownToLine size={16} />}
+            {exporting ? 'Exportando…' : 'Exportar'}
           </button>
           <button className="primary" disabled={busy} onClick={() => setCreate(true)}>
             <Plus size={17} />

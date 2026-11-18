@@ -1,6 +1,6 @@
 'use client';
 import { readDaybookJson } from '@/lib/browser-json';
-import { STATUS_VIEW_CLASS, STATUS_VIEW_LABELS, statusLabel, statusView } from '@/lib/ticket-status';
+import { STATUS_VIEW_CLASS, STATUS_VIEW_LABELS, solvedCount, statusLabel, statusView } from '@/lib/ticket-status';
 import { domainResponseValidator } from '@/lib/domain-response';
 import { WorkspaceSwitcher } from './workspace-navigation';
 import { currentWorkspaceId } from '@/lib/workspace-client';
@@ -736,7 +736,7 @@ export default function ClientPortal({
                   <CheckCircle2 size={21} />
                 </span>
                 <span>
-                  <strong>{counts.resolved}</strong>
+                  <strong>{solvedCount(counts)}</strong>
                   <small>Solicitudes solucionadas</small>
                 </span>
               </div>
