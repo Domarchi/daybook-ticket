@@ -222,6 +222,9 @@ export function isChatResponse(value: unknown): value is ChatResponse {
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
+/** Lines that mark overdue, due-today or escalated tickets: the panel gives them a warm accent. */
+export const isUrgentLine = (text: string): boolean => /^\d+ (vencidos?|vencen? hoy|escalados?)$/.test(text);
+
 /** The short lines under the greeting. An empty desk is a fact, not an error. */
 export function summaryLines(summary: DeskSummaryView): { text: string; tickets: number[] }[] {
   const totals = summary.totales;
