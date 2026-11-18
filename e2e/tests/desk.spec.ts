@@ -51,6 +51,70 @@ test.describe('the support desk', () => {
     await expect(page.getByRole('heading', { name: 'Bandeja de entrada' })).toBeVisible();
   });
 
+  test('the rail list is the shared Daybook one, aligned with the brand, and the person stays in view', async ({
+    page,
+  }) => {
+    // A laptop that is not tall: before, the whole rail scrolled and the person, «Cerrar sesión» and the theme
+    // were below the fold.
+    await page.setViewportSize({ width: 1366, height: 768 });
+    await page.goto('/');
+    const rail = page.locator('#daybook-navigation');
+    const main = rail.getByRole('navigation', { name: 'Navegación principal' });
+    await expect(main).toHaveClass(/\bdb-rail-nav\b/);
+    const inbox = main.getByRole('button', { name: /^Bandeja de entrada/ });
+    await expect(inbox).toHaveAttribute('aria-current', 'page');
+    const measured = await rail.evaluate(element => {
+      const left = (el: Element | null) => Math.round(el!.getBoundingClientRect().left);
+      const rows = [...element.querySelectorAll('.db-rail-nav .db-rail-link')];
+      const section = element.querySelector('.db-rail-section')!;
+      const mark = element.querySelector('.db-brand-block .db-mark')!.getBoundingClientRect();
+      const style = (el: Element) => {
+        const c = getComputedStyle(el);
+        return { size: c.fontSize, weight: c.fontWeight };
+      };
+      const current = element.querySelector('.db-rail-link[aria-current="page"]')!;
+      return {
+        heights: [...new Set(rows.map(row => Math.round(row.getBoundingClientRect().height)))],
+        gap: Math.round(rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().bottom),
+        icon: left(rows[0].querySelector('svg')),
+        section: Math.round(section.getBoundingClientRect().left + parseFloat(getComputedStyle(section).paddingLeft)),
+        mark: Math.round(mark.left + (mark.width * 10) / 96),
+        row: style(rows.find(row => row !== current)!),
+        current: style(current),
+        sectionStyle: { ...style(section), transform: getComputedStyle(section).textTransform },
+        footer: Math.round(element.querySelector('.sidebar-bottom')!.getBoundingClientRect().bottom),
+        height: innerHeight,
+      };
+    });
+    expect(measured.heights).toEqual([44]);
+    expect(measured.gap).toBe(2);
+    // Icons, group titles and the edge of the brand mark start on the same line, as in Parte Diario.
+    expect(measured.icon).toBe(22);
+    expect(measured.section).toBe(22);
+    expect(Math.abs(measured.mark - 22)).toBeLessThanOrEqual(1);
+    expect(measured.row).toEqual({ size: '13px', weight: '500' });
+    expect(measured.current).toEqual({ size: '13px', weight: '600' });
+    expect(measured.sectionStyle).toEqual({ size: '11px', weight: '600', transform: 'uppercase' });
+    expect(measured.footer).toBeLessThanOrEqual(measured.height);
+    await expect(rail.getByRole('button', { name: 'Cerrar sesión' })).toBeInViewport();
+    if (process.env.DAYBOOK_E2E_CAPTURES)
+      await page.screenshot({ path: `${process.env.DAYBOOK_E2E_CAPTURES}/riel-ticket-1366x768.png` });
+
+    // A real click moves the mark; the account rows now say where the person is too.
+    await rail.getByRole('button', { name: 'Seguridad', exact: true }).click();
+    await expect(rail.getByRole('button', { name: 'Seguridad', exact: true })).toHaveAttribute('aria-current', 'page');
+    await expect(inbox).not.toHaveAttribute('aria-current', 'page');
+    await main.getByRole('button', { name: /^Bandeja de entrada/ }).click();
+    await expect(inbox).toHaveAttribute('aria-current', 'page');
+    await expectNoSeriousViolations(page, 'Riel común');
+    // The list scrolls on its own, down to the account rows, while the person stays put.
+    await rail.locator('.sidebar-scroll').evaluate(element => element.scrollTo({ top: element.scrollHeight }));
+    await expect(rail.getByRole('button', { name: 'Centro de ayuda' })).toBeInViewport();
+    await expect(rail.getByRole('button', { name: 'Cerrar sesión' })).toBeInViewport();
+    if (process.env.DAYBOOK_E2E_CAPTURES)
+      await page.screenshot({ path: `${process.env.DAYBOOK_E2E_CAPTURES}/riel-ticket-1366x768-abajo.png` });
+  });
+
   test('a ticket is created and shows in the inbox', async ({ page }) => {
     await page.goto('/');
     await createTicket(page);

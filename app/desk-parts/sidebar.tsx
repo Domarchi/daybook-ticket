@@ -20,7 +20,7 @@ import { type Workspace } from '../../lib/types';
 import { ROLE_LABELS } from '../access-panel';
 import Brand from '../brand';
 import { WorkspaceSwitcher } from '../workspace-navigation';
-import { useEffect, useRef } from 'react';
+import { cloneElement, useEffect, useRef, type ReactElement, type ReactNode } from 'react';
 import { Avatar, View } from './shared';
 import { ThemeControl } from '../evolution-controls';
 
@@ -113,156 +113,79 @@ export function Sidebar({
         </div>
         <ShieldCheck size={16} />
       </div>
-      <p className="nav-label">ESPACIO DE TRABAJO</p>
-      <nav aria-label="Navegación principal">
-        <button
-          className={view === 'overview' ? 'active' : ''}
-          aria-current={view === 'overview' ? 'page' : undefined}
-          onClick={() => go('overview')}
-        >
-          <LayoutDashboard size={18} />
-          Resumen
-        </button>
-        <button
-          className={view === 'inbox' ? 'active' : ''}
-          aria-current={view === 'inbox' ? 'page' : undefined}
-          onClick={() => go('inbox')}
-        >
-          <Inbox size={18} />
-          Bandeja de entrada<span className="nav-count">{counts.active}</span>
-        </button>
-        <button
-          className={view === 'contacts' ? 'active' : ''}
-          aria-current={view === 'contacts' ? 'page' : undefined}
-          onClick={() => go('contacts')}
-        >
-          <Users size={18} />
-          Contactos
-        </button>
-        <button
-          className={view === 'equipment' ? 'active' : ''}
-          aria-current={view === 'equipment' ? 'page' : undefined}
-          onClick={() => go('equipment')}
-        >
-          <Laptop size={18} />
-          Equipos
-        </button>
-        <button
-          className={view === 'requirements' ? 'active' : ''}
-          aria-current={view === 'requirements' ? 'page' : undefined}
-          onClick={() => go('requirements')}
-        >
-          <PackageCheck size={18} />
-          Requerimientos
-        </button>
-        {data.evolution?.features.serviceContext && (
-          <button
-            className={view === 'service' ? 'active' : ''}
-            aria-current={view === 'service' ? 'page' : undefined}
-            onClick={() => go('service')}
-          >
-            <Headphones size={18} />
-            Empresas y servicios
-          </button>
-        )}
-        <button
-          className={view === 'knowledge' ? 'active' : ''}
-          aria-current={view === 'knowledge' ? 'page' : undefined}
-          onClick={() => go('knowledge')}
-        >
-          <BookOpen size={18} />
-          Conocimiento
-        </button>
-        {data.evolution?.features.knowledge && (
-          <button
-            className={view === 'reports' ? 'active' : ''}
-            aria-current={view === 'reports' ? 'page' : undefined}
-            onClick={() => go('reports')}
-          >
-            <Activity size={18} />
-            Informes por empresa
-          </button>
-        )}
-        {isAdmin && (
-          <button
-            className={view === 'team' ? 'active' : ''}
-            aria-current={view === 'team' ? 'page' : undefined}
-            onClick={() => go('team')}
-          >
-            <Layers3 size={18} />
-            Equipo y clientes
-          </button>
-        )}
-        {isAdmin && (
-          <button
-            className={view === 'operations' ? 'active' : ''}
-            aria-current={view === 'operations' ? 'page' : undefined}
-            onClick={() => go('operations')}
-          >
-            <Clock3 size={18} />
-            Atención y reparto
-          </button>
-        )}
-        {isAdmin && (
-          <button
-            className={view === 'metrics' ? 'active' : ''}
-            aria-current={view === 'metrics' ? 'page' : undefined}
-            onClick={() => go('metrics')}
-          >
-            <Activity size={18} />
-            Métricas del equipo
-          </button>
-        )}
-      </nav>
-      <p className="nav-label">VISTAS RÁPIDAS</p>
-      <nav aria-label="Vistas rápidas">
-        <button
-          onClick={() => {
-            go('inbox');
-            setQueue('mine');
-          }}
-        >
-          <span className="nav-dot purple" />
-          Asignados a mí<span className="sub-count">{counts.mine}</span>
-        </button>
-        <button
-          onClick={() => {
-            go('inbox');
-            setQueue('unassigned');
-          }}
-        >
-          <span className="nav-dot amber" />
-          Sin asignar<span className="sub-count">{counts.unassigned}</span>
-        </button>
-        <button
-          onClick={() => {
-            go('inbox');
-            setQueue('overdue');
-          }}
-        >
-          <span className="nav-dot coral" />
-          SLA vencido<span className="sub-count">{counts.overdue}</span>
-        </button>
-      </nav>
-      <div className="sidebar-bottom">
-        <WorkspaceSwitcher />
-        <nav>
-          <button className={view === 'security' ? 'active' : ''} onClick={() => go('security')}>
-            <ShieldCheck size={18} />
-            Seguridad
-          </button>
-          {isAdmin && (
-            <button className={view === 'settings' ? 'active' : ''} onClick={() => go('settings')}>
-              <Settings2 size={18} />
-              Configuración
-            </button>
+      {/* La lista es la común de la familia (@daybook/design/riel.css), igual que en Parte Diario.
+          Se desplaza ella sola: la persona, salir y el tema quedan siempre a la vista abajo. */}
+      <div className="sidebar-scroll">
+        <nav className="db-rail-nav" aria-label="Navegación principal">
+          <p className="db-rail-section">Espacio de trabajo</p>
+          <RailLink view="overview" current={view} go={go} icon={<LayoutDashboard />} label="Resumen" />
+          <RailLink
+            view="inbox"
+            current={view}
+            go={go}
+            icon={<Inbox />}
+            label="Bandeja de entrada"
+            count={counts.active}
+          />
+          <RailLink view="contacts" current={view} go={go} icon={<Users />} label="Contactos" />
+          <RailLink view="equipment" current={view} go={go} icon={<Laptop />} label="Equipos" />
+          <RailLink view="requirements" current={view} go={go} icon={<PackageCheck />} label="Requerimientos" />
+          {data.evolution?.features.serviceContext && (
+            <RailLink view="service" current={view} go={go} icon={<Headphones />} label="Empresas y servicios" />
           )}
-          <button className={view === 'portal' ? 'active' : ''} onClick={() => go('portal')}>
-            <LifeBuoy size={18} />
-            Centro de ayuda
-            <ArrowUpRight size={14} />
-          </button>
+          <RailLink view="knowledge" current={view} go={go} icon={<BookOpen />} label="Conocimiento" />
+          {data.evolution?.features.knowledge && (
+            <RailLink view="reports" current={view} go={go} icon={<Activity />} label="Informes por empresa" />
+          )}
+          {isAdmin && <RailLink view="team" current={view} go={go} icon={<Layers3 />} label="Equipo y clientes" />}
+          {isAdmin && (
+            <RailLink view="operations" current={view} go={go} icon={<Clock3 />} label="Atención y reparto" />
+          )}
+          {isAdmin && (
+            <RailLink view="metrics" current={view} go={go} icon={<Activity />} label="Métricas del equipo" />
+          )}
         </nav>
+        <nav className="db-rail-nav" aria-label="Vistas rápidas">
+          <p className="db-rail-section">Vistas rápidas</p>
+          {(
+            [
+              ['mine', 'Asignados a mí', 'purple'],
+              ['unassigned', 'Sin asignar', 'amber'],
+              ['overdue', 'SLA vencido', 'coral'],
+            ] as const
+          ).map(([queue, label, tone]) => (
+            <button
+              key={queue}
+              className="db-rail-link"
+              onClick={() => {
+                go('inbox');
+                setQueue(queue);
+              }}
+            >
+              <span className={`nav-dot ${tone}`} />
+              <span className="db-rail-link__label">{label}</span>
+              <span className="db-rail-count">{counts[queue]}</span>
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-workspaces">
+          <WorkspaceSwitcher />
+        </div>
+        <nav className="db-rail-nav" aria-label="Cuenta y ayuda">
+          <hr className="db-rail-divider" />
+          <RailLink view="security" current={view} go={go} icon={<ShieldCheck />} label="Seguridad" />
+          {isAdmin && <RailLink view="settings" current={view} go={go} icon={<Settings2 />} label="Configuración" />}
+          <RailLink
+            view="portal"
+            current={view}
+            go={go}
+            icon={<LifeBuoy />}
+            label="Centro de ayuda"
+            trailing={<ArrowUpRight size={14} aria-hidden="true" />}
+          />
+        </nav>
+      </div>
+      <div className="sidebar-bottom">
         <div className="profile">
           <Avatar name={viewerName} small />
           <button
@@ -289,5 +212,38 @@ export function Sidebar({
         )}
       </div>
     </aside>
+  );
+}
+
+/** A row of the rail: the shared look (riel.css) and the place where the person is (aria-current). */
+function RailLink({
+  view,
+  current,
+  go,
+  icon,
+  label,
+  count,
+  trailing,
+}: {
+  view: View;
+  current: View;
+  go: (view: View) => void;
+  icon: ReactElement<{ size?: number }>;
+  label: string;
+  count?: number;
+  trailing?: ReactNode;
+}) {
+  const here = current === view;
+  return (
+    <button
+      className={`db-rail-link${here ? ' active' : ''}`}
+      aria-current={here ? 'page' : undefined}
+      onClick={() => go(view)}
+    >
+      {cloneElement(icon, { size: 18 })}
+      <span className="db-rail-link__label">{label}</span>
+      {count !== undefined && <span className="db-rail-count">{count}</span>}
+      {trailing}
+    </button>
   );
 }
