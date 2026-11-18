@@ -1390,6 +1390,112 @@ test.describe('the support desk', () => {
     }
   });
 
+  test('clients are imported in bulk from a spreadsheet: checked first, created all at once, links downloaded', async ({
+    page,
+    browser,
+  }) => {
+    await page.goto('/security');
+    await page.getByLabel('Contraseña actual').fill(readRunState().password);
+    await page.getByRole('button', { name: 'Verificar contraseña' }).click();
+    await expect(page.getByText('Contraseña verificada para esta sesión.')).toBeVisible();
+    await page.goto('/?view=team');
+    await page.getByRole('button', { name: 'Importar clientes' }).click();
+    const panel = page.getByRole('region', { name: 'Importar clientes desde una planilla' });
+    await expect(panel).toBeVisible();
+
+    // The template opens in Excel in Spanish: «;», a BOM and the column names.
+    const templateDownload = page.waitForEvent('download');
+    await panel.getByRole('button', { name: 'Descargar plantilla' }).click();
+    const template = await (await templateDownload).createReadStream();
+    let templateText = '';
+    for await (const chunk of template) templateText += chunk.toString('utf8');
+    expect(templateText).toContain('"Nombre";"Correo";"Empresa";"ID del equipo";"Tipo de equipo";"N° de serie"');
+
+    const upload = (lines: string[]) =>
+      panel.getByLabel('Archivo CSV').setInputFiles({
+        name: 'clientes.csv',
+        mimeType: 'text/csv',
+        buffer: Buffer.from(`﻿${lines.join('\r\n')}\r\n`, 'utf8'),
+      });
+    const header = 'Nombre;Correo;Empresa;ID del equipo;Tipo de equipo;N° de serie;Marca y modelo';
+    const good = [
+      'Lucía Rojas;lucia.rojas@example.test;Constructora Andes;nb-0100;Computador;5cg-0100;HP 440 G9',
+      // MON-7 is in the inventory without an owner: it is assigned, not duplicated.
+      'Pablo Díaz;pablo.diaz@example.test;constructora andes;MON-7;Monitor;CN-0007;',
+      'Marta Vega;marta.vega@example.test;Minera Sur;NB-0101;Computador;5CG-0101;',
+    ];
+
+    // First file: Rosa already has an account and «Minera Sur» does not exist. Nothing can be created.
+    await upload([header, 'Rosa Pérez;rosa@example.test;Constructora Andes;NB-0200;Computador;S-200;', ...good]);
+    await panel.getByRole('button', { name: 'Revisar archivo' }).click();
+    await expect(panel.getByRole('status')).toContainText('2 de 4 filas listas');
+    await expect(panel.getByText('Este correo ya tiene una cuenta o invitación en el espacio.')).toBeVisible();
+    await expect(panel.getByText(/La empresa «Minera Sur» no existe/)).toBeVisible();
+    await expect(
+      panel.getByText('Se asigna el equipo MON-7, que ya estaba en el inventario.', { exact: false }),
+    ).toBeVisible();
+    await expect(panel.getByRole('button', { name: /^Crear \d+ invitaciones$/ })).toHaveCount(0);
+    await expectNoSeriousViolations(page, 'Importar clientes con problemas');
+
+    // Fixed file, and the missing company is created on purpose.
+    await upload([header, ...good]);
+    await panel.getByLabel('Crear las empresas que falten').check();
+    await panel.getByRole('button', { name: 'Revisar archivo' }).click();
+    await expect(panel.getByRole('status')).toContainText('3 de 3 filas listas');
+    await expect(panel.getByRole('status')).toContainText('empresas nuevas: Minera Sur');
+    await panel.getByRole('button', { name: 'Crear 3 invitaciones' }).click();
+    await expect(panel.getByText(/Se crearon 3 invitaciones y 1 empresas/)).toBeVisible();
+    await expect(panel.getByText(/Cada enlace permite crear la cuenta de esa persona/)).toBeVisible();
+    await expectNoSeriousViolations(page, 'Importación terminada');
+
+    const linksDownload = page.waitForEvent('download');
+    await panel.getByRole('button', { name: 'Descargar enlaces (CSV)' }).click();
+    const download = await linksDownload;
+    expect(download.suggestedFilename()).toBe('daybook-enlaces-de-invitacion.csv');
+    let links = '';
+    for await (const chunk of await download.createReadStream()) links += chunk.toString('utf8');
+    const lines = links.trim().split('\r\n');
+    expect(lines).toHaveLength(4);
+    expect(lines[1]).toContain('"Lucía Rojas";"lucia.rojas@example.test";"Constructora Andes";"NB-0100"');
+    const lucia = /"(http[^"]+\/login\?invite=[a-f0-9]{64})"/.exec(lines[1])?.[1];
+    expect(lucia).toBeTruthy();
+
+    // The list shows them as pending; the equipment is theirs, with its serial number.
+    await expect(page.locator('.access-table')).toContainText('lucia.rojas@example.test');
+    await page.goto('/?view=equipment');
+    await expect(page.locator('.equipment-row').filter({ hasText: 'NB-0100' })).toContainText('Serie 5CG-0100');
+    await expect(
+      page
+        .locator('.equipment-row')
+        .filter({ hasText: 'MON-7' })
+        .getByRole('combobox', { name: 'Asignado a MON-7' })
+        .locator('option:checked'),
+    ).toHaveText('Pablo Díaz');
+
+    // A downloaded link works: Lucía activates her account and sees her notebook.
+    const luciaContext = await browser.newContext();
+    try {
+      const luciaPage = await luciaContext.newPage();
+      await luciaPage.goto(lucia!);
+      const password = `Lucia-e2e-${crypto.randomUUID()}`;
+      await luciaPage.getByLabel('Contraseña', { exact: true }).fill(password);
+      await luciaPage.getByLabel('Repite tu contraseña').fill(password);
+      await luciaPage.getByRole('button', { name: 'Activar mi cuenta' }).click();
+      await luciaPage.waitForURL(url => url.pathname === '/', { timeout: 30_000 });
+      await expect(luciaPage.getByRole('region', { name: 'Mis equipos' })).toContainText('NB-0100');
+    } finally {
+      await luciaContext.close();
+    }
+
+    // The same file again: everyone already exists, so nothing is created twice.
+    await page.goto('/?view=team');
+    await page.getByRole('button', { name: 'Importar clientes' }).click();
+    await upload([header, ...good]);
+    await panel.getByLabel('Crear las empresas que falten').check();
+    await panel.getByRole('button', { name: 'Revisar archivo' }).click();
+    await expect(panel.getByRole('status')).toContainText('0 de 3 filas listas');
+  });
+
   test.describe('dark mode', () => {
     test.use({ colorScheme: 'dark' });
     test('the inbox and an open ticket pass the accessibility gate in dark mode', async ({ page }) => {

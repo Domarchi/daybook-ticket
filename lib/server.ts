@@ -198,13 +198,18 @@ export async function auth(request?: Request) {
   if (!user) throw new ApiError(401, 'Inicia sesión para continuar.');
   return user;
 }
-export async function parseBody<T extends z.ZodTypeAny>(request: Request, schema: T): Promise<z.output<T>> {
+/** `maxChars` (bytes announced and characters read) is raised only for the routes that need it (the CSV import). */
+export async function parseBody<T extends z.ZodTypeAny>(
+  request: Request,
+  schema: T,
+  maxChars = 100000,
+): Promise<z.output<T>> {
   if (!request.headers.get('content-type')?.includes('application/json'))
     throw new ApiError(415, 'Envía los datos en formato JSON.');
-  if (Number(request.headers.get('content-length') || 0) > 100000)
+  if (Number(request.headers.get('content-length') || 0) > maxChars)
     throw new ApiError(413, 'La solicitud es demasiado grande.');
   const text = await request.text();
-  if (text.length > 100000) throw new ApiError(413, 'La solicitud es demasiado grande.');
+  if (text.length > maxChars) throw new ApiError(413, 'La solicitud es demasiado grande.');
   let data: unknown;
   try {
     data = JSON.parse(text);

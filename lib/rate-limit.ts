@@ -34,6 +34,12 @@ export const RATE_RULES = {
     windowMs: 60_000,
     message: 'Estás subiendo archivos demasiado rápido. Espera un minuto.',
   },
+  memberImport: {
+    bucket: 'member-import',
+    max: 30,
+    windowMs: 10 * 60_000,
+    message: 'Estás revisando demasiados archivos seguidos. Espera unos minutos.',
+  },
   report: {
     bucket: 'report',
     max: 10,
