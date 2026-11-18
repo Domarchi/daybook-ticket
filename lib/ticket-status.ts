@@ -52,6 +52,10 @@ export function isFinished(status: string): boolean {
 export function isActive(status: string): boolean {
   return !isFinished(status);
 }
+/** Solved tickets: the ones marked solved plus the closed ones (closing is only allowed after solving). */
+export function solvedCount(counts: { resolved?: number; closed?: number }): number {
+  return (counts.resolved ?? 0) + (counts.closed ?? 0);
+}
 /** SQL fragments. `${alias}.status` must be a column of tickets. */
 export const FINISHED_SQL = `('resolved','closed')`;
 export function activeSql(column = 'status'): string {

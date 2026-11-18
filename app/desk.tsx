@@ -63,6 +63,9 @@ export default function Desk({
   }, []);
   const { data, loading, loadError, connection, refresh } = useWorkspace(alerts.receive);
   const [busy, setBusy] = useState(false),
+    // Exporting only reads: it gets its own state so the desk keeps working
+    // (navigation, opening tickets) and does not announce «Guardando…».
+    [exporting, setExporting] = useState(false),
     [error, setError] = useState(''),
     [toast, setToast] = useState('');
   const location = useMemo(() => parseDeskLocation(searchParams), [searchParams]);
@@ -264,7 +267,8 @@ export default function Desk({
     }
   };
   const exportCsv = async () => {
-    setBusy(true);
+    if (exporting) return;
+    setExporting(true);
     setError('');
     try {
       const results = await searchResults.exportAll();
@@ -323,7 +327,7 @@ export default function Desk({
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : 'No se pudo exportar.');
     } finally {
-      setBusy(false);
+      setExporting(false);
     }
   };
   const loadDemo = () => run(() => request('/api/demo', 'POST', {}), 'Ejemplos cargados.');
@@ -489,6 +493,7 @@ export default function Desk({
               searchRef={searchRef}
               staffMembers={staffMembers}
               exportCsv={exportCsv}
+              exporting={exporting}
               resolveSelected={resolveSelected}
               loadDemo={loadDemo}
               setCreate={setCreate}

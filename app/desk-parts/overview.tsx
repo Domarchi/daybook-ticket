@@ -1,11 +1,12 @@
 'use client';
 import { CheckCircle2, ChevronRight } from 'lucide-react';
+import { solvedCount } from '../../lib/ticket-status';
 import { type Ticket, type Workspace } from '../../lib/types';
 import { since, Avatar, Status, Empty } from './shared';
 
 export function Overview({ data, now, onOpen }: { data: Workspace; now: number; onOpen: (t: Ticket) => void }) {
   const total = data.ticketCounts?.all ?? data.tickets.length;
-  const resolved = data.ticketCounts?.resolved ?? 0;
+  const resolved = data.ticketCounts ? solvedCount(data.ticketCounts) : 0;
   return (
     <div className="overview-grid">
       <section className="panel">

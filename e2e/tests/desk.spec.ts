@@ -253,6 +253,17 @@ test.describe('the support desk', () => {
     await page.reload();
     await expect(page.locator('.ticket-meta .status')).toHaveText('Cerrado');
 
+    // Closing is only allowed after solving, so the Resumen counts a closed ticket as solved.
+    await page.goto('/');
+    const queueCount = async (name: RegExp) =>
+      Number((await page.getByRole('button', { name }).innerText()).match(/\d+/)?.[0]);
+    const all = await queueCount(/^Todos/);
+    const solved = (await queueCount(/^Solucionados/)) + (await queueCount(/^Cerrados/));
+    expect(solved).toBeGreaterThan(0);
+    await page.goto('/?view=overview');
+    await expect(page.locator('.resolution p')).toHaveText(`${solved} de ${all} tickets.`);
+    await expect(page.locator('.resolution .donut strong')).toHaveText(`${Math.round((solved / all) * 100)}%`);
+
     await page.goto('/');
     await page.getByRole('button', { name: /^Cerrados/ }).click();
     await expect(page.getByRole('link', { name: SUBJECT })).toBeVisible();
@@ -262,6 +273,32 @@ test.describe('the support desk', () => {
     await page.getByRole('link', { name: SUBJECT }).click();
     await page.getByRole('button', { name: 'Reabrir ticket' }).click();
     await expect(page.locator('.ticket-meta .status')).toHaveText('En proceso');
+  });
+
+  test('exporting only reads: the desk stays usable and does not announce saving', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByRole('link', { name: SUBJECT })).toBeVisible();
+    // The export pages through the search with 100 per page; hold it to look at the desk meanwhile.
+    let release!: () => void;
+    const held = new Promise<void>(resolve => (release = resolve));
+    await page.route(
+      url => url.pathname === '/api/tickets/search' && url.searchParams.get('limit') === '100',
+      async route => {
+        await held;
+        await route.continue();
+      },
+    );
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Exportar' }).click();
+    await expect(page.getByRole('button', { name: 'Exportando…' })).toBeDisabled();
+    await expect(page.locator('.saving')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Nuevo ticket' })).toBeEnabled();
+    await page.getByRole('link', { name: SUBJECT }).click();
+    await expect(page.locator('.ticket-meta .status')).toBeVisible();
+    release();
+    expect((await download).suggestedFilename()).toBe('tickets.csv');
+    await page.goto('/');
+    await expect(page.getByRole('button', { name: 'Exportar' })).toBeEnabled();
   });
 
   test('settings opens by section and the section stays in the address', async ({ page }) => {
