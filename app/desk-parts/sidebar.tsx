@@ -109,7 +109,8 @@ export function Sidebar({
           <Headphones size={19} />
         </span>
         <div>
-          Servicios Daybook<small>Centro de soporte compartido</small>
+          {data.workspaceName || data.settings.brandName}
+          <small>Centro de soporte compartido</small>
         </div>
         <ShieldCheck size={16} />
       </div>

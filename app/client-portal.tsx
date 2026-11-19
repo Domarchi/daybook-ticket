@@ -46,7 +46,7 @@ import {
   X,
 } from 'lucide-react';
 import type { Message, Ticket, TicketPriority, Workspace } from '../lib/types';
-import Brand from './brand';
+import Brand, { extraWorkspaceName } from './brand';
 import { SecurityCenter } from './security-center';
 import { ThemeControl } from './evolution-controls';
 import { LiveStatus } from './live-status';
@@ -886,7 +886,7 @@ export default function ClientPortal({
           </>
         )}
         <footer className="client-footer">
-          <span>{data.settings.brandName} · Servicios Daybook</span>
+          <span>{[data.settings.brandName, extraWorkspaceName(data)].filter(Boolean).join(' · ')}</span>
         </footer>
       </main>
       {/* The notice after an action, as on the team desk (Phase 5 of the Daybook standard): bottom centre,

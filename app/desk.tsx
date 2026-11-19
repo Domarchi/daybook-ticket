@@ -1,5 +1,6 @@
 'use client';
 import { useTeamFilters } from '@/hooks/use-team-filters';
+import { WorkspaceFooterName } from './brand';
 import { useTicketAlerts } from '@/hooks/use-ticket-alerts';
 import { type TicketFilters, useTicketConversation, useTicketSearch } from '@/hooks/use-ticket-search';
 import { useWorkspace } from '@/hooks/use-workspace';
@@ -538,7 +539,7 @@ export default function Desk({
                 </>
               )}
             </span>
-            <span>Parte de Servicios Daybook.</span>
+            <WorkspaceFooterName data={data} />
           </footer>
         </div>
       </main>

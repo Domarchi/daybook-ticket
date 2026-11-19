@@ -29,3 +29,14 @@ export default function Brand({
     </span>
   );
 }
+
+/** The workspace's own name when it says more than the brand already shown next to it; otherwise null. */
+export function extraWorkspaceName(data: { workspaceName?: string; settings: { brandName: string } }): string | null {
+  return data.workspaceName && data.workspaceName !== data.settings.brandName ? data.workspaceName : null;
+}
+
+/** Second half of the desk footer: «Parte de <espacio>.», only when it adds something. */
+export function WorkspaceFooterName({ data }: { data: Parameters<typeof extraWorkspaceName>[0] }) {
+  const name = extraWorkspaceName(data);
+  return name ? <span>Parte de {name}.</span> : null;
+}
