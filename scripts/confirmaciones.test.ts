@@ -47,15 +47,23 @@ test('solucionar varios tickets a la vez se confirma antes, porque solucionar no
   const [inbox, overlay] = await Promise.all([read('app/desk-parts/inbox-view.tsx'), read('lib/ticket-overlay.ts')]);
   // La regla que lo justifica: solucionar no se deshace (pide la evaluación al cliente).
   assert.match(overlay, /status === 'resolved' \|\| status === 'closed'/);
-  assert.match(inbox, /onClick=\{\(\) => setConfirmingResolve\(true\)\}/, 'el botón abre la confirmación');
+  assert.match(inbox, /onClick=\{\(\) => ask\('resolved'\)\}/, 'el botón abre la confirmación');
+  assert.match(inbox, /onClick=\{\(\) => ask\('closed'\)\}/, 'cerrar también se confirma antes');
+  assert.match(inbox, /<BulkFinishButton allSolved=\{allSolved\} busy=\{busy\} ask=\{setConfirming\} \/>/);
   assert.doesNotMatch(inbox, /onClick=\{\(\) => \{\s*void resolveSelected\(\);/, 'ya no soluciona al primer toque');
-  assert.match(inbox, /<ConfirmDialog\s+title="Marcar como solucionados"/);
-  assert.match(inbox, /confirmLabel=\{`Solucionar \$\{resolving\.count\}`\}/, 'el botón rojo nombra la acción');
+  assert.match(inbox, /<ConfirmDialog\s+title=\{question\.title\}/);
+  assert.match(
+    inbox,
+    /title: 'Marcar como solucionados',\s*confirm: `Solucionar \$\{count\}`/,
+    'el botón rojo nombra la acción',
+  );
+  assert.match(inbox, /title: 'Cerrar tickets',\s*confirm: `Cerrar \$\{count\}`/);
+  assert.match(inbox, /confirmLabel=\{question\.confirm\}/);
   // Con uno solo, la frase va en singular: «Vas a marcar 1 ticket como solucionado. Al cliente…».
   assert.match(inbox, /one \? 'solucionado' : 'solucionados'/);
   assert.match(inbox, /one \? 'Al cliente' : 'A cada cliente'/);
   // Si la selección se vacía con la pregunta abierta, no vuelve a aparecer al marcar el siguiente ticket.
-  assert.match(inbox, /if \(confirmingResolve && visibleSelected\.length === 0\) setConfirmingResolve\(false\);/);
+  assert.match(inbox, /if \(confirming && visibleSelected\.length === 0\) setConfirming\(null\);/);
 });
 
 test('cerrar sesión usa el ícono LogOut y pregunta con los textos de Parte Diario, en el riel y en el portal', async () => {
