@@ -1,10 +1,10 @@
 # Operador de publicación y reversión de la evolución
 
-El operador `scripts/migrate-evolution-production.mjs` migra únicamente un prefijo explícito, contiguo y revisado de 0007 a 0016. No publica una aplicación, activa funciones, crea pilotos, exige MFA, cambia planes ni envía correo o push. No carga archivos de entorno. Las credenciales deben existir previamente como `DATABASE_URL` y `DIRECT_DATABASE_URL` en el entorno privado del proceso autorizado; nunca se pasan como argumentos ni se muestran en los informes.
+El operador `scripts/migrate-evolution-production.mjs` migra únicamente un prefijo explícito, contiguo y revisado de 0007 a 0017. No publica una aplicación, activa funciones, crea pilotos, exige MFA, cambia planes ni envía correo o push. No carga archivos de entorno. Las credenciales deben existir previamente como `DATABASE_URL` y `DIRECT_DATABASE_URL` en el entorno privado del proceso autorizado; nunca se pasan como argumentos ni se muestran en los informes.
 
 ## Estado revisado de esta entrega
 
-`REVIEWED_EVOLUTION_MIGRATIONS` contiene las migraciones `0007_collaboration` a `0016_equipment_and_requirements`, con sus fechas de diario (`1793912000000` para 0007, +1000 por índice hasta `1793912009000` para 0016) y sus SHA-256 fijados en `scripts/migrate-evolution-production.mjs`. Los archivos 0000 hasta el prefijo solicitado con `--through` se comprueban contra esas constantes antes de consultar la base. Los hashes y fechas 0000–0006 reutilizan el operador de fiabilidad ya revisado, que sigue siendo el único que aplica 0006: este operador exige 0000–0006 ya aplicadas.
+`REVIEWED_EVOLUTION_MIGRATIONS` contiene las migraciones `0007_collaboration` a `0017_equipment_serial_unique`, con sus fechas de diario (`1793912000000` para 0007, +1000 por índice hasta `1793912010000` para 0017) y sus SHA-256 fijados en `scripts/migrate-evolution-production.mjs`. Los archivos 0000 hasta el prefijo solicitado con `--through` se comprueban contra esas constantes antes de consultar la base. Los hashes y fechas 0000–0006 reutilizan el operador de fiabilidad ya revisado, que sigue siendo el único que aplica 0006: este operador exige 0000–0006 ya aplicadas.
 
 Un objetivo superior falla con `evolution_prefix_not_reviewed` antes de crear una conexión. Cada entrega posterior debe añadir su propia constante revisada a continuación de la anterior, después de integrar y probar su SQL en QA. No se calculan constantes nuevas automáticamente a partir de los archivos locales. La fecha de 0007 es `1793912000000`; las siguientes aumentan exactamente 1000 por índice. Una migración registrada en la base es inmutable: no se corrige su archivo ni su fecha. Una corrección necesita otra migración y revisión.
 
@@ -74,6 +74,25 @@ La gramática adicional rechaza escrituras de datos en la migración, `DO`, cons
 - `customerAssets.assetTag` (`text` nula) con el índice único `customer_assets_owner_tag` sobre `("ownerId","assetTag")`. Los NULL no chocan, así que las filas existentes no necesitan valor y no hay relleno.
 - La tabla nueva y vacía `ticketFulfillment` con su índice `ticket_fulfillment_owner_stage`. La única restricción es el formato de `expectedOn`; las etapas y los motivos se validan en `lib/fulfillment-model.ts`.
 - Los respaldos anteriores siguen restaurándose porque `assetTag` figura en `ADDED_BACKUP_COLUMNS`. `ticketFulfillment` entra en el formato de respaldo con F6-B2, el primer código que la escribe; hasta entonces está vacía.
+
+0017 (Fase 7, L6) solo crea el índice único `customer_assets_owner_serial`, sin datos, columnas ni restricciones:
+- **Qué indexa:** `customerAssets` por `("ownerId", upper(regexp_replace(btrim(serial),'\s+',' ','g')))`, con `WHERE btrim(serial)<>''`. Es la misma comparación que hace `assertSerialAvailable` en `lib/client-equipment.ts`.
+- **Equipos sin serie:** no se indexan, así que puede haber varios.
+- **Alcance:** una misma serie se acepta en espacios distintos.
+- **Si ya hay una serie repetida en un espacio:** la creación falla con `23505` y la migración completa se revierte. El ensayo en seco lo muestra antes de la ventana.
+- **Comprobación previa de solo lectura**, en la consola de Neon:
+  ```sql
+  SELECT "ownerId", upper(regexp_replace(btrim(serial),'\s+',' ','g')) AS serie, count(*)
+    FROM "customerAssets" WHERE btrim(serial)<>'' GROUP BY 1,2 HAVING count(*)>1;
+  ```
+  Si devuelve filas, primero hay que corregir esas series desde Equipos.
+- **Compatibilidad del código:** desde el PR de L6, la app responde 409 «Esa serie ya está registrada en otro equipo» si el índice rechaza una escritura (`isSerialConflict` en `lib/server.ts`). El código anterior también funciona con el índice, porque ya comprueba la serie antes de escribir; volver a un despliegue anterior no exige quitarlo.
+- **Ensayo local** (19 nov 2026, PostgreSQL 17 desechable en 0016, 2.010 equipos en dos espacios, operador real):
+  - la auditoría, el ensayo en seco y la aplicación dieron `PASS`, y el ensayo en seco no dejó el índice;
+  - la auditoría posterior dio `PASS`;
+  - con el índice creado, `" cn-0007 "` se rechazó contra `CN-0007` del mismo espacio, mientras que la misma serie en otro espacio y otro equipo sin serie se aceptaron;
+  - con una serie repetida en los datos, el ensayo en seco falló con `23505` y el diario quedó en 17 filas.
+- **En la ventana:** el envoltorio privado `prod-run.sh` del coordinador debe admitir `--through=0017` (su lista de prefijos válidos). Esa copia no está en Git.
 
 Las dos excepciones estructurales estrechas son:
 

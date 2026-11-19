@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { PoolClient } from 'pg';
-import { ApiError } from './server';
+import { ApiError, isSerialConflict } from './server';
 import { normalizeAssetTag } from './asset-tag';
 import {
   duplicateSerialProblem,
@@ -107,7 +107,7 @@ export async function assignInviteEquipment(
     ).rows[0];
   } catch (error) {
     // The work lock serializes invitations, so this only guards a write from elsewhere.
-    if ((error as { code?: string }).code === '23505')
+    if ((error as { code?: string }).code === '23505' && !isSerialConflict(error))
       throw new ApiError(409, `El equipo ${tag} ya está registrado. Intenta de nuevo.`);
     throw error;
   }

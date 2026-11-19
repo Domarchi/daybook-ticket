@@ -221,6 +221,11 @@ export async function parseBody<T extends z.ZodTypeAny>(
 export function json(value: unknown, status = 200) {
   return Response.json(value, { status, headers: { 'Cache-Control': 'no-store' } });
 }
+/** A write refused by the unique serial index of migration 0017. */
+export function isSerialConflict(error: unknown): boolean {
+  const failure = error as { code?: string; constraint?: string } | null;
+  return failure?.code === '23505' && failure.constraint === 'customer_assets_owner_serial';
+}
 export async function handle(fn: () => Promise<Response>) {
   try {
     return await fn();
@@ -239,6 +244,10 @@ export async function handle(fn: () => Promise<Response>) {
       );
     if ((error as { message?: string })?.message === 'workspace_paused')
       return json({ error: 'Este espacio está en pausa. Sus datos se conservan.' }, 423);
+    // Migration 0017: the database itself refuses a repeated serial number. Every write checks first under the work
+    // lock (lib/client-equipment.ts), so this only answers a write that raced past it; it names no other equipment.
+    if (isSerialConflict(error))
+      return json({ error: 'Esa serie ya está registrada en otro equipo. Revisa el número e intenta de nuevo.' }, 409);
     const requestId = newRequestId();
     logEvent('error', 'api_failure', { requestId, ...describeError(error) });
     const response = json({ error: 'No se pudieron guardar o consultar los datos. Intenta de nuevo.', requestId }, 500);

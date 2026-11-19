@@ -13,6 +13,10 @@
 
 Guías: [administrador](GUIA_ADMINISTRADOR.md) y [empleado](GUIA_EMPLEADO.md). Incidentes: [runbook](RUNBOOK_INCIDENTES.md). Capacidad: [prueba de carga](LOAD_TEST.md).
 
+## Preparado, sin aplicar
+
+- **L6, serie única en la base (migración 0017):** el código y el ensayo están listos. Aplicarla en producción necesita una ventana y la orden expresa de la persona responsable. Antes hay que correr la comprobación de series repetidas de [EVOLUTION_RELEASE_OPERATOR.md](EVOLUTION_RELEASE_OPERATOR.md). Mientras tanto, el código ya impide series repetidas.
+
 ## Decisiones pendientes de la persona responsable
 
 - [x] **Recuperar contraseñas:** se eligió el enlace que crea el administrador ([guía](GUIA_ADMINISTRADOR.md#olvidó-su-contraseña)). El correo sigue apagado.

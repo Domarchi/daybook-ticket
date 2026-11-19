@@ -120,6 +120,13 @@
       "when": 1793912009000,
       "tag": "0016_equipment_and_requirements",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793912010000,
+      "tag": "0017_equipment_serial_unique",
+      "breakpoints": true
     }
   ]
 }

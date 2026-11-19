@@ -22,7 +22,7 @@ import {
   ticketEquipmentProblem,
 } from './client-equipment-model';
 import { lockAccess } from './ticket-mutations';
-import { ApiError, db, getTicket } from './server';
+import { ApiError, db, getTicket, isSerialConflict } from './server';
 import { acquireTicketWorkLock } from './work-lock';
 
 /** At most this many rows are listed; the search narrows it. Inventories in one workspace are expected to be small. */
@@ -168,7 +168,7 @@ export async function createEquipment(
         )
       ).rows[0];
     } catch (error) {
-      if ((error as { code?: string }).code === '23505')
+      if ((error as { code?: string }).code === '23505' && !isSerialConflict(error))
         throw new ApiError(409, `El equipo ${tag} ya está registrado. Intenta de nuevo.`);
       throw error;
     }
