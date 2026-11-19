@@ -9,7 +9,7 @@
 | L3 | Estado de cada enlace de invitación y renovación en grupo | #84 |
 | L4 | «Confirma tu equipo» en el portal: el empleado completa la serie o registra su equipo | #85 |
 | — | Límite de inicio de sesión por IP pensado para oficinas que comparten una IP pública | #86 |
-| — | «Enlace para nueva contraseña» que crea el administrador, porque el correo está apagado | este PR |
+| — | «Enlace para nueva contraseña» que crea el administrador, porque el correo está apagado | #88 |
 
 Guías: [administrador](GUIA_ADMINISTRADOR.md) y [empleado](GUIA_EMPLEADO.md). Incidentes: [runbook](RUNBOOK_INCIDENTES.md). Capacidad: [prueba de carga](LOAD_TEST.md).
 
