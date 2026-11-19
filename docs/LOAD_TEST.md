@@ -49,9 +49,24 @@ No corras otras tareas pesadas en el mismo computador durante la prueba: le quit
 
 Las latencias son del servidor local. En Vercel se suma la red entre la función y Neon, normalmente unos milisegundos en la misma región, y el arranque en frío de las funciones.
 
+## Con «sin cambios» (A1, 19 nov 2026)
+
+La consulta periódica manda la etiqueta de su última respuesta (`If-None-Match`). Si nada cambió, el servidor responde `304` sin cuerpo y solo calcula una huella barata ([lib/ticket-feed-version.ts](../lib/ticket-feed-version.ts)). Sin una respuesta nueva, el navegador tampoco vuelve a leer la conversación abierta ni la búsqueda.
+
+Mismo escenario, dos corridas seguidas en la misma máquina. La primera usa `--no-conditional`, que repite el comportamiento anterior:
+
+| | Sin A1 | Con A1 |
+| --- | --- | --- |
+| Consultas periódicas respondidas `304` | 0 de 4.235 | **3.696 de 4.259 (87 %)** |
+| Consulta periódica: mediana / p95 | 77 / 582 ms | **8 / 40 ms** |
+| CPU media de la base (límite 0,25) | 84 % | **48 %** |
+| CPU en el peor momento | 111 % | 105 % |
+
+Ese día el computador estaba más cargado que el 18 de noviembre: la corrida sin A1 dio 84 % y no 45 %. Por eso lo que vale es la comparación entre las dos columnas. El peor momento casi no cambia porque viene de la ola de apertura de las 9:00 (`GET /api/workspace`), no de la consulta periódica.
+
 ## Conclusiones
 
 1. **0,25 CU alcanza para 300 personas** con el uso simulado, aunque con poco margen en el pico de las 9:00 (86 %). Si se suman más personas o más pestañas activas a la vez, conviene permitir que el cómputo crezca, por ejemplo con autoescalado hasta 0,5 o 1 CU. Esa es una decisión de plan de la persona responsable.
 2. **El cómputo pasa el día despierto.** Con gente conectada, la consulta periódica no deja que Neon se suspenda, así que el consumo mensual depende de **las horas activas**, no de la cantidad de personas. Este mes, hasta el 18 de noviembre, el proyecto lleva unas 234 horas activo (unas 58 CU-h a 0,25 CU). Hay que comparar ese ritmo con el cómputo mensual que incluye el plan en la consola de Neon antes del lanzamiento.
 3. **El almacenamiento no es el límite:** 3.000 tickets con sus mensajes son pocos MB frente a 1 GB. Los adjuntos van a Vercel Blob, no a la base.
-4. **Mejora posible sin cambiar de plan:** que la consulta periódica responda «sin cambios» (`ETag`/`304`) cuando nada cambió. Eso reduce el trabajo de la base en las pestañas inactivas, que son la mayoría (plan de calidad, A1).
+4. **«Sin cambios» (A1) ya está hecho:** con 300 personas, la consulta periódica casi deja de pesar y la CPU media de la base baja a cerca de la mitad. Queda la ola de apertura, que se puede repartir: no todos abren a la misma hora.
