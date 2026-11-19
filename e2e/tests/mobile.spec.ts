@@ -26,9 +26,38 @@ test.describe('the desk on a 375 px phone', () => {
     await open.click();
     const menu = page.getByRole('dialog', { name: 'Menú de navegación' });
     await expect(menu).toBeVisible();
+    // The shared drawer (@daybook/design riel.css): open, over a scrim, focus on the first row.
+    await expect(page.locator('#daybook-navigation')).toHaveAttribute('data-open', 'true');
+    await expect(page.locator('.db-rail-scrim')).toHaveAttribute('data-open', 'true');
+    await expect(menu.getByRole('button', { name: 'Resumen' })).toBeFocused();
     await expectNoSeriousViolations(page, 'Menú móvil abierto');
     await page.keyboard.press('Escape');
     await expect(menu).toBeHidden();
+    await expect(open).toBeFocused();
+  });
+
+  test('the ✕ and the scrim close the menu too; it slides out instead of vanishing', async ({ page }) => {
+    await page.goto('/');
+    const open = page.getByRole('button', { name: 'Abrir menú' });
+    const rail = page.locator('#daybook-navigation');
+    await open.click();
+    const close = page.getByRole('dialog', { name: 'Menú de navegación' }).getByRole('button', { name: 'Cerrar menú' });
+    const box = (await close.boundingBox())!;
+    expect(box.width).toBe(44);
+    expect(box.height).toBe(44);
+    await close.click();
+    await expect(rail).toHaveAttribute('data-open', 'false');
+    // It stays visible while it slides out: visibility waits for the exit (200 ms) instead of switching at once.
+    expect(await rail.evaluate(element => getComputedStyle(element).transitionDelay)).toMatch(/0\.2s/);
+    await expect(rail).toBeHidden();
+    await expect(open).toBeFocused();
+    await expect(page.locator('.db-rail-scrim')).toHaveCSS('pointer-events', 'none');
+
+    await open.click();
+    await expect(rail).toHaveAttribute('data-open', 'true');
+    // The scrim is to the right of the 232 px drawer.
+    await page.mouse.click(340, 400);
+    await expect(rail).toHaveAttribute('data-open', 'false');
     await expect(open).toBeFocused();
   });
 
@@ -85,15 +114,26 @@ test.describe('the reply box on a 390 px phone, used with a finger', () => {
     await expectNoSidewaysScroll(page);
   });
 
-  test('signing out from the menu asks first, and «Seguir trabajando» keeps the session', async ({ page }) => {
+  test('signing out lives in Configuración: it asks first, and «Seguir trabajando» keeps the session', async ({
+    page,
+  }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Abrir menú' }).click();
     const menu = page.getByRole('dialog', { name: 'Menú de navegación' });
-    const signOut = menu.getByRole('button', { name: 'Cerrar sesión' });
-    await expectFingerSized(signOut, 'Cerrar sesión');
-    await signOut.click();
-    // The menu closes first, so the question is not trapped behind the drawer.
+    // As in Parte Diario, the menu has no «Cerrar sesión»: the account row is the person and the theme.
+    await expect(menu.getByRole('button', { name: 'Cerrar sesión' })).toHaveCount(0);
+    await expectFingerSized(menu.getByRole('button', { name: /^Tema: / }), 'Tema');
+    if (process.env.DAYBOOK_E2E_CAPTURES)
+      await page.screenshot({ path: `${process.env.DAYBOOK_E2E_CAPTURES}/menu-telefono-390x844.png` });
+    await menu.getByRole('button', { name: 'Configuración', exact: true }).click();
     await expect(menu).toBeHidden();
+    await expect(page.getByRole('heading', { name: 'Configuración', level: 1 })).toBeVisible();
+    const signOut = page
+      .getByRole('region', { name: 'Salir de este dispositivo' })
+      .getByRole('button', { name: 'Cerrar sesión' });
+    await expectFingerSized(signOut, 'Cerrar sesión');
+    await expectNoSidewaysScroll(page);
+    await signOut.click();
     const dialog = page.getByRole('dialog', { name: 'Cerrar sesión' });
     await expect(dialog).toContainText('Vas a salir de Daybook Ticket en este dispositivo');
     const stay = dialog.getByRole('button', { name: 'Seguir trabajando' });
@@ -101,9 +141,9 @@ test.describe('the reply box on a 390 px phone, used with a finger', () => {
     await expectNoSeriousViolations(page, 'Confirmar cierre de sesión en móvil');
     await stay.click();
     await expect(dialog).toBeHidden();
-    // The menu button that led there takes the focus back, not the hidden drawer behind it.
-    await expect(page.getByRole('button', { name: 'Abrir menú' })).toBeFocused();
+    // The button that led there takes the focus back.
+    await expect(signOut).toBeFocused();
     await expect(page).not.toHaveURL(/\/login/);
-    await expect(page.getByRole('heading', { name: 'Bandeja de entrada' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Configuración', level: 1 })).toBeVisible();
   });
 });

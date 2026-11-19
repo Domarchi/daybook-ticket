@@ -395,7 +395,7 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
             {invitation.kind === 'reset'
               ? `Sirve una sola vez${invitation.expiresAt ? ` y vence el ${shortDateTime(invitation.expiresAt)}` : ''}. Si creas otro, este deja de funcionar. La contraseña actual sigue valiendo hasta que la cambie.`
               : data.mailStatus?.configured
-                ? 'La notificación por correo se puede consultar en Configuración.'
+                ? 'La notificación por correo se puede consultar en Ajustes del espacio.'
                 : 'El correo aún no está configurado. Puedes compartir el enlace directamente.'}
           </small>
         </section>

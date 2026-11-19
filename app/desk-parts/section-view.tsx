@@ -1,7 +1,5 @@
 'use client';
 import { type SettingsSection } from '@/lib/desk-url';
-import { currentWorkspaceId } from '@/lib/workspace-client';
-import { workspaceHome } from '@/lib/workspace-model';
 import { type Workspace } from '../../lib/types';
 import { AccessPanel } from '../access-panel';
 import { AgentMetricsPanel } from '../agent-metrics';
@@ -12,7 +10,6 @@ import { KnowledgePanel, LegacyKnowledgePanel } from '../knowledge';
 import { OperationsSettingsPanel } from '../operations-settings';
 import { SatisfactionReportPanel } from '../satisfaction-report';
 import { SavedRepliesManager } from '../saved-replies';
-import { SecurityCenter, SecurityHealthPanel } from '../security-center';
 import { ServiceContextPanel } from '../service-context';
 import { ContactDirectory } from '../ticket-pagination';
 import { EquipmentPanel } from '../equipment-panel';
@@ -51,25 +48,7 @@ export function SectionView({
 }) {
   return (
     <>
-      {view === 'security' ? (
-        <>
-          <PageTitle title="Seguridad de mi cuenta" subtitle="Autenticador, recuperación y dispositivos con acceso." />
-          <SecurityCenter
-            key={`security:${data.viewer!.id}`}
-            memberId={data.viewer!.id}
-            returnTo={workspaceHome(currentWorkspaceId())}
-          />
-          {isAdmin &&
-            (data.evolution?.features.security ? (
-              <SecurityHealthPanel key={`health:${data.viewer!.id}`} memberId={data.viewer!.id} />
-            ) : (
-              <p className="info-note">
-                El panel de salud y auditoría está preparado. Activa Seguridad en las funciones del espacio para
-                revisarlo. El acceso y la política de doble factor se siguen aplicando.
-              </p>
-            ))}
-        </>
-      ) : view === 'service' ? (
+      {view === 'service' ? (
         <>
           <PageTitle
             title="Empresas y servicios"

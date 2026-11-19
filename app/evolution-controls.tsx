@@ -3,7 +3,7 @@ import { readDaybookJson } from '@/lib/browser-json';
 import { domainResponseValidator } from '@/lib/domain-response';
 import { daybookFetch } from '@/lib/browser-request';
 import { useEffect, useState } from 'react';
-import { Monitor, Moon, Sun } from 'lucide-react';
+import { Contrast, Monitor, Moon, Sun } from 'lucide-react';
 import { readTicketResource } from '@/hooks/use-ticket-search';
 import { EVOLUTION_FEATURES, type EvolutionFeatures } from '@/lib/evolution-feature-model';
 import { SkeletonList } from './estados';
@@ -26,51 +26,142 @@ export function ThemeBootstrap() {
   }, []);
   return null;
 }
-export function ThemeControl({ memberId, preferred }: { memberId: string; preferred: Theme }) {
-  const [theme, setTheme] = useState<Theme>(preferred),
-    [error, setError] = useState('');
+export type ThemePreference = Theme;
+const THEME_LABELS: Record<Theme, string> = { system: 'Sistema', light: 'Claro', dark: 'Oscuro' };
+const THEME_ICONS: Record<Theme, typeof Sun> = { system: Contrast, light: Sun, dark: Moon };
+/** Las tres opciones de Configuración › Apariencia, en el orden de Parte Diario. */
+export const THEME_OPTIONS: ReadonlyArray<{ value: Theme; label: string }> = [
+  { value: 'light', label: 'Claro' },
+  { value: 'dark', label: 'Oscuro' },
+  { value: 'system', label: 'Según el sistema' },
+];
+/** El botón del riel recorre Sistema → Claro → Oscuro, como el de Parte Diario. */
+export function nextTheme(theme: Theme): Theme {
+  return theme === 'system' ? 'light' : theme === 'light' ? 'dark' : 'system';
+}
+
+/**
+ * El tema de la persona: lo aplica a <html> y lo guarda en su cuenta (PUT /api/preferences). Lo usan el botón
+ * del pie del riel y Configuración › Apariencia, que muestran la misma elección. Mientras el tema cambia,
+ * `db-theme-switching` (@daybook/design riel.css) apaga las transiciones para que el riel no parpadee; se
+ * saca al cuadro siguiente. Sin `memberId` (la cuenta todavía no cargó) no toca nada: manda ThemeBootstrap.
+ */
+export function useThemePreference(memberId: string | undefined, preferred: Theme) {
+  const [state, setState] = useState({ memberId, theme: preferred, error: '' });
+  // Otra persona (o la primera carga): parte de lo que tiene guardado.
+  if (state.memberId !== memberId) setState({ memberId, theme: preferred, error: '' });
+  const theme = state.memberId === memberId ? state.theme : preferred;
   useEffect(() => {
+    if (!memberId) return;
     const query = matchMedia('(prefers-color-scheme: dark)');
+    const root = document.documentElement;
+    let frame = 0;
     const apply = () => {
-      const root = document.documentElement;
+      root.classList.add('db-theme-switching');
       root.dataset.themePreference = theme;
       root.dataset.theme = theme === 'system' ? (query.matches ? 'dark' : 'light') : theme;
+      // El estilo se calcula ya, con las transiciones apagadas; al cuadro siguiente vuelven.
+      void getComputedStyle(root).backgroundColor;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => root.classList.remove('db-theme-switching'));
     };
     apply();
     query.addEventListener('change', apply);
-    return () => query.removeEventListener('change', apply);
-  }, [theme]);
+    return () => {
+      query.removeEventListener('change', apply);
+      cancelAnimationFrame(frame);
+      root.classList.remove('db-theme-switching');
+    };
+  }, [memberId, theme]);
+  const choose = async (next: Theme) => {
+    setState(current => ({ ...current, theme: next, error: '' }));
+    if (!memberId) return;
+    try {
+      const response = await daybookFetch('/api/preferences', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'X-Daybook-Member-Id': memberId },
+        body: JSON.stringify({ theme: next }),
+      });
+      await readDaybookJson(response, {
+        mutation: true,
+        validate: domainResponseValidator('/api/preferences', 'PUT'),
+      });
+    } catch {
+      setState(current => ({
+        ...current,
+        error: 'La apariencia se aplicó en esta página, pero no pudo guardarse en tu cuenta.',
+      }));
+    }
+  };
+  return { theme, error: state.error, choose };
+}
+
+/** El tema en el portal del cliente: un selector. */
+export function ThemeControl({ memberId, preferred }: { memberId: string; preferred: Theme }) {
+  const { theme, error, choose } = useThemePreference(memberId, preferred);
   return (
     <div className="theme-control">
       {theme === 'system' ? <Monitor size={15} /> : theme === 'dark' ? <Moon size={15} /> : <Sun size={15} />}
-      <select
-        aria-label="Apariencia"
-        value={theme}
-        onChange={async event => {
-          const next = event.target.value as Theme;
-          setTheme(next);
-          setError('');
-          try {
-            const response = await daybookFetch('/api/preferences', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json', 'X-Daybook-Member-Id': memberId },
-              body: JSON.stringify({ theme: next }),
-            });
-            await readDaybookJson(response, {
-              mutation: true,
-              validate: domainResponseValidator('/api/preferences', 'PUT'),
-            });
-          } catch {
-            setError('La apariencia se aplicó en esta página, pero no pudo guardarse en tu cuenta.');
-          }
-        }}
-      >
+      <select aria-label="Apariencia" value={theme} onChange={event => void choose(event.target.value as Theme)}>
         <option value="system">Sistema</option>
         <option value="light">Claro</option>
         <option value="dark">Oscuro</option>
       </select>
       {error && <span role="status">{error}</span>}
     </div>
+  );
+}
+
+/**
+ * El tema en el pie del riel, igual que MenuTema de Parte Diario: un botón de 44 px con el ícono de lo elegido
+ * que pasa a la opción siguiente. El nombre lo dice («Tema: Claro»); el título, a qué cambia. El ícono lleva
+ * key por la elección, así entra con el fundido de riel.css cada vez que cambia.
+ */
+export function ThemeCycleButton({ theme, onChoose }: { theme: Theme; onChoose: (theme: Theme) => void }) {
+  const next = nextTheme(theme);
+  const Icon = THEME_ICONS[theme];
+  return (
+    <button
+      type="button"
+      className="db-rail-icon-button"
+      aria-label={`Tema: ${THEME_LABELS[theme]}`}
+      title={`Cambiar a ${THEME_LABELS[next]}`}
+      onClick={() => onChoose(next)}
+    >
+      <Icon key={theme} aria-hidden="true" />
+    </button>
+  );
+}
+
+/**
+ * Configuración › Apariencia: radios de verdad dentro de un fieldset, pintados como control segmentado (como en
+ * Parte Diario). Una sola elegida, las flechas recorren las tres y el lector anuncia «Tema, Oscuro, 2 de 3».
+ */
+export function ThemeChoice({ theme, onChoose }: { theme: Theme; onChoose: (theme: Theme) => void }) {
+  return (
+    <fieldset className="theme-choice">
+      <legend>Tema</legend>
+      <div className="theme-options">
+        {THEME_OPTIONS.map(option => {
+          const Icon = THEME_ICONS[option.value];
+          return (
+            <label key={option.value}>
+              <input
+                type="radio"
+                name="tema"
+                value={option.value}
+                checked={theme === option.value}
+                onChange={() => onChoose(option.value)}
+              />
+              <span>
+                <Icon size={18} aria-hidden="true" />
+                {option.label}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
   );
 }
 const labels: Record<keyof EvolutionFeatures, string> = {

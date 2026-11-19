@@ -11,49 +11,62 @@ import {
   PackageCheck,
   LayoutDashboard,
   LifeBuoy,
-  LogOut,
-  Settings2,
+  Settings,
   ShieldCheck,
+  SlidersHorizontal,
   Users,
+  X,
 } from 'lucide-react';
 import { type Workspace } from '../../lib/types';
 import { ROLE_LABELS } from '../access-panel';
 import Brand from '../brand';
 import { WorkspaceSwitcher } from '../workspace-navigation';
 import { cloneElement, useEffect, useRef, type ReactElement, type ReactNode } from 'react';
-import { Avatar, View } from './shared';
-import { ThemeControl } from '../evolution-controls';
+import { initials, View } from './shared';
+import { ThemeCycleButton, type ThemePreference } from '../evolution-controls';
 
+/**
+ * El riel, igual que el de Parte Diario (@daybook/design riel.css y marca.css): marca, el espacio, la lista que se
+ * desplaza sola y el pie con la persona y el tema. Salir y la cuenta viven en Configuración, una fila más.
+ * En el teléfono el riel es el cajón del ☰ (`.db-rail-drawer`): entra desde la izquierda, se cierra con la ✕,
+ * con Escape o tocando el velo, y devuelve el foco al ☰.
+ */
 export function Sidebar({
   view,
-  mobile,
+  narrow,
+  open,
   onClose,
   go,
   counts,
   setQueue,
   isAdmin,
   data,
-  busy,
-  signOut,
   viewerName,
+  theme,
+  themeError,
+  onChooseTheme,
 }: {
   view: View;
-  mobile: boolean;
+  /** El riel es cajón (ancho de teléfono). */
+  narrow: boolean;
+  /** El cajón está abierto. */
+  open: boolean;
   onClose: () => void;
   go: (view: View) => void;
   counts: Record<string, number>;
   setQueue: (value: string) => void;
   isAdmin: boolean;
   data: Workspace;
-  busy: boolean;
-  signOut: () => void;
   viewerName: string;
+  theme: ThemePreference;
+  themeError: string;
+  onChooseTheme: (theme: ThemePreference) => void;
 }) {
   const ref = useRef<HTMLElement>(null);
-  // The menu is a drawer on narrow screens: take focus when it opens, keep Tab inside it,
-  // close on Escape, lock the page scroll and give focus back to the button that opened it.
+  // Abierto el cajón: el foco entra al primer destino un cuadro después (ya visible), Tab queda dentro,
+  // Escape lo cierra, la página de atrás no se desplaza y al cerrar el foco vuelve al botón que lo abrió.
   useEffect(() => {
-    if (!mobile) return;
+    if (!open) return;
     const drawer = ref.current;
     if (!drawer) return;
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -65,7 +78,7 @@ export function Sidebar({
           'a[href], button:not([disabled]), select:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
         ),
       ].filter(element => element.getClientRects().length > 0);
-    focusable()[0]?.focus();
+    const frame = requestAnimationFrame(() => drawer.querySelector<HTMLElement>('.db-rail-nav .db-rail-link')?.focus());
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
@@ -87,18 +100,25 @@ export function Sidebar({
     };
     document.addEventListener('keydown', onKey);
     return () => {
+      cancelAnimationFrame(frame);
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = previousOverflow;
       if (opener?.isConnected) opener.focus();
     };
-  }, [mobile, onClose]);
+  }, [open, onClose]);
+  const overdue = counts.overdue ?? 0;
   return (
     <aside
       ref={ref}
       id="daybook-navigation"
-      className={`sidebar ${mobile ? 'is-open' : ''}`}
-      {...(mobile ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Menú de navegación' } : {})}
+      className={`sidebar${narrow ? ' db-rail-drawer' : ''}`}
+      data-open={narrow ? String(open) : undefined}
+      {...(open ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Menú de navegación' } : {})}
     >
+      {/* En el teléfono esta ✕ cierra el cajón; en escritorio el CSS la oculta. */}
+      <button type="button" className="db-rail-icon-button sidebar-close" aria-label="Cerrar menú" onClick={onClose}>
+        <X aria-hidden="true" />
+      </button>
       <div className="db-brand-block db-on-dark">
         <button className="brand" onClick={() => go('inbox')}>
           <Brand dark />
@@ -106,16 +126,16 @@ export function Sidebar({
       </div>
       <div className="workspace">
         <span className="workspace-icon">
-          <Headphones size={19} />
+          <Headphones size={18} aria-hidden="true" />
         </span>
         <div>
           Servicios Daybook<small>Centro de soporte compartido</small>
         </div>
-        <ShieldCheck size={16} />
+        <ShieldCheck size={16} aria-hidden="true" />
       </div>
-      {/* La lista es la común de la familia (@daybook/design/riel.css), igual que en Parte Diario.
-          Se desplaza ella sola: la persona, salir y el tema quedan siempre a la vista abajo. */}
-      <div className="sidebar-scroll">
+      {/* La lista común de la familia; se desplaza ella sola (con sombra cuando hay más filas) y el pie queda
+          siempre a la vista. */}
+      <div className="db-rail-scroll">
         <nav className="db-rail-nav" aria-label="Navegación principal">
           <p className="db-rail-section">Espacio de trabajo</p>
           <RailLink view="overview" current={view} go={go} icon={<LayoutDashboard />} label="Resumen" />
@@ -164,7 +184,14 @@ export function Sidebar({
             >
               <span className={`nav-dot ${tone}`} />
               <span className="db-rail-link__label">{label}</span>
-              <span className="db-rail-count">{counts[queue]}</span>
+              {/* Solo el SLA vencido pide atención: en dorado, y con un pulso cuando cambia (key = número). */}
+              {queue === 'overdue' && overdue > 0 ? (
+                <span key={overdue} className="db-rail-count db-rail-count--alert">
+                  {overdue}
+                </span>
+              ) : (
+                <span className="db-rail-count">{counts[queue]}</span>
+              )}
             </button>
           ))}
         </nav>
@@ -173,8 +200,10 @@ export function Sidebar({
         </div>
         <nav className="db-rail-nav" aria-label="Cuenta y ayuda">
           <hr className="db-rail-divider" />
-          <RailLink view="security" current={view} go={go} icon={<ShieldCheck />} label="Seguridad" />
-          {isAdmin && <RailLink view="settings" current={view} go={go} icon={<Settings2 />} label="Configuración" />}
+          <RailLink view="account" current={view} go={go} icon={<Settings />} label="Configuración" />
+          {isAdmin && (
+            <RailLink view="settings" current={view} go={go} icon={<SlidersHorizontal />} label="Ajustes del espacio" />
+          )}
           <RailLink
             view="portal"
             current={view}
@@ -185,31 +214,25 @@ export function Sidebar({
           />
         </nav>
       </div>
-      <div className="sidebar-bottom">
-        <div className="profile">
-          <Avatar name={viewerName} small />
-          <button
-            className="profile-security"
-            type="button"
-            onClick={() => go('security')}
-            title="Gestionar seguridad de mi cuenta"
-          >
-            {viewerName}
-            <small>{data.viewer ? ROLE_LABELS[data.viewer.role] : 'Preparando acceso'}</small>
-          </button>
-          <button disabled={busy} onClick={signOut} aria-label="Cerrar sesión" title="Cerrar sesión">
-            <LogOut size={16} aria-hidden="true" />
-          </button>
-        </div>
-        {/* El tema, en el pie del riel junto a la persona, como en Parte Diario y
-            Daybook Travel. En el teléfono el riel es el menú, así que también está. */}
-        {data.viewer && (
-          <ThemeControl
-            key={data.viewer.id}
-            memberId={data.viewer.id}
-            preferred={data.preferences?.theme || 'system'}
-          />
+      {/* El pie común: quién está y el tema, en una fila. */}
+      <div className="db-rail-footer">
+        {themeError && (
+          <p className="sidebar-theme-error" role="status">
+            {themeError}
+          </p>
         )}
+        <div className="db-rail-account">
+          <span className="db-rail-avatar" aria-hidden="true">
+            {initials(viewerName) || '?'}
+          </span>
+          <span className="db-rail-account__text">
+            <strong className="db-rail-account__name">{viewerName}</strong>
+            <small className="db-rail-account__role">
+              {data.viewer ? ROLE_LABELS[data.viewer.role] : 'Preparando acceso'}
+            </small>
+          </span>
+          {data.viewer && <ThemeCycleButton theme={theme} onChoose={onChooseTheme} />}
+        </div>
       </div>
     </aside>
   );

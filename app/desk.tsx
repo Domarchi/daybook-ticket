@@ -36,6 +36,8 @@ import { TicketView } from './desk-parts/ticket-view';
 import { InboxView } from './desk-parts/inbox-view';
 import { SectionView } from './desk-parts/section-view';
 import { Sidebar } from './desk-parts/sidebar';
+import { AccountView } from './desk-parts/account-view';
+import { useThemePreference } from './evolution-controls';
 import { TicketForm } from './desk-parts/ticket-form';
 import type { BitaRequest } from './bita';
 import { SkeletonList } from './estados';
@@ -104,6 +106,15 @@ export default function Desk({
   const view =
     !isAdmin && ['team', 'settings', 'operations', 'metrics'].includes(requestedView) ? 'inbox' : requestedView;
   const viewerName = data.viewer?.name || displayName;
+  // El tema de la persona: lo cambian el botón del pie del riel y Configuración › Apariencia.
+  // (Un cliente ve el portal, que tiene su propio selector: aquí no se toca su tema.)
+  const staffId = data.viewer && data.viewer.role !== 'client' ? data.viewer.id : undefined;
+  const themePreference = useThemePreference(staffId, data.preferences?.theme || 'system');
+  // `?view=security` es la dirección vieja de la seguridad de la cuenta: queda en Configuración.
+  const legacySecurityAddress = Boolean(staffId) && searchParams.get('view') === 'security';
+  useEffect(() => {
+    if (legacySecurityAddress) navigateDesk({ view: 'account' }, 'replace');
+  }, [legacySecurityAddress]);
   const staffMembers = data.members.filter(member => member.role !== 'client' && member.status === 'active');
   const clientMembers = data.members.filter(member => member.role === 'client' && member.status !== 'revoked');
   const [undoAction, setUndoAction] = useState<{ run: () => void } | null>(null);
@@ -334,8 +345,8 @@ export default function Desk({
     }
   };
   const loadDemo = () => run(() => request('/api/demo', 'POST', {}), 'Ejemplos cargados.');
-  // El botón del riel pregunta antes (SignOutDialog); en el teléfono cierra el
-  // menú primero, para que el diálogo no quede bajo la trampa de foco del cajón.
+  // «Cerrar sesión» (en Configuración) pregunta antes (SignOutDialog); cierra el
+  // menú del teléfono primero, para que el diálogo no quede bajo la trampa de foco del cajón.
   const [confirmingSignOut, setConfirmingSignOut] = useState(false);
   const askSignOut = () => {
     setMobile(false);
@@ -391,18 +402,23 @@ export default function Desk({
     <div className="app-shell">
       <Sidebar
         view={view}
-        mobile={drawerOpen}
+        narrow={narrow}
+        open={drawerOpen}
         onClose={closeMenu}
         go={go}
         counts={counts}
         setQueue={setQueue}
         isAdmin={isAdmin}
         data={data}
-        busy={busy}
-        signOut={askSignOut}
         viewerName={viewerName}
+        theme={themePreference.theme}
+        themeError={themePreference.error}
+        onChooseTheme={theme => void themePreference.choose(theme)}
       />
-      {drawerOpen && <button className="sidebar-scrim" aria-label="Cerrar menú" tabIndex={-1} onClick={closeMenu} />}
+      {/* El velo detrás del cajón del teléfono: siempre montado, se funde; tocarlo cierra el menú. */}
+      {narrow && (
+        <div className="db-rail-scrim" data-open={String(drawerOpen)} aria-hidden="true" onClick={closeMenu} />
+      )}
       <main className="main" inert={drawerOpen || undefined}>
         <header className="topbar">
           <div className="breadcrumbs">
@@ -441,93 +457,107 @@ export default function Desk({
             <LiveStatus connection={connection} />
             {data.viewer && <TicketAlerts alerts={alerts} onOpen={openAlert} />}
           </div>
-          {loading ? (
-            <div className="loading">
-              <LoaderCircle className="spin" />
-              <p>Preparando tu espacio…</p>
-            </div>
-          ) : ticketId && !current ? (
-            <div className="panel ticket-search-feedback" role={conversation.error ? 'alert' : undefined}>
-              {conversation.error || <SkeletonList label="Cargando conversación…" rows={3} lines={2} />}
-              <button className="text-button" onClick={leaveTicket}>
-                Volver a la bandeja
-              </button>
-            </div>
-          ) : current ? (
-            <TicketView
-              data={data}
-              current={current}
-              conversation={conversation}
-              busy={busy}
-              isAdmin={isAdmin}
-              now={now}
-              accessKey={accessKey}
-              email={email}
-              clientMembers={clientMembers}
-              replyTarget={replyTarget}
-              setReplyTarget={setReplyTarget}
-              run={run}
-              refresh={refresh}
-              change={changeTicket}
-              savingField={savingField}
-              onAssigned={ticket =>
-                setOverlays(all => ({ ...all, [ticket.id]: adoptConfirmed(all[ticket.id], ticket) }))
-              }
-              onBack={leaveTicket}
-              onAskBita={bita ? askBita : undefined}
-            />
-          ) : view === 'inbox' || view === 'overview' ? (
-            <InboxView
-              view={view}
-              data={data}
-              busy={busy}
-              isAdmin={isAdmin}
-              now={now}
-              counts={counts}
-              search={search}
-              setSearch={setSearch}
-              teamFilters={teamFilters}
-              updateTeamFilters={updateTeamFilters}
-              queue={queue}
-              priority={priority}
-              department={department}
-              setQueue={setQueue}
-              setPriority={setPriority}
-              setDepartment={setDepartment}
-              showFilters={showFilters}
-              setShowFilters={setShowFilters}
-              setSelected={setSelected}
-              visibleSelected={visibleSelected}
-              filtered={filtered}
-              searchResults={searchResults}
-              searchRef={searchRef}
-              staffMembers={staffMembers}
-              exportCsv={exportCsv}
-              exporting={exporting}
-              resolveSelected={resolveSelected}
-              loadDemo={loadDemo}
-              setCreate={setCreate}
-              openTicket={openTicket}
-              go={go}
-              refresh={refresh}
-            />
-          ) : (
-            <SectionView
-              view={view}
-              section={location.section}
-              data={data}
-              isAdmin={isAdmin}
-              accessKey={accessKey}
-              feedKey={feedKey}
-              busy={busy}
-              companyParam={searchParams.get('company')}
-              run={run}
-              refresh={refresh}
-              go={go}
-              setQueue={setQueue}
-              setSearch={setSearch}
-            />
-          )}
+          {/* La vista nueva entra con el fundido común (db-view-enter); la key es la vista, no los datos. */}
+          <div className="db-view-enter" key={ticketId ? `ticket:${ticketId}` : view}>
+            {loading ? (
+              <div className="loading">
+                <LoaderCircle className="spin" />
+                <p>Preparando tu espacio…</p>
+              </div>
+            ) : ticketId && !current ? (
+              <div className="panel ticket-search-feedback" role={conversation.error ? 'alert' : undefined}>
+                {conversation.error || <SkeletonList label="Cargando conversación…" rows={3} lines={2} />}
+                <button className="text-button" onClick={leaveTicket}>
+                  Volver a la bandeja
+                </button>
+              </div>
+            ) : current ? (
+              <TicketView
+                data={data}
+                current={current}
+                conversation={conversation}
+                busy={busy}
+                isAdmin={isAdmin}
+                now={now}
+                accessKey={accessKey}
+                email={email}
+                clientMembers={clientMembers}
+                replyTarget={replyTarget}
+                setReplyTarget={setReplyTarget}
+                run={run}
+                refresh={refresh}
+                change={changeTicket}
+                savingField={savingField}
+                onAssigned={ticket =>
+                  setOverlays(all => ({ ...all, [ticket.id]: adoptConfirmed(all[ticket.id], ticket) }))
+                }
+                onBack={leaveTicket}
+                onAskBita={bita ? askBita : undefined}
+              />
+            ) : view === 'account' || view === 'security' ? (
+              <AccountView
+                data={data}
+                viewerName={viewerName}
+                isAdmin={isAdmin}
+                theme={themePreference.theme}
+                themeError={themePreference.error}
+                onChooseTheme={theme => void themePreference.choose(theme)}
+                onSignOut={askSignOut}
+                go={go}
+              />
+            ) : view === 'inbox' || view === 'overview' ? (
+              <InboxView
+                view={view}
+                data={data}
+                busy={busy}
+                isAdmin={isAdmin}
+                now={now}
+                counts={counts}
+                search={search}
+                setSearch={setSearch}
+                teamFilters={teamFilters}
+                updateTeamFilters={updateTeamFilters}
+                queue={queue}
+                priority={priority}
+                department={department}
+                setQueue={setQueue}
+                setPriority={setPriority}
+                setDepartment={setDepartment}
+                showFilters={showFilters}
+                setShowFilters={setShowFilters}
+                setSelected={setSelected}
+                visibleSelected={visibleSelected}
+                filtered={filtered}
+                searchResults={searchResults}
+                searchRef={searchRef}
+                staffMembers={staffMembers}
+                exportCsv={exportCsv}
+                exporting={exporting}
+                resolveSelected={resolveSelected}
+                loadDemo={loadDemo}
+                setCreate={setCreate}
+                openTicket={openTicket}
+                go={go}
+                refresh={refresh}
+              />
+            ) : (
+              <SectionView
+                view={view}
+                section={location.section}
+                data={data}
+                isAdmin={isAdmin}
+                accessKey={accessKey}
+                feedKey={feedKey}
+                busy={busy}
+                companyParam={searchParams.get('company')}
+                run={run}
+                refresh={refresh}
+                go={go}
+                setQueue={setQueue}
+                setSearch={setSearch}
+              />
+            )}
+          </div>
           <footer className="page-footer">
             <span>
               {data.settings.brandName}

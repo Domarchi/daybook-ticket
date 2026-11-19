@@ -16,7 +16,7 @@ import { SettingsForm } from './settings-form';
 import { navigateDesk } from '@/lib/desk-url';
 
 /**
- * Configuración, one section at a time. The section lives in the URL (?view=settings&section=mail),
+ * Ajustes del espacio (admins only), one section at a time. The person's own Configuración is account-view.tsx. The section lives in the URL (?view=settings&section=mail),
  * so Back, reload and shared links land on it; General is the bare /?view=settings.
  */
 export function SettingsView({
@@ -42,8 +42,8 @@ export function SettingsView({
   const section = resolveSettingsSection(requested, available);
   return (
     <>
-      <PageTitle title="Configuración" />
-      <nav className="settings-nav" aria-label="Secciones de configuración">
+      <PageTitle title="Ajustes del espacio" />
+      <nav className="settings-nav" aria-label="Secciones de ajustes del espacio">
         {available.map(item => (
           <DeskLink
             key={item}

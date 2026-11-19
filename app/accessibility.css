@@ -14,8 +14,6 @@
   .ticket-table .check-cell { min-width: 44px; }
   .ticket-table .check-cell input[type='checkbox'] { width: 22px; height: 22px; }
   .filter-button, .primary, .secondary, .text-button { min-height: 44px; }
-  /* «Cerrar sesión» y el nombre, al pie del riel (en el teléfono, el menú); .sidebar le gana a access-panel.css, que carga después. */
-  .sidebar .profile > button { min-width: var(--touch-target); min-height: var(--touch-target); }
 }
 
 /* The light error banner (#b46c60 on #fff0ed) is under 4.5:1; dark mode has its own, higher-specificity colors. */

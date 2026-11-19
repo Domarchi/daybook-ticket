@@ -11,8 +11,11 @@ test('signing in with the password works and signing out, once confirmed, ends t
   await page.getByRole('button', { name: 'Entrar a mi espacio' }).click();
   await expect(page.getByRole('heading', { name: 'Bandeja de entrada' })).toBeVisible();
 
-  // The door icon asks first, with the same words as Parte Diario; Escape keeps you in.
-  const rail = page.getByRole('button', { name: 'Cerrar sesión' });
+  // «Cerrar sesión» is in Configuración, as in Parte Diario. It asks first, with the same words; Escape keeps you in.
+  await page.locator('#daybook-navigation').getByRole('button', { name: 'Configuración', exact: true }).click();
+  const rail = page
+    .getByRole('region', { name: 'Salir de este dispositivo' })
+    .getByRole('button', { name: 'Cerrar sesión' });
   await rail.click();
   const dialog = page.getByRole('dialog', { name: 'Cerrar sesión' });
   await expect(dialog).toBeVisible();

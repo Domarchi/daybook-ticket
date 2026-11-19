@@ -58,10 +58,11 @@ test('solucionar varios tickets a la vez se confirma antes, porque solucionar no
   assert.match(inbox, /if \(confirmingResolve && visibleSelected\.length === 0\) setConfirmingResolve\(false\);/);
 });
 
-test('cerrar sesión usa el ícono LogOut y pregunta con los textos de Parte Diario, en el riel y en el portal', async () => {
-  const [shared, sidebar, desk, portal] = await Promise.all([
+test('cerrar sesión usa el ícono LogOut y pregunta con los textos de Parte Diario, en Configuración y en el portal', async () => {
+  const [shared, sidebar, account, desk, portal] = await Promise.all([
     read('app/desk-parts/shared.tsx'),
     read('app/desk-parts/sidebar.tsx'),
+    read('app/desk-parts/account-view.tsx'),
     read('app/desk.tsx'),
     read('app/client-portal.tsx'),
   ]);
@@ -72,17 +73,20 @@ test('cerrar sesión usa el ícono LogOut y pregunta con los textos de Parte Dia
   );
   assert.match(shared, /confirmLabel="Cerrar sesión"\s+cancelLabel="Seguir trabajando"/);
   assert.match(shared, /\{cancelLabel\}/, 'ConfirmDialog acepta otro texto para el botón de cancelar');
-  assert.match(sidebar, /<LogOut size=\{16\} aria-hidden="true" \/>/);
-  assert.doesNotMatch(sidebar, /ArrowRight/, 'la flecha «ir a» ya no cierra sesión');
-  assert.match(desk, /signOut=\{askSignOut\}/, 'el riel pide confirmar en vez de salir');
+  // Como en Parte Diario, el riel ya no tiene botón de salir: está en Configuración › Sesión, rojo y con su nombre.
+  assert.doesNotMatch(sidebar, /LogOut|Cerrar sesión|signOut/, 'el riel no cierra sesión');
+  assert.match(account, /<h2 id="configuracion-sesion">Salir de este dispositivo<\/h2>/);
+  assert.match(account, /<p className="settings-note">Tendrás que ingresar de nuevo para seguir\.<\/p>/);
+  assert.match(
+    account,
+    /<button type="button" className="danger-button" onClick=\{onSignOut\}>\s*<LogOut size=\{17\} aria-hidden="true" \/>\s*Cerrar sesión/,
+  );
+  assert.match(desk, /onSignOut=\{askSignOut\}/, 'Configuración pide confirmar en vez de salir');
   assert.match(desk, /<SignOutDialog/);
   assert.match(portal, /onClick=\{\(\) => setConfirmingSignOut\(true\)\}/);
   assert.match(portal, /<SignOutDialog/);
-  const touch = await read('app/accessibility.css');
-  assert.match(
-    touch,
-    /\.sidebar \.profile > button \{ min-width: var\(--touch-target\); min-height: var\(--touch-target\); \}/,
-  );
+  // El botón llega a 44 px también en escritorio.
+  assert.match(await read('app/globals.css'), /\.settings-actions>button\{min-height:44px\}/);
   // El ícono del portal también llega a 44 px con el dedo (la regla base lo dejaba en 42 × 38).
   const portalCss = await read('app/client-portal.css');
   const coarse = portalCss.lastIndexOf('@media (pointer: coarse)');
