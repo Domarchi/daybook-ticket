@@ -80,13 +80,15 @@ export default function LoginForm({
         if (response.status === 429)
           throw new Error('Has realizado varios intentos. Espera unos minutos y vuelve a probar.');
         if (response.status === 503)
-          throw new Error('La recuperación por correo aún no está configurada. Contacta con el administrador.');
+          throw new Error(
+            'La recuperación por correo no está disponible. Pide a tu administrador un enlace para crear una contraseña nueva.',
+          );
         if (result.message?.includes('invitación')) throw new Error(result.message);
         throw new Error(
           secondFactor
             ? 'El código no es válido o la verificación venció. Revisa el código o vuelve a iniciar sesión.'
             : resetToken
-              ? 'El enlace venció o ya fue utilizado. Solicita uno nuevo.'
+              ? 'El enlace venció, ya se usó o fue reemplazado por otro. Pide uno nuevo a tu administrador.'
               : invite
                 ? 'No pudimos activar la cuenta. Si ya la activaste, inicia sesión; de lo contrario pide una nueva invitación.'
                 : mode === 'forgot'

@@ -1616,6 +1616,83 @@ test.describe('the support desk', () => {
     }
   });
 
+  test('an admin hands a password reset link to someone who forgot their password', async ({ page, browser }) => {
+    expect(luciaSession).toBeDefined();
+    const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+    const oldContext = await browser.newContext({ baseURL: BASE_URL, storageState: luciaSession });
+    const newContext = await browser.newContext({ baseURL: BASE_URL });
+    try {
+      // Her session works before the reset.
+      const before = await oldContext.newPage();
+      await before.goto('/');
+      await expect(before.getByRole('region', { name: 'Mis equipos' })).toBeVisible();
+
+      await page.goto('/?view=team');
+      const row = page.locator('.access-table tbody tr').filter({ hasText: 'lucia.rojas@example.test' });
+      const create = row.getByRole('button', { name: 'Crear enlace para nueva contraseña de Lucía Rojas' });
+      await create.click();
+      const box = page.getByRole('region', { name: 'Enlace para nueva contraseña' });
+      await expect(box).toContainText('Nueva contraseña para lucia.rojas@example.test');
+      const field = box.getByRole('textbox', { name: 'Enlace para nueva contraseña' });
+      const first = await field.inputValue();
+      expect(first).toMatch(/\/login\?reset=1&token=[a-f0-9]{64}$/);
+      await expectNoSeriousViolations(page, 'Enlace para nueva contraseña');
+      // The token is stored only as a hash.
+      const token = new URL(first).searchParams.get('token')!;
+      const clear = await pool.query(`SELECT 1 FROM "authVerification" WHERE strpos(identifier, $1) > 0`, [token]);
+      expect(clear.rowCount).toBe(0);
+      // A second link replaces the first one.
+      await create.click();
+      await expect(field).not.toHaveValue(first);
+      const second = await field.inputValue();
+
+      const lucia = await newContext.newPage();
+      const password = `Lucia-nueva-${randomUUID()}`;
+      const save = async (link: string) => {
+        await lucia.goto(link);
+        await expect(lucia.getByRole('heading', { name: 'Una nueva contraseña.' })).toBeVisible();
+        await lucia.getByLabel('Contraseña', { exact: true }).fill(password);
+        await lucia.getByLabel('Repite tu contraseña').fill(password);
+        await lucia.getByRole('button', { name: 'Guardar contraseña' }).click();
+      };
+      await save(first);
+      await expect(lucia.getByRole('alert').filter({ hasText: /reemplazado por otro/ })).toBeVisible();
+      await save(second);
+      await lucia.waitForURL(url => url.pathname === '/login' && !url.searchParams.has('token'));
+      // Single use.
+      await save(second);
+      await expect(lucia.getByRole('alert').filter({ hasText: /ya se usó/ })).toBeVisible();
+
+      // Every session she had open was closed.
+      await before.goto('/');
+      await expect(before).toHaveURL(/\/login/);
+
+      // She signs in with the new password.
+      await lucia.goto('/login');
+      await lucia.getByLabel('Correo electrónico').fill('lucia.rojas@example.test');
+      await lucia.getByLabel('Contraseña').fill(password);
+      await lucia.getByRole('button', { name: 'Entrar a mi espacio' }).click();
+      await lucia.waitForURL(url => url.pathname === '/', { timeout: 30_000 });
+      await expect(lucia.getByRole('region', { name: 'Mis equipos' })).toBeVisible();
+
+      const audit = await pool.query(
+        `SELECT action FROM "securityAudit" WHERE "targetId"=(SELECT id FROM members WHERE email='lucia.rojas@example.test') ORDER BY "createdAt", action`,
+      );
+      expect(audit.rows.map(row => row.action)).toEqual([
+        'member_permissions_changed',
+        'member_permissions_changed',
+        'other_sessions_revoked',
+      ]);
+      expect(
+        (await pool.query(`SELECT 1 FROM "authVerification" WHERE identifier LIKE 'reset-password%'`)).rowCount,
+      ).toBe(0);
+    } finally {
+      await oldContext.close();
+      await newContext.close();
+      await pool.end();
+    }
+  });
+
   test.describe('dark mode', () => {
     test.use({ colorScheme: 'dark' });
     test('the inbox and an open ticket pass the accessibility gate in dark mode', async ({ page }) => {

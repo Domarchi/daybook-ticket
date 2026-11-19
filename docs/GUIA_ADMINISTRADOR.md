@@ -31,11 +31,37 @@ Importa por grupos, por ejemplo un área o una sede por día, de hasta 500 perso
 - **Equipos sin serie:** en **Equipos** usa el filtro «Sin serie». Los empleados ven «Confirma tu equipo» en el portal hasta completarla.
 - **Corregir un dato ya registrado** (por ejemplo, una serie mal escrita): hazlo desde el inventario. El empleado no puede cambiarlo.
 
+## Olvidó su contraseña
+
+El correo está apagado, así que «Olvidé mi contraseña» no le llega a nadie. En su lugar:
+
+1. **Equipo y clientes → Directorio de accesos,** en la fila de la persona: **Enlace para nueva contraseña.** Pide la verificación de tu contraseña como cualquier acción sensible.
+2. **Copia el enlace y entrégaselo solo a ella,** por un canal interno, como un enlace de invitación.
+3. **La persona abre el enlace** y elige una contraseña nueva. Se cierran todas sus sesiones abiertas.
+
+Cada enlace:
+- sirve **una sola vez** y vence a las **24 horas**;
+- deja de funcionar si creas otro para la misma persona;
+- no cambia nada hasta que se usa: la contraseña anterior sigue valiendo mientras tanto.
+
+Si la persona tiene doble factor, igual se lo pedirá al entrar.
+
+No está disponible para:
+- quien aún no activa su cuenta: usa su enlace de invitación;
+- un acceso revocado: primero restáuralo;
+- la cuenta propietaria ni la tuya: la tuya se cambia en Seguridad;
+- administradores, salvo que seas la persona propietaria;
+- una cuenta que también se usa en otro espacio de Daybook.
+
+Queda registrado en **Seguridad → Auditoría:**
+- al crear el enlace, «Acceso de una cuenta modificado» a tu nombre;
+- cuando la persona lo usa, «Otras sesiones cerradas» a nombre de ella.
+
 ## Si algo falla
 
 - **«Verifica tu identidad para esta acción sensible»:** vuelve a escribir tu contraseña en Seguridad y repite la acción.
 - **«Estás importando o renovando invitaciones demasiado seguido»:** espera unos minutos.
 - **Alguien no puede entrar:**
   - si su enlace venció, renuévalo;
-  - si ya activó la cuenta y olvidó la contraseña, usa «Olvidé mi contraseña» (necesita correo configurado) o crea un ticket a soporte.
+  - si ya activó la cuenta y olvidó la contraseña, usa **Enlace para nueva contraseña** en su fila del directorio (ver [Olvidó su contraseña](#olvidó-su-contraseña)).
 - **Para cualquier otra cosa,** revisa el [runbook de incidentes](RUNBOOK_INCIDENTES.md).
