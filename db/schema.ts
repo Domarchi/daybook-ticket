@@ -851,6 +851,11 @@ export const customerAssets = pgTable(
   t => [
     index('customer_assets_owner_company').on(t.ownerId, t.companyId, t.id),
     uniqueIndex('customer_assets_owner_tag').on(t.ownerId, t.assetTag),
+    // 0017: one piece of equipment per serial number in a workspace, compared as lib/client-equipment-model.ts
+    // normalizes it. Equipment without a serial is not indexed.
+    uniqueIndex('customer_assets_owner_serial')
+      .on(t.ownerId, sql`upper(regexp_replace(btrim(${t.serial}),'\s+',' ','g'))`)
+      .where(sql`btrim(${t.serial})<>''`),
     check(
       'customer_asset_warranty_date',
       sql`${t.warrantyUntil} IS NULL OR ${t.warrantyUntil} ~ '^\\d{4}-\\d{2}-\\d{2}$'`,

@@ -334,13 +334,17 @@ test('evolution requires a single explicit reviewed prefix, exact confirmation a
     mode: 'audit',
     through: '0016',
   });
+  assert.deepEqual(validateEvolutionCliArguments(['--audit', '--through=0017'], {}), {
+    mode: 'audit',
+    through: '0017',
+  });
   for (const args of [
     [],
     ['--audit'],
     ['--apply', '--audit'],
     ['--apply', '--through=0007', 'secret'],
     ['--audit', '--through=0006'],
-    ['--audit', '--through=0017'],
+    ['--audit', '--through=0018'],
     ['--audit', '--through=7'],
     ['--audit', '--through=0007,0009'],
     ['--audit', '--through=0007;SELECT 1'],
@@ -863,7 +867,7 @@ test('0014 adds only the two reviewed ticket-queue indexes: no extension, data, 
     'CREATE INDEX CONCURRENTLY x ON tickets (id) ; INSERT INTO tickets DEFAULT VALUES;',
   ])
     assert.throws(() => analyzeEvolutionSql(14, `${sql}\n${statement}`), MigrationOperatorError);
-  assert.throws(() => analyzeEvolutionSql(17, sql), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(18, sql), MigrationOperatorError);
 });
 
 test('0015 adds only five nullable ticket columns: no default, backfill, constraint, index or data change', async () => {
@@ -896,7 +900,7 @@ test('0015 adds only five nullable ticket columns: no default, backfill, constra
     'DROP INDEX tickets_owner_page;',
   ])
     assert.throws(() => analyzeEvolutionSql(15, `${sql}\n${statement}`), MigrationOperatorError);
-  assert.throws(() => analyzeEvolutionSql(17, sql), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(18, sql), MigrationOperatorError);
 });
 
 test('0016 adds the nullable inventory ID with a unique index and one new empty table: no backfill or destructive DDL', async () => {
@@ -963,5 +967,33 @@ test('0016 adds the nullable inventory ID with a unique index and one new empty 
     'INSERT INTO "ticketFulfillment" ("ticketId") VALUES (1);',
   ])
     assert.throws(() => analyzeEvolutionSql(16, `${sql}\n${statement}`), MigrationOperatorError);
-  assert.throws(() => analyzeEvolutionSql(17, sql), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(18, sql), MigrationOperatorError);
+});
+
+test('0017 adds only the unique serial index on equipment: no data, column or constraint change', async () => {
+  const artifacts = await loadEvolutionMigrationArtifacts('0017');
+  assert.equal(artifacts.files.length, 18);
+  const last = artifacts.files[17];
+  assert.equal(last.tag, '0017_equipment_serial_unique');
+  assert.equal(last.when, 1793912010000);
+  const sql = last.content.toString('utf8'),
+    plan = analyzeEvolutionSql(17, sql);
+  assert.deepEqual(plan.indexes, [{ name: 'customer_assets_owner_serial', table: 'customerAssets' }]);
+  assert.deepEqual(plan.additions, []);
+  assert.deepEqual(plan.tables, []);
+  assert.equal(plan.replacesPushEndpoint, false);
+  assert.equal(plan.replacesAttachmentKind, false);
+  // Same normalization as lib/client-equipment-model.ts and the duplicate check in lib/client-equipment.ts.
+  assert.match(
+    sql,
+    /\("ownerId",\(upper\(regexp_replace\(btrim\(serial\),'\\s\+',' ','g'\)\)\)\) WHERE btrim\(serial\)<>''/,
+  );
+  for (const statement of [
+    'UPDATE "customerAssets" SET serial = id;',
+    'DELETE FROM "customerAssets" WHERE serial = \'\';',
+    'ALTER TABLE "customerAssets" ALTER COLUMN serial DROP DEFAULT;',
+    'DROP INDEX customer_assets_owner_tag;',
+  ])
+    assert.throws(() => analyzeEvolutionSql(17, `${sql}\n${statement}`), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(18, sql), MigrationOperatorError);
 });
