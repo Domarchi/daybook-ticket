@@ -532,6 +532,9 @@ test.describe('the support desk', () => {
     await expect(main.getByText('Tendrás que ingresar de nuevo para seguir.')).toBeVisible();
     const session = main.getByRole('region', { name: 'Salir de este dispositivo' });
     const signOut = session.getByRole('button', { name: 'Cerrar sesión' });
+    // One way out: the security block embedded here hides its own return link and its unconfirmed sign-out.
+    await expect(main.getByRole('button', { name: 'Cerrar sesión' })).toHaveCount(1);
+    await expect(main.getByRole('link', { name: 'Volver a Daybook Ticket' })).toHaveCount(0);
     await expect(signOut).toHaveCSS('background-color', 'rgb(179, 38, 30)');
     expect((await signOut.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await expect(main.getByRole('button', { name: 'Abrir el centro de ayuda' })).toBeVisible();

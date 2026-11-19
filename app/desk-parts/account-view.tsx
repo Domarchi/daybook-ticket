@@ -74,6 +74,7 @@ export function AccountView({
         key={`security:${viewer.id}`}
         memberId={viewer.id}
         returnTo={workspaceHome(currentWorkspaceId())}
+        embedded
       />
       {isAdmin &&
         (data.evolution?.features.security ? (
