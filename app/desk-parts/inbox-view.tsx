@@ -14,6 +14,7 @@ import {
   Filter,
   Inbox,
   LoaderCircle,
+  Lock,
   MessageSquare,
   Plus,
   Search,
@@ -51,8 +52,44 @@ function resolveQuestion(selected: number) {
   const one = selected === 1;
   const count = one ? '1 ticket' : `${selected} tickets`;
   return {
-    count,
+    title: 'Marcar como solucionados',
+    confirm: `Solucionar ${count}`,
     description: `Vas a marcar ${count} como ${one ? 'solucionado' : 'solucionados'}. ${one ? 'Al cliente' : 'A cada cliente'} se le pedirá que evalúe la atención, y eso no se puede deshacer.`,
+  };
+}
+function bulkQuestion(kind: 'resolved' | 'closed' | null, selected: number) {
+  return kind === 'closed' ? closeQuestion(selected) : resolveQuestion(selected);
+}
+/** The bulk bar offers solving, or closing when every selected ticket is already solved. */
+function BulkFinishButton({
+  allSolved,
+  busy,
+  ask,
+}: {
+  allSolved: boolean;
+  busy: boolean;
+  ask: (kind: 'resolved' | 'closed') => void;
+}) {
+  return allSolved ? (
+    <button disabled={busy} onClick={() => ask('closed')}>
+      <Lock size={16} />
+      Cerrar seleccionados
+    </button>
+  ) : (
+    <button disabled={busy} onClick={() => ask('resolved')}>
+      <CheckCheck size={16} />
+      Marcar como solucionados
+    </button>
+  );
+}
+/** Closing is the step after solving (lib/ticket-status.ts), so it is offered only when every ticket is solved. */
+function closeQuestion(selected: number) {
+  const one = selected === 1;
+  const count = one ? '1 ticket' : `${selected} tickets`;
+  return {
+    title: 'Cerrar tickets',
+    confirm: `Cerrar ${count}`,
+    description: `Vas a cerrar ${count} ya ${one ? 'solucionado' : 'solucionados'}. Un ticket cerrado solo se puede reabrir.`,
   };
 }
 export function InboxView({
@@ -115,7 +152,7 @@ export function InboxView({
   staffMembers: Member[];
   exportCsv: () => Promise<void>;
   exporting: boolean;
-  resolveSelected: () => Promise<boolean>;
+  resolveSelected: (status?: 'resolved' | 'closed') => Promise<boolean>;
   loadDemo: () => Promise<boolean>;
   setCreate: (value: boolean) => void;
   openTicket: (ticket: Ticket) => void;
@@ -129,11 +166,14 @@ export function InboxView({
   // Solucionar no tiene «Deshacer» (canUndo en lib/ticket-overlay.ts: pide la
   // evaluación al cliente). Varios a la vez se confirman antes, como manda la
   // Fase 5b para lo que no tiene vuelta atrás.
-  const [confirmingResolve, setConfirmingResolve] = useState(false);
+  const [confirming, setConfirming] = useState<'resolved' | 'closed' | null>(null);
   // If the selection empties while the question is open (another agent solved them, the view refreshed), the
   // question goes away for good: it must not pop up again on the next ticket ticked.
-  if (confirmingResolve && visibleSelected.length === 0) setConfirmingResolve(false);
-  const resolving = resolveQuestion(visibleSelected.length);
+  if (confirming && visibleSelected.length === 0) setConfirming(null);
+  const allSolved = visibleSelected.every(id =>
+    filtered.some(ticket => ticket.id === id && ticket.status === 'resolved'),
+  );
+  const question = bulkQuestion(confirming, visibleSelected.length);
   // After «Marcar como solucionados» (or the bar's «Cancelar») the bar and its buttons are gone, and focus would
   // fall to nothing (<body>). Focus goes to the active queue tab, the head of the list, which stays put while the list
   // refreshes; the «N tickets solucionados» notice in the status region says what happened.
@@ -388,10 +428,7 @@ export function InboxView({
                 <strong>
                   {visibleSelected.length} {visibleSelected.length === 1 ? 'seleccionado' : 'seleccionados'}
                 </strong>
-                <button disabled={busy} onClick={() => setConfirmingResolve(true)}>
-                  <CheckCheck size={16} />
-                  Marcar como solucionados
-                </button>
+                <BulkFinishButton allSolved={allSolved} busy={busy} ask={setConfirming} />
                 <button
                   onClick={() => {
                     // The bar goes away with this button: focus goes to the head of the list, not to <body>.
@@ -403,22 +440,22 @@ export function InboxView({
                 </button>
               </div>
             )}
-            {confirmingResolve && visibleSelected.length > 0 && (
+            {confirming && visibleSelected.length > 0 && (
               <ConfirmDialog
-                title="Marcar como solucionados"
-                description={resolving.description}
-                confirmLabel={`Solucionar ${resolving.count}`}
+                title={question.title}
+                description={question.description}
+                confirmLabel={question.confirm}
                 busyLabel="Guardando…"
                 busy={busy}
-                onClose={() => setConfirmingResolve(false)}
+                onClose={() => setConfirming(null)}
                 onConfirm={() => {
-                  void resolveSelected().then(
+                  void resolveSelected(confirming).then(
                     solved => {
                       // Same render: the dialog closes first, then the effect moves focus to the list.
-                      setConfirmingResolve(false);
+                      setConfirming(null);
                       if (solved) setListFocus(count => count + 1);
                     },
-                    () => setConfirmingResolve(false),
+                    () => setConfirming(null),
                   );
                 }}
               />
