@@ -1693,6 +1693,42 @@ test.describe('the support desk', () => {
     }
   });
 
+  test('an unchanged inbox is answered 304 without a body, and any change is read again', async ({ page }) => {
+    const pool = new pg.Pool({ connectionString: DATABASE_URL, max: 1 });
+    try {
+      await page.goto('/');
+      const first = await page.request.get('/api/tickets/updates');
+      expect(first.status()).toBe(200);
+      const tag = first.headers()['etag'];
+      expect(tag).toMatch(/^W\/"[A-Za-z0-9_-]{27}"$/);
+      expect(first.headers()['cache-control']).toContain('no-store');
+
+      const same = await page.request.get('/api/tickets/updates', { headers: { 'If-None-Match': tag } });
+      expect(same.status()).toBe(304);
+      expect(await same.body()).toHaveLength(0);
+      expect(same.headers()['etag']).toBe(tag);
+
+      // Someone else edits a ticket: the next poll reads everything again.
+      await pool.query(`UPDATE tickets SET version=version+1, "updatedAt"=$1 WHERE id=(SELECT min(id) FROM tickets)`, [
+        new Date().toISOString(),
+      ]);
+      const changed = await page.request.get('/api/tickets/updates', { headers: { 'If-None-Match': tag } });
+      expect(changed.status()).toBe(200);
+      expect(changed.headers()['etag']).not.toBe(tag);
+      expect((await changed.json()).ticketPage.items.length).toBeGreaterThan(0);
+
+      // The page itself keeps polling with its tag and stays live.
+      const conditional = page.waitForRequest(
+        request => request.url().includes('/tickets/updates') && Boolean(request.headers()['if-none-match']),
+        { timeout: 20_000 },
+      );
+      await page.mouse.move(10, 10);
+      await conditional;
+    } finally {
+      await pool.end();
+    }
+  });
+
   test.describe('dark mode', () => {
     test.use({ colorScheme: 'dark' });
     test('the inbox and an open ticket pass the accessibility gate in dark mode', async ({ page }) => {

@@ -9,7 +9,8 @@ import type { DatabaseValue } from '../db/database';
 const events =
   "('ticket_created', 'agent_replied', 'client_replied', 'reminder', 'escalation', 'satisfaction_requested', 'member_mentioned', 'ticket_followed_update')";
 
-function alertScope(access: AccessContext) {
+/** The alerts one person can see; also the scope of the feed version (lib/ticket-feed-version.ts). */
+export function alertScope(access: AccessContext) {
   const scope = ticketAccessSql(access);
   const values: DatabaseValue[] = [...scope.values];
   const bind = (value: DatabaseValue) => {

@@ -35,16 +35,32 @@ class ReadError extends Error {
   }
 }
 
-async function read<T>(path: string, signal: AbortSignal): Promise<T> {
-  const response = await daybookFetch(path, { signal, cache: 'no-store' });
-  if (!response.ok) {
+async function readResponse(path: string, signal: AbortSignal, headers?: HeadersInit): Promise<Response> {
+  const response = await daybookFetch(path, { signal, cache: 'no-store', headers });
+  // 304: the automatic refresh found nothing new since the tag it sent (A1).
+  if (!response.ok && response.status !== 304) {
     const result = await response.json().catch(() => ({}));
     throw new ReadError(
       typeof result.error === 'string' ? result.error : 'No se pudo actualizar la conversación.',
       response.status,
     );
   }
-  return response.json();
+  return response;
+}
+
+async function read<T>(path: string, signal: AbortSignal): Promise<T> {
+  return (await readResponse(path, signal)).json();
+}
+
+/** The automatic refresh: null when the inbox is unchanged since `sentTag`. */
+async function readFeed(signal: AbortSignal, sentTag: string): Promise<{ feed: Feed; tag: string } | null> {
+  const response = await readResponse(
+    '/api/tickets/updates',
+    signal,
+    sentTag ? { 'If-None-Match': sentTag } : undefined,
+  );
+  if (response.status === 304) return null;
+  return { feed: (await response.json()) as Feed, tag: response.headers.get('ETag') ?? '' };
 }
 
 export function useWorkspace(onSnapshot: (workspace: Workspace) => void) {
@@ -56,6 +72,8 @@ export function useWorkspace(onSnapshot: (workspace: Workspace) => void) {
   const active = useRef<AbortController | null>(null);
   const mounted = useRef(false);
   const denied = useRef(false);
+  // Tag of the last feed applied; sent back so an unchanged inbox is answered 304 without a body.
+  const feedTag = useRef('');
 
   const refresh = useCallback(
     async (full = true): Promise<Workspace> => {
@@ -72,10 +90,18 @@ export function useWorkspace(onSnapshot: (workspace: Workspace) => void) {
       };
       try {
         let next: Workspace;
+        let nextTag = '';
         if (full || !snapshot.current.viewer) {
           next = await read<Workspace>('/api/workspace', controller.signal);
         } else {
-          const feed = await read<Feed>('/api/tickets/updates', controller.signal);
+          const changed = await readFeed(controller.signal, feedTag.current);
+          if (!changed) {
+            if (controller.signal.aborted) throw new DOMException('La lectura fue reemplazada.', 'AbortError');
+            setConnection('live');
+            return snapshot.current;
+          }
+          const feed = changed.feed;
+          nextTag = changed.tag;
           const previous = snapshot.current;
           if (feed.viewer?.id !== previous.viewer?.id) {
             // Another tab changed accounts. Never carry a previous user's drafts over.
@@ -93,6 +119,7 @@ export function useWorkspace(onSnapshot: (workspace: Workspace) => void) {
           ) {
             if (mounted.current && active.current === controller) commit(EMPTY);
             next = await read<Workspace>('/api/workspace', controller.signal);
+            nextTag = '';
           } else {
             next = { ...previous, ...feed };
           }
@@ -107,6 +134,7 @@ export function useWorkspace(onSnapshot: (workspace: Workspace) => void) {
           throw new DOMException('La sesión cambió.', 'AbortError');
         }
         commit(next);
+        feedTag.current = nextTag;
         denied.current = false;
         setLoadError('');
         setConnection('live');
