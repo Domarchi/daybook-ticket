@@ -37,3 +37,4 @@ Si un dato que ya aparece no es correcto, crea un ticket y soporte lo corrige.
 
 - No compartas tu contraseña ni tu enlace de invitación.
 - Al terminar en un computador compartido, usa **Cerrar sesión**.
+- ¿Olvidaste tu contraseña? Pide a tu administrador un **enlace para crear una contraseña nueva**. Ábrelo, elige la contraseña y vuelve a entrar. El enlace sirve una vez y vence en 24 horas.

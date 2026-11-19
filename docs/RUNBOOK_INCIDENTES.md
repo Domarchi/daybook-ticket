@@ -38,7 +38,7 @@ Estado de los proveedores: [Vercel](https://www.vercel-status.com), [Neon](https
 | --- | --- | --- |
 | «Necesitas una invitación válida» | El enlace venció, se renovó o ya se usó | Renovar el enlace en **Equipo y clientes → Enlaces de invitación**. |
 | «Has realizado varios intentos» | Límite de inicio de sesión **por dirección IP**: 60 por minuto con #86 (antes 5). Una oficina detrás de una misma IP lo comparte. | Esperar un minuto. Si se repite con muchas personas, revisar en los registros de Vercel si es un ataque (muchos intentos fallidos) antes de proponer subirlo. |
-| Olvidó la contraseña | — | «Olvidé mi contraseña» envía un correo, así que necesita el correo configurado. Mientras el correo esté apagado no hay recuperación por autoservicio: encender el correo es una decisión pendiente de la persona responsable. |
+| Olvidó la contraseña | El correo está apagado: «Olvidé mi contraseña» no llega | Un administrador crea **Enlace para nueva contraseña** en su fila del directorio y se lo entrega ([guía](GUIA_ADMINISTRADOR.md#olvidó-su-contraseña)). Sirve una vez, vence a las 24 h y cierra sus sesiones. Si su cuenta también se usa en otro espacio, no se ofrece: la recupera soporte de Daybook. |
 | No ve su equipo | Equipo dado de baja o asignado a otra persona | Revisarlo en **Equipos** (historial del equipo). |
 | «Verifica tu identidad» al invitar | La verificación de contraseña dura 5 minutos | Volver a verificar en Seguridad. |
 
@@ -55,6 +55,7 @@ Las entregas del lanzamiento (L1–L4: serie obligatoria, importación, enlaces 
 ## 7. Incidentes de seguridad
 
 - **Se filtró un CSV de enlaces:** en **Enlaces de invitación**, usa **Renovar todos**, que anula los enlaces anteriores. Si alguien ya activó una cuenta ajena, revoca su acceso en el directorio.
+- **Se filtró un enlace para nueva contraseña:** crea otro para la misma persona; el anterior deja de funcionar. Si ya se usó, en **Seguridad → Auditoría** aparece «Otras sesiones cerradas» a nombre de la persona. En ese caso, revoca su acceso de inmediato. Para devolvérselo, restáuralo y en ese momento entrégale en mano un enlace nuevo: al usarlo se cierran todas las sesiones de la cuenta, también la de quien usó el enlace filtrado.
 - **Cuenta comprometida:** revoca el acceso de la persona en **Equipo y clientes**. Revisa sus sesiones y la auditoría en **Seguridad**.
 - **Secreto expuesto** (base, Blob, correo): rótalo en el proveedor, actualiza la variable en Vercel y redespliega, siempre con orden expresa. Ver `BETTER_AUTH_SECRET` en §6 antes de tocarla.
 - **Respaldos:** copias cifradas en `~/daybook-backups` del equipo del operador ([AUTOMATIC_BACKUPS.md](AUTOMATIC_BACKUPS.md)). Mantener una copia **fuera** de este equipo.

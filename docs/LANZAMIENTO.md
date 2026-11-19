@@ -9,12 +9,13 @@
 | L3 | Estado de cada enlace de invitación y renovación en grupo | #84 |
 | L4 | «Confirma tu equipo» en el portal: el empleado completa la serie o registra su equipo | #85 |
 | — | Límite de inicio de sesión por IP pensado para oficinas que comparten una IP pública | #86 |
+| — | «Enlace para nueva contraseña» que crea el administrador, porque el correo está apagado | este PR |
 
 Guías: [administrador](GUIA_ADMINISTRADOR.md) y [empleado](GUIA_EMPLEADO.md). Incidentes: [runbook](RUNBOOK_INCIDENTES.md). Capacidad: [prueba de carga](LOAD_TEST.md).
 
 ## Decisiones pendientes de la persona responsable
 
-- [ ] **Recuperar contraseñas:** «Olvidé mi contraseña» envía un correo y el correo está apagado. Sin él, quien olvide su contraseña no puede recuperarla por su cuenta. Hay dos caminos: encender el correo transaccional (remitente y proveedor aprobados) o construir un «enlace para restablecer» que genere el administrador, como los enlaces de invitación.
+- [x] **Recuperar contraseñas:** se eligió el enlace que crea el administrador ([guía](GUIA_ADMINISTRADOR.md#olvidó-su-contraseña)). El correo sigue apagado.
 - [ ] **Capacidad de Neon:** comparar el ritmo de horas activas con el cómputo mensual del plan y decidir si se permite autoescalar sobre 0,25 CU ([LOAD_TEST.md](LOAD_TEST.md)).
 - [ ] **Uso de empresa en Vercel:** revisar que el plan de Vercel permita uso comercial y el volumen de despliegues.
 - [ ] **Grupo piloto:** un área de 10 a 30 personas durante una semana antes de sumar al resto.

@@ -40,6 +40,12 @@ export const RATE_RULES = {
     windowMs: 10 * 60_000,
     message: 'Estás importando o renovando invitaciones demasiado seguido. Espera unos minutos.',
   },
+  passwordResetLink: {
+    bucket: 'password-reset-link',
+    max: 30,
+    windowMs: 10 * 60_000,
+    message: 'Estás creando enlaces para restablecer contraseñas demasiado seguido. Espera unos minutos.',
+  },
   ownEquipment: {
     bucket: 'own-equipment',
     max: 20,

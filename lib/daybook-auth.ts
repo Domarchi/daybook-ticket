@@ -12,6 +12,7 @@ import { safeAuthLogger } from './auth-logging';
 import { recordAuthProof, readIdentitySecurity } from './security';
 import { hasFreshProof } from './security-model';
 import { successfulAuthProofs } from './auth-security-hooks';
+import { RESET_HASH_PREFIX, RESET_IDENTIFIER_PREFIX, resetIdentifierHash } from './password-reset-model';
 
 export function daybookAuth() {
   const config = process.env;
@@ -39,6 +40,21 @@ export function daybookAuth() {
       minPasswordLength: 12,
       maxPasswordLength: 128,
       revokeSessionsOnPasswordReset: true,
+      // A saved password makes every other reset link of the account useless, mailed or made by an admin. All the
+      // sessions were just closed; that is what the audit records, from its closed list of actions (0012).
+      onPasswordReset: async ({ user }) => {
+        await database
+          .prepare(`DELETE FROM "authVerification" WHERE value=$1 AND (identifier LIKE $2 OR identifier LIKE $3)`)
+          .bind(user.id, `${RESET_IDENTIFIER_PREFIX}%`, `${RESET_HASH_PREFIX}%`)
+          .run();
+        await database
+          .prepare(
+            `INSERT INTO "securityAudit" (id,"ownerId","actorMemberId","actorUserId","actorName",action,"targetId","createdAt")
+        SELECT gen_random_uuid()::text,"ownerId",id,"userId",name,'other_sessions_revoked',id,$2 FROM members WHERE "userId"=$1 AND status='active'`,
+          )
+          .bind(user.id, new Date().toISOString())
+          .run();
+      },
       sendResetPassword: async ({ user, url }) => {
         const member = await database
           .prepare(
@@ -52,6 +68,13 @@ export function daybookAuth() {
             message: 'La recuperación por correo está pendiente de configuración. Contacta con tu administrador.',
           });
         await enqueueAuthEmail(database, member.ownerId, member.id, url);
+      },
+    },
+    // Reset tokens are kept only as a hash, like invitation tokens (see lib/password-reset-model.ts).
+    verification: {
+      storeIdentifier: {
+        default: 'plain',
+        overrides: { [RESET_IDENTIFIER_PREFIX]: { hash: async identifier => resetIdentifierHash(identifier) } },
       },
     },
     session: { expiresIn: 60 * 60 * 24 * 7, updateAge: 60 * 60 * 24, cookieCache: { enabled: false } },

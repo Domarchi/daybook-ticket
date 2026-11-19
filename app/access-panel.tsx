@@ -2,7 +2,19 @@
 import { daybookFetch } from '@/lib/browser-request';
 
 import { useRef, useState, type FormEvent } from 'react';
-import { Check, Copy, FileSpreadsheet, Mail, Plus, RefreshCw, ShieldCheck, UserPlus, Users, X } from 'lucide-react';
+import {
+  Check,
+  Copy,
+  FileSpreadsheet,
+  KeyRound,
+  Mail,
+  Plus,
+  RefreshCw,
+  ShieldCheck,
+  UserPlus,
+  Users,
+  X,
+} from 'lucide-react';
 import type { MailStatus, Member, MemberRole, Workspace } from '../lib/types';
 import './access-panel.css';
 import { CompaniesPanel, MemberCompanyEditor } from './team-tools';
@@ -18,6 +30,8 @@ export const ROLE_LABELS: Record<MemberRole, string> = {
   agent: 'Agente',
   client: 'Cliente',
 };
+const shortDateTime = (iso: string) =>
+  new Date(iso).toLocaleString('es-CL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const MEMBER_STATUS = { invited: 'Invitación pendiente', active: 'Activo', revoked: 'Acceso revocado' };
 type Run = (action: () => Promise<unknown>, message: string, undo?: { run: () => void }) => Promise<boolean>;
 
@@ -42,7 +56,14 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
   const [now] = useState(() => new Date());
   const [inviteRole, setInviteRole] = useState<MemberRole>('client');
   const [filter, setFilter] = useState('all');
-  const [invitation, setInvitation] = useState<{ memberId: string; email: string; url: string } | null>(null);
+  // The one link on screen: an invitation, or a password reset link (Fase 7). Both are shown only once.
+  const [invitation, setInvitation] = useState<{
+    memberId: string;
+    email: string;
+    url: string;
+    kind?: 'reset';
+    expiresAt?: string;
+  } | null>(null);
   const [copied, setCopied] = useState(false);
   const invitationInput = useRef<HTMLInputElement>(null);
   const isOwner = data.viewer?.role === 'owner';
@@ -93,6 +114,23 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
       setInvitation({ memberId: member.id, email: member.email, url: result.invitationUrl });
       setCopied(false);
     }, 'Nuevo enlace de invitación creado');
+
+  const resetLink = (member: Member) =>
+    run(async () => {
+      const result = await request<{ url: string; expiresAt: string; email: string }>(
+        `/api/members/${member.id}/password-reset`,
+        'POST',
+        {},
+      );
+      setInvitation({
+        memberId: member.id,
+        email: result.email,
+        url: result.url,
+        kind: 'reset',
+        expiresAt: result.expiresAt,
+      });
+      setCopied(false);
+    }, 'Enlace para nueva contraseña creado');
 
   const update = (
     member: Member,
@@ -310,18 +348,31 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
         </section>
       )}
       {invitation && (
-        <section className="access-invitation-result" aria-label="Enlace de invitación">
+        <section
+          className="access-invitation-result"
+          aria-label={invitation.kind === 'reset' ? 'Enlace para nueva contraseña' : 'Enlace de invitación'}
+        >
           <div>
             <span className="access-result-icon">
-              <Check size={19} />
+              {invitation.kind === 'reset' ? <KeyRound size={19} /> : <Check size={19} />}
             </span>
             <div>
-              <h2>Invitación para {invitation.email}</h2>
-              <p>Comparte este enlace con la persona invitada para que cree su contraseña.</p>
+              <h2>
+                {invitation.kind === 'reset'
+                  ? `Nueva contraseña para ${invitation.email}`
+                  : `Invitación para ${invitation.email}`}
+              </h2>
+              <p>
+                {invitation.kind === 'reset'
+                  ? 'Entrega este enlace solo a esa persona, por un canal interno. Con él elige una contraseña nueva y se cierran sus sesiones abiertas.'
+                  : 'Comparte este enlace con la persona invitada para que cree su contraseña.'}
+              </p>
             </div>
             <button
               className="icon-button"
-              aria-label="Ocultar enlace de invitación"
+              aria-label={
+                invitation.kind === 'reset' ? 'Ocultar enlace para nueva contraseña' : 'Ocultar enlace de invitación'
+              }
               onClick={() => setInvitation(null)}
             >
               <X size={18} />
@@ -332,7 +383,7 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
               ref={invitationInput}
               readOnly
               value={invitation.url}
-              aria-label="Enlace de invitación"
+              aria-label={invitation.kind === 'reset' ? 'Enlace para nueva contraseña' : 'Enlace de invitación'}
               onFocus={event => event.target.select()}
             />
             <button className="secondary" onClick={copy}>
@@ -341,9 +392,11 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
             </button>
           </div>
           <small>
-            {data.mailStatus?.configured
-              ? 'La notificación por correo se puede consultar en Configuración.'
-              : 'El correo aún no está configurado. Puedes compartir el enlace directamente.'}
+            {invitation.kind === 'reset'
+              ? `Sirve una sola vez${invitation.expiresAt ? ` y vence el ${shortDateTime(invitation.expiresAt)}` : ''}. Si creas otro, este deja de funcionar. La contraseña actual sigue valiendo hasta que la cambie.`
+              : data.mailStatus?.configured
+                ? 'La notificación por correo se puede consultar en Configuración.'
+                : 'El correo aún no está configurado. Puedes compartir el enlace directamente.'}
           </small>
         </section>
       )}
@@ -446,6 +499,16 @@ export function AccessPanel({ data, busy, run }: { data: Workspace; busy: boolea
                           {member.status === 'invited' && (
                             <button className="text-button" disabled={busy} onClick={() => renew(member)}>
                               Renovar enlace
+                            </button>
+                          )}
+                          {member.status === 'active' && member.hasAccount && (
+                            <button
+                              className="text-button"
+                              disabled={busy}
+                              aria-label={`Crear enlace para nueva contraseña de ${member.name}`}
+                              onClick={() => resetLink(member)}
+                            >
+                              Enlace para nueva contraseña
                             </button>
                           )}
                           {member.status === 'revoked' ? (
