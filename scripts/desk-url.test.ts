@@ -42,6 +42,14 @@ test('the URL decides the view and the open ticket', () => {
   });
 });
 
+test('the older security link opens the personal Configuración, where the account security now lives', () => {
+  assert.equal(parseDeskLocation(params('view=security')).view, 'account');
+  assert.equal(parseDeskLocation(params('view=account')).view, 'account');
+  assert.equal(deskQuery({ view: 'account' }), '?view=account');
+  // An open ticket still wins over the view.
+  assert.equal(parseDeskLocation(params('view=security&ticket=4')).ticketId, 4);
+});
+
 test('the older service-context link still opens the service view', () => {
   assert.equal(parseDeskLocation(params('serviceContext=1')).view, 'service');
   assert.equal(parseDeskLocation(params(`serviceContext=1&company=${company}`)).companyId, company);
@@ -60,7 +68,8 @@ test('unknown views, bad ticket numbers and bad company ids fall back safely', (
 test('every view survives a round trip and the inbox is the bare URL', () => {
   for (const view of DESK_VIEWS) {
     assert.ok(isDeskView(view));
-    assert.equal(parseDeskLocation(params(deskQuery({ view }))).view, view);
+    // `security` is the older address of the account view: it lands in Configuración (below).
+    assert.equal(parseDeskLocation(params(deskQuery({ view }))).view, view === 'security' ? 'account' : view);
   }
   assert.equal(deskQuery({ view: 'inbox' }), '');
   assert.equal(deskQuery({}), '');

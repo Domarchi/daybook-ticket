@@ -6,8 +6,10 @@
  *   /?view=overview        any other view in DESK_VIEWS
  *   /?ticket=12            an open ticket (the view is the inbox when the person goes back)
  *   /?view=service&company=<uuid>   a company inside "Empresas y servicios"
- *   /?view=settings&section=mail    a section of Configuración (general when omitted)
+ *   /?view=settings&section=mail    a section of Ajustes del espacio (general when omitted)
+ *   /?view=account         the person's own Configuración (theme, account and security, session)
  *
+ * `?view=security` is the older address of the account security view: it now opens Configuración.
  * `?serviceContext=1[&company=]` is the older form of the service view; it is still read.
  */
 export const DESK_VIEWS = [
@@ -25,6 +27,7 @@ export const DESK_VIEWS = [
   'service',
   'reports',
   'security',
+  'account',
 ] as const;
 export type View = (typeof DESK_VIEWS)[number];
 
@@ -57,7 +60,14 @@ export function parseDeskLocation(params: Params): {
 } {
   const ticketId = parseTicketId(params.get('ticket'));
   const requested = params.get('view');
-  const view: View = isDeskView(requested) ? requested : params.get('serviceContext') === '1' ? 'service' : 'inbox';
+  const view: View =
+    requested === 'security'
+      ? 'account'
+      : isDeskView(requested)
+        ? requested
+        : params.get('serviceContext') === '1'
+          ? 'service'
+          : 'inbox';
   const company = params.get('company');
   const section = params.get('section');
   return {

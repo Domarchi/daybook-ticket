@@ -25,13 +25,15 @@ export const views: Record<View, string> = {
   requirements: 'Requerimientos',
   knowledge: 'Conocimiento',
   team: 'Equipo y clientes',
-  settings: 'Configuración',
+  settings: 'Ajustes del espacio',
   portal: 'Centro de ayuda',
   operations: 'Atención y reparto',
   metrics: 'Métricas del equipo',
   service: 'Empresas y servicios',
   reports: 'Informes por empresa',
-  security: 'Seguridad de mi cuenta',
+  // La dirección vieja de la seguridad de la cuenta; abre Configuración (parseDeskLocation).
+  security: 'Configuración',
+  account: 'Configuración',
 };
 export function initials(name: string) {
   return name
@@ -204,9 +206,9 @@ export function ConfirmDialog({
     </Modal>
   );
 }
-// Cerrar sesión no tiene vuelta atrás y el botón es un ícono al lado del
-// nombre: pregunta antes, con los mismos textos que Parte Diario. Lo usan el
-// riel del equipo y la cabecera del portal del cliente.
+// Cerrar sesión no tiene vuelta atrás: pregunta antes, con los mismos textos
+// que Parte Diario. Lo usan Configuración (Sesión) del equipo y la cabecera
+// del portal del cliente.
 export function SignOutDialog({ onConfirm, onClose }: { onConfirm: () => void; onClose: () => void }) {
   return (
     <ConfirmDialog

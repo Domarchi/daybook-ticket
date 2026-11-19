@@ -71,7 +71,6 @@
 .mail-panel-footer small { display: block; font-size: var(--db-text-caption); line-height: 1.8; color: var(--muted, #69717c); margin-top: 6px; }
 .mail-panel-footer .secondary { min-height: 44px; font-size: var(--db-text-meta); border-color: #d8dce2; color: var(--ink, #11120f); }
 .mail-panel-body > .mail-last-error { font-size: var(--db-text-meta); background: #fff0ec; color: #963b2b; padding: 12px 15px; border: 1px solid #efcfc8; border-radius: var(--db-radius-control); margin-bottom: 20px; }
-.profile > button { display: inline-flex; align-items: center; justify-content: center; margin-left: auto; min-width: 42px; min-height: 42px; color: #c5cbd4; padding: 10px; }
 .detail-fields .assignment-note { display: block; font-size: var(--db-text-caption); color: var(--muted, #69717c); line-height: 1.6; margin-top: 7px; }
 .detail-fields .client-link-note { font-size: var(--db-text-caption); color: var(--muted, #69717c); line-height: 1.7; margin-top: 7px; }
 .staff-denied { max-width: 540px; margin: 12vh auto; padding: 35px; background: #fff; border: 1px solid var(--line, #e6e8ec); border-radius: var(--db-radius-card); text-align: center; }

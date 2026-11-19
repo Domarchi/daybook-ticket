@@ -5,7 +5,7 @@ import { todayIn } from '../../lib/fulfillment-model';
 import { calculateTicketDueAt, readServicePolicySnapshot } from '../../lib/sla-policy';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
-import { BASE_URL, DATABASE_URL } from '../support/env';
+import { BASE_URL, DATABASE_URL, OWNER_EMAIL } from '../support/env';
 
 const SUBJECT = 'No puedo imprimir la factura de octubre';
 const REQUESTER = 'Andrea Molina';
@@ -44,10 +44,10 @@ test.describe('the support desk', () => {
   }) => {
     await page.goto('/');
     const block = page.locator('#daybook-navigation > .db-brand-block.db-on-dark');
-    await expect(block).toHaveCSS('min-height', '108px');
+    await expect(block).toHaveCSS('min-height', '92px');
     const logo = block.getByRole('img', { name: 'Daybook Ticket', exact: true });
     await expect(logo).toHaveClass(/\bdb-lockup\b/);
-    await expect(logo.locator('.db-mark')).toHaveCSS('width', '48px');
+    await expect(logo.locator('.db-mark')).toHaveCSS('width', '40px');
     await expect(logo.locator('.db-lockup__product')).toHaveText('Ticket');
     await expect(block.locator('img')).toHaveCount(0);
     await block.getByRole('button', { name: 'Daybook Ticket' }).click();
@@ -57,8 +57,7 @@ test.describe('the support desk', () => {
   test('the rail list is the shared Daybook one, aligned with the brand, and the person stays in view', async ({
     page,
   }) => {
-    // A laptop that is not tall: before, the whole rail scrolled and the person, «Cerrar sesión» and the theme
-    // were below the fold.
+    // A laptop that is not tall: before, the whole rail scrolled and the person and the theme were below the fold.
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.goto('/');
     const rail = page.locator('#daybook-navigation');
@@ -85,7 +84,7 @@ test.describe('the support desk', () => {
         row: style(rows.find(row => row !== current)!),
         current: style(current),
         sectionStyle: { ...style(section), transform: getComputedStyle(section).textTransform },
-        footer: Math.round(element.querySelector('.sidebar-bottom')!.getBoundingClientRect().bottom),
+        footer: Math.round(element.querySelector('.db-rail-footer')!.getBoundingClientRect().bottom),
         height: innerHeight,
       };
     });
@@ -99,21 +98,32 @@ test.describe('the support desk', () => {
     expect(measured.current).toEqual({ size: '13px', weight: '600' });
     expect(measured.sectionStyle).toEqual({ size: '11px', weight: '600', transform: 'uppercase' });
     expect(measured.footer).toBeLessThanOrEqual(measured.height);
-    await expect(rail.getByRole('button', { name: 'Cerrar sesión' })).toBeInViewport();
+    // The footer is the shared one, as in Parte Diario: the person and the theme in one row, no «Cerrar sesión».
+    const account = rail.locator('.db-rail-footer > .db-rail-account');
+    await expect(account.locator('.db-rail-avatar')).toHaveText('PD');
+    await expect(account.locator('.db-rail-avatar')).toHaveCSS('width', '34px');
+    await expect(account.locator('.db-rail-account__name')).toHaveText('Propietaria de Prueba');
+    const theme = account.getByRole('button', { name: /^Tema: / });
+    await expect(theme).toBeInViewport();
+    expect((await theme.boundingBox())!.width).toBe(44);
+    await expect(rail.getByRole('button', { name: 'Cerrar sesión' })).toHaveCount(0);
     if (process.env.DAYBOOK_E2E_CAPTURES)
       await page.screenshot({ path: `${process.env.DAYBOOK_E2E_CAPTURES}/riel-ticket-1366x768.png` });
 
     // A real click moves the mark; the account rows now say where the person is too.
-    await rail.getByRole('button', { name: 'Seguridad', exact: true }).click();
-    await expect(rail.getByRole('button', { name: 'Seguridad', exact: true })).toHaveAttribute('aria-current', 'page');
+    await rail.getByRole('button', { name: 'Configuración', exact: true }).click();
+    await expect(rail.getByRole('button', { name: 'Configuración', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
     await expect(inbox).not.toHaveAttribute('aria-current', 'page');
     await main.getByRole('button', { name: /^Bandeja de entrada/ }).click();
     await expect(inbox).toHaveAttribute('aria-current', 'page');
     await expectNoSeriousViolations(page, 'Riel común');
     // The list scrolls on its own, down to the account rows, while the person stays put.
-    await rail.locator('.sidebar-scroll').evaluate(element => element.scrollTo({ top: element.scrollHeight }));
+    await rail.locator('.db-rail-scroll').evaluate(element => element.scrollTo({ top: element.scrollHeight }));
     await expect(rail.getByRole('button', { name: 'Centro de ayuda' })).toBeInViewport();
-    await expect(rail.getByRole('button', { name: 'Cerrar sesión' })).toBeInViewport();
+    await expect(theme).toBeInViewport();
     if (process.env.DAYBOOK_E2E_CAPTURES)
       await page.screenshot({ path: `${process.env.DAYBOOK_E2E_CAPTURES}/riel-ticket-1366x768-abajo.png` });
   });
@@ -417,11 +427,12 @@ test.describe('the support desk', () => {
 
   test('settings opens by section and the section stays in the address', async ({ page }) => {
     await page.goto('/');
-    const settings = page.getByRole('button', { name: 'Configuración', exact: true });
+    const settings = page.getByRole('button', { name: 'Ajustes del espacio', exact: true });
     await settings.click();
     await expect(page).toHaveURL(/view=settings/);
     await expect(settings).toHaveAttribute('class', /active/);
-    await expectNoSeriousViolations(page, 'Configuración');
+    await expect(page.getByRole('heading', { name: 'Ajustes del espacio', level: 1 })).toBeVisible();
+    await expectNoSeriousViolations(page, 'Ajustes del espacio');
     await page.goto('/?view=settings&section=mail');
     await expect(page).toHaveURL(/section=mail/);
     await expect(settings).toHaveAttribute('class', /active/);
@@ -466,21 +477,80 @@ test.describe('the support desk', () => {
   }) => {
     await page.goto('/');
     const html = page.locator('html');
-    const appearance = page.getByRole('combobox', { name: 'Apariencia' });
+    const rail = page.locator('#daybook-navigation');
+    // The button at the foot of the rail cycles Sistema → Claro → Oscuro, like Parte Diario's.
+    const theme = rail.getByRole('button', { name: /^Tema: / });
+    await expect(theme).toHaveAccessibleName('Tema: Sistema');
+    await expect(theme).toHaveAttribute('title', 'Cambiar a Claro');
     // The choice is saved with PUT /api/preferences; reload only after the server answered.
     const savedPreference = () =>
       page.waitForResponse(r => r.url().endsWith('/api/preferences') && r.request().method() === 'PUT' && r.ok());
-    await Promise.all([savedPreference(), appearance.selectOption('dark')]);
+    await Promise.all([savedPreference(), theme.click()]);
+    await expect(theme).toHaveAccessibleName('Tema: Claro');
+    await expect(html).toHaveAttribute('data-theme', 'light');
+    await Promise.all([savedPreference(), theme.click()]);
+    await expect(theme).toHaveAccessibleName('Tema: Oscuro');
+    await expect(theme).toHaveAttribute('title', 'Cambiar a Sistema');
     await expect(html).toHaveAttribute('data-theme', 'dark');
     await expect(html).toHaveAttribute('data-theme-preference', 'dark');
     await expect(html).not.toHaveAttribute('data-color-scheme', /./);
+    // The class that freezes transitions while the theme changes is gone again.
+    await expect(html).not.toHaveClass(/db-theme-switching/);
     await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(0, 0, 0)');
     await page.reload();
-    await expect(page.getByRole('combobox', { name: 'Apariencia' })).toHaveValue('dark');
+    await expect(theme).toHaveAccessibleName('Tema: Oscuro');
     await expect(html).toHaveAttribute('data-theme', 'dark');
-    await Promise.all([savedPreference(), page.getByRole('combobox', { name: 'Apariencia' }).selectOption('system')]);
+    // Configuración › Apariencia shows the same choice and changes it too.
+    await rail.getByRole('button', { name: 'Configuración', exact: true }).click();
+    await expect(page).toHaveURL(/view=account/);
+    const choice = page.getByRole('group', { name: 'Tema' });
+    await expect(choice.getByRole('radio', { name: 'Oscuro' })).toBeChecked();
+    await Promise.all([savedPreference(), choice.getByText('Según el sistema').click()]);
+    await expect(choice.getByRole('radio', { name: 'Según el sistema' })).toBeChecked();
+    await expect(theme).toHaveAccessibleName('Tema: Sistema');
     await expect(html).toHaveAttribute('data-theme', 'light');
     await expect(html).toHaveAttribute('data-theme-preference', 'system');
+  });
+
+  test('Configuración holds the appearance, the account and its security, the session and help', async ({ page }) => {
+    // The old address of «Seguridad» lands in Configuración.
+    await page.goto('/?view=security');
+    await expect(page).toHaveURL(/view=account/);
+    await expect(page.getByRole('heading', { name: 'Configuración', level: 1 })).toBeVisible();
+    const rail = page.locator('#daybook-navigation');
+    await expect(rail.getByRole('button', { name: 'Configuración', exact: true })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    await expect(rail.getByRole('button', { name: 'Seguridad', exact: true })).toHaveCount(0);
+    const main = page.locator('main');
+    await expect(main.getByRole('heading', { name: 'Cómo se ve la aplicación' })).toBeVisible();
+    await expect(main.getByRole('heading', { name: 'Propietaria de Prueba', level: 2 })).toBeVisible();
+    await expect(main.locator('.settings-facts').getByText(OWNER_EMAIL)).toBeVisible();
+    await expect(main.getByRole('heading', { name: 'Seguridad de tu cuenta' })).toBeVisible();
+    await expect(main.getByRole('heading', { name: 'Salir de este dispositivo' })).toBeVisible();
+    await expect(main.getByText('Tendrás que ingresar de nuevo para seguir.')).toBeVisible();
+    const session = main.getByRole('region', { name: 'Salir de este dispositivo' });
+    const signOut = session.getByRole('button', { name: 'Cerrar sesión' });
+    // One way out: the security block embedded here hides its own return link and its unconfirmed sign-out.
+    await expect(main.getByRole('button', { name: 'Cerrar sesión' })).toHaveCount(1);
+    await expect(main.getByRole('link', { name: 'Volver a Daybook Ticket' })).toHaveCount(0);
+    await expect(signOut).toHaveCSS('background-color', 'rgb(179, 38, 30)');
+    expect((await signOut.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expect(main.getByRole('button', { name: 'Abrir el centro de ayuda' })).toBeVisible();
+    await expect(page.locator('.loading')).toHaveCount(0);
+    await expectNoSeriousViolations(page, 'Configuración');
+    if (process.env.DAYBOOK_E2E_CAPTURES)
+      await page.screenshot({ path: `${process.env.DAYBOOK_E2E_CAPTURES}/configuracion-1280.png`, fullPage: true });
+    // «Cerrar sesión» asks first; «Seguir trabajando» keeps the session.
+    await signOut.click();
+    const dialog = page.getByRole('dialog', { name: 'Cerrar sesión' });
+    await expect(dialog.getByRole('button', { name: 'Seguir trabajando' })).toBeFocused();
+    await dialog.getByRole('button', { name: 'Seguir trabajando' }).click();
+    await expect(dialog).toBeHidden();
+    await expect(page).not.toHaveURL(/\/login/);
+    await main.getByRole('button', { name: 'Abrir el centro de ayuda' }).click();
+    await expect(page.getByRole('heading', { name: 'Centro de ayuda', level: 1 })).toBeVisible();
   });
 
   test('a new client is invited with their company and equipment, and the same equipment is not given twice', async ({
@@ -1777,7 +1847,8 @@ test.describe('the support desk', () => {
         ['requirements', 'Requerimientos'],
         ['knowledge', 'Conocimiento'],
         ['team', 'Equipo'],
-        ['settings', 'Configuración'],
+        ['settings', 'Ajustes del espacio'],
+        ['account', 'Configuración'],
       ]) {
         await page.goto(`/?view=${view}`);
         await expect(page.locator('main h1').first()).toBeVisible();

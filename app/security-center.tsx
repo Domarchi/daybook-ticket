@@ -58,10 +58,18 @@ export function SecurityCenter({
   memberId,
   returnTo = '/',
   identityOnly = false,
+  embedded = false,
 }: {
   memberId?: string;
   returnTo?: string;
   identityOnly?: boolean;
+  /**
+   * Dentro de Configuración del escritorio: no muestra «Volver a Daybook Ticket»
+   * ni su «Cerrar sesión», porque la vista ya tiene su propia sección Sesión
+   * (que pregunta antes de salir). Solo cambia lo que se ve; los flujos de
+   * contraseña, doble factor y verificación quedan igual.
+   */
+  embedded?: boolean;
 }) {
   const router = useRouter();
   const call = useCallback(
@@ -484,30 +492,32 @@ export function SecurityCenter({
                   </button>
                 </div>
               )}
-              <div className="security-actions">
-                {!status.challengeRequired && (
-                  <a className="secondary" href={safeTicketReturnPath(returnTo)}>
-                    Volver a Daybook Ticket
-                  </a>
-                )}
-                <button
-                  type="button"
-                  className="text-button"
-                  disabled={busy}
-                  onClick={() =>
-                    void run(async () => {
-                      await api('/api/auth/sign-out', memberId, 'POST', {});
-                      setCodes([]);
-                      setTotpURI('');
-                      setShowKey(false);
-                      router.replace('/login');
-                      router.refresh();
-                    })
-                  }
-                >
-                  Cerrar sesión
-                </button>
-              </div>
+              {!embedded && (
+                <div className="security-actions">
+                  {!status.challengeRequired && (
+                    <a className="secondary" href={safeTicketReturnPath(returnTo)}>
+                      Volver a Daybook Ticket
+                    </a>
+                  )}
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async () => {
+                        await api('/api/auth/sign-out', memberId, 'POST', {});
+                        setCodes([]);
+                        setTotpURI('');
+                        setShowKey(false);
+                        router.replace('/login');
+                        router.refresh();
+                      })
+                    }
+                  >
+                    Cerrar sesión
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>

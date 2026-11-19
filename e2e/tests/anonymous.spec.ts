@@ -22,8 +22,8 @@ test.describe('without a session', () => {
     const logo = page.locator('.auth-topbar').getByRole('img', { name: 'Daybook Ticket', exact: true });
     await expect(logo).toHaveClass(/\bdb-lockup\b/);
     await expect(logo.locator('.db-lockup__product')).toHaveText('Ticket');
-    await expect(logo.locator('.db-mark')).toHaveCSS('width', '48px');
-    await expect(logo.locator('.db-mark')).toHaveCSS('height', '48px');
+    await expect(logo.locator('.db-mark')).toHaveCSS('width', '40px');
+    await expect(logo.locator('.db-mark')).toHaveCSS('height', '40px');
     const mark = page.locator('.auth-icon').getByRole('img', { name: 'Daybook', exact: true });
     await expect(mark).toHaveCSS('width', '56px');
     await expect(page.locator('.auth-eyebrow')).toHaveText(/acceso seguro/i);

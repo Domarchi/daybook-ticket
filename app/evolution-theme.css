@@ -66,14 +66,9 @@
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .priority.urgent{color:#ffb4aa}:root:not([data-theme="light"]) .priority.low{color:#b9c7b5}}
 :root[data-theme="dark"] .priority.urgent{color:#ffb4aa}:root[data-theme="dark"] .priority.low{color:#b9c7b5}
 
-/* Riel y cabecera negros en el tema oscuro, como Parte Diario y Daybook Travel
-   (negro tipo Vercel). El riel grafito #11120f queda solo para el tema claro;
-   en oscuro el riel y la cabecera se separan del contenido solo por su borde. */
-:root[data-theme="dark"] .sidebar{background:#000;border-right:1px solid var(--line);scrollbar-color:#3a3a3a #000}
-:root[data-theme="dark"] .sidebar:focus-within{scrollbar-color:#8a7c5c #000}
+/* Cabecera negra en el tema oscuro, como Parte Diario y Daybook Travel (negro tipo
+   Vercel). El riel toma --db-rail-bg (grafito en claro, negro en oscuro) en globals.css. */
 :root[data-theme="dark"] .topbar{background:#000;border-color:var(--line)}
 @media (prefers-color-scheme: dark){
-:root:not([data-theme="light"]) .sidebar{background:#000;border-right:1px solid var(--line);scrollbar-color:#3a3a3a #000}
-:root:not([data-theme="light"]) .sidebar:focus-within{scrollbar-color:#8a7c5c #000}
 :root:not([data-theme="light"]) .topbar{background:#000;border-color:var(--line)}
 }
