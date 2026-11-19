@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const access = await requireAccess(request);
     const database = db();
     const client = access.role === 'client';
-    const [feed, articles, settings, demo, members, companies, savedReplies, evolution, preferences] =
+    const [feed, articles, settings, demo, members, companies, savedReplies, evolution, preferences, organization] =
       await Promise.all([
         getTicketFeed(access),
         knowledgeWorkspaceArticles(access, database),
@@ -41,6 +41,10 @@ export async function GET(request: Request) {
         getSavedReplies(access),
         getEvolutionFeatures(access.ownerId),
         getUserPreferences(access.userId),
+        database
+          .prepare('SELECT name FROM organizations WHERE id = $1 AND "ownerId" = $2')
+          .bind(access.organizationId, access.ownerId)
+          .first<{ name: string }>(),
       ]);
     if (!client)
       after(async () => {
@@ -51,6 +55,7 @@ export async function GET(request: Request) {
     if (profile) settings.brandName = profile.brandName;
     return json({
       workspaceId: access.organizationId,
+      workspaceName: organization?.name || settings.brandName,
       platformBackupAllowed:
         access.organizationId === 'daybook' && access.role === 'owner' && operatorGranted({ userId: access.userId }),
       viewer: access.member,

@@ -538,7 +538,9 @@ export default function Desk({
                 </>
               )}
             </span>
-            <span>Parte de Servicios Daybook.</span>
+            {data.workspaceName && data.workspaceName !== data.settings.brandName && (
+              <span>Parte de {data.workspaceName}.</span>
+            )}
           </footer>
         </div>
       </main>

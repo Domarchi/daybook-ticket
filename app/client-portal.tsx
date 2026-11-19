@@ -886,7 +886,10 @@ export default function ClientPortal({
           </>
         )}
         <footer className="client-footer">
-          <span>{data.settings.brandName} · Servicios Daybook</span>
+          <span>
+            {data.settings.brandName}
+            {data.workspaceName && data.workspaceName !== data.settings.brandName && ` · ${data.workspaceName}`}
+          </span>
         </footer>
       </main>
       {/* The notice after an action, as on the team desk (Phase 5 of the Daybook standard): bottom centre,

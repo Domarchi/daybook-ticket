@@ -149,6 +149,8 @@ export interface Settings {
 }
 export interface Workspace {
   workspaceId?: string;
+  /** The workspace's own name (organizations.name), shown instead of a fixed company name. */
+  workspaceName?: string;
   platformBackupAllowed?: boolean;
   evolution?: { features: import('./evolution-feature-model').EvolutionFeatures; version: number; available: boolean };
   preferences?: { theme: 'system' | 'light' | 'dark' };
