@@ -31,13 +31,16 @@ const { values: options } = parseArgs({
     seconds: { type: 'string', default: '180' },
     tickets: { type: 'string', default: '3000' },
     'new-tickets-per-minute': { type: 'string', default: '10' },
+    // Poll like the browser before A1, without sending back the tag of the last answer.
+    'no-conditional': { type: 'boolean', default: false },
   },
 });
 const USERS = Number(options.users),
   AGENTS = Number(options.agents),
   SECONDS = Number(options.seconds),
   SEED_TICKETS = Number(options.tickets),
-  NEW_TICKETS_PER_MINUTE = Number(options['new-tickets-per-minute']);
+  NEW_TICKETS_PER_MINUTE = Number(options['new-tickets-per-minute']),
+  CONDITIONAL = !options['no-conditional'];
 
 if (process.env.DAYBOOK_LOAD_TEST !== '1') throw new Error('Set DAYBOOK_LOAD_TEST=1: this script wipes the database.');
 const databaseUrl = new URL(process.env.DATABASE_URL ?? '');
@@ -236,10 +239,16 @@ async function browse(person, deadline, waveMs) {
   await call('GET /api/workspace (abrir)', '/api/workspace', { cookie: person.cookie });
   if (person.role === 'client') await call('GET /api/equipment/mine', '/api/equipment/mine', { cookie: person.cookie });
   const every = person.role === 'agent' ? 5_000 : person.profile.ms;
+  // Like hooks/use-workspace.ts: the tag of the last answer goes back, and 304 means nothing changed (A1).
+  let tag = '';
   while (Date.now() < deadline) {
     await sleep(every * (0.9 + Math.random() * 0.2));
     if (Date.now() >= deadline) break;
-    await call('GET /api/tickets/updates', '/api/tickets/updates', { cookie: person.cookie });
+    const response = await call('GET /api/tickets/updates', '/api/tickets/updates', {
+      cookie: person.cookie,
+      headers: CONDITIONAL && tag ? { 'if-none-match': tag } : {},
+    });
+    if (response?.status === 200) tag = response.headers.get('etag') ?? '';
   }
 }
 
