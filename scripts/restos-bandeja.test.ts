@@ -11,13 +11,18 @@ const DEAD = /\.(focus-(count|divider|heading|icon|link|panel)|next-step)(?![\w-
 
 test('solucionar varios avisa si todo salió bien y la bandeja lleva el foco a la cola activa', async () => {
   const [desk, inbox] = await Promise.all([read('app/desk.tsx'), read('app/desk-parts/inbox-view.tsx')]);
-  assert.match(desk, /`\$\{ids\.length\} tickets solucionados`\);\s*setSelected\(\[\]\);\s*return true;/);
+  assert.match(
+    desk,
+    /notify\(ids\.length === 1 \? words\.one : `\$\{ids\.length\} \$\{words\.many\}`\);\s*setSelected\(\[\]\);\s*return true;/,
+  );
+  assert.match(desk, /many: 'tickets solucionados'/);
+  assert.match(desk, /many: 'tickets cerrados'/);
   assert.match(desk, /setSelected\(failed\);\s*return false;/);
-  assert.match(inbox, /resolveSelected: \(\) => Promise<boolean>;/);
+  assert.match(inbox, /resolveSelected: \(status\?: 'resolved' \| 'closed'\) => Promise<boolean>;/);
   assert.match(inbox, /<section className="ticket-panel" ref=\{ticketPanel\}>/);
   assert.match(inbox, /querySelector<HTMLElement>\('\.queue-tabs \[aria-pressed="true"\]'\)\?\.focus\(\)/);
   // The dialog closes and the focus moves in the same render, only when every ticket was solved.
-  assert.match(inbox, /setConfirmingResolve\(false\);\s*if \(solved\) setListFocus\(count => count \+ 1\);/);
+  assert.match(inbox, /setConfirming\(null\);\s*if \(solved\) setListFocus\(count => count \+ 1\);/);
   // The bar's own «Cancelar» takes the bar away too: same landing place, not <body>.
   assert.match(inbox, /setSelected\(\[\]\);\s*setListFocus\(count => count \+ 1\);\s*\}\}\s*>\s*Cancelar/);
   // One ticket left in the bar is said in singular.

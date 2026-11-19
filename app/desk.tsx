@@ -44,6 +44,16 @@ import { SkeletonList } from './estados';
 // Bita's chat is only downloaded when the server offers it to this person.
 const Bita = dynamic(() => import('./bita'), { ssr: false });
 
+/** Texts of the bulk bar's two actions: solve, and close tickets already solved. */
+const BULK_WORDS = {
+  resolved: {
+    one: 'Ticket solucionado',
+    many: 'tickets solucionados',
+    done: 'Se solucionaron',
+    failed: 'No se pudieron solucionar',
+  },
+  closed: { one: 'Ticket cerrado', many: 'tickets cerrados', done: 'Se cerraron', failed: 'No se pudieron cerrar' },
+} as const;
 export default function Desk({
   displayName,
   email,
@@ -243,14 +253,13 @@ export default function Desk({
       return false;
     }
   };
-  // Resolves true when every ticket was solved: the bulk bar is gone and the inbox moves focus to the list.
-  const resolveSelected = async () => {
+  // Resolves true when every ticket was solved (or closed): the bulk bar is gone and the inbox moves focus to the list.
+  const resolveSelected = async (status: 'resolved' | 'closed' = 'resolved') => {
     const ids = [...visibleSelected];
+    const words = BULK_WORDS[status];
     setBusy(true);
     setError('');
-    const results = await Promise.allSettled(
-      ids.map(id => request(`/api/tickets/${id}`, 'PATCH', { status: 'resolved' })),
-    );
+    const results = await Promise.allSettled(ids.map(id => request(`/api/tickets/${id}`, 'PATCH', { status })));
     const failed = ids.filter((_, index) => results[index].status === 'rejected');
     try {
       await refresh();
@@ -259,12 +268,12 @@ export default function Desk({
     }
     setBusy(false);
     if (failed.length === 0) {
-      notify(ids.length === 1 ? 'Ticket solucionado' : `${ids.length} tickets solucionados`);
+      notify(ids.length === 1 ? words.one : `${ids.length} ${words.many}`);
       setSelected([]);
       return true;
     } else {
       setError(
-        `Se solucionaron ${ids.length - failed.length} de ${ids.length}. No se pudieron solucionar: ${failed.map(id => `#${String(id).padStart(4, '0')}`).join(', ')}.`,
+        `${words.done} ${ids.length - failed.length} de ${ids.length}. ${words.failed}: ${failed.map(id => `#${String(id).padStart(4, '0')}`).join(', ')}.`,
       );
       setSelected(failed);
       return false;

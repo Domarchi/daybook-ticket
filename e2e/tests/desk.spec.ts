@@ -980,6 +980,22 @@ test.describe('the support desk', () => {
       await expect(dialog).toBeHidden();
       await expect(bar).toHaveCount(0);
       await expect.poll(statuses).toEqual(['resolved', 'resolved']);
+
+      // Once solved, the same two are closed together: closing is offered only when every one is solved.
+      await page.getByRole('checkbox', { name: `Seleccionar ticket ${ids[0]}` }).check();
+      await page.getByRole('checkbox', { name: `Seleccionar ticket ${ids[1]}` }).check();
+      await expect(bar.getByRole('button', { name: 'Marcar como solucionados' })).toHaveCount(0);
+      await bar.getByRole('button', { name: 'Cerrar seleccionados' }).click();
+      const closing = page.getByRole('dialog', { name: 'Cerrar tickets' });
+      await expect(closing).toContainText(
+        'Vas a cerrar 2 tickets ya solucionados. Un ticket cerrado solo se puede reabrir.',
+      );
+      await expect(closing.getByRole('button', { name: 'Cancelar' })).toBeFocused();
+      await expectNoSeriousViolations(page, 'Confirmar cerrar varios');
+      await closing.getByRole('button', { name: 'Cerrar 2 tickets' }).click();
+      await expect(page.getByRole('status').filter({ hasText: '2 tickets cerrados' })).toBeVisible();
+      await expect(bar).toHaveCount(0);
+      await expect.poll(statuses).toEqual(['closed', 'closed']);
     } finally {
       await pool.end();
     }
