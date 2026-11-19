@@ -47,7 +47,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.4.0",
-    "@daybook/design": "github:Domarchi/daybook-design#c87689ed0d0bc33123e16d5e79500f23b0b6618f",
+    "@daybook/design": "github:Domarchi/daybook-design#v0.10.0",
     "@vercel/blob": "2.8.2",
     "@vercel/functions": "^3.3.0",
     "better-auth": "1.7.15",
