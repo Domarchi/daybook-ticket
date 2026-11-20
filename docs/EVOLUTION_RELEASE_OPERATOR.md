@@ -1,10 +1,10 @@
 # Operador de publicación y reversión de la evolución
 
-El operador `scripts/migrate-evolution-production.mjs` migra únicamente un prefijo explícito, contiguo y revisado de 0007 a 0017. No publica una aplicación, activa funciones, crea pilotos, exige MFA, cambia planes ni envía correo o push. No carga archivos de entorno. Las credenciales deben existir previamente como `DATABASE_URL` y `DIRECT_DATABASE_URL` en el entorno privado del proceso autorizado; nunca se pasan como argumentos ni se muestran en los informes.
+El operador `scripts/migrate-evolution-production.mjs` migra únicamente un prefijo explícito, contiguo y revisado de 0007 a 0018. No publica una aplicación, activa funciones, crea pilotos, exige MFA, cambia planes ni envía correo o push. No carga archivos de entorno. Las credenciales deben existir previamente como `DATABASE_URL` y `DIRECT_DATABASE_URL` en el entorno privado del proceso autorizado; nunca se pasan como argumentos ni se muestran en los informes.
 
 ## Estado revisado de esta entrega
 
-`REVIEWED_EVOLUTION_MIGRATIONS` contiene las migraciones `0007_collaboration` a `0017_equipment_serial_unique`, con sus fechas de diario (`1793912000000` para 0007, +1000 por índice hasta `1793912010000` para 0017) y sus SHA-256 fijados en `scripts/migrate-evolution-production.mjs`. Los archivos 0000 hasta el prefijo solicitado con `--through` se comprueban contra esas constantes antes de consultar la base. Los hashes y fechas 0000–0006 reutilizan el operador de fiabilidad ya revisado, que sigue siendo el único que aplica 0006: este operador exige 0000–0006 ya aplicadas.
+`REVIEWED_EVOLUTION_MIGRATIONS` contiene las migraciones `0007_collaboration` a `0018_security_audit_reset_actions`, con sus fechas de diario (`1793912000000` para 0007, +1000 por índice hasta `1793912011000` para 0018) y sus SHA-256 fijados en `scripts/migrate-evolution-production.mjs`. Los archivos 0000 hasta el prefijo solicitado con `--through` se comprueban contra esas constantes antes de consultar la base. Los hashes y fechas 0000–0006 reutilizan el operador de fiabilidad ya revisado, que sigue siendo el único que aplica 0006: este operador exige 0000–0006 ya aplicadas.
 
 Un objetivo superior falla con `evolution_prefix_not_reviewed` antes de crear una conexión. Cada entrega posterior debe añadir su propia constante revisada a continuación de la anterior, después de integrar y probar su SQL en QA. No se calculan constantes nuevas automáticamente a partir de los archivos locales. La fecha de 0007 es `1793912000000`; las siguientes aumentan exactamente 1000 por índice. Una migración registrada en la base es inmutable: no se corrige su archivo ni su fecha. Una corrección necesita otra migración y revisión.
 
@@ -94,10 +94,24 @@ La gramática adicional rechaza escrituras de datos en la migración, `DO`, cons
   - con una serie repetida en los datos, el ensayo en seco falló con `23505` y el diario quedó en 17 filas.
 - **En la ventana:** el envoltorio privado `prod-run.sh` del coordinador debe admitir `--through=0017` (su lista de prefijos válidos). Esa copia no está en Git.
 
-Las dos excepciones estructurales estrechas son:
+0018 amplía la lista cerrada de acciones de la auditoría de seguridad (`security_audit_action`, creada en 0012), sin datos, columnas ni índices:
+- **Qué cambia:** se reemplaza la restricción por otra con el mismo nombre, las 14 acciones anteriores en el mismo orden y dos nuevas: `password_reset_link_created` (un administrador creó un enlace para nueva contraseña) y `password_reset_completed` (la persona usó el enlace).
+- **Qué no cambia:** las filas existentes, que siguen cumpliendo la restricción nueva, y el disparador `security_audit_immutable`, que mantiene la tabla en modo de solo agregar.
+- **Comprobaciones del operador:** antes de aplicar, la restricción de la base debe ser exactamente la de 0012; después, exactamente la nueva. Si alguien la cambió a mano, se detiene con `unexpected_audit_constraint_replacement` sin aplicar nada.
+- **Compatibilidad del código:** la app actual no escribe estas acciones; las registra como «Acceso de una cuenta modificado» y «Otras sesiones cerradas». El código que las usa va en un PR aparte, que se fusiona **después** de aplicar 0018: antes de eso, escribirlas fallaría con `23514`. Volver a un despliegue anterior no exige revertir 0018, porque la lista nueva incluye todas las acciones anteriores.
+- **Ensayo local** (20 nov 2026, PostgreSQL 17 desechable en 0017, 3.000 filas de auditoría, operador real):
+  - antes de 0018, la acción nueva se rechazó con `23514`;
+  - la auditoría, el ensayo en seco y la aplicación dieron `PASS`, y el ensayo en seco dejó la restricción igual;
+  - la auditoría posterior dio `PASS` (`already_applied_no_changes`);
+  - después de aplicar, se aceptaron las dos acciones nuevas y una anterior, una acción inventada se rechazó con `23514`, y modificar o borrar filas siguió bloqueado;
+  - con la restricción alterada a mano, el ensayo en seco falló con `unexpected_audit_constraint_replacement` y el diario quedó en 18 filas.
+- **En la ventana:** puede aplicarse junto con 0017 con `--through=0018`. El envoltorio privado `prod-run.sh` debe admitir ese prefijo.
+
+Las tres excepciones estructurales estrechas son:
 
 1. 0009 puede sustituir exactamente `attachments_kind`, conservando los valores actuales y ampliando el conjunto a `request`, `reply`, `note`, `contract`. Se exige la eliminación y reposición revisada juntas, y se verifica la restricción anterior y posterior.
 2. 0013 puede sustituir exactamente `push_subscription_endpoint`, desde el índice único de `endpoint` al índice único de `(ownerId, memberId, endpoint)`. Se verifica la forma anterior y posterior y la conservación completa de las filas. No se permite eliminar suscripciones ni mensajes para hacer encajar una estructura antigua.
+3. 0018 puede sustituir exactamente `security_audit_action`, conservando las 14 acciones de 0012 y sumando `password_reset_link_created` y `password_reset_completed`. Igual que en 0009, se exigen la eliminación y la reposición revisadas juntas, y se verifica la restricción anterior y posterior.
 
 Una versión ya aplicada se comprueba sin volver a ejecutar DDL ni confirmar otra transacción de escritura.
 

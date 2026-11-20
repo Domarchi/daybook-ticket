@@ -338,13 +338,17 @@ test('evolution requires a single explicit reviewed prefix, exact confirmation a
     mode: 'audit',
     through: '0017',
   });
+  assert.deepEqual(validateEvolutionCliArguments(['--audit', '--through=0018'], {}), {
+    mode: 'audit',
+    through: '0018',
+  });
   for (const args of [
     [],
     ['--audit'],
     ['--apply', '--audit'],
     ['--apply', '--through=0007', 'secret'],
     ['--audit', '--through=0006'],
-    ['--audit', '--through=0018'],
+    ['--audit', '--through=0019'],
     ['--audit', '--through=7'],
     ['--audit', '--through=0007,0009'],
     ['--audit', '--through=0007;SELECT 1'],
@@ -513,7 +517,7 @@ test('only reviewed attachment-kind and tenant-scoped push index replacement exc
       "ALTER TABLE attachments DROP CONSTRAINT attachments_kind; ALTER TABLE attachments ADD CONSTRAINT attachments_kind CHECK(kind IN ('request','reply','note','contract'));",
     ),
   );
-  for (const index of [7, 8, 10, 11, 12, 13])
+  for (const index of [7, 8, 10, 11, 12, 13, 18])
     assert.throws(
       () => analyzeEvolutionSql(index, 'ALTER TABLE attachments DROP CONSTRAINT attachments_kind;'),
       MigrationOperatorError,
@@ -867,7 +871,7 @@ test('0014 adds only the two reviewed ticket-queue indexes: no extension, data, 
     'CREATE INDEX CONCURRENTLY x ON tickets (id) ; INSERT INTO tickets DEFAULT VALUES;',
   ])
     assert.throws(() => analyzeEvolutionSql(14, `${sql}\n${statement}`), MigrationOperatorError);
-  assert.throws(() => analyzeEvolutionSql(18, sql), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(19, sql), MigrationOperatorError);
 });
 
 test('0015 adds only five nullable ticket columns: no default, backfill, constraint, index or data change', async () => {
@@ -900,7 +904,7 @@ test('0015 adds only five nullable ticket columns: no default, backfill, constra
     'DROP INDEX tickets_owner_page;',
   ])
     assert.throws(() => analyzeEvolutionSql(15, `${sql}\n${statement}`), MigrationOperatorError);
-  assert.throws(() => analyzeEvolutionSql(18, sql), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(19, sql), MigrationOperatorError);
 });
 
 test('0016 adds the nullable inventory ID with a unique index and one new empty table: no backfill or destructive DDL', async () => {
@@ -967,7 +971,7 @@ test('0016 adds the nullable inventory ID with a unique index and one new empty 
     'INSERT INTO "ticketFulfillment" ("ticketId") VALUES (1);',
   ])
     assert.throws(() => analyzeEvolutionSql(16, `${sql}\n${statement}`), MigrationOperatorError);
-  assert.throws(() => analyzeEvolutionSql(18, sql), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(19, sql), MigrationOperatorError);
 });
 
 test('0017 adds only the unique serial index on equipment: no data, column or constraint change', async () => {
@@ -995,5 +999,44 @@ test('0017 adds only the unique serial index on equipment: no data, column or co
     'DROP INDEX customer_assets_owner_tag;',
   ])
     assert.throws(() => analyzeEvolutionSql(17, `${sql}\n${statement}`), MigrationOperatorError);
-  assert.throws(() => analyzeEvolutionSql(18, sql), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(19, sql), MigrationOperatorError);
+});
+
+test('0018 only widens the security audit action list: same name, every old action kept, two added', async () => {
+  const artifacts = await loadEvolutionMigrationArtifacts('0018');
+  assert.equal(artifacts.files.length, 19);
+  const last = artifacts.files[18];
+  assert.equal(last.tag, '0018_security_audit_reset_actions');
+  assert.equal(last.when, 1793912011000);
+  const sql = last.content.toString('utf8'),
+    plan = analyzeEvolutionSql(18, sql);
+  assert.equal(plan.replacesAuditAction, true);
+  assert.equal(plan.replacesAttachmentKind, false);
+  assert.equal(plan.replacesPushEndpoint, false);
+  assert.deepEqual(plan.tables, []);
+  assert.deepEqual(plan.additions, []);
+  assert.deepEqual(plan.indexes, []);
+  const list = text => /CHECK\(action IN \(([^)]*)\)\)/.exec(text)[1].split(','),
+    before = list(artifacts.files[12].content.toString('utf8')),
+    after = list(sql);
+  assert.deepEqual(after.slice(0, before.length), before);
+  assert.deepEqual(after.slice(before.length), ["'password_reset_link_created'", "'password_reset_completed'"]);
+  const drop = 'ALTER TABLE "securityAudit" DROP CONSTRAINT security_audit_action;',
+    add = sql.split('--> statement-breakpoint')[1];
+  for (const statement of [
+    drop,
+    add,
+    `${drop}\n${add.replace(",'password_reset_completed'", '')}`,
+    `${drop}\n${add.replace("'password_verified',", '')}`,
+    `${drop}\n${add.replace('security_audit_action CHECK', 'other_action CHECK')}`,
+    `${drop}\n${add.replace('CHECK(action IN', 'CHECK("actorName" IN')}`,
+    `${drop.replace('security_audit_action', 'security_audit_other')}\n${add}`,
+    `${sql}\nALTER TABLE "securityAudit" DROP CONSTRAINT security_audit_action;`,
+    `${sql}\nDELETE FROM "securityAudit";`,
+    `${sql}\nDROP TRIGGER security_audit_immutable ON "securityAudit";`,
+    'ALTER TABLE attachments DROP CONSTRAINT attachments_kind;',
+  ])
+    assert.throws(() => analyzeEvolutionSql(18, statement), MigrationOperatorError, statement);
+  for (const index of [9, 12, 13, 17]) assert.throws(() => analyzeEvolutionSql(index, sql), MigrationOperatorError);
+  assert.throws(() => analyzeEvolutionSql(19, sql), MigrationOperatorError);
 });

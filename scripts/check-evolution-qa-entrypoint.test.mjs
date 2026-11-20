@@ -19,10 +19,11 @@ test('QA migration entry point requires an exact reviewed prefix and isolated ho
   assert.equal(validateEvolutionQaArguments(['--through=0015'], environment).through, '0015');
   assert.equal(validateEvolutionQaArguments(['--through=0016'], environment).through, '0016');
   assert.equal(validateEvolutionQaArguments(['--through=0017'], environment).through, '0017');
+  assert.equal(validateEvolutionQaArguments(['--through=0018'], environment).through, '0018');
   for (const args of [
     [],
     ['--apply'],
-    ['--through=0018'],
+    ['--through=0019'],
     ['--through=0013', '--through=0013'],
     ['--through=0013', '--force'],
     ['--audit', '--through=0013'],

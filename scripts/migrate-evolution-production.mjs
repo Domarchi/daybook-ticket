@@ -72,6 +72,11 @@ export const REVIEWED_EVOLUTION_MIGRATIONS = Object.freeze([
     when: 1793912010000,
     hash: '4a35d5a97e1e4459202872afb00c105204a33c078c0dbb3232119d02066fbcee',
   }),
+  Object.freeze({
+    tag: '0018_security_audit_reset_actions',
+    when: 1793912011000,
+    hash: '6803d6fe9620df6e771f5434379d3f41484de85c90f737121dfe4d6f420912da',
+  }),
 ]);
 export const EVOLUTION_PINNED_MIGRATIONS = Object.freeze([
   ...RELIABILITY_PINNED_MIGRATIONS,
@@ -88,7 +93,7 @@ export function evolutionConfirmTarget(through) {
   return `${BASE_TARGET}:through-${through}`;
 }
 function targetIndex(through) {
-  guard(typeof through === 'string' && /^(000[7-9]|001[0-7])$/.test(through), 'explicit_evolution_prefix_required');
+  guard(typeof through === 'string' && /^(000[7-9]|001[0-8])$/.test(through), 'explicit_evolution_prefix_required');
   return Number(through);
 }
 export function validateEvolutionCliArguments(args, environment) {
@@ -223,6 +228,32 @@ function canonical(input) {
     );
   return values.join(' ').replaceAll('public . ', '').replaceAll('using btree ', '');
 }
+/** 0018 widens the append-only security audit's closed action list; it never removes an action. */
+const AUDIT_ACTIONS_BEFORE = Object.freeze([
+  'password_verified',
+  'mfa_verified',
+  'mfa_enabled',
+  'mfa_disabled',
+  'recovery_acknowledged',
+  'recovery_regenerated',
+  'policy_enabled',
+  'policy_disabled',
+  'session_revoked',
+  'other_sessions_revoked',
+  'platform_backup_created',
+  'business_export_created',
+  'member_permissions_changed',
+  'configuration_changed',
+]);
+const AUDIT_ACTIONS_AFTER = Object.freeze([
+  ...AUDIT_ACTIONS_BEFORE,
+  'password_reset_link_created',
+  'password_reset_completed',
+]);
+const AUDIT_DROP = canonical('ALTER TABLE "securityAudit" DROP CONSTRAINT security_audit_action');
+const AUDIT_ADD = canonical(
+  `ADD CONSTRAINT security_audit_action CHECK(action IN (${AUDIT_ACTIONS_AFTER.map(value => `'${value}'`).join(',')}))`,
+);
 const OLD_PUSH = canonical(
   'CREATE UNIQUE INDEX push_subscription_endpoint ON public."pushSubscriptions" USING btree (endpoint)',
 );
@@ -295,14 +326,23 @@ function safeDefaults(table, columns) {
 /** Reviewed hash validation is also mandatory. This additional grammar rejects data writes and destructive DDL. */
 export function analyzeEvolutionSql(index, sql) {
   guard(
-    Number.isInteger(index) && index >= 7 && index <= 17 && typeof sql === 'string' && !sql.includes('\0'),
+    Number.isInteger(index) && index >= 7 && index <= 18 && typeof sql === 'string' && !sql.includes('\0'),
     'invalid_evolution_sql',
   );
-  const plan = { tables: [], additions: [], indexes: [], replacesPushEndpoint: false, replacesAttachmentKind: false };
+  const plan = {
+    tables: [],
+    additions: [],
+    indexes: [],
+    replacesPushEndpoint: false,
+    replacesAttachmentKind: false,
+    replacesAuditAction: false,
+  };
   let droppedPush = 0,
     createdPush = 0,
     droppedKind = 0,
-    createdKind = 0;
+    createdKind = 0,
+    droppedAudit = 0,
+    createdAudit = 0;
   for (const statement of groups(tokens(sql), ';')) {
     if (word(statement[0], 'create') && word(statement[1], 'table')) {
       const name = identifier(statement[2]);
@@ -329,6 +369,10 @@ export function analyzeEvolutionSql(index, sql) {
       const table = identifier(statement[2]);
       guard(table, 'unsupported_evolution_ddl');
       if (word(statement[3], 'drop')) {
+        if (index === 18 && canonical(statement) === AUDIT_DROP) {
+          droppedAudit++;
+          continue;
+        }
         guard(
           index === 9 && canonical(statement) === canonical('ALTER TABLE attachments DROP CONSTRAINT attachments_kind'),
           'destructive_evolution_ddl',
@@ -343,6 +387,9 @@ export function analyzeEvolutionSql(index, sql) {
           guard(!definition.not_null || definition.column_default !== null, 'unsafe_nonnullable_evolution_addition');
           safeDefaults(table, [definition]);
           plan.additions.push({ table, ...definition });
+        } else if (index === 18 && table === 'securityAudit') {
+          guard(canonical(part) === AUDIT_ADD, 'unexpected_audit_constraint_replacement');
+          createdAudit++;
         } else {
           guard(
             index === 9 &&
@@ -420,7 +467,9 @@ export function analyzeEvolutionSql(index, sql) {
   }
   guard(droppedPush === createdPush && droppedPush <= 1, 'unexpected_push_index_replacement');
   guard(droppedKind === createdKind && droppedKind <= 1, 'unexpected_attachment_constraint_replacement');
+  guard(droppedAudit === createdAudit && droppedAudit <= 1, 'unexpected_audit_constraint_replacement');
   plan.replacesAttachmentKind = droppedKind === 1;
+  plan.replacesAuditAction = droppedAudit === 1;
   plan.replacesPushEndpoint = droppedPush === 1;
   return plan;
 }
@@ -541,7 +590,7 @@ async function constraints(client) {
     )
   ).rows;
 }
-function kindConstraint(definition, values) {
+function listConstraint(definition, column, values) {
   const input = tokens(definition).filter(token => token.kind !== 'symbol' || !['(', ')', ';'].includes(token.value)),
     withoutCasts = [];
   for (let i = 0; i < input.length; i++) {
@@ -552,13 +601,13 @@ function kindConstraint(definition, values) {
     withoutCasts.push(input[i]);
   }
   const actual = canonical(withoutCasts),
-    expected = canonical(`CHECK(kind=ANY(ARRAY[${values.map(value => "'" + value + "'").join(',')}]))`);
+    expected = canonical(`CHECK(${column}=ANY(ARRAY[${values.map(value => "'" + value + "'").join(',')}]))`);
   return (
     actual ===
       canonical(tokens(expected).filter(token => token.kind !== 'symbol' || !['(', ')'].includes(token.value))) ||
     actual ===
       canonical(
-        tokens(`CHECK(kind IN (${values.map(value => "'" + value + "'").join(',')}))`).filter(
+        tokens(`CHECK(${column} IN (${values.map(value => "'" + value + "'").join(',')}))`).filter(
           token => token.kind !== 'symbol' || !['(', ')'].includes(token.value),
         ),
       )
@@ -572,11 +621,23 @@ function validKindConstraint(row, values) {
     row.validated === true &&
     row.deferrable === false &&
     row.deferred === false &&
-    kindConstraint(row.definition, values)
+    listConstraint(row.definition, 'kind', values)
+  );
+}
+function validAuditConstraint(row, values) {
+  return (
+    row?.table_name === 'securityAudit' &&
+    row.constraint_name === 'security_audit_action' &&
+    row.type === 'c' &&
+    row.validated === true &&
+    row.deferrable === false &&
+    row.deferred === false &&
+    listConstraint(row.definition, 'action', values)
   );
 }
 function verifyConstraints(before, after, pending) {
   const replacement = pending.some(file => file.plan.replacesAttachmentKind),
+    auditReplacement = pending.some(file => file.plan.replacesAuditAction),
     byName = new Map(after.map(row => [`${row.table_name}:${row.constraint_name}`, row]));
   for (const row of before) {
     const current = byName.get(`${row.table_name}:${row.constraint_name}`);
@@ -586,8 +647,18 @@ function verifyConstraints(before, after, pending) {
           validKindConstraint(current, ['request', 'reply', 'note', 'contract']),
         'unexpected_attachment_constraint_replacement',
       );
+    else if (auditReplacement && row.table_name === 'securityAudit' && row.constraint_name === 'security_audit_action')
+      guard(
+        validAuditConstraint(row, AUDIT_ACTIONS_BEFORE) && validAuditConstraint(current, AUDIT_ACTIONS_AFTER),
+        'unexpected_audit_constraint_replacement',
+      );
     else guard(current && JSON.stringify(current) === JSON.stringify(row), 'existing_constraint_definition_changed');
   }
+  if (auditReplacement)
+    guard(
+      before.some(row => row.table_name === 'securityAudit' && row.constraint_name === 'security_audit_action'),
+      'missing_original_audit_constraint',
+    );
   if (replacement)
     guard(
       before.some(row => row.table_name === 'attachments' && row.constraint_name === 'attachments_kind'),
@@ -801,6 +872,11 @@ export async function runEvolutionMigrationOperator(client, { mode = 'audit', th
         beforeConstraints.some(row => validKindConstraint(row, ['request', 'reply', 'note', 'contract'])),
         'unexpected_attachment_constraint_replacement',
       );
+    if (source.files.slice(7, count).some(file => file.plan.replacesAuditAction))
+      guard(
+        beforeConstraints.some(row => validAuditConstraint(row, AUDIT_ACTIONS_AFTER)),
+        'unexpected_audit_constraint_replacement',
+      );
     verifyAppliedIndexes(beforeIndexes, source, count);
     const before = await fingerprints(client, beforeColumns),
       pending = source.files.slice(Math.max(7, count));
@@ -831,6 +907,11 @@ export async function runEvolutionMigrationOperator(client, { mode = 'audit', th
       guard(
         beforeConstraints.some(row => validKindConstraint(row, ['request', 'reply', 'note'])),
         'unexpected_attachment_constraint_replacement',
+      );
+    if (pending.some(file => file.plan.replacesAuditAction))
+      guard(
+        beforeConstraints.some(row => validAuditConstraint(row, AUDIT_ACTIONS_BEFORE)),
+        'unexpected_audit_constraint_replacement',
       );
     snapshotDirectory = await freezeCheckedSource(source);
     const adapter = createMigrationSavepointClient(client);
