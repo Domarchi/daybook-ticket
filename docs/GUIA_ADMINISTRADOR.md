@@ -54,8 +54,10 @@ No está disponible para:
 - una cuenta que también se usa en otro espacio de Daybook.
 
 Queda registrado en **Seguridad → Auditoría:**
-- al crear el enlace, «Acceso de una cuenta modificado» a tu nombre;
-- cuando la persona lo usa, «Otras sesiones cerradas» a nombre de ella.
+- al crear el enlace, «Enlace para nueva contraseña creado» a tu nombre;
+- cuando la persona lo usa, «Contraseña restablecida» a nombre de ella.
+
+Los enlaces anteriores a la migración 0018 aparecen como «Acceso de una cuenta modificado» y «Otras sesiones cerradas».
 
 ## Si algo falla
 

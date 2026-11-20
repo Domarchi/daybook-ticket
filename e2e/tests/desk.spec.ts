@@ -1765,9 +1765,9 @@ test.describe('the support desk', () => {
         `SELECT action FROM "securityAudit" WHERE "targetId"=(SELECT id FROM members WHERE email='lucia.rojas@example.test') ORDER BY "createdAt", action`,
       );
       expect(audit.rows.map(row => row.action)).toEqual([
-        'member_permissions_changed',
-        'member_permissions_changed',
-        'other_sessions_revoked',
+        'password_reset_link_created',
+        'password_reset_link_created',
+        'password_reset_completed',
       ]);
       expect(
         (await pool.query(`SELECT 1 FROM "authVerification" WHERE identifier LIKE 'reset-password%'`)).rowCount,
