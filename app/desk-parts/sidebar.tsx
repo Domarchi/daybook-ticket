@@ -126,17 +126,15 @@ export function Sidebar({
       </div>
       {/* El espacio actual, una sola vez: tocarlo abre «Mis espacios» para cambiar a otro. Antes había además un
           selector y un enlace de 18 px más abajo que repetían lo mismo. */}
-      <Link
-        href="/workspaces"
-        className="workspace"
-        aria-label={`${data.workspaceName || data.settings.brandName}. Cambiar de espacio`}
-      >
+      <Link href="/workspaces" className="workspace">
         <span className="workspace-icon">
           <Headphones size={18} aria-hidden="true" />
         </span>
         <div>
           {data.workspaceName || data.settings.brandName}
           <small>Centro de soporte compartido</small>
+          {/* El nombre accesible empieza con lo que se ve (WCAG 2.5.3) y termina diciendo a dónde lleva. */}
+          <span className="sr-only">. Cambiar de espacio</span>
         </div>
         <ChevronRight size={16} aria-hidden="true" />
       </Link>
