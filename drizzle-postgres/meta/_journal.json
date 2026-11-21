@@ -127,6 +127,13 @@
       "when": 1793912010000,
       "tag": "0017_equipment_serial_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793912011000,
+      "tag": "0018_security_audit_reset_actions",
+      "breakpoints": true
     }
   ]
 }
