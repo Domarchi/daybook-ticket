@@ -34,9 +34,10 @@ const actions: Record<SecurityAction, string> = {
   other_sessions_revoked: 'Otras sesiones cerradas',
   platform_backup_created: 'Respaldo de plataforma creado',
   business_export_created: 'Exportación del negocio creada',
-  // Also a password reset link made by an admin: the audit actions are a closed list in the database (0012).
   member_permissions_changed: 'Acceso de una cuenta modificado',
   configuration_changed: 'Configuración modificada',
+  password_reset_link_created: 'Enlace para nueva contraseña creado',
+  password_reset_completed: 'Contraseña restablecida',
 };
 async function api<T>(path: string, memberId: string | undefined, method = 'GET', body?: unknown): Promise<T> {
   const response = await daybookFetch(path, {

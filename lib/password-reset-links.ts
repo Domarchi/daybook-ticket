@@ -68,7 +68,7 @@ export async function createPasswordResetLink(
       [storedResetIdentifier(token), userId, expiresAt, now],
     );
     // The audit actions are a closed list in the database (0012): a reset link is recorded as an access change.
-    await recordSecurityEvent(tx, fresh, 'member_permissions_changed', member.id);
+    await recordSecurityEvent(tx, fresh, 'password_reset_link_created', member.id);
     return { url: resetLinkUrl(base, token), expiresAt: expiresAt.toISOString(), email: member.email };
   });
 }
