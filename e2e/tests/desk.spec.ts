@@ -63,7 +63,7 @@ test.describe('the support desk', () => {
     const rail = page.locator('#daybook-navigation');
     const main = rail.getByRole('navigation', { name: 'Navegación principal' });
     await expect(main).toHaveClass(/\bdb-rail-nav\b/);
-    const inbox = main.getByRole('button', { name: /^Bandeja de entrada/ });
+    const inbox = main.getByRole('button', { name: /^Bandeja/ });
     await expect(inbox).toHaveAttribute('aria-current', 'page');
     const measured = await rail.evaluate(element => {
       const left = (el: Element | null) => Math.round(el!.getBoundingClientRect().left);
@@ -117,7 +117,7 @@ test.describe('the support desk', () => {
       'page',
     );
     await expect(inbox).not.toHaveAttribute('aria-current', 'page');
-    await main.getByRole('button', { name: /^Bandeja de entrada/ }).click();
+    await main.getByRole('button', { name: /^Bandeja/ }).click();
     await expect(inbox).toHaveAttribute('aria-current', 'page');
     await expectNoSeriousViolations(page, 'Riel común');
     // The list scrolls on its own, down to the account rows, while the person stays put.

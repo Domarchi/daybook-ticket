@@ -61,6 +61,28 @@ test.describe('the desk on a 375 px phone', () => {
     await expect(open).toBeFocused();
   });
 
+  test('the menu names the workspace once, as a row a finger can hit, and no row is cut short', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Abrir menú' }).click();
+    const menu = page.getByRole('dialog', { name: 'Menú de navegación' });
+    await expect(menu).toBeVisible();
+    // One workspace control: the card at the top opens «Mis espacios». The old select and its 18 px link are gone.
+    const workspace = menu.getByRole('link', { name: /Cambiar de espacio$/ });
+    await expect(workspace).toHaveAttribute('href', '/workspaces');
+    expect((await workspace.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expect(menu.getByRole('combobox', { name: 'Cambiar espacio' })).toHaveCount(0);
+    await expect(menu.getByRole('link', { name: 'Todos mis espacios' })).toHaveCount(0);
+    // Every label fits the 232 px drawer next to its count (it read «Bandeja de entra…»).
+    const cut = await menu.evaluate(element =>
+      [...element.querySelectorAll<HTMLElement>('.db-rail-link__label')]
+        .filter(label => label.scrollWidth > label.clientWidth)
+        .map(label => label.textContent),
+    );
+    expect(cut).toEqual([]);
+    // The rail is dark in both themes, so its scrollbar is too (it was the browser's white one).
+    await expect(menu.locator('.db-rail-scroll')).toHaveCSS('color-scheme', 'dark');
+  });
+
   test('a ticket opens, fits the screen and keeps the reply box within reach', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('list', { name: 'Tickets' }).getByRole('link', { name: SUBJECT }).click();
