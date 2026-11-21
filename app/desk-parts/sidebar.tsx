@@ -3,6 +3,7 @@ import {
   Activity,
   ArrowUpRight,
   BookOpen,
+  ChevronRight,
   Clock3,
   Headphones,
   Inbox,
@@ -12,7 +13,6 @@ import {
   LayoutDashboard,
   LifeBuoy,
   Settings,
-  ShieldCheck,
   SlidersHorizontal,
   Users,
   X,
@@ -20,7 +20,7 @@ import {
 import { type Workspace } from '../../lib/types';
 import { ROLE_LABELS } from '../access-panel';
 import Brand from '../brand';
-import { WorkspaceSwitcher } from '../workspace-navigation';
+import Link from 'next/link';
 import { cloneElement, useEffect, useRef, type ReactElement, type ReactNode } from 'react';
 import { initials, View } from './shared';
 import { ThemeCycleButton, type ThemePreference } from '../evolution-controls';
@@ -124,16 +124,20 @@ export function Sidebar({
           <Brand dark />
         </button>
       </div>
-      <div className="workspace">
+      {/* El espacio actual, una sola vez: tocarlo abre «Mis espacios» para cambiar a otro. Antes había además un
+          selector y un enlace de 18 px más abajo que repetían lo mismo. */}
+      <Link href="/workspaces" className="workspace">
         <span className="workspace-icon">
           <Headphones size={18} aria-hidden="true" />
         </span>
         <div>
           {data.workspaceName || data.settings.brandName}
           <small>Centro de soporte compartido</small>
+          {/* El nombre accesible empieza con lo que se ve (WCAG 2.5.3) y termina diciendo a dónde lleva. */}
+          <span className="sr-only">. Cambiar de espacio</span>
         </div>
-        <ShieldCheck size={16} aria-hidden="true" />
-      </div>
+        <ChevronRight size={16} aria-hidden="true" />
+      </Link>
       {/* La lista común de la familia; se desplaza ella sola (con sombra cuando hay más filas) y el pie queda
           siempre a la vista. */}
       <div className="db-rail-scroll">
@@ -145,7 +149,8 @@ export function Sidebar({
             current={view}
             go={go}
             icon={<Inbox />}
-            label="Bandeja de entrada"
+            // «Bandeja de entrada» no cabe junto al número en 232 px; el título de la vista la nombra entera.
+            label="Bandeja"
             count={counts.active}
           />
           <RailLink view="contacts" current={view} go={go} icon={<Users />} label="Contactos" />
@@ -196,9 +201,6 @@ export function Sidebar({
             </button>
           ))}
         </nav>
-        <div className="sidebar-workspaces">
-          <WorkspaceSwitcher />
-        </div>
         <nav className="db-rail-nav" aria-label="Cuenta y ayuda">
           <hr className="db-rail-divider" />
           <RailLink view="account" current={view} go={go} icon={<Settings />} label="Configuración" />

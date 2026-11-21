@@ -536,9 +536,13 @@ button:focus-visible,a:focus-visible{outline:2px solid #a46d09;outline-offset:3p
 .sidebar .workspace>div{flex:1;min-width:0}
 .sidebar .workspace-icon{display:grid;flex:none;place-items:center;width:30px;height:30px;border-radius:var(--db-radius-control);background:var(--db-rail-hover);color:var(--db-rail-indicator)}
 .sidebar .workspace small{display:block;margin-top:2px;color:var(--db-rail-text-muted);font-size:var(--db-text-caption);font-weight:var(--db-weight-regular)}
-.sidebar .workspace>svg{color:var(--db-rail-text-muted)}
-.sidebar>.db-rail-scroll{padding-bottom:var(--db-space-3);scrollbar-width:thin;scrollbar-color:var(--db-rail-border) transparent}
-.sidebar-workspaces{padding:var(--db-space-3) calc(var(--db-rail-inset) + var(--db-rail-item-padding-x)) 0}
+.sidebar .workspace>svg{flex:none;color:var(--db-rail-text-muted)}
+/* Es un enlace: mismo hover, toque y foco que las filas de la lista. */
+.sidebar .workspace{text-decoration:none;transition:background-color var(--db-duration-fast) var(--db-ease-out),border-color var(--db-duration-fast) var(--db-ease-out)}
+@media(hover:hover) and (pointer:fine){.sidebar .workspace:hover{background:var(--db-rail-hover);border-color:var(--db-rail-text-muted)}}
+.sidebar .workspace:active{background:var(--db-rail-active)}
+.sidebar .workspace:focus-visible{outline:2px solid var(--db-rail-focus);outline-offset:-2px}
+.sidebar>.db-rail-scroll{padding-bottom:var(--db-space-3)}
 .nav-dot{flex:none;margin:0 6px}
 /* Si el tema no se pudo guardar en la cuenta, el aviso va en el pie, sobre la persona. */
 .sidebar-theme-error{margin:0;padding:var(--db-space-2) var(--db-rail-item-padding-x);border:1px solid var(--db-rail-border);border-radius:var(--db-radius-control);color:var(--db-rail-text);font-size:var(--db-text-caption);line-height:var(--db-leading-ui)}
@@ -551,12 +555,6 @@ button:focus-visible,a:focus-visible{outline:2px solid #a46d09;outline-offset:3p
   /* Antes de hidratar el riel todavía no lleva .db-rail-drawer: que no tape la página. */
   .sidebar:not(.db-rail-drawer){visibility:hidden;transform:translateX(-100%)}
 }
-/* El selector de espacio vive en el riel: oscuro como el del tema, al borde de los íconos. */
-.sidebar .workspace-switcher{padding:0;gap:6px;color:var(--db-rail-text-muted);font-size:var(--db-text-caption)}
-.sidebar .workspace-switcher select{min-height:36px;padding:6px 8px;background:transparent;color:var(--db-rail-text);border-color:var(--db-rail-border);font-size:var(--db-text-caption)}
-.sidebar .workspace-switcher select option{color:initial}
-.sidebar .workspace-switcher a{color:var(--db-rail-text-muted)}
-.sidebar .workspace-switcher a:hover{color:var(--db-rail-text)}
 
 /* Configuración de la persona (2026-11-19), como la de Parte Diario: Apariencia, Cuenta (con la seguridad que
    antes era la vista «Seguridad»), Sesión y Ayuda. El tema es un control segmentado hecho con radios de verdad:
