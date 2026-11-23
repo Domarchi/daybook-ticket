@@ -68,7 +68,7 @@ test.describe('the desk on a 375 px phone', () => {
     await expect(menu).toBeVisible();
     // One workspace control: the card at the top opens «Mis espacios». The old select and its 18 px link are gone.
     const workspace = menu.getByRole('link', { name: /Cambiar de espacio$/ });
-    await expect(workspace).toHaveAttribute('href', '/workspaces');
+    await expect(workspace).toHaveAttribute('href', /^\/workspaces\?from=/);
     expect((await workspace.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await expect(menu.getByRole('combobox', { name: 'Cambiar espacio' })).toHaveCount(0);
     await expect(menu.getByRole('link', { name: 'Todos mis espacios' })).toHaveCount(0);
@@ -81,6 +81,35 @@ test.describe('the desk on a 375 px phone', () => {
     expect(cut).toEqual([]);
     // The rail is dark in both themes, so its scrollbar is too (it was the browser's white one).
     await expect(menu.locator('.db-rail-scroll')).toHaveCSS('color-scheme', 'dark');
+  });
+
+  test('«Mis espacios» shows the logo, a way back to the desk and one card per workspace', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Abrir menú' }).click();
+    await page
+      .getByRole('dialog', { name: 'Menú de navegación' })
+      .getByRole('link', { name: /Cambiar de espacio$/ })
+      .click();
+    await expect(page.getByRole('heading', { name: 'Mis espacios', level: 1 })).toBeVisible();
+    await expect(page.getByRole('img', { name: 'Daybook Ticket' })).toBeVisible();
+    // It used to be a bare page: the only way out was the browser's back button.
+    const back = page.getByRole('link', { name: /^Volver a / });
+    expect((await back.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    const cards = page.locator('.workspaces-list a');
+    expect(await cards.count()).toBeGreaterThan(0);
+    await expect(cards.first()).toContainText('Propietario');
+    await expect(cards.first()).toContainText(/Activo|En preparación|En pausa/);
+    expect((await cards.first().boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expectNoSidewaysScroll(page);
+    await expectNoSeriousViolations(page, 'Mis espacios en móvil');
+    await back.click();
+    await expect(page.getByRole('button', { name: 'Abrir menú' })).toBeVisible();
+  });
+
+  test('a «from» that is not one of your workspaces offers no way back', async ({ page }) => {
+    await page.goto('/workspaces?from=ajeno');
+    await expect(page.getByRole('heading', { name: 'Mis espacios', level: 1 })).toBeVisible();
+    await expect(page.getByRole('link', { name: /^Volver a / })).toHaveCount(0);
   });
 
   test('a ticket opens, fits the screen and keeps the reply box within reach', async ({ page }) => {
