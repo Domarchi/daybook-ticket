@@ -21,6 +21,8 @@ import { type Workspace } from '../../lib/types';
 import { ROLE_LABELS } from '../access-panel';
 import Brand from '../brand';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { workspaceIdFromPath } from '../../lib/workspace-model';
 import { cloneElement, useEffect, useRef, type ReactElement, type ReactNode } from 'react';
 import { initials, View } from './shared';
 import { ThemeCycleButton, type ThemePreference } from '../evolution-controls';
@@ -63,6 +65,9 @@ export function Sidebar({
   onChooseTheme: (theme: ThemePreference) => void;
 }) {
   const ref = useRef<HTMLElement>(null);
+  // «Mis espacios» sabe de qué espacio vienes y ofrece volver a él. Sale de la ruta, igual en el servidor y en el
+  // navegador, para no descuadrar la hidratación.
+  const workspacesHref = `/workspaces?from=${encodeURIComponent(workspaceIdFromPath(usePathname() ?? '/'))}`;
   // Abierto el cajón: el foco entra al primer destino un cuadro después (ya visible), Tab queda dentro,
   // Escape lo cierra, la página de atrás no se desplaza y al cerrar el foco vuelve al botón que lo abrió.
   useEffect(() => {
@@ -126,7 +131,7 @@ export function Sidebar({
       </div>
       {/* El espacio actual, una sola vez: tocarlo abre «Mis espacios» para cambiar a otro. Antes había además un
           selector y un enlace de 18 px más abajo que repetían lo mismo. */}
-      <Link href="/workspaces" className="workspace">
+      <Link href={workspacesHref} className="workspace">
         <span className="workspace-icon">
           <Headphones size={18} aria-hidden="true" />
         </span>

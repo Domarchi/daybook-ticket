@@ -2,3 +2,20 @@
 
 .workspace-switcher{min-width:0}.workspace-switcher select{max-width:100%;text-overflow:ellipsis}.client-main .workspace-sync{flex-wrap:wrap}.client-main .workspace-switcher{padding:0;max-width:min(100%,340px)}@media(max-width:600px){.client-main .workspace-switcher{width:100%;max-width:none}.workspace-switcher select{min-height:44px;font-size:var(--db-text-emphasis)}}
 .commercial-limit-fields{min-width:0;margin:0;padding:18px;border:1px solid var(--line);border-radius:var(--db-radius-card);display:grid;gap:12px}.commercial-limit-fields legend{padding:0 6px;font-size:var(--db-text-body);font-weight:var(--db-weight-semibold)}.commercial-limit-fields>p{margin:0;font-size:var(--db-text-meta)}.commercial-limit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.commercial-limit-grid label{min-width:0;font-size:var(--db-text-body);font-weight:var(--db-weight-medium)}.commercial-limit-grid small{font-weight:var(--db-weight-regular);font-size:var(--db-text-caption)}.commercial-limit-grid input{min-height:44px;font-variant-numeric:tabular-nums}.commercial-limit-fields:disabled{opacity:.65}.commercial-quota-summary dd{font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.commercial-usage-caption{margin-bottom:-8px;font-size:var(--db-text-caption)}.commercial-state{display:inline-flex;padding:3px 10px;border:1px solid var(--line);border-radius:var(--db-radius-pill);font-size:var(--db-text-caption);color:var(--ink);background:var(--surface)}.commercial-state[data-state=active]{border-color:var(--accent);color:var(--accent)}.commercial-workspace-id{font-size:var(--db-text-caption);overflow-wrap:anywhere}.commercial-panel input:focus-visible,.commercial-panel select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}@media(max-width:600px){.commercial-limit-grid{grid-template-columns:1fr}.commercial-limit-fields{padding:14px}}
+/* «Mis espacios»: logo y vuelta al espacio de origen arriba; cada espacio es una tarjeta de 72 px con nombre, rol y estado. */
+.workspaces-page>header{flex-wrap:wrap}
+.workspaces-back{display:inline-flex;align-items:center;gap:var(--db-space-2);min-height:44px;max-width:100%;padding:0 14px;border:1px solid var(--line);border-radius:var(--db-radius-control);background:var(--surface);color:var(--ink);font-size:var(--db-text-meta);font-weight:var(--db-weight-medium);text-decoration:none;transition:border-color var(--db-duration-fast) var(--db-ease-out)}
+.workspaces-back>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* .security-page>h1 (24 px) llega después en la hoja: hace falta la clase doble. */
+.security-page.workspaces-page>h1{margin-bottom:6px}
+.workspaces-page>p{color:var(--muted);font-size:var(--db-text-meta)}
+.commercial-page>ul.workspaces-list a{display:flex;align-items:center;gap:14px;min-height:72px;padding:14px 16px;color:var(--ink);text-decoration:none;transition:border-color var(--db-duration-fast) var(--db-ease-out)}
+.workspaces-icon{display:grid;flex:none;place-items:center;width:36px;height:36px;border-radius:var(--db-radius-control);background:var(--paper);color:var(--accent)}
+.workspaces-name{flex:1;min-width:0;font-size:var(--db-text-body);font-weight:var(--db-weight-semibold);overflow-wrap:anywhere}
+.workspaces-name small{display:block;margin-top:2px;color:var(--muted);font-size:var(--db-text-caption);font-weight:var(--db-weight-regular)}
+.workspaces-list .commercial-state{flex:none}
+.workspaces-chevron{flex:none;color:var(--muted)}
+.workspaces-operator{margin-top:24px}
+.workspaces-operator a{display:inline-flex;align-items:center;min-height:44px;color:var(--accent);text-decoration:underline}
+@media(hover:hover) and (pointer:fine){.workspaces-back:hover,.commercial-page>ul.workspaces-list a:hover{border-color:var(--muted)}}
+.workspaces-back:focus-visible,.commercial-page>ul.workspaces-list a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
