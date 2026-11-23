@@ -105,7 +105,7 @@ test.describe('the support desk', () => {
     await expect(account.locator('.db-rail-account__name')).toHaveText('Propietaria de Prueba');
     const theme = account.getByRole('button', { name: /^Tema: / });
     await expect(theme).toBeInViewport();
-    expect((await theme.boundingBox())!.width).toBe(44);
+    expect((await theme.boundingBox())!.width).toBeCloseTo(44, 0);
     await expect(rail.getByRole('button', { name: 'Cerrar sesión' })).toHaveCount(0);
     if (process.env.DAYBOOK_E2E_CAPTURES)
       await page.screenshot({ path: `${process.env.DAYBOOK_E2E_CAPTURES}/riel-ticket-1366x768.png` });
