@@ -15,7 +15,7 @@ Guías: [administrador](GUIA_ADMINISTRADOR.md) y [empleado](GUIA_EMPLEADO.md). I
 
 ## Preparado, sin aplicar
 
-- **L6, serie única en la base (migración 0017):** el código y el ensayo están listos. Aplicarla en producción necesita una ventana y la orden expresa de la persona responsable. Antes hay que correr la comprobación de series repetidas de [EVOLUTION_RELEASE_OPERATOR.md](EVOLUTION_RELEASE_OPERATOR.md). Mientras tanto, el código ya impide series repetidas.
+- **L6, serie única en la base (migración 0017):** el código y el ensayo están listos. Aplicarla en producción necesita una ventana y la orden expresa de la persona responsable. Antes hay que correr la comprobación de series repetidas de [EVOLUTION_RELEASE_OPERATOR.md](EVOLUTION_RELEASE_OPERATOR.md). Mientras tanto, el código ya impide series repetidas. Los pasos de la ventana de 0017 y 0018 están en [VENTANA_0017_0018.md](VENTANA_0017_0018.md).
 - **Auditoría del enlace para nueva contraseña (migración 0018):** suma «Enlace para nueva contraseña creado» y «Contraseña restablecida» a la lista cerrada de acciones de la auditoría. Hoy esos hechos se registran como «Acceso de una cuenta modificado» y «Otras sesiones cerradas». Se puede aplicar en la misma ventana que 0017; el código que usa las acciones nuevas se fusiona después.
 
 ## Decisiones pendientes de la persona responsable
