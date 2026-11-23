@@ -14,7 +14,9 @@ export type SecurityAction =
   | 'platform_backup_created'
   | 'business_export_created'
   | 'member_permissions_changed'
-  | 'configuration_changed';
+  | 'configuration_changed'
+  | 'password_reset_link_created'
+  | 'password_reset_completed';
 export const SECURITY_ACTIONS: readonly SecurityAction[] = [
   'password_verified',
   'mfa_verified',
@@ -30,6 +32,8 @@ export const SECURITY_ACTIONS: readonly SecurityAction[] = [
   'business_export_created',
   'member_permissions_changed',
   'configuration_changed',
+  'password_reset_link_created',
+  'password_reset_completed',
 ];
 export interface SecurityProof {
   passwordVerifiedAt: string | null;

@@ -55,7 +55,7 @@ Las entregas del lanzamiento (L1–L4: serie obligatoria, importación, enlaces 
 ## 7. Incidentes de seguridad
 
 - **Se filtró un CSV de enlaces:** en **Enlaces de invitación**, usa **Renovar todos**, que anula los enlaces anteriores. Si alguien ya activó una cuenta ajena, revoca su acceso en el directorio.
-- **Se filtró un enlace para nueva contraseña:** crea otro para la misma persona; el anterior deja de funcionar. Si ya se usó, en **Seguridad → Auditoría** aparece «Otras sesiones cerradas» a nombre de la persona. En ese caso, revoca su acceso de inmediato. Para devolvérselo, restáuralo y en ese momento entrégale en mano un enlace nuevo: al usarlo se cierran todas las sesiones de la cuenta, también la de quien usó el enlace filtrado.
+- **Se filtró un enlace para nueva contraseña:** crea otro para la misma persona; el anterior deja de funcionar. Si ya se usó, en **Seguridad → Auditoría** aparece «Contraseña restablecida» a nombre de la persona («Otras sesiones cerradas» si fue antes de la migración 0018). En ese caso, revoca su acceso de inmediato. Para devolvérselo, restáuralo y en ese momento entrégale en mano un enlace nuevo: al usarlo se cierran todas las sesiones de la cuenta, también la de quien usó el enlace filtrado.
 - **Cuenta comprometida:** revoca el acceso de la persona en **Equipo y clientes**. Revisa sus sesiones y la auditoría en **Seguridad**.
 - **Secreto expuesto** (base, Blob, correo): rótalo en el proveedor, actualiza la variable en Vercel y redespliega, siempre con orden expresa. Ver `BETTER_AUTH_SECRET` en §6 antes de tocarla.
 - **Respaldos:** copias cifradas en `~/daybook-backups` del equipo del operador ([AUTOMATIC_BACKUPS.md](AUTOMATIC_BACKUPS.md)). Mantener una copia **fuera** de este equipo.

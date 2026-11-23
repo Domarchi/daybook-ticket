@@ -41,7 +41,7 @@ export function daybookAuth() {
       maxPasswordLength: 128,
       revokeSessionsOnPasswordReset: true,
       // A saved password makes every other reset link of the account useless, mailed or made by an admin. All the
-      // sessions were just closed; that is what the audit records, from its closed list of actions (0012).
+      // sessions were just closed. The audit records it for every active membership of the account (0018).
       onPasswordReset: async ({ user }) => {
         await database
           .prepare(`DELETE FROM "authVerification" WHERE value=$1 AND (identifier LIKE $2 OR identifier LIKE $3)`)
@@ -50,7 +50,7 @@ export function daybookAuth() {
         await database
           .prepare(
             `INSERT INTO "securityAudit" (id,"ownerId","actorMemberId","actorUserId","actorName",action,"targetId","createdAt")
-        SELECT gen_random_uuid()::text,"ownerId",id,"userId",name,'other_sessions_revoked',id,$2 FROM members WHERE "userId"=$1 AND status='active'`,
+        SELECT gen_random_uuid()::text,"ownerId",id,"userId",name,'password_reset_completed',id,$2 FROM members WHERE "userId"=$1 AND status='active'`,
           )
           .bind(user.id, new Date().toISOString())
           .run();

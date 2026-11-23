@@ -76,8 +76,10 @@ test('creating a link asks for a recent password check, is rate limited, audited
   assert.equal(securityActionNeedsReauthentication('/api/members/m1/password-reset', 'POST'), true);
   assert.equal(securityActionNeedsReauthentication('/api/workspaces/w1/members/m1/password-reset', 'POST'), true);
   assert.ok(RATE_RULES.passwordResetLink.max > 0);
-  // The database only accepts the actions of migration 0012.
-  const allowed = /CHECK\(action IN \(([^)]*)\)\)/.exec(readFileSync('drizzle-postgres/0012_security.sql', 'utf8'))![1];
+  // The database only accepts the actions of its closed list, last set by migration 0018.
+  const allowed = /CHECK\(action IN \(([^)]*)\)\)/.exec(
+    readFileSync('drizzle-postgres/0018_security_audit_reset_actions.sql', 'utf8'),
+  )![1];
   for (const action of SECURITY_ACTIONS) assert.ok(allowed.includes(`'${action}'`), action);
   const registry = readFileSync('lib/workspace-route-registry.ts', 'utf8');
   const specific = registry.indexOf("'^members/([^/]+)/password-reset$'");
@@ -86,6 +88,6 @@ test('creating a link asks for a recent password check, is rate limited, audited
   const server = readFileSync('lib/password-reset-links.ts', 'utf8');
   assert.match(server, /checkMemberChange\(fresh, member, \{\}\)/, 'same who-can-manage rule as invitations');
   assert.match(server, /DELETE FROM "authVerification"/, 'a new link replaces the earlier ones');
-  assert.match(server, /recordSecurityEvent\(tx, fresh, 'member_permissions_changed', member\.id\)/);
-  assert.match(readFileSync('lib/daybook-auth.ts', 'utf8'), /'other_sessions_revoked',id,\$2 FROM members/);
+  assert.match(server, /recordSecurityEvent\(tx, fresh, 'password_reset_link_created', member\.id\)/);
+  assert.match(readFileSync('lib/daybook-auth.ts', 'utf8'), /'password_reset_completed',id,\$2 FROM members/);
 });

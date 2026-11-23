@@ -10,13 +10,13 @@
 | L4 | «Confirma tu equipo» en el portal: el empleado completa la serie o registra su equipo | #85 |
 | — | Límite de inicio de sesión por IP pensado para oficinas que comparten una IP pública | #86 |
 | — | «Enlace para nueva contraseña» que crea el administrador, porque el correo está apagado | #88 |
+| — | Auditoría propia de ese enlace: «Enlace para nueva contraseña creado» y «Contraseña restablecida» (migración 0018) | #94 |
 
 Guías: [administrador](GUIA_ADMINISTRADOR.md) y [empleado](GUIA_EMPLEADO.md). Incidentes: [runbook](RUNBOOK_INCIDENTES.md). Capacidad: [prueba de carga](LOAD_TEST.md).
 
 ## Preparado, sin aplicar
 
 - **L6, serie única en la base (migración 0017):** el código y el ensayo están listos. Aplicarla en producción necesita una ventana y la orden expresa de la persona responsable. Antes hay que correr la comprobación de series repetidas de [EVOLUTION_RELEASE_OPERATOR.md](EVOLUTION_RELEASE_OPERATOR.md). Mientras tanto, el código ya impide series repetidas.
-- **Auditoría del enlace para nueva contraseña (migración 0018):** suma «Enlace para nueva contraseña creado» y «Contraseña restablecida» a la lista cerrada de acciones de la auditoría. Hoy esos hechos se registran como «Acceso de una cuenta modificado» y «Otras sesiones cerradas». Se puede aplicar en la misma ventana que 0017; el código que usa las acciones nuevas se fusiona después.
 
 ## Decisiones pendientes de la persona responsable
 
