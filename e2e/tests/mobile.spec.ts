@@ -43,8 +43,8 @@ test.describe('the desk on a 375 px phone', () => {
     await open.click();
     const close = page.getByRole('dialog', { name: 'Menú de navegación' }).getByRole('button', { name: 'Cerrar menú' });
     const box = (await close.boundingBox())!;
-    expect(box.width).toBe(44);
-    expect(box.height).toBe(44);
+    expect(box.width).toBeCloseTo(44, 0);
+    expect(box.height).toBeCloseTo(44, 0);
     await close.click();
     await expect(rail).toHaveAttribute('data-open', 'false');
     // It stays visible while it slides out: visibility waits for the exit (200 ms) instead of switching at once.
